@@ -344,7 +344,6 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = if cli.run.base.validator && cli.run.base.shared_params.log.is_empty() {
                 cli.create_runner_with_logger_hook(&cli.run.base, |logger, _| {
                     logger.with_detailed_output(false);
-                    logger.with_max_level(log::LevelFilter::Info);
                 })?
             } else {
                 cli.create_runner(&cli.run.base)?

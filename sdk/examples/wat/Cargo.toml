@@ -12,4 +12,6 @@ hex.workspace = true
 wasmparser.workspace = true
 wat.workspace = true
 wasmprinter.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

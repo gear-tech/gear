@@ -456,7 +456,8 @@ pub mod pallet {
             let idx = queue.iter().position(|&v| v == hash)?;
 
             // Generating proof.
-            let proof = binary_merkle_tree::merkle_proof_raw::<Keccak256, _>(queue, idx);
+            let proof =
+                binary_merkle_tree::merkle_proof_raw::<Keccak256, _>(queue, idx.try_into().ok()?);
 
             // Returning appropriate type.
             Some(proof.into())

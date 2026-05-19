@@ -1938,11 +1938,13 @@ checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
 
 [[package]]
 name = "binary-merkle-tree"
-version = "15.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "16.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6d867f1ffee8b07e7bee466f4f33a043b91f868f5c7b1d22d8a02f86e92bee8"
 dependencies = [
  "hash-db",
  "log",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -2247,8 +2249,8 @@ dependencies = [
 
 [[package]]
 name = "bp-header-chain"
-version = "0.18.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "0.18.1"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "bp-runtime",
  "finality-grandpa",
@@ -2265,7 +2267,7 @@ dependencies = [
 [[package]]
 name = "bp-runtime"
 version = "0.18.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -2509,7 +2511,7 @@ name = "cargo-gbuild"
 version = "1.10.0"
 dependencies = [
  "anyhow",
- "cargo_metadata",
+ "cargo_metadata 0.20.0",
  "cargo_toml",
  "clap 4.5.54",
  "colored",
@@ -2544,6 +2546,15 @@ dependencies = [
 
 [[package]]
 name = "cargo-platform"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e35af189006b9c0f00a064685c727031e3ed2d8020f7ba284d78cc2671bd36ea"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "cargo-platform"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84982c6c0ae343635a3a4ee6dedef965513735c8b183caa7289fa6e27399ebd4"
@@ -2569,12 +2580,26 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
+version = "0.15.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eee4243f1f26fc7a42710e7439c149e2b10b05472f88090acce52632f231a73a"
+dependencies = [
+ "camino",
+ "cargo-platform 0.1.9",
+ "semver 1.0.27",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "cargo_metadata"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f7835cfc6135093070e95eb2b53e5d9b5c403dc3a6be6040ee026270aa82502"
 dependencies = [
  "camino",
- "cargo-platform",
+ "cargo-platform 0.2.0",
  "cargo-util-schemas",
  "semver 1.0.27",
  "serde",
@@ -3437,7 +3462,7 @@ version = "1.10.0"
 dependencies = [
  "anyhow",
  "cargo-http-registry",
- "cargo_metadata",
+ "cargo_metadata 0.20.0",
  "clap 4.5.54",
  "gear-workspace-hack",
  "reqwest 0.12.28",
@@ -3835,7 +3860,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d162beedaa69905488a8da94f5ac3edb4dd4788b732fadb7bd120b2625c1976"
 dependencies = [
  "data-encoding",
- "syn 2.0.114",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -5671,7 +5696,7 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
- "substrate-wasm-builder",
+ "substrate-wasm-builder 24.0.1",
 ]
 
 [[package]]
@@ -5936,8 +5961,6 @@ dependencies = [
 [[package]]
 name = "finality-grandpa"
 version = "0.16.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4f8f43dc520133541781ec03a8cab158ae8b7f7169cdf22e9050aa6cf0fbdfc"
 dependencies = [
  "either",
  "futures",
@@ -6043,7 +6066,7 @@ checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 [[package]]
 name = "fork-tree"
 version = "13.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
 ]
@@ -6075,8 +6098,8 @@ checksum = "28dd6caf6059519a65843af8fe2a3ae298b14b80179855aeb4adc2c1934ee619"
 
 [[package]]
 name = "frame-benchmarking"
-version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "38.1.1"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support",
  "frame-support-procedural",
@@ -6099,8 +6122,8 @@ dependencies = [
 
 [[package]]
 name = "frame-benchmarking-cli"
-version = "43.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "43.1.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "Inflector",
  "array-bytes",
@@ -6166,7 +6189,7 @@ dependencies = [
 [[package]]
 name = "frame-election-provider-solution-type"
 version = "14.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "proc-macro-crate 3.4.0",
  "proc-macro2",
@@ -6177,7 +6200,7 @@ dependencies = [
 [[package]]
 name = "frame-election-provider-support"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-election-provider-solution-type",
  "frame-support",
@@ -6192,8 +6215,8 @@ dependencies = [
 
 [[package]]
 name = "frame-executive"
-version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "38.0.1"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "aquamarine",
  "frame-support",
@@ -6235,7 +6258,7 @@ dependencies = [
 [[package]]
 name = "frame-metadata-hash-extension"
 version = "0.6.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "docify",
@@ -6250,7 +6273,7 @@ dependencies = [
 [[package]]
 name = "frame-remote-externalities"
 version = "0.46.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "futures",
  "indicatif 0.17.11",
@@ -6259,7 +6282,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-core",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "sp-io",
  "sp-runtime",
  "sp-state-machine",
@@ -6271,8 +6294,8 @@ dependencies = [
 
 [[package]]
 name = "frame-support"
-version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "38.2.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "aquamarine",
  "array-bytes",
@@ -6289,7 +6312,7 @@ dependencies = [
  "paste",
  "scale-info",
  "serde",
- "serde-json-wasm",
+ "serde_json",
  "smallvec",
  "sp-api",
  "sp-arithmetic",
@@ -6312,8 +6335,8 @@ dependencies = [
 
 [[package]]
 name = "frame-support-procedural"
-version = "30.0.3"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "30.0.6"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "Inflector",
  "cfg-expr",
@@ -6326,14 +6349,14 @@ dependencies = [
  "proc-macro-warning 1.84.1",
  "proc-macro2",
  "quote",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "syn 2.0.114",
 ]
 
 [[package]]
 name = "frame-support-procedural-tools"
 version = "13.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support-procedural-tools-derive",
  "proc-macro-crate 3.4.0",
@@ -6345,7 +6368,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools-derive"
 version = "12.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6355,7 +6378,7 @@ dependencies = [
 [[package]]
 name = "frame-support-test"
 version = "3.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-executive",
@@ -6383,7 +6406,7 @@ dependencies = [
 [[package]]
 name = "frame-support-test-pallet"
 version = "4.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -6396,7 +6419,7 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "cfg-if",
  "docify",
@@ -6416,7 +6439,7 @@ dependencies = [
 [[package]]
 name = "frame-system-benchmarking"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6430,7 +6453,7 @@ dependencies = [
 [[package]]
 name = "frame-system-rpc-runtime-api"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "docify",
  "parity-scale-codec",
@@ -6440,7 +6463,7 @@ dependencies = [
 [[package]]
 name = "frame-try-runtime"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support",
  "parity-scale-codec",
@@ -6864,7 +6887,6 @@ dependencies = [
  "gear-runtime-primitives",
  "gear-service",
  "gear-workspace-hack",
- "log",
  "mimalloc",
  "pallet-gear-payment",
  "pallet-gear-staking-rewards",
@@ -7275,6 +7297,7 @@ dependencies = [
  "gear-sandbox-host",
  "gear-workspace-hack",
  "log",
+ "sc-executor",
  "sp-runtime-interface",
  "sp-wasm-interface",
 ]
@@ -7413,7 +7436,7 @@ name = "gear-wasm-builder"
 version = "1.10.0"
 dependencies = [
  "anyhow",
- "cargo_metadata",
+ "cargo_metadata 0.20.0",
  "cargo_toml",
  "chrono",
  "gear-core",
@@ -7684,7 +7707,6 @@ dependencies = [
  "num-integer",
  "num-rational",
  "num-traits",
- "object 0.30.4",
  "object 0.32.2",
  "once_cell",
  "openssl",
@@ -7757,7 +7779,6 @@ dependencies = [
  "rustc-hash 1.1.0",
  "rustc-hash 2.1.1",
  "rustc-hex",
- "rustix 0.36.17",
  "rustix 1.1.3",
  "rustls 0.23.36",
  "rustls-webpki 0.103.8",
@@ -7790,7 +7811,6 @@ dependencies = [
  "slice-group-by",
  "smallvec",
  "soketto",
- "sp-allocator",
  "sp-api",
  "sp-api-proc-macro",
  "sp-application-crypto",
@@ -7803,7 +7823,7 @@ dependencies = [
  "sp-core",
  "sp-crypto-ec-utils",
  "sp-crypto-hashing 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "sp-debug-derive",
  "sp-externalities",
  "sp-genesis-builder",
@@ -7825,7 +7845,6 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "sp-wasm-interface",
- "sp-wasm-interface-common",
  "sp-weights",
  "spki",
  "ss58-registry",
@@ -7866,16 +7885,10 @@ dependencies = [
  "uuid",
  "wasm-bindgen",
  "wasm-encoder 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmi 0.13.2",
  "wasmi 0.38.0",
- "wasmi_core 0.2.1",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmparser 0.246.2",
- "wasmtime 8.0.1",
  "wasmtime-internal-core",
- "wasmtime-jit",
- "wasmtime-jit-debug",
- "wasmtime-runtime",
  "winnow",
  "zeroize",
 ]
@@ -7883,7 +7896,7 @@ dependencies = [
 [[package]]
 name = "generate-bags"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "chrono",
  "frame-election-provider-support",
@@ -9371,13 +9384,33 @@ checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 
 [[package]]
 name = "ittapi"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25a5c0b993601cad796222ea076565c5d9f337d35592f8622c753724f06d7271"
+dependencies = [
+ "anyhow",
+ "ittapi-sys 0.3.5",
+ "log",
+]
+
+[[package]]
+name = "ittapi"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b996fe614c41395cdaedf3cf408a9534851090959d90d54a535f675550b64b1"
 dependencies = [
  "anyhow",
- "ittapi-sys",
+ "ittapi-sys 0.4.0",
  "log",
+]
+
+[[package]]
+name = "ittapi-sys"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7b5e473765060536a660eed127f758cf1a810c73e49063264959c60d1727d9"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -11208,12 +11241,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "memory_units"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8452105ba047068f40ff7093dd1d9da90898e63dd61736462e9cdda6a90ad3c3"
-
-[[package]]
 name = "merkleized-metadata"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11836,7 +11863,7 @@ version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9224be3459a0c1d6e9b0f42ab0e76e98b29aef5aba33c0487dfcf47ea08b5150"
 dependencies = [
- "proc-macro-crate 3.4.0",
+ "proc-macro-crate 1.1.3",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -12195,7 +12222,7 @@ dependencies = [
 [[package]]
 name = "pallet-authority-discovery"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -12210,7 +12237,7 @@ dependencies = [
 [[package]]
 name = "pallet-authorship"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -12223,7 +12250,7 @@ dependencies = [
 [[package]]
 name = "pallet-babe"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12246,7 +12273,7 @@ dependencies = [
 [[package]]
 name = "pallet-bags-list"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "aquamarine",
  "docify",
@@ -12266,8 +12293,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-balances"
-version = "39.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "39.0.1"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -12281,8 +12308,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-bounties"
-version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "37.0.2"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12299,7 +12326,7 @@ dependencies = [
 [[package]]
 name = "pallet-child-bounties"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12317,7 +12344,7 @@ dependencies = [
 [[package]]
 name = "pallet-conviction-voting"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "assert_matches",
  "frame-benchmarking",
@@ -12333,7 +12360,7 @@ dependencies = [
 [[package]]
 name = "pallet-election-provider-multi-phase"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -12355,7 +12382,7 @@ dependencies = [
 [[package]]
 name = "pallet-election-provider-support-benchmarking"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -12882,7 +12909,7 @@ dependencies = [
 [[package]]
 name = "pallet-grandpa"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12922,7 +12949,7 @@ dependencies = [
 [[package]]
 name = "pallet-identity"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
@@ -12938,7 +12965,7 @@ dependencies = [
 [[package]]
 name = "pallet-im-online"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12957,7 +12984,7 @@ dependencies = [
 [[package]]
 name = "pallet-multisig"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12971,8 +12998,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-nomination-pools"
-version = "35.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "35.0.3"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -12989,8 +13016,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-nomination-pools-runtime-api"
-version = "33.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "33.0.2"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "pallet-nomination-pools",
  "parity-scale-codec",
@@ -13000,7 +13027,7 @@ dependencies = [
 [[package]]
 name = "pallet-offences"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -13016,7 +13043,7 @@ dependencies = [
 [[package]]
 name = "pallet-preimage"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -13032,7 +13059,7 @@ dependencies = [
 [[package]]
 name = "pallet-proxy"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -13045,8 +13072,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-ranked-collective"
-version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "38.2.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -13064,7 +13091,7 @@ dependencies = [
 [[package]]
 name = "pallet-referenda"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "assert_matches",
  "frame-benchmarking",
@@ -13081,8 +13108,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-scheduler"
-version = "39.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "39.1.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -13099,7 +13126,7 @@ dependencies = [
 [[package]]
 name = "pallet-session"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -13119,8 +13146,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-staking"
-version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "38.0.1"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -13142,7 +13169,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking-reward-fn"
 version = "22.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "log",
  "sp-arithmetic",
@@ -13151,7 +13178,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking-runtime-api"
 version = "24.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -13161,7 +13188,7 @@ dependencies = [
 [[package]]
 name = "pallet-sudo"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -13176,7 +13203,7 @@ dependencies = [
 [[package]]
 name = "pallet-timestamp"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -13194,8 +13221,8 @@ dependencies = [
 
 [[package]]
 name = "pallet-transaction-payment"
-version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "38.0.2"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -13210,7 +13237,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc"
 version = "41.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "jsonrpsee",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -13226,7 +13253,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
@@ -13238,7 +13265,7 @@ dependencies = [
 [[package]]
 name = "pallet-treasury"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -13256,7 +13283,7 @@ dependencies = [
 [[package]]
 name = "pallet-utility"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -13271,7 +13298,7 @@ dependencies = [
 [[package]]
 name = "pallet-vesting"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -13285,7 +13312,7 @@ dependencies = [
 [[package]]
 name = "pallet-whitelist"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -14241,6 +14268,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.114",
+]
+
+[[package]]
+name = "pulldown-cmark"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffade02495f22453cd593159ea2f59827aae7f53fa8323f756799b670881dcf8"
+dependencies = [
+ "bitflags 1.3.2",
+ "memchr",
+ "unicase",
 ]
 
 [[package]]
@@ -15471,7 +15509,7 @@ dependencies = [
 [[package]]
 name = "sc-authority-discovery"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "futures",
@@ -15501,7 +15539,7 @@ dependencies = [
 [[package]]
 name = "sc-block-builder"
 version = "0.42.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -15516,7 +15554,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "docify",
@@ -15532,7 +15570,7 @@ dependencies = [
  "serde_json",
  "sp-blockchain",
  "sp-core",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "sp-genesis-builder",
  "sp-io",
  "sp-runtime",
@@ -15543,7 +15581,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec-derive"
 version = "12.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "proc-macro-crate 3.4.0",
  "proc-macro2",
@@ -15554,7 +15592,7 @@ dependencies = [
 [[package]]
 name = "sc-cli"
 version = "0.47.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "chrono",
@@ -15595,7 +15633,7 @@ dependencies = [
 [[package]]
 name = "sc-client-api"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "fnv",
  "futures",
@@ -15621,8 +15659,8 @@ dependencies = [
 
 [[package]]
 name = "sc-client-db"
-version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "0.44.1"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "hash-db",
  "kvdb",
@@ -15648,7 +15686,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "futures",
@@ -15672,7 +15710,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "fork-tree",
@@ -15697,7 +15735,7 @@ dependencies = [
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-core",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "sp-inherents",
  "sp-keystore",
  "sp-runtime",
@@ -15708,7 +15746,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe-rpc"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "futures",
  "jsonrpsee",
@@ -15730,7 +15768,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-epochs"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "fork-tree",
  "parity-scale-codec",
@@ -15743,7 +15781,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-grandpa"
 version = "0.30.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "ahash",
  "array-bytes",
@@ -15777,7 +15815,7 @@ dependencies = [
  "sp-consensus",
  "sp-consensus-grandpa",
  "sp-core",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "sp-keystore",
  "sp-runtime",
  "substrate-prometheus-endpoint",
@@ -15787,7 +15825,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-grandpa-rpc"
 version = "0.30.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "finality-grandpa",
  "futures",
@@ -15807,7 +15845,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-slots"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "futures",
@@ -15830,7 +15868,6 @@ dependencies = [
 [[package]]
 name = "sc-executor"
 version = "0.40.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "parking_lot 0.12.5",
@@ -15848,26 +15885,23 @@ dependencies = [
  "sp-version",
  "sp-wasm-interface",
  "tracing",
- "wasmi 0.13.2",
 ]
 
 [[package]]
 name = "sc-executor-common"
 version = "0.35.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "polkavm",
  "sp-allocator",
  "sp-maybe-compressed-blob",
  "sp-wasm-interface",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "wasm-instrument",
 ]
 
 [[package]]
 name = "sc-executor-polkavm"
 version = "0.32.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "log",
  "polkavm",
@@ -15878,25 +15912,29 @@ dependencies = [
 [[package]]
 name = "sc-executor-wasmtime"
 version = "0.35.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "anyhow",
- "cfg-if",
- "libc",
+ "cargo_metadata 0.20.0",
  "log",
+ "parity-scale-codec",
  "parking_lot 0.12.5",
+ "paste",
  "rustix 0.36.17",
  "sc-executor-common",
+ "sc-runtime-test",
  "sp-allocator",
+ "sp-io",
  "sp-runtime-interface",
  "sp-wasm-interface",
+ "tempfile",
  "wasmtime 8.0.1",
+ "wat",
 ]
 
 [[package]]
 name = "sc-informant"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "console 0.15.11",
  "futures",
@@ -15913,7 +15951,7 @@ dependencies = [
 [[package]]
 name = "sc-keystore"
 version = "33.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "parking_lot 0.12.5",
@@ -15927,7 +15965,7 @@ dependencies = [
 [[package]]
 name = "sc-mixnet"
 version = "0.15.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "arrayvec 0.7.6",
@@ -15955,8 +15993,8 @@ dependencies = [
 
 [[package]]
 name = "sc-network"
-version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "0.45.6"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "async-channel 1.9.0",
@@ -16007,7 +16045,7 @@ dependencies = [
 [[package]]
 name = "sc-network-common"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "bitflags 1.3.2",
@@ -16025,7 +16063,7 @@ dependencies = [
 [[package]]
 name = "sc-network-gossip"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "ahash",
  "futures",
@@ -16043,8 +16081,8 @@ dependencies = [
 
 [[package]]
 name = "sc-network-light"
-version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "0.44.1"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "async-channel 1.9.0",
@@ -16064,8 +16102,8 @@ dependencies = [
 
 [[package]]
 name = "sc-network-sync"
-version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "0.44.1"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "async-channel 1.9.0",
@@ -16101,8 +16139,8 @@ dependencies = [
 
 [[package]]
 name = "sc-network-transactions"
-version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "0.44.1"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "futures",
@@ -16121,7 +16159,7 @@ dependencies = [
 [[package]]
 name = "sc-network-types"
 version = "0.12.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "bs58 0.5.1",
  "ed25519-dalek",
@@ -16138,7 +16176,7 @@ dependencies = [
 [[package]]
 name = "sc-offchain"
 version = "40.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "bytes",
@@ -16172,7 +16210,7 @@ dependencies = [
 [[package]]
 name = "sc-proposer-metrics"
 version = "0.18.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "log",
  "substrate-prometheus-endpoint",
@@ -16181,7 +16219,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc"
 version = "40.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "futures",
  "jsonrpsee",
@@ -16213,7 +16251,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-api"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
@@ -16232,8 +16270,8 @@ dependencies = [
 
 [[package]]
 name = "sc-rpc-server"
-version = "17.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "17.1.2"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "dyn-clone",
  "forwarded-header-value",
@@ -16257,7 +16295,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-spec-v2"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "futures",
@@ -16287,9 +16325,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sc-runtime-test"
+version = "2.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-runtime-interface",
+ "substrate-wasm-builder 24.0.2",
+]
+
+[[package]]
 name = "sc-service"
 version = "0.46.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "directories",
@@ -16353,7 +16403,7 @@ dependencies = [
 [[package]]
 name = "sc-state-db"
 version = "0.36.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -16364,7 +16414,7 @@ dependencies = [
 [[package]]
 name = "sc-sync-state-rpc"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
@@ -16383,7 +16433,7 @@ dependencies = [
 [[package]]
 name = "sc-sysinfo"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "derive_more 0.99.20",
  "futures",
@@ -16396,7 +16446,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-core",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "sp-io",
  "sp-std",
 ]
@@ -16404,7 +16454,7 @@ dependencies = [
 [[package]]
 name = "sc-telemetry"
 version = "25.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "chrono",
  "futures",
@@ -16424,7 +16474,7 @@ dependencies = [
 [[package]]
 name = "sc-tracing"
 version = "37.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "chrono",
  "console 0.15.11",
@@ -16453,7 +16503,7 @@ dependencies = [
 [[package]]
 name = "sc-tracing-proc-macro"
 version = "11.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "proc-macro-crate 3.4.0",
  "proc-macro2",
@@ -16464,7 +16514,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "futures",
@@ -16480,7 +16530,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-core",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "sp-runtime",
  "sp-tracing",
  "sp-transaction-pool",
@@ -16491,7 +16541,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool-api"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "futures",
@@ -16507,7 +16557,7 @@ dependencies = [
 [[package]]
 name = "sc-utils"
 version = "17.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-channel 1.9.0",
  "futures",
@@ -17516,18 +17566,17 @@ dependencies = [
 [[package]]
 name = "sp-allocator"
 version = "29.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "log",
  "parity-scale-codec",
  "sp-wasm-interface-common",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "sp-api"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "docify",
  "hash-db",
@@ -17548,8 +17597,8 @@ dependencies = [
 
 [[package]]
 name = "sp-api-proc-macro"
-version = "20.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "20.0.3"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "Inflector",
  "blake2 0.10.6",
@@ -17563,7 +17612,7 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -17575,7 +17624,7 @@ dependencies = [
 [[package]]
 name = "sp-arithmetic"
 version = "26.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "docify",
  "integer-sqrt",
@@ -17589,7 +17638,7 @@ dependencies = [
 [[package]]
 name = "sp-authority-discovery"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -17601,7 +17650,7 @@ dependencies = [
 [[package]]
 name = "sp-block-builder"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "sp-api",
  "sp-inherents",
@@ -17611,7 +17660,7 @@ dependencies = [
 [[package]]
 name = "sp-blockchain"
 version = "37.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "futures",
  "parity-scale-codec",
@@ -17630,7 +17679,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus"
 version = "0.40.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "futures",
@@ -17645,7 +17694,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-babe"
 version = "0.40.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -17663,7 +17712,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-grandpa"
 version = "21.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "finality-grandpa",
  "log",
@@ -17680,7 +17729,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-slots"
 version = "0.40.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -17691,7 +17740,7 @@ dependencies = [
 [[package]]
 name = "sp-core"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "bitflags 1.3.2",
@@ -17720,7 +17769,7 @@ dependencies = [
  "secp256k1 0.28.2",
  "secrecy",
  "serde",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "sp-debug-derive",
  "sp-externalities",
  "sp-runtime-interface",
@@ -17737,7 +17786,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-ec-utils"
 version = "0.14.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-377-ext",
@@ -17771,7 +17820,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-hashing"
 version = "0.1.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "blake2b_simd",
  "byteorder",
@@ -17784,17 +17833,17 @@ dependencies = [
 [[package]]
 name = "sp-crypto-hashing-proc-macro"
 version = "0.1.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "quote",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "syn 2.0.114",
 ]
 
 [[package]]
 name = "sp-database"
 version = "10.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "kvdb",
  "parking_lot 0.12.5",
@@ -17803,7 +17852,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "14.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -17813,7 +17862,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.29.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -17823,7 +17872,7 @@ dependencies = [
 [[package]]
 name = "sp-genesis-builder"
 version = "0.15.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -17835,7 +17884,7 @@ dependencies = [
 [[package]]
 name = "sp-inherents"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "impl-trait-for-tuples",
@@ -17847,8 +17896,8 @@ dependencies = [
 
 [[package]]
 name = "sp-io"
-version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "38.0.2"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "bytes",
  "docify",
@@ -17860,7 +17909,7 @@ dependencies = [
  "rustversion",
  "secp256k1 0.28.2",
  "sp-core",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "sp-externalities",
  "sp-keystore",
  "sp-runtime-interface",
@@ -17874,7 +17923,7 @@ dependencies = [
 [[package]]
 name = "sp-keyring"
 version = "39.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "sp-core",
  "sp-runtime",
@@ -17884,7 +17933,7 @@ dependencies = [
 [[package]]
 name = "sp-keystore"
 version = "0.40.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "parking_lot 0.12.5",
@@ -17895,7 +17944,7 @@ dependencies = [
 [[package]]
 name = "sp-maybe-compressed-blob"
 version = "11.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "thiserror 1.0.69",
  "zstd 0.12.4",
@@ -17904,7 +17953,7 @@ dependencies = [
 [[package]]
 name = "sp-metadata-ir"
 version = "0.7.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "frame-metadata 16.0.0",
  "parity-scale-codec",
@@ -17914,7 +17963,7 @@ dependencies = [
 [[package]]
 name = "sp-mixnet"
 version = "0.12.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -17925,7 +17974,7 @@ dependencies = [
 [[package]]
 name = "sp-npos-elections"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -17938,7 +17987,7 @@ dependencies = [
 [[package]]
 name = "sp-offchain"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -17948,7 +17997,7 @@ dependencies = [
 [[package]]
 name = "sp-panic-handler"
 version = "13.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "backtrace",
  "lazy_static",
@@ -17958,7 +18007,7 @@ dependencies = [
 [[package]]
 name = "sp-rpc"
 version = "32.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "rustc-hash 1.1.0",
  "serde",
@@ -17967,8 +18016,8 @@ dependencies = [
 
 [[package]]
 name = "sp-runtime"
-version = "39.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "39.0.5"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "docify",
  "either",
@@ -17994,7 +18043,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "28.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -18013,7 +18062,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "18.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "Inflector",
  "expander",
@@ -18026,7 +18075,7 @@ dependencies = [
 [[package]]
 name = "sp-session"
 version = "36.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -18040,7 +18089,7 @@ dependencies = [
 [[package]]
 name = "sp-staking"
 version = "36.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -18053,7 +18102,7 @@ dependencies = [
 [[package]]
 name = "sp-state-machine"
 version = "0.43.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "hash-db",
  "log",
@@ -18073,7 +18122,7 @@ dependencies = [
 [[package]]
 name = "sp-statement-store"
 version = "18.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "aes-gcm",
  "curve25519-dalek",
@@ -18086,7 +18135,7 @@ dependencies = [
  "sp-api",
  "sp-application-crypto",
  "sp-core",
- "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
  "sp-externalities",
  "sp-runtime",
  "sp-runtime-interface",
@@ -18097,12 +18146,12 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "14.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 
 [[package]]
 name = "sp-storage"
 version = "21.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "impl-serde 0.4.0",
  "parity-scale-codec",
@@ -18114,7 +18163,7 @@ dependencies = [
 [[package]]
 name = "sp-timestamp"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -18126,7 +18175,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "17.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "tracing",
@@ -18137,7 +18186,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-pool"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "sp-api",
  "sp-runtime",
@@ -18146,7 +18195,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-storage-proof"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -18160,7 +18209,7 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "ahash",
  "hash-db",
@@ -18183,7 +18232,7 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "impl-serde 0.4.0",
  "parity-scale-codec",
@@ -18200,7 +18249,7 @@ dependencies = [
 [[package]]
 name = "sp-version-proc-macro"
 version = "14.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "parity-scale-codec",
  "proc-macro2",
@@ -18211,31 +18260,26 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "21.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "anyhow",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "sp-allocator",
- "sp-wasm-interface-common",
  "wasmtime 8.0.1",
 ]
 
 [[package]]
 name = "sp-wasm-interface-common"
 version = "7.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
- "parity-scale-codec",
- "sp-std",
- "wasmi 0.13.2",
+ "sp-wasm-interface",
 ]
 
 [[package]]
 name = "sp-weights"
 version = "31.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "bounded-collections",
  "parity-scale-codec",
@@ -18490,7 +18534,7 @@ dependencies = [
 [[package]]
 name = "substrate-bip39"
 version = "0.6.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "hmac 0.12.1",
  "pbkdf2",
@@ -18502,12 +18546,12 @@ dependencies = [
 [[package]]
 name = "substrate-build-script-utils"
 version = "11.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 
 [[package]]
 name = "substrate-frame-rpc-system"
 version = "39.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "docify",
  "frame-system-rpc-runtime-api",
@@ -18526,8 +18570,8 @@ dependencies = [
 
 [[package]]
 name = "substrate-prometheus-endpoint"
-version = "0.17.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+version = "0.17.5"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "http-body-util",
  "hyper 1.8.1",
@@ -18541,7 +18585,7 @@ dependencies = [
 [[package]]
 name = "substrate-rpc-client"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "async-trait",
  "jsonrpsee",
@@ -18554,7 +18598,7 @@ dependencies = [
 [[package]]
 name = "substrate-state-trie-migration-rpc"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
@@ -18571,7 +18615,7 @@ dependencies = [
 [[package]]
 name = "substrate-test-client"
 version = "2.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "async-trait",
@@ -18598,11 +18642,10 @@ dependencies = [
 [[package]]
 name = "substrate-wasm-builder"
 version = "24.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "build-helper",
- "cargo_metadata",
+ "cargo_metadata 0.20.0",
  "console 0.15.11",
  "filetime",
  "frame-metadata 16.0.0",
@@ -18617,6 +18660,26 @@ dependencies = [
  "sp-maybe-compressed-blob",
  "sp-tracing",
  "sp-version",
+ "strum 0.26.3",
+ "tempfile",
+ "toml 0.8.23",
+ "walkdir",
+ "wasm-opt",
+]
+
+[[package]]
+name = "substrate-wasm-builder"
+version = "24.0.2"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "build-helper",
+ "cargo_metadata 0.15.4",
+ "console 0.15.11",
+ "filetime",
+ "jobserver",
+ "parity-wasm",
+ "polkavm-linker",
+ "sp-maybe-compressed-blob",
  "strum 0.26.3",
  "tempfile",
  "toml 0.8.23",
@@ -20042,7 +20105,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-build-script-utils",
- "substrate-wasm-builder",
+ "substrate-wasm-builder 24.0.1",
  "tracing-subscriber",
  "wat",
 ]
@@ -20525,16 +20588,6 @@ dependencies = [
 
 [[package]]
 name = "wasmi"
-version = "0.13.2"
-source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
-dependencies = [
- "parity-wasm",
- "wasmi-validation",
- "wasmi_core 0.2.1",
-]
-
-[[package]]
-name = "wasmi"
 version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b07e84e3bcdab2f4301827623260ada2557596ca462f7470b60f5182a25270b1"
@@ -20566,14 +20619,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasmi-validation"
-version = "0.5.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
-dependencies = [
- "parity-wasm",
-]
-
-[[package]]
 name = "wasmi_collections"
 version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -20589,19 +20634,6 @@ name = "wasmi_collections"
 version = "0.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e80d6b275b1c922021939d561574bf376613493ae2b61c6963b15db0e8813562"
-
-[[package]]
-name = "wasmi_core"
-version = "0.2.1"
-source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
-dependencies = [
- "downcast-rs",
- "libm",
- "memory_units",
- "num-rational",
- "num-traits",
- "region",
-]
 
 [[package]]
 name = "wasmi_core"
@@ -20753,6 +20785,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f907fdead3153cb9bfb7a93bbd5b62629472dc06dee83605358c64c52ed3dda9"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bincode",
  "cfg-if",
  "indexmap 1.9.3",
@@ -20767,10 +20800,13 @@ dependencies = [
  "target-lexicon 0.12.16",
  "wasmparser 0.102.0",
  "wasmtime-cache",
+ "wasmtime-component-macro",
  "wasmtime-cranelift",
  "wasmtime-environ 8.0.1",
+ "wasmtime-fiber",
  "wasmtime-jit",
  "wasmtime-runtime",
+ "wat",
  "windows-sys 0.45.0",
 ]
 
@@ -20790,7 +20826,7 @@ dependencies = [
  "futures",
  "fxprof-processed-profile",
  "gimli 0.33.0",
- "ittapi",
+ "ittapi 0.4.0",
  "libc",
  "log",
  "mach2",
@@ -20855,6 +20891,27 @@ dependencies = [
  "windows-sys 0.45.0",
  "zstd 0.11.2+zstd.1.5.2",
 ]
+
+[[package]]
+name = "wasmtime-component-macro"
+version = "8.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "267096ed7cc93b4ab15d3daa4f195e04dbb7e71c7e5c6457ae7d52e9dd9c3607"
+dependencies = [
+ "anyhow",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "wasmtime-component-util",
+ "wasmtime-wit-bindgen",
+ "wit-parser 0.6.4",
+]
+
+[[package]]
+name = "wasmtime-component-util"
+version = "8.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74e02ca7a4a3c69d72b88f26f0192e333958df6892415ac9ab84dcc42c9000c2"
 
 [[package]]
 name = "wasmtime-cranelift"
@@ -20944,6 +21001,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmtime-fiber"
+version = "8.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ab182d5ab6273a133ab88db94d8ca86dc3e57e43d70baaa4d98f94ddbd7d10a"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "rustix 0.36.17",
+ "wasmtime-asm-macros",
+ "windows-sys 0.45.0",
+]
+
+[[package]]
 name = "wasmtime-internal-cache"
 version = "44.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -20975,7 +21045,7 @@ dependencies = [
  "syn 2.0.114",
  "wasmtime-internal-component-util",
  "wasmtime-internal-wit-bindgen",
- "wit-parser",
+ "wit-parser 0.246.2",
 ]
 
 [[package]]
@@ -21113,7 +21183,7 @@ dependencies = [
  "bitflags 2.10.0",
  "heck 0.5.0",
  "indexmap 2.14.0",
- "wit-parser",
+ "wit-parser 0.246.2",
 ]
 
 [[package]]
@@ -21128,6 +21198,7 @@ dependencies = [
  "cfg-if",
  "cpp_demangle 0.3.5",
  "gimli 0.27.3",
+ "ittapi 0.3.5",
  "log",
  "object 0.30.4",
  "rustc-demangle",
@@ -21182,6 +21253,7 @@ dependencies = [
  "rustix 0.36.17",
  "wasmtime-asm-macros",
  "wasmtime-environ 8.0.1",
+ "wasmtime-fiber",
  "wasmtime-jit-debug",
  "windows-sys 0.45.0",
 ]
@@ -21196,6 +21268,17 @@ dependencies = [
  "serde",
  "thiserror 1.0.69",
  "wasmparser 0.102.0",
+]
+
+[[package]]
+name = "wasmtime-wit-bindgen"
+version = "8.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "983db9cc294d1adaa892a53ff6a0dc6605fc0ab1a4da5d8a2d2d4bde871ff7dd"
+dependencies = [
+ "anyhow",
+ "heck 0.4.1",
+ "wit-parser 0.6.4",
 ]
 
 [[package]]
@@ -21828,6 +21911,21 @@ name = "wit-bindgen"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
+
+[[package]]
+name = "wit-parser"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f887c3da527a51b321076ebe6a7513026a4757b6d4d144259946552d6fc728b3"
+dependencies = [
+ "anyhow",
+ "id-arena",
+ "indexmap 1.9.3",
+ "log",
+ "pulldown-cmark",
+ "unicode-xid",
+ "url",
+]
 
 [[package]]
 name = "wit-parser"

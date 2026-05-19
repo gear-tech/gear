@@ -1,0 +1,21 @@
+[package]
+name = "sp-wasm-interface-common"
+version = "7.0.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2021"
+license = "Apache-2.0"
+homepage = "https://substrate.io"
+repository = "https://github.com/paritytech/substrate/"
+description = "Types and traits for interfacing between the host and the wasm runtime."
+documentation = "https://docs.rs/sp-wasm-interface"
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+sp-wasm-interface = { workspace = true, default-features = false }
+
+[features]
+default = [ "std" ]
+std = [ "sp-wasm-interface/std" ]

@@ -23,7 +23,8 @@
 #[cfg(feature = "std")]
 pub use gear_sandbox_host::sandbox::{SandboxBackend, env::Instantiate};
 use sp_runtime_interface::{Pointer, runtime_interface};
-use sp_wasm_interface::HostPointer;
+
+type HostPointer = u64;
 
 #[cfg(feature = "host-api")]
 pub mod detail;

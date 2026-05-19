@@ -30,7 +30,7 @@ examples_clippy() {
   # find crates that use "gear-wasm-builder"
   mapfile -t examples < <(
     cargo metadata --no-deps --format-version=1 |
-    jq -r '.packages.[] | select(.manifest_path | contains("gear/sdk/examples")) | select(.dependencies.[].name == "gear-wasm-builder") | "-p=" + .name'
+    jq -r '.workspace_root as $root | .packages.[] | select(.manifest_path | startswith($root + "/sdk/examples/")) | select(any(.dependencies.[]; .name == "gear-wasm-builder")) | "-p=" + .name'
   )
   # clippy will try to link "test" crate which is not available for "wasm32v1-none" target
   mapfile -t filtered_args < <(printf "%s\n" "${@}" | grep -v "all-targets")
@@ -42,10 +42,10 @@ examples_clippy() {
 no_std_clippy() {
   mapfile -t no_std < <(
     cargo metadata --no-deps --format-version=1 |
-    jq -r '.packages.[] | select(.features | index("std")) | "-p=" + .name'
+    jq -r '.workspace_members as $members | .packages.[] | . as $pkg | select($members | index($pkg.id)) | select(.features | index("std")) | select(.name != "sc-executor") | "-p=" + .name'
   )
   RUSTFLAGS="--cfg=substrate_runtime" \
   __GEAR_WASM_BUILDER_NO_BUILD=1 \
   SKIP_WASM_BUILD=1 \
-  cargo clippy "${no_std[@]}" "$@" --no-default-features --target=wasm32v1-none -- -D warnings
+  cargo clippy "${no_std[@]}" "$@" --no-default-features --target=wasm32v1-none -- --no-deps -D warnings
 }
