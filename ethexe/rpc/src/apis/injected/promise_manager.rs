@@ -45,6 +45,8 @@ pub struct PromiseSubscriptionManager {
 pub enum RegisterSubscriberError {
     #[error("Subscriber for this transaction already exists, tx_hash={0}")]
     AlreadyRegistered(HashOf<InjectedTransaction>),
+    #[error("Promise for this transaction is already resolved, tx_hash={0}")]
+    AlreadyResolved(HashOf<InjectedTransaction>, SignedPromise),
 }
 
 type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedPromise>>;
@@ -90,11 +92,27 @@ impl PromiseSubscriptionManager {
         &self,
         tx_hash: HashOf<InjectedTransaction>,
     ) -> Result<PendingSubscriber, RegisterSubscriberError> {
+        if let Some(promise) = self.db.promise(tx_hash)
+            && let Some(compact) = self.db.compact_promise(tx_hash)
+            && let Ok(signed_promise) = compact.restore(promise)
+        {
+            return Err(RegisterSubscriberError::AlreadyResolved(tx_hash, signed_promise));
+        }
+
         match self.subscribers.entry(tx_hash) {
             Entry::Occupied(_) => Err(RegisterSubscriberError::AlreadyRegistered(tx_hash)),
             Entry::Vacant(entry) => {
                 let (sender, receiver) = oneshot::channel();
                 entry.insert(sender);
+
+                if let Some(promise) = self.db.promise(tx_hash)
+                    && let Some(compact) = self.db.compact_promise(tx_hash)
+                    && let Ok(signed_promise) = compact.restore(promise)
+                {
+                    self.dispatch_promise(signed_promise.clone());
+                    return Err(RegisterSubscriberError::AlreadyResolved(tx_hash, signed_promise));
+                }
+
                 Ok(PendingSubscriber::new(&self.db, tx_hash, receiver))
             }
         }
@@ -161,6 +179,37 @@ impl PromiseSubscriptionManager {
     #[cfg(test)]
     pub fn subscribers_count(&self) -> usize {
         self.subscribers.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{PrivateKey, db::InjectedStorageRW, mock::Mock};
+
+    fn make_signed_promise() -> SignedPromise {
+        SignedPromise::create(PrivateKey::random(), Promise::mock(())).expect("signed promise")
+    }
+
+    #[test]
+    fn register_subscriber_returns_already_resolved_for_available_promise() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+
+        let signed_promise = make_signed_promise();
+        let tx_hash = signed_promise.data().tx_hash;
+        db.set_promise(signed_promise.data());
+        db.set_compact_promise(signed_promise.compact());
+
+        match manager.try_register_subscriber(tx_hash) {
+            Err(RegisterSubscriberError::AlreadyResolved(actual_tx_hash, actual_promise)) => {
+                assert_eq!(actual_tx_hash, tx_hash);
+                assert_eq!(actual_promise, signed_promise);
+            }
+            res => panic!("unexpected registration result: {res:?}"),
+        }
+
+        assert_eq!(manager.subscribers_count(), 0);
     }
 }
 

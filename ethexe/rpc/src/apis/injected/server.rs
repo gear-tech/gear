@@ -19,7 +19,9 @@
 use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
 
 use super::{
-    InjectedServer, promise_manager::PromiseSubscriptionManager, relay::TransactionsRelayer,
+    InjectedServer,
+    promise_manager::{PromiseSubscriptionManager, RegisterSubscriberError},
+    relay::TransactionsRelayer,
     spawner,
 };
 use ethexe_common::{
@@ -120,7 +122,12 @@ impl InjectedApi {
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
             Ok(subscriber) => subscriber,
-            Err(err) => {
+            Err(RegisterSubscriberError::AlreadyResolved(_, signed_promise)) => {
+                let sink = pending.accept().await?;
+                spawner::send_to_sink(sink, signed_promise).await;
+                return Ok(());
+            }
+            Err(err @ RegisterSubscriberError::AlreadyRegistered(_)) => {
                 return Err(errors::bad_request(err).into());
             }
         };
