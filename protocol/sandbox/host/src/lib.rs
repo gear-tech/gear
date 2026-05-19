@@ -5,10 +5,9 @@
 
 #![warn(missing_docs)]
 
+pub mod context;
 pub mod error;
 pub mod sandbox;
 pub mod util;
 
 pub(crate) mod store_refcell;
-
-use log as _;

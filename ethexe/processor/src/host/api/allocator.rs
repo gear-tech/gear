@@ -1,8 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::host::context::HostContext;
-use sp_wasm_interface::{FunctionContext, IntoValue, Pointer, StoreData};
+use crate::host::{StoreData, context};
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -12,21 +11,10 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     Ok(())
 }
 
-fn free(caller: Caller<'_, StoreData>, ptr: i32) {
-    let mut host_context = HostContext { caller };
-
-    host_context
-        .deallocate_memory(Pointer::<u8>::new(ptr as _))
-        .unwrap();
+fn free(caller: Caller<'_, StoreData>, ptr: u32) {
+    context::allocator(caller).deallocate(ptr).unwrap()
 }
 
-fn malloc(caller: Caller<'_, StoreData>, size: i32) -> i32 {
-    let mut host_context = HostContext { caller };
-
-    host_context
-        .allocate_memory(size as _)
-        .unwrap()
-        .into_value()
-        .as_i32()
-        .unwrap()
+fn malloc(caller: Caller<'_, StoreData>, size: u32) -> u32 {
+    context::allocator(caller).allocate(size).unwrap()
 }

@@ -27,8 +27,9 @@ use {
     gear_lazy_pages_common::ProcessAccessError,
 };
 
+#[cfg(feature = "sandbox-host-api")]
 pub use gear_sandbox_interface::sandbox;
-#[cfg(feature = "std")]
+#[cfg(feature = "sandbox-host-api")]
 pub use gear_sandbox_interface::{
     Instantiate, SandboxBackend, detail as sandbox_detail, init as sandbox_init,
 };

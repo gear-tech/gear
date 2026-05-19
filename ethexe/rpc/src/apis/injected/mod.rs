@@ -24,16 +24,22 @@
 //!   body. When RPC receives the corresponding promise signature, it sends the signed promise to
 //!   the subscriber.
 
+#[cfg(feature = "server")]
 pub(crate) mod promise_manager;
 
+#[cfg(feature = "server")]
 pub(crate) mod relay;
 
+#[cfg(feature = "server")]
 pub(crate) mod server;
+#[cfg(feature = "server")]
 pub use server::InjectedApi;
 
+#[cfg(feature = "server")]
 pub(crate) mod spawner;
 
 mod r#trait;
+#[cfg(feature = "server")]
 pub use r#trait::InjectedServer;
 
 #[cfg(feature = "client")]

@@ -138,6 +138,7 @@
 //!   key-value storage from Database.
 
 pub use host::InstanceError;
+pub use promise::BoundPromiseSink;
 
 use core::num::NonZero;
 use ethexe_common::{
@@ -163,7 +164,6 @@ use host::InstanceCreator;
 mod handling;
 mod host;
 mod promise;
-pub use promise::BoundPromiseSink;
 
 #[cfg(test)]
 mod tests;
@@ -240,7 +240,7 @@ impl Processor {
     }
 
     pub fn with_config(config: ProcessorConfig, db: Database) -> Result<Self> {
-        let creator = InstanceCreator::new(host::runtime())?;
+        let creator = InstanceCreator::new(db.clone(), host::runtime())?;
         Ok(Self {
             config,
             db,
@@ -254,6 +254,7 @@ impl Processor {
 
     pub fn overlaid(mut self) -> OverlaidProcessor {
         self.db = unsafe { self.db.overlaid() };
+        self.creator = self.creator.with_db(self.db.clone());
 
         OverlaidProcessor(self)
     }

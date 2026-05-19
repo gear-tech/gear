@@ -17,22 +17,21 @@ use wasmi::{
 
 use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
 
+use super::SupervisorFuncIndex;
 use crate::{
+    context::{SupervisorContext, SupervisorContextDispatcher},
     error::{self, Error},
     sandbox::{
         BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
-        SupervisorContext,
     },
     store_refcell,
     util::MemoryTransfer,
 };
 
-use super::SupervisorFuncIndex;
-
 type Store = wasmi::Store<Option<FuncEnv>>;
 pub type StoreRefCell = store_refcell::StoreRefCell<Store>;
 
-environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
+environmental::environmental!(SupervisorContextStore: trait SupervisorContextDispatcher);
 
 pub struct FuncEnv {
     store: Weak<StoreRefCell>,
@@ -259,7 +258,7 @@ pub fn instantiate(
     context: &Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
 ) -> Result<SandboxInstance, InstantiationError> {
     let mut store = context.store().borrow_mut();
 
@@ -450,7 +449,7 @@ fn dispatch_function_v2(
 
 fn dispatch_common(
     supervisor_func_index: SupervisorFuncIndex,
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
     invoke_args_data: Vec<u8>,
 ) -> Result<Vec<u8>, wasmi::Error> {
     // Move serialized arguments inside the memory, invoke dispatch thunk and
@@ -520,7 +519,7 @@ pub fn invoke(
     store: &Rc<StoreRefCell>,
     export_name: &str,
     args: &[Value],
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
 ) -> Result<Option<Value>, Error> {
     let function = instance
         .get_func(&*store.borrow(), export_name)

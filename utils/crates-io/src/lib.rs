@@ -71,6 +71,17 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gear-core-backend",
     "gear-core-processor",
     "gear-lazy-pages-native-interface",
+    "gsigner",
+    "ethexe-common",
+    "ethexe-ethereum",
+    "ethexe-runtime-common",
+    "ethexe-db",
+    "ethexe-service-utils",
+    "ethexe-observer",
+    "ethexe-consensus",
+    "ethexe-blob-loader",
+    "ethexe-prometheus",
+    "ethexe-rpc",
 ];
 
 /// Packages need to be published.
@@ -79,7 +90,8 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
 /// on the previous one, please be cautious about changing
 /// the order.
 pub const PACKAGES: &[&str] = &[
-    "gsigner",
+    "ethexe-node-wrapper",
+    "ethexe-sdk",
     "gear-wasm-optimizer",
     "gear-wasm-builder",
     "gear-node-wrapper",

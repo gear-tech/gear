@@ -3,12 +3,13 @@
 
 // TODO (breathx): remove cloning of slices from wasm memory.
 
-use crate::host::{api::MemoryWrap, context::HostContext};
+use crate::host::{StoreData, context};
 use ethexe_runtime_common::pack_u32_to_i64;
-use gear_runtime_interface::{Instantiate, sandbox_detail};
+use gear_sandbox_host::context::{
+    self as sandbox_context, HostResult, Instantiate, Pointer, SupervisorFuncIndex, Value, WordSize,
+};
 use parity_scale_codec::Encode;
-use sp_wasm_interface::{FunctionContext as _, IntoValue as _, Pointer, StoreData};
-use wasmtime::{Caller, Linker};
+use wasmtime::{AsContextMut, Caller, Linker, StoreContextMut, Val};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     linker.func_wrap("env", "ext_sandbox_get_buff_version_1", get_buff)?;
@@ -48,250 +49,345 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     Ok(())
 }
 
-fn get_buff(caller: Caller<'_, StoreData>, memory_idx: i32) -> i64 {
+struct ProcessorContext<'a> {
+    caller: StoreContextMut<'a, StoreData>,
+}
+
+impl<'a> ProcessorContext<'a> {
+    fn new(caller: impl Into<StoreContextMut<'a, StoreData>>) -> Self {
+        Self {
+            caller: caller.into(),
+        }
+    }
+
+    fn dispatcher(
+        self,
+        dispatch_thunk_id: u32,
+        state_ptr: Pointer<u8>,
+    ) -> ProcessorContextDispatcher<'a> {
+        ProcessorContextDispatcher {
+            context: self,
+            dispatch_thunk_id,
+            state_ptr,
+        }
+    }
+}
+
+impl sandbox_context::SupervisorContext for ProcessorContext<'_> {
+    fn data_ptr(&self) -> *const () {
+        self.caller.data() as *const _ as *const ()
+    }
+
+    fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<(), String> {
+        let memory = context::memory(&self.caller);
+        let slice = memory
+            .slice(u32::from(address), dest.len() as u32)
+            .ok_or_else(|| "memory read out of bounds".to_string())?;
+        dest.copy_from_slice(slice);
+        Ok(())
+    }
+
+    fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> Result<(), String> {
+        context::memory(&mut self.caller)
+            .slice_mut(u32::from(address), data.len() as u32)
+            .ok_or_else(|| "memory write out of bounds".to_string())?
+            .copy_from_slice(data);
+        Ok(())
+    }
+
+    fn allocate_memory(&mut self, size: WordSize) -> Result<Pointer<u8>, String> {
+        context::allocator(&mut self.caller)
+            .allocate(size)
+            .map(Pointer::new)
+            .map_err(|err| err.to_string())
+    }
+
+    fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> Result<(), String> {
+        context::allocator(&mut self.caller)
+            .deallocate(ptr.into())
+            .map_err(|err| err.to_string())
+    }
+}
+
+struct ProcessorContextDispatcher<'a> {
+    context: ProcessorContext<'a>,
+    dispatch_thunk_id: u32,
+    state_ptr: Pointer<u8>,
+}
+
+impl gear_sandbox_host::context::SupervisorContext for ProcessorContextDispatcher<'_> {
+    fn data_ptr(&self) -> *const () {
+        self.context.data_ptr()
+    }
+
+    fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<(), String> {
+        self.context.read_memory_into(address, dest)
+    }
+
+    fn read_memory(&self, address: Pointer<u8>, size: WordSize) -> HostResult<Vec<u8>> {
+        self.context.read_memory(address, size)
+    }
+
+    fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> Result<(), String> {
+        self.context.write_memory(address, data)
+    }
+
+    fn allocate_memory(&mut self, size: WordSize) -> Result<Pointer<u8>, String> {
+        self.context.allocate_memory(size)
+    }
+
+    fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> Result<(), String> {
+        self.context.deallocate_memory(ptr)
+    }
+}
+
+impl sandbox_context::SupervisorContextDispatcher for ProcessorContextDispatcher<'_> {
+    fn dispatch_thunk_id(&self) -> u32 {
+        self.dispatch_thunk_id
+    }
+
+    fn invoke(
+        &mut self,
+        invoke_args_ptr: Pointer<u8>,
+        invoke_args_len: WordSize,
+        func_idx: SupervisorFuncIndex,
+    ) -> HostResult<i64> {
+        let table = self
+            .context
+            .caller
+            .data()
+            .table
+            .expect("Runtime doesn't have a table; sandbox is unavailable");
+        let table_item = table
+            .get(
+                self.context.caller.as_context_mut(),
+                self.dispatch_thunk_id as u64,
+            )
+            .expect("dispatch_thunk_id is out of bounds");
+        let dispatch_thunk = *table_item
+            .unwrap_func()
+            .expect("dispatch_thunk_idx should be a funcref");
+
+        let mut ret_vals = [Val::I64(0)];
+        let result = dispatch_thunk.call(
+            &mut self.context.caller,
+            &[
+                Val::I32(u32::from(invoke_args_ptr) as i32),
+                Val::I32(invoke_args_len as i32),
+                Val::I32(u32::from(self.state_ptr) as i32),
+                Val::I32(usize::from(func_idx) as i32),
+            ],
+            &mut ret_vals,
+        );
+
+        match result {
+            Ok(()) => ret_vals[0]
+                .i64()
+                .ok_or_else(|| "Supervisor function returned unexpected result!".into()),
+            Err(err) => Err(err.to_string().into()),
+        }
+    }
+}
+
+fn get_buff(caller: Caller<'_, StoreData>, memory_idx: u32) -> i64 {
     log::trace!(target: "host_call", "get_buff(memory_idx={memory_idx:?})");
-
-    let mut host_context = HostContext { caller };
-    let res = sandbox_detail::get_buff(&mut host_context, memory_idx as u32) as i64;
-
+    let res = sandbox_context::get_buff(ProcessorContext::new(caller), memory_idx) as i64;
     log::trace!(target: "host_call", "get_buff(..) -> {res:?}");
-
     res
 }
 
-fn get_global_val(caller: Caller<'_, StoreData>, instance_idx: i32, name: i64) -> i64 {
-    log::trace!(target: "host_call", "get_global_val(instance_idx={instance_idx:?}, name={name:?})");
+fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: u32, name: i64) -> i64 {
+    log::trace!(
+        target: "host_call",
+        "get_global_val(instance_idx={instance_idx:?}, name={name:?})"
+    );
 
-    let memory = MemoryWrap(caller.data().memory());
-
-    let name = memory.slice_by_val(&caller, name).to_vec();
+    let name = context::memory(&mut caller).slice_by_val(name).to_vec();
     let name = core::str::from_utf8(&name).unwrap_or_default();
 
-    let mut host_context = HostContext { caller };
-
-    let res = sandbox_detail::get_global_val(&mut host_context, instance_idx as u32, name);
+    let res =
+        sandbox_context::get_global_val(ProcessorContext::new(&mut caller), instance_idx, name);
     let res = res.encode();
     let res_len = res.len() as u32;
 
-    let ptr = host_context
-        .allocate_memory(res_len as u32)
-        .unwrap()
-        .into_value()
-        .as_i32()
-        .expect("always i32");
+    let ptr = context::allocator(&mut caller).allocate(res_len).unwrap();
+    caller
+        .data()
+        .memory()
+        .write(&mut caller, ptr as usize, &res)
+        .unwrap();
 
-    let mut caller = host_context.caller;
-
-    let memory = caller.data().memory();
-
-    memory.write(&mut caller, ptr as usize, &res).unwrap();
-
-    let res = pack_u32_to_i64(ptr as u32, res_len);
-
+    let res = pack_u32_to_i64(ptr, res_len);
     log::trace!(target: "host_call", "get_global_val(..) -> {res:?}");
-
     res
 }
 
-fn get_instance_ptr(caller: Caller<'_, StoreData>, instance_idx: i32) -> i64 {
+fn get_instance_ptr(caller: Caller<'_, StoreData>, instance_idx: u32) -> i64 {
     log::trace!(target: "host_call", "get_instance_ptr(instance_idx={instance_idx:?})");
-
-    let mut host_context = HostContext { caller };
-    let res = sandbox_detail::get_instance_ptr(&mut host_context, instance_idx as u32) as i64;
-
+    let res = sandbox_context::get_instance_ptr(ProcessorContext::new(caller), instance_idx) as i64;
     log::trace!(target: "host_call", "get_instance_ptr(..) -> {res:?}");
-
     res
 }
 
-fn instance_teardown(caller: Caller<'_, StoreData>, instance_idx: i32) {
+fn instance_teardown(caller: Caller<'_, StoreData>, instance_idx: u32) {
     log::trace!(target: "host_call", "instance_teardown(instance_idx={instance_idx:?})");
-
-    let mut host_context = HostContext { caller };
-    sandbox_detail::instance_teardown(&mut host_context, instance_idx as u32)
+    sandbox_context::instance_teardown(ProcessorContext::new(caller), instance_idx);
 }
 
 fn instantiate(
-    caller: Caller<'_, StoreData>,
-    dispatch_thunk_id: i32,
+    mut caller: Caller<'_, StoreData>,
+    dispatch_thunk_id: u32,
     wasm_code: i64,
     raw_env_def: i64,
-    state_ptr: i32,
+    state_ptr: u32,
 ) -> i32 {
-    log::trace!(target: "host_call", "instantiate(dispatch_thunk_id={dispatch_thunk_id:?}, wasm_code={wasm_code:?}, raw_env_def={raw_env_def:?}, state_ptr={state_ptr:?})");
+    log::trace!(
+        target: "host_call",
+        "instantiate(dispatch_thunk_id={dispatch_thunk_id:?}, wasm_code={wasm_code:?}, raw_env_def={raw_env_def:?}, state_ptr={state_ptr:?})"
+    );
 
-    let dispatch_thunk_id = dispatch_thunk_id as u32;
+    let memory = context::memory(&mut caller);
+    let wasm_code = memory.slice_by_val(wasm_code).to_vec();
+    let raw_env_def = memory.slice_by_val(raw_env_def).to_vec();
 
-    let memory = MemoryWrap(caller.data().memory());
-
-    let wasm_code = memory.slice_by_val(&caller, wasm_code).to_vec();
-
-    let raw_env_def = memory.slice_by_val(&caller, raw_env_def).to_vec();
-
-    let state_ptr = Pointer::<u8>::new(state_ptr as u32);
-
-    let mut host_context = HostContext { caller };
-    let res = sandbox_detail::instantiate(
-        &mut host_context,
-        dispatch_thunk_id,
+    let res = sandbox_context::instantiate(
+        ProcessorContext::new(caller).dispatcher(dispatch_thunk_id, Pointer::new(state_ptr)),
         &wasm_code,
         &raw_env_def,
-        state_ptr,
         Instantiate::Version2,
     ) as i32;
 
     log::trace!(target: "host_call", "instantiate(..) -> {res:?}");
-
     res
 }
 
 fn invoke(
-    caller: Caller<'_, StoreData>,
-    instance_idx: i32,
+    mut caller: Caller<'_, StoreData>,
+    instance_idx: u32,
     function: i64,
     args: i64,
-    return_val_ptr: i32,
-    return_val_len: i32,
-    state_ptr: i32,
+    return_val_ptr: u32,
+    return_val_len: u32,
+    state_ptr: u32,
 ) -> i32 {
-    log::trace!(target: "host_call", "invoke(instance_idx={instance_idx:?}, function={function:?}, args={args:?}, return_val_ptr={return_val_ptr:?}, return_val_len={return_val_len:?}, state_ptr={state_ptr:?})");
+    log::trace!(
+        target: "host_call",
+        "invoke(instance_idx={instance_idx:?}, function={function:?}, args={args:?}, return_val_ptr={return_val_ptr:?}, return_val_len={return_val_len:?}, state_ptr={state_ptr:?})"
+    );
 
-    let instance_idx = instance_idx as u32;
-
-    let memory = MemoryWrap(caller.data().memory());
-
-    let function = memory.slice_by_val(&caller, function).to_vec();
+    let memory = context::memory(&mut caller);
+    let function = memory.slice_by_val(function).to_vec();
     let function = core::str::from_utf8(&function).unwrap_or_default();
+    let args = memory.slice_by_val(args).to_vec();
 
-    let args = memory.slice_by_val(&caller, args).to_vec();
-
-    let return_val_ptr = Pointer::<u8>::new(return_val_ptr as u32);
-
-    let return_val_len = return_val_len as u32;
-
-    let state_ptr = Pointer::<u8>::new(state_ptr as u32);
-
-    let mut host_context = HostContext { caller };
-    let res = sandbox_detail::invoke(
-        &mut host_context,
+    let res = sandbox_context::invoke(
+        ProcessorContext::new(caller),
+        ProcessorContext::dispatcher,
         instance_idx,
         function,
         &args,
-        return_val_ptr,
+        Pointer::new(return_val_ptr),
         return_val_len,
-        state_ptr,
+        Pointer::new(state_ptr),
     ) as i32;
 
     log::trace!(target: "host_call", "invoke(..) -> {res:?}");
-
     res
 }
 
 fn memory_get(
     caller: Caller<'_, StoreData>,
-    memory_idx: i32,
-    offset: i32,
-    buff_ptr: i32,
-    buff_len: i32,
+    memory_idx: u32,
+    offset: u32,
+    buff_ptr: u32,
+    buff_len: u32,
 ) -> i32 {
-    log::trace!(target: "host_call", "memory_get(memory_idx={memory_idx:?}, offset={offset:?}, buff_ptr={buff_ptr:?}, buff_len={buff_len:?})");
+    log::trace!(
+        target: "host_call",
+        "memory_get(memory_idx={memory_idx:?}, offset={offset:?}, buff_ptr={buff_ptr:?}, buff_len={buff_len:?})"
+    );
 
-    let buff_ptr = Pointer::new(buff_ptr as u32);
-
-    let mut host_context = HostContext { caller };
-    let res = sandbox_detail::memory_get(
-        &mut host_context,
-        memory_idx as u32,
-        offset as u32,
-        buff_ptr,
-        buff_len as u32,
+    let res = sandbox_context::memory_get(
+        ProcessorContext::new(caller),
+        memory_idx,
+        offset,
+        Pointer::new(buff_ptr),
+        buff_len,
     ) as i32;
 
     log::trace!(target: "host_call", "memory_get(..) -> {res:?}");
-
     res
 }
 
-fn memory_grow(caller: Caller<'_, StoreData>, memory_idx: i32, size: i32) -> i32 {
+fn memory_grow(caller: Caller<'_, StoreData>, memory_idx: u32, size: u32) -> i32 {
     log::trace!(target: "host_call", "memory_grow(memory_idx={memory_idx:?}, size={size:?})");
-
-    let mut host_context = HostContext { caller };
-    let res = sandbox_detail::memory_grow(&mut host_context, memory_idx as u32, size as u32) as i32;
-
+    let res = sandbox_context::memory_grow(ProcessorContext::new(caller), memory_idx, size) as i32;
     log::trace!(target: "host_call", "memory_grow(..) -> {res:?}");
-
     res
 }
 
-fn memory_new(caller: Caller<'_, StoreData>, initial: i32, maximum: i32) -> i32 {
+fn memory_new(caller: Caller<'_, StoreData>, initial: u32, maximum: u32) -> i32 {
     log::trace!(target: "host_call", "memory_new(initial={initial:?}, maximum={maximum:?})");
-
-    let mut host_context = HostContext { caller };
-    let res = sandbox_detail::memory_new(&mut host_context, initial as u32, maximum as u32) as i32;
-
+    let res = sandbox_context::memory_new(ProcessorContext::new(caller), initial, maximum) as i32;
     log::trace!(target: "host_call", "memory_new(..) -> {res:?}");
-
     res
 }
 
 fn memory_set(
     caller: Caller<'_, StoreData>,
-    memory_idx: i32,
-    offset: i32,
-    val_ptr: i32,
-    val_len: i32,
+    memory_idx: u32,
+    offset: u32,
+    val_ptr: u32,
+    val_len: u32,
 ) -> i32 {
-    log::trace!(target: "host_call", "memory_set(memory_idx={memory_idx:?}, offset={offset:?}, val_ptr={val_ptr:?}, val_len={val_len:?})");
+    log::trace!(
+        target: "host_call",
+        "memory_set(memory_idx={memory_idx:?}, offset={offset:?}, val_ptr={val_ptr:?}, val_len={val_len:?})"
+    );
 
-    let val_ptr = Pointer::new(val_ptr as u32);
-
-    let mut host_context = HostContext { caller };
-    let res = sandbox_detail::memory_set(
-        &mut host_context,
-        memory_idx as u32,
-        offset as u32,
-        val_ptr,
-        val_len as u32,
+    let res = sandbox_context::memory_set(
+        ProcessorContext::new(caller),
+        memory_idx,
+        offset,
+        Pointer::new(val_ptr),
+        val_len,
     ) as i32;
 
     log::trace!(target: "host_call", "memory_set(..) -> {res:?}");
-
     res
 }
 
-fn memory_size(caller: Caller<'_, StoreData>, memory_idx: i32) -> i32 {
+fn memory_size(caller: Caller<'_, StoreData>, memory_idx: u32) -> i32 {
     log::trace!(target: "host_call", "memory_size(memory_idx={memory_idx:?})");
-
-    let mut host_context = HostContext { caller };
-    let res = sandbox_detail::memory_size(&mut host_context, memory_idx as u32) as i32;
-
+    let res = sandbox_context::memory_size(ProcessorContext::new(caller), memory_idx) as i32;
     log::trace!(target: "host_call", "memory_size(..) -> {res:?}");
-
     res
 }
 
-fn memory_teardown(caller: Caller<'_, StoreData>, memory_idx: i32) {
+fn memory_teardown(caller: Caller<'_, StoreData>, memory_idx: u32) {
     log::trace!(target: "host_call", "memory_teardown(memory_idx={memory_idx:?})");
-
-    let mut host_context = HostContext { caller };
-    sandbox_detail::memory_teardown(&mut host_context, memory_idx as u32)
+    sandbox_context::memory_teardown(ProcessorContext::new(caller), memory_idx);
 }
 
-fn set_global_val(caller: Caller<'_, StoreData>, instance_idx: i32, name: i64, value: i64) -> i32 {
-    log::trace!(target: "host_call", "set_global_val(instance_idx={instance_idx:?}, name={name:?}, value={value:?})");
+fn set_global_val(
+    mut caller: Caller<'_, StoreData>,
+    instance_idx: u32,
+    name: i64,
+    value: i64,
+) -> i32 {
+    log::trace!(
+        target: "host_call",
+        "set_global_val(instance_idx={instance_idx:?}, name={name:?}, value={value:?})"
+    );
 
-    let memory = MemoryWrap(caller.data().memory());
-
-    let name = memory.slice_by_val(&caller, name).to_vec();
+    let memory = context::memory(&mut caller);
+    let name = memory.slice_by_val(name).to_vec();
     let name = core::str::from_utf8(&name).unwrap_or_default();
+    let value: Value = memory.decode_by_val(value);
 
-    let value = memory.decode_by_val(&caller, value);
-
-    let mut host_context = HostContext { caller };
     let res =
-        sandbox_detail::set_global_val(&mut host_context, instance_idx as u32, name, value) as i32;
-
+        sandbox_context::set_global_val(ProcessorContext::new(caller), instance_idx, name, value)
+            as i32;
     log::trace!(target: "host_call", "set_global_val(..) -> {res:?}");
-
     res
 }

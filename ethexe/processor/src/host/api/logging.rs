@@ -1,9 +1,8 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use super::MemoryWrap;
+use crate::host::{StoreData, context};
 use log::Level;
-use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -24,12 +23,12 @@ fn log(caller: Caller<'_, StoreData>, level: i32, target: i64, message: i64) {
         _ => Level::Trace,
     };
 
-    let memory = MemoryWrap(caller.data().memory());
+    let memory = context::memory(caller);
 
-    let target = memory.slice_by_val(&caller, target);
+    let target = memory.slice_by_val(target);
     let target = core::str::from_utf8(target).unwrap_or_default();
 
-    let message = memory.slice_by_val(&caller, message);
+    let message = memory.slice_by_val(message);
     let message = core::str::from_utf8(message).unwrap_or_default();
 
     log::log!(target: target, level, "{message}");

@@ -1,10 +1,8 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use sp_wasm_interface::StoreData;
+use crate::host::{StoreData, context};
 use wasmtime::{Caller, Linker};
-
-use crate::host::{api::MemoryWrap, threads};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     linker.func_wrap("env", "ext_publish_promise", publish_promise)?;
@@ -12,24 +10,21 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     Ok(())
 }
 
-fn publish_promise(caller: Caller<'_, StoreData>, promise_ptr_len: i64) {
-    threads::with_params(|params| {
-        if let Some(ref sender) = params.promise_sink {
-            let memory = MemoryWrap(caller.data().memory());
-            let promise = memory.decode_by_val(&caller, promise_ptr_len);
+fn publish_promise(mut caller: Caller<'_, StoreData>, promise_ptr_len: i64) {
+    if let Some(sender) = caller.data().promise_sink.clone() {
+        let promise = context::memory(&mut caller).decode_by_val(promise_ptr_len);
 
-            match sender.send(promise) {
-                Ok(()) => {
-                    log::trace!(
-                        "successfully send promise to outer service: promise_ptr_len={promise_ptr_len}"
-                    );
-                }
-                Err(err) => {
-                    log::trace!(
-                        "`publish_promise`: failed to send promise to receiver because of error={err}"
-                    );
-                }
+        match sender.send(promise) {
+            Ok(()) => {
+                log::trace!(
+                    "successfully send promise to outer service: promise_ptr_len={promise_ptr_len}"
+                );
+            }
+            Err(err) => {
+                log::trace!(
+                    "`publish_promise`: failed to send promise to receiver because of error={err}"
+                );
             }
         }
-    });
+    }
 }

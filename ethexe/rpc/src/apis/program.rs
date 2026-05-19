@@ -1,23 +1,28 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+#[cfg(feature = "server")]
 use crate::{errors, utils};
+#[cfg(feature = "server")]
 use ethexe_common::{
     HashOf, SimpleBlockData,
     db::{AnnounceStorageRO, CodesStorageRO, OnChainStorageRO},
 };
+#[cfg(feature = "server")]
 use ethexe_db::Database;
+#[cfg(feature = "server")]
 use ethexe_processor::{ExecutableDataForReply, OverlaidProcessor};
 use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueryableStorage,
-    Storage, Waitlist,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Waitlist,
 };
+#[cfg(feature = "server")]
+use ethexe_runtime_common::state::{QueryableStorage, Storage};
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};
-use jsonrpsee::{
-    core::{RpcResult, async_trait},
-    proc_macros::rpc,
-};
+#[cfg(feature = "server")]
+use jsonrpsee::core::async_trait;
+use jsonrpsee::proc_macros::rpc;
+#[cfg(feature = "server")]
 use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
 use sp_core::Bytes;
@@ -34,8 +39,9 @@ pub struct FullProgramState {
     pub executable_balance: u128,
 }
 
-#[cfg_attr(not(feature = "client"), rpc(server))]
-#[cfg_attr(feature = "client", rpc(server, client))]
+#[cfg_attr(all(feature = "server", feature = "client"), rpc(server, client))]
+#[cfg_attr(all(feature = "server", not(feature = "client")), rpc(server))]
+#[cfg_attr(all(not(feature = "server"), feature = "client"), rpc(client))]
 pub trait Program {
     #[method(name = "program_calculateReplyForHandle")]
     async fn calculate_reply_for_handle(
@@ -45,45 +51,47 @@ pub trait Program {
         program_id: H160,
         payload: Bytes,
         value: u128,
-    ) -> RpcResult<ReplyInfo>;
+    ) -> jsonrpsee::core::RpcResult<ReplyInfo>;
 
     #[method(name = "program_ids")]
-    async fn ids(&self) -> RpcResult<Vec<H160>>;
+    async fn ids(&self) -> jsonrpsee::core::RpcResult<Vec<H160>>;
 
     #[method(name = "program_codeId")]
-    async fn code_id(&self, program_id: H160) -> RpcResult<H256>;
+    async fn code_id(&self, program_id: H160) -> jsonrpsee::core::RpcResult<H256>;
 
     #[method(name = "program_readState")]
-    async fn read_state(&self, hash: H256) -> RpcResult<ProgramState>;
+    async fn read_state(&self, hash: H256) -> jsonrpsee::core::RpcResult<ProgramState>;
 
     #[method(name = "program_readQueue")]
-    async fn read_queue(&self, hash: H256) -> RpcResult<MessageQueue>;
+    async fn read_queue(&self, hash: H256) -> jsonrpsee::core::RpcResult<MessageQueue>;
 
     #[method(name = "program_readWaitlist")]
-    async fn read_waitlist(&self, hash: H256) -> RpcResult<Waitlist>;
+    async fn read_waitlist(&self, hash: H256) -> jsonrpsee::core::RpcResult<Waitlist>;
 
     #[method(name = "program_readStash")]
-    async fn read_stash(&self, hash: H256) -> RpcResult<DispatchStash>;
+    async fn read_stash(&self, hash: H256) -> jsonrpsee::core::RpcResult<DispatchStash>;
 
     #[method(name = "program_readMailbox")]
-    async fn read_mailbox(&self, hash: H256) -> RpcResult<Mailbox>;
+    async fn read_mailbox(&self, hash: H256) -> jsonrpsee::core::RpcResult<Mailbox>;
 
     #[method(name = "program_readFullState")]
-    async fn read_full_state(&self, hash: H256) -> RpcResult<FullProgramState>;
+    async fn read_full_state(&self, hash: H256) -> jsonrpsee::core::RpcResult<FullProgramState>;
 
     #[method(name = "program_readPages")]
-    async fn read_pages(&self, hash: H256) -> RpcResult<MemoryPages>;
+    async fn read_pages(&self, hash: H256) -> jsonrpsee::core::RpcResult<MemoryPages>;
 
     #[method(name = "program_readPageData")]
-    async fn read_page_data(&self, hash: H256) -> RpcResult<Bytes>;
+    async fn read_page_data(&self, hash: H256) -> jsonrpsee::core::RpcResult<Bytes>;
 }
 
+#[cfg(feature = "server")]
 pub struct ProgramApi {
     db: Database,
     processor: OverlaidProcessor,
     gas_allowance: u64,
 }
 
+#[cfg(feature = "server")]
 impl ProgramApi {
     pub fn new(db: Database, processor: OverlaidProcessor, gas_allowance: u64) -> Self {
         Self {
@@ -110,6 +118,7 @@ impl ProgramApi {
     }
 }
 
+#[cfg(feature = "server")]
 #[async_trait]
 impl ProgramServer for ProgramApi {
     async fn calculate_reply_for_handle(
@@ -119,7 +128,7 @@ impl ProgramServer for ProgramApi {
         program_id: H160,
         payload: Bytes,
         value: u128,
-    ) -> RpcResult<ReplyInfo> {
+    ) -> jsonrpsee::core::RpcResult<ReplyInfo> {
         let announce_hash = utils::announce_at_or_latest_computed(&self.db, at)?;
 
         let announce = self
@@ -157,7 +166,7 @@ impl ProgramServer for ProgramApi {
             .map_err(errors::runtime)
     }
 
-    async fn ids(&self) -> RpcResult<Vec<H160>> {
+    async fn ids(&self) -> jsonrpsee::core::RpcResult<Vec<H160>> {
         let announce_hash = utils::announce_at_or_latest_computed(&self.db, None)?;
 
         Ok(self
@@ -169,40 +178,40 @@ impl ProgramServer for ProgramApi {
             .collect())
     }
 
-    async fn code_id(&self, program_id: H160) -> RpcResult<H256> {
+    async fn code_id(&self, program_id: H160) -> jsonrpsee::core::RpcResult<H256> {
         self.db
             .program_code_id(program_id.into())
             .ok_or_else(|| errors::db("Failed to get code id"))
             .map(|code_id| code_id.into())
     }
 
-    async fn read_state(&self, hash: H256) -> RpcResult<ProgramState> {
+    async fn read_state(&self, hash: H256) -> jsonrpsee::core::RpcResult<ProgramState> {
         self.db
             .program_state(hash)
             .ok_or_else(|| errors::db("Failed to read state by hash"))
     }
 
-    async fn read_queue(&self, hash: H256) -> RpcResult<MessageQueue> {
+    async fn read_queue(&self, hash: H256) -> jsonrpsee::core::RpcResult<MessageQueue> {
         self.read_queue(hash)
             .ok_or_else(|| errors::db("Failed to read queue by hash"))
     }
 
-    async fn read_waitlist(&self, hash: H256) -> RpcResult<Waitlist> {
+    async fn read_waitlist(&self, hash: H256) -> jsonrpsee::core::RpcResult<Waitlist> {
         self.read_waitlist(hash)
             .ok_or_else(|| errors::db("Failed to read waitlist by hash"))
     }
 
-    async fn read_stash(&self, hash: H256) -> RpcResult<DispatchStash> {
+    async fn read_stash(&self, hash: H256) -> jsonrpsee::core::RpcResult<DispatchStash> {
         self.read_stash(hash)
             .ok_or_else(|| errors::db("Failed to read stash by hash"))
     }
 
-    async fn read_mailbox(&self, hash: H256) -> RpcResult<Mailbox> {
+    async fn read_mailbox(&self, hash: H256) -> jsonrpsee::core::RpcResult<Mailbox> {
         self.read_mailbox(hash)
             .ok_or_else(|| errors::db("Failed to read mailbox by hash"))
     }
 
-    async fn read_full_state(&self, hash: H256) -> RpcResult<FullProgramState> {
+    async fn read_full_state(&self, hash: H256) -> jsonrpsee::core::RpcResult<FullProgramState> {
         let Some(ProgramState {
             program,
             canonical_queue,
@@ -235,13 +244,13 @@ impl ProgramServer for ProgramApi {
         })
     }
 
-    async fn read_pages(&self, hash: H256) -> RpcResult<MemoryPages> {
+    async fn read_pages(&self, hash: H256) -> jsonrpsee::core::RpcResult<MemoryPages> {
         self.db
             .memory_pages(unsafe { HashOf::new(hash) })
             .ok_or_else(|| errors::db("Failed to read pages by hash"))
     }
 
-    async fn read_page_data(&self, hash: H256) -> RpcResult<Bytes> {
+    async fn read_page_data(&self, hash: H256) -> jsonrpsee::core::RpcResult<Bytes> {
         self.db
             .page_data(unsafe { HashOf::new(hash) })
             .map(|buf| buf.encode().into())

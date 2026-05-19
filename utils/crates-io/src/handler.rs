@@ -27,6 +27,7 @@ pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<M
     let doc = &mut manifest.mutable_manifest;
 
     match manifest.name.as_str() {
+        "ethexe-rpc" => ethexe_rpc::patch(doc),
         "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
@@ -57,6 +58,36 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
             substrate::patch_workspace(name, table)
         }
         _ => {}
+    }
+}
+
+/// ethexe-rpc handler.
+mod ethexe_rpc {
+    use toml_edit::{Array, DocumentMut};
+
+    /// Remove the `ethexe-processor` dependency from the crates.io manifest,
+    /// because it is not part of the crates.io set.
+    pub fn patch(manifest: &mut DocumentMut) {
+        if let Some(deps) = manifest["dependencies"].as_table_like_mut() {
+            deps.remove("ethexe-processor");
+        }
+
+        let Some(features) = manifest["features"].as_table_like_mut() else {
+            return;
+        };
+
+        let mut default_features = Array::default();
+        default_features.push("client");
+
+        features.insert("default", toml_edit::value(default_features));
+
+        let Some(server_features) = features
+            .get_mut("server")
+            .and_then(toml_edit::Item::as_array_mut)
+        else {
+            return;
+        };
+        server_features.retain(|feature| feature.as_str() != Some("dep:ethexe-processor"));
     }
 }
 
