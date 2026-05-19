@@ -22,6 +22,7 @@ use chrono::offset::Local as ChronoLocal;
 use gear_wasm_instrument::SyscallKind;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
 use std::{
+    collections::BTreeMap,
     env,
     ffi::OsString,
     fs,
@@ -30,6 +31,22 @@ use std::{
 use toml::value::Table;
 
 const OPT_LEVEL: &str = "z";
+
+fn remove_local_path_patches(patch: &mut BTreeMap<String, toml::Value>) {
+    patch.retain(|_, section| {
+        let Some(entries) = section.as_table_mut() else {
+            return true;
+        };
+
+        entries.retain(|_, dependency| {
+            dependency
+                .as_table()
+                .is_none_or(|dependency| !dependency.contains_key("path"))
+        });
+
+        !entries.is_empty()
+    });
+}
 
 /// Temporary project generated to build a WASM output.
 ///
@@ -218,6 +235,7 @@ impl WasmProject {
         if let Some(crates_io) = patch.get_mut("crates-io").and_then(|v| v.as_table_mut()) {
             crates_io.remove("gear-workspace-hack");
         }
+        remove_local_path_patches(&mut patch);
 
         let mut cargo_toml = Table::new();
         cargo_toml.insert("package".into(), package.into());

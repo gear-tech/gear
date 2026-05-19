@@ -46,21 +46,24 @@ sc-executor-wasmtime = { path = "protocol/runtime-executor/wasmtime" }
 
 `gear-sandbox-interface` was adjusted to use upstream `sp-wasm-interface` plus the local `sc-executor` caller utilities for `host-api`.
 
+The runtime executor patch is still required in this proof because upstream stable2409 does not expose the caller/store bridge used by Gear's sandbox host API. `utils/substrate-wasm-builder` is also still required on stable2409 because upstream does not contain Gear's wasm32v1-none runtime target selection or the cargo-flag hook used by the runtime build scripts. These are the remaining SDK seams to upstream or isolate further before this branch can drop all local copied SDK crates.
+
 ## Removed Or Deleted
 
 - Removed the custom `gear-tech/polkadot-sdk` Cargo dependency source.
 - Kept `binary-merkle-tree` on crates.io (`16.1.1`) instead of copying it locally.
 - Removed `sc-executor-wasmi` from workspace dependency wiring.
 - Deleted the unused local `protocol/runtime-executor/wasmi` copy from the proof branch.
+- Deleted the local `utils/finality-grandpa` copy and returned `finality-grandpa` to crates.io.
 - Removed the fork-only `logger.with_max_level(log::LevelFilter::Info)` call from `vara/node/cli/src/command.rs`; upstream `LoggerBuilder` does not expose that method.
 - Moved `gear-workspace-hack` out of wasm example target dependencies by making example usage native-only.
+- Stripped workspace-local path patches from generated wasm sub-project manifests so isolated wasm builds do not try to resolve Gear workspace paths from `OUT_DIR`.
 
 ## Clippy And Build Hygiene
 
 The copied upstream crates needed local clippy cleanup because Gear runs `-D warnings`:
 
 - Fixed clippy warnings in `sp-allocator` and runtime executor crates.
-- Added crate-level style lint allows in `utils/substrate-wasm-builder` for copied upstream code where the lints are formatting/style-only.
 - Fixed Rust 2024 unsafe-op-in-unsafe-fn requirements in the local wasmtime executor code.
 - Added `cfg(build_type, values("debug"))` to workspace check-cfg.
 

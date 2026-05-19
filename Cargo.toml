@@ -12,7 +12,7 @@ resolver = "3"
 
 default-members = ["vara/node/cli"]
 
-exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts", "utils/finality-grandpa"]
+exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
 
 members = [
   # protocol
@@ -674,7 +674,6 @@ debug = true
 
 [patch.crates-io]
 gear-workspace-hack = { path = "utils/gear-workspace-hack" }
-finality-grandpa = { path = "utils/finality-grandpa" }
 # core2 0.4.0 was yanked on crates.io; pin upstream git so cargo metadata doesn't fail on yanked lookup.
 # Needed by cid -> sc-network transitive; triggers during wasm-builder sub-project resolve.
 core2 = { git = "https://github.com/bbqsrc/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7" }
