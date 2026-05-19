@@ -13,7 +13,6 @@ use alloc::{
     vec::Vec,
 };
 use core::{mem, num::NonZero, panic};
-use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{
     ScheduledTask,
     gear::{INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD, Message, MessageType},
@@ -27,6 +26,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
+use gear_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
 use gsys::GasMultiplier;
 

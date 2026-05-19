@@ -3,7 +3,7 @@
 
 //! Crate verifier
 
-use crate::{EXPECTED_OWNERS, Simulator, handler};
+use crate::{EXPECTED_OWNERS, Simulator};
 use anyhow::{Result, anyhow};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
@@ -30,9 +30,8 @@ pub async fn verify(name: &str, version: &str, simulator: Option<&Simulator>) ->
     if let Some(simulator) = simulator {
         if client
             .get(format!(
-                "http://{}/api/v1/crates/{}/{version}/download",
-                simulator.addr(),
-                handler::crates_io_name(name)
+                "http://{}/api/v1/crates/{name}/{version}/download",
+                simulator.addr()
             ))
             .send()
             .await?
@@ -42,10 +41,7 @@ pub async fn verify(name: &str, version: &str, simulator: Option<&Simulator>) ->
             return Ok(true);
         }
     } else if let Ok(response) = client
-        .get(format!(
-            "https://crates.io/api/v1/crates/{}/versions",
-            handler::crates_io_name(name)
-        ))
+        .get(format!("https://crates.io/api/v1/crates/{name}/versions"))
         .send()
         .await?
         .json::<VersionsResponse>()
@@ -87,10 +83,7 @@ pub async fn verify_owners(name: &str) -> Result<PackageStatus> {
         .build()?;
 
     let response = client
-        .get(format!(
-            "https://crates.io/api/v1/crates/{}/owners",
-            handler::crates_io_name(name)
-        ))
+        .get(format!("https://crates.io/api/v1/crates/{name}/owners"))
         .send()
         .await?;
 

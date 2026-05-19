@@ -9,7 +9,6 @@ use crate::{
     },
     host::InstanceCreator,
 };
-use core_processor::common::JournalNote;
 use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType};
 use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
@@ -17,6 +16,7 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     message::ReplyDetails,
 };
+use gear_processor::common::JournalNote;
 use gprimitives::{ActorId, MessageId};
 use std::collections::HashSet;
 

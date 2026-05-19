@@ -101,7 +101,7 @@ where
             }
 
             // Processing notes since reply wasn't found.
-            core_processor::handle_journal(journal, &mut ext_manager);
+            gear_processor::handle_journal(journal, &mut ext_manager);
 
             // If some message overcame block allowance, aborting processing.
             if QueueProcessingOf::<T>::denied() {
@@ -260,7 +260,7 @@ where
             // Looking through all notes in order to calculate gas properly.
             for note in journal {
                 // Processing note.
-                core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
+                gear_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
                 // If some message overcame block allowance, aborting processing.
                 if QueueProcessingOf::<T>::denied() {
@@ -420,7 +420,7 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
-        core_processor::informational::execute_for_reply::<Ext, String>(
+        gear_processor::informational::execute_for_reply::<Ext, String>(
             function.into(),
             instrumented_code,
             code_metadata,
@@ -460,7 +460,7 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
-        core_processor::informational::execute_for_reply::<Ext, String>(
+        gear_processor::informational::execute_for_reply::<Ext, String>(
             String::from("state"),
             instrumented_code,
             code_metadata,
@@ -499,7 +499,7 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
-        core_processor::informational::execute_for_reply::<Ext, String>(
+        gear_processor::informational::execute_for_reply::<Ext, String>(
             String::from("metahash"),
             instrumented_code,
             code_metadata,

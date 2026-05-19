@@ -36,7 +36,7 @@ check_spec() {
     fi
 }
 
-PACKAGES_REQUIRE_BUMP_SPEC="common core core-backend core-processor node pallets runtime-interface"
+PACKAGES_REQUIRE_BUMP_SPEC="common core core-backend gear-processor node pallets runtime-interface"
 
 SPEC_ON_MASTER="$(git diff origin/master | sed -n -r "s/^\-[[:space:]]+spec_version: +([0-9]+),$/\1/p")"
 ACTUAL_SPEC_VARA="$(cat $ROOT_DIR/runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')"

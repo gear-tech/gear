@@ -11,8 +11,8 @@
 //!    in case of execution resulting in a trap. So, it gives us a guarantee that regardless of the result of message execution, there is **always some
 //!    value** to perform asset management, i.e move tokens further to the recipient or give back to sender. The guarantee is implemented by using
 //!    corresponding `pallet_balances` functions (`reserve`, `repatriate_reserved`, `unreserve` along with `transfer`) in `pallet_gear` extrinsics,
-//!    [`JournalHandler::send_dispatch`](core_processor::common::JournalHandler::send_dispatch) and
-//!    [`JournalHandler::send_value`](core_processor::common::JournalHandler::send_value) procedures.
+//!    [`JournalHandler::send_dispatch`](gear_processor::common::JournalHandler::send_dispatch) and
+//!    [`JournalHandler::send_value`](gear_processor::common::JournalHandler::send_value) procedures.
 //!
 //! 2. **Balance sufficiency before adding message with value to the queue**.
 //!    Before message is added to the queue, sender's balance is checked for having adequate amount of assets to send desired value. For actors, who
@@ -21,7 +21,7 @@
 //!    value sent within the executing message). So if during execution of the original message some other messages were sent, message send call is followed
 //!    by program's balance checks. The check gives guarantee that value reservation call in
 //!
-//! [`JournalHandler::send_dispatch`](core_processor::common::JournalHandler::send_dispatch) for program's messages won't fail, because there is always a
+//! [`JournalHandler::send_dispatch`](gear_processor::common::JournalHandler::send_dispatch) for program's messages won't fail, because there is always a
 //! sufficient balance for the call.
 //!
 //! 3. **Messages's value management considers existential deposit rule**.

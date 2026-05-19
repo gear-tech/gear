@@ -1,7 +1,7 @@
 [package]
-name = "gear-core-processor"
+name = "gear-processor"
 description = "The core processor for Gear programs"
-documentation = "https://docs.rs/core-processor"
+documentation = "https://docs.rs/gear-processor"
 keywords = ["gear", "wasm"]
 categories = ["wasm"]
 version.workspace = true

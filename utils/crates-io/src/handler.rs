@@ -10,17 +10,6 @@ use cargo_metadata::Package;
 /// The working version of sp-wasm-interface.
 pub const GP_RUNTIME_INTERFACE_VERSION: &str = "18.0.0";
 
-/// Get the crates-io name of the provided package.
-pub fn crates_io_name(pkg: &str) -> &str {
-    // `gear-core-processor` is taken by others, see the docs
-    // of [`core-processor::patch_workspace`] for more details.
-    if pkg == "gear-core-processor" {
-        "core-processor"
-    } else {
-        pkg
-    }
-}
-
 /// Patch specified manifest by provided name.
 pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<Manifest> {
     let mut manifest = Manifest::new(pkg, is_published, is_actualized)?;
@@ -28,7 +17,6 @@ pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<M
 
     match manifest.name.as_str() {
         "ethexe-rpc" => ethexe_rpc::patch(doc),
-        "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
         "gear-sandbox-interface" => sandbox_interface::patch(doc),
@@ -50,7 +38,6 @@ pub fn patch_alias(index: &mut Vec<&str>) {
 /// Patch the workspace manifest.
 pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
     match name {
-        "core-processor" | "gear-core-processor" => core_processor::patch_workspace(name, table),
         sub if ["sc-", "sp-", "frame-", "try-runtime-cli"]
             .iter()
             .any(|p| sub.starts_with(p)) =>
@@ -88,34 +75,6 @@ mod ethexe_rpc {
             return;
         };
         server_features.retain(|feature| feature.as_str() != Some("dep:ethexe-processor"));
-    }
-}
-
-/// gear-core-processor handler.
-mod core_processor {
-    use toml_edit::{DocumentMut, InlineTable};
-
-    /// Pointing the package name of core-processor to
-    /// `core-processor` on `crates-io` since this is
-    /// the one we own.
-    pub fn patch_workspace(name: &str, table: &mut InlineTable) {
-        match name {
-            // Remove the path definition to point core-processor to
-            // crates-io.
-            "core-processor" => {
-                table.remove("package");
-            }
-            // Points to `core-processor` for the one on crates-io.
-            "gear-core-processor" => {
-                table.insert("package", "core-processor".into());
-            }
-            _ => {}
-        }
-    }
-
-    /// Patch the manifest of core-processor.
-    pub fn patch(manifest: &mut DocumentMut) {
-        manifest["package"]["name"] = toml_edit::value("core-processor");
     }
 }
 

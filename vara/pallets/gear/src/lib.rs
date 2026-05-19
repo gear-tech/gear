@@ -56,10 +56,6 @@ use common::{
     QueueRunner, event::*, gas_provider::GasNodeId, scheduler::*, storage::*,
 };
 use core::{marker::PhantomData, num::NonZero};
-use core_processor::{
-    common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
-    configs::{BlockConfig, BlockInfo},
-};
 use frame_support::{
     dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
@@ -90,6 +86,10 @@ use gear_core::{
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
+use gear_processor::{
+    common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
+    configs::{BlockConfig, BlockInfo},
+};
 use manager::QueuePostProcessingData;
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
@@ -103,7 +103,7 @@ use sp_std::{
     prelude::*,
 };
 
-pub type Ext = core_processor::Ext<LazyPagesRuntimeInterface>;
+pub type Ext = gear_processor::Ext<LazyPagesRuntimeInterface>;
 
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;

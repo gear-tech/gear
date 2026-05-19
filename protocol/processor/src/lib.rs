@@ -33,7 +33,7 @@ pub use processing::{
     process_reinstrumentation_error, process_success, process_uninitialized,
 };
 
-/// Informational functions for core-processor and executor.
+/// Informational functions for gear-processor and executor.
 pub mod informational {
     pub use crate::executor::execute_for_reply;
 }

@@ -98,7 +98,6 @@ pub(crate) use chunks_splitting::ActorStateHashWithQueueSize;
 use crate::{BoundPromiseSink, ProcessorError, Result, host::InstanceCreator};
 use chunk_execution_processing::ChunkJournalsProcessingOutput;
 use chunks_splitting::ExecutionChunks;
-use core_processor::common::JournalNote;
 use ethexe_common::{
     BlockHeader, CALL_REPLY_SOFT_LIMIT, OUTGOING_MESSAGES_BYTES_SOFT_LIMIT,
     OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT, PromisePolicy,
@@ -115,6 +114,7 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     gas::GasAllowanceCounter,
 };
+use gear_processor::common::JournalNote;
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::Itertools;
 

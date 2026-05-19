@@ -51,11 +51,6 @@ use common::{
     self, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree, benchmarking,
     storage::{Counter, *},
 };
-use core_processor::{
-    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
-    common::{DispatchOutcome, JournalNote},
-    configs::BlockConfig,
-};
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
@@ -76,6 +71,11 @@ use gear_core_backend::{
     state::HostState,
 };
 use gear_core_errors::*;
+use gear_processor::{
+    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
+    common::{DispatchOutcome, JournalNote},
+    configs::BlockConfig,
+};
 use gear_sandbox::{SandboxMemory, SandboxStore, default_executor::Store};
 use gear_wasm_instrument::{BlockType, BrTable, Instruction, MemArg, SyscallName, ValType};
 use pallet_authorship::Pallet as AuthorshipPallet;
@@ -178,8 +178,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
-        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
+    gear_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+        .unwrap_or_else(|e| unreachable!("gear-processor logic invalidated: {}", e))
 }
 
 pub fn find_latest_event<T, F, R>(mapping_filter: F) -> Option<R>

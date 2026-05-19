@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{GAS_MULTIPLIER, Gas, Value, error::usage_panic, program::ProgramIdWrapper};
-use core_processor::configs::BlockInfo;
 use gear_core::{
     buffer::Payload,
     ids::{ActorId, MessageId},
     message::{StoredMessage, UserStoredMessage},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
+use gear_processor::configs::BlockInfo;
 use parity_scale_codec::{Codec, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},

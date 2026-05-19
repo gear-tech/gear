@@ -18,10 +18,10 @@ use gear_core_backend::{
     env::{BackendReport, Environment},
     error::{ActorTerminationReason, TerminationReason, TrapExplanation},
 };
-use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_lazy_pages::LazyPagesVersion;
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_lazy_pages_native_interface::LazyPagesNative;
+use gear_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
 use nonempty::nonempty;
 use proptest::prelude::*;
@@ -32,7 +32,7 @@ const UNSTRUCTURED_SIZE: usize = 1_000_000;
 const WASM_PAGE_SIZE: u32 = 64 * 1024;
 const INITIAL_PAGES: u32 = 1;
 
-type Ext = gear_core_processor::Ext<LazyPagesNative>;
+type Ext = gear_processor::Ext<LazyPagesNative>;
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100))]

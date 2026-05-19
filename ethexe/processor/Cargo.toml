@@ -21,7 +21,7 @@ gear-runtime-interface = { workspace = true, default-features = false, features 
 gear-sandbox-host.workspace = true
 gear-lazy-pages.workspace = true
 gear-wasm-instrument = { workspace = true, features = ["std"] }
-core-processor.workspace = true
+gear-processor.workspace = true
 
 futures.workspace = true
 thiserror.workspace = true

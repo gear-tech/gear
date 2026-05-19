@@ -69,7 +69,7 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gear-sandbox-interface",
     "gear-sandbox",
     "gear-core-backend",
-    "gear-core-processor",
+    "gear-processor",
     "gear-lazy-pages-native-interface",
     "gsigner",
     "ethexe-common",
@@ -104,10 +104,7 @@ pub const PACKAGES: &[&str] = &[
 ];
 
 /// Alias for packages.
-pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
-    ("gear-core-processor", "core-processor"),
-    ("gear-runtime-primitives", "runtime-primitives"),
-];
+pub const PACKAGE_ALIAS: [(&str, &str); 1] = [("gear-runtime-primitives", "runtime-primitives")];
 
 /// Name for temporary cargo registry.
 pub const CARGO_REGISTRY_NAME: &str = "cargo-http-registry";

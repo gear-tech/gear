@@ -23,7 +23,7 @@ User extrinsic (upload_program / send_message / send_reply)
   → pallet-gear validates, reserves gas+value, queues StoredDispatch
     → run() inherent fires each block (mandatory, unsigned)
       → QueueRunner dequeues dispatches one by one
-        → core-processor loads program, creates Ext context
+        → gear-processor loads program, creates Ext context
           → core-backend instantiates WASM in sandbox (Wasmer/Wasmtime)
             → Program calls gstd/gcore syscalls → dispatched to host fns
             → lazy-pages intercepts SIGSEGV for on-demand memory paging
@@ -77,7 +77,7 @@ Signal-based demand paging: `mprotect` on WASM pages → SIGSEGV handler loads f
 
 **Core engine** (native):
 - `core/` (`gear-core`) — fundamental types: messages, programs, gas, memory pages, code
-- `core/processor/` (`gear-core-processor`) — executes programs, manages context and state transitions
+- `core/processor/` (`gear-processor`) — executes programs, manages context and state transitions
 - `core/backend/` (`gear-core-backend`) — bridges processor to WASM sandbox, implements syscall dispatch
 
 **Runtime integration**:
@@ -120,7 +120,7 @@ Signal-based demand paging: `mprotect` on WASM pages → SIGSEGV handler loads f
 ```
 WASM program (no_std): gstd → gcore → gsys, gprimitives, gear-core-errors
                             ↕ syscall FFI boundary
-Native runtime (std):   core-backend → core-processor → pallets → runtime/vara
+Native runtime (std):   core-backend → gear-processor → pallets → runtime/vara
 ```
 
 `ethexe` feature flag in gstd/gcore disables syscalls unavailable in the Ethereum context.
