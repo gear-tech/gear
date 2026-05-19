@@ -11975,9 +11975,9 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "numerated"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bb05ee6a72ffda467820752dd866979c8d0aaf170c74d341ee2438e691cf58e"
+checksum = "2c7ad0af6965663810629c35d60e4e6d2ea46e84372ce398f0fed0a05eb930a5"
 dependencies = [
  "derive_more 2.1.1",
  "log",
