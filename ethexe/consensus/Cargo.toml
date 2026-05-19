@@ -24,9 +24,6 @@ tracing.workspace = true
 anyhow = { workspace = true, features = ["std"] }
 futures.workspace = true
 derive_more.workspace = true
-rand = "0.8"
-rand_chacha = "0.3"
-nonempty.workspace = true
 hashbrown.workspace = true
 metrics.workspace = true
 metrics-derive.workspace = true
