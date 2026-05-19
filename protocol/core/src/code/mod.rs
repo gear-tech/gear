@@ -467,7 +467,7 @@ mod tests {
         },
         gas_metering::CustomConstantCostRules,
     };
-    use alloc::{format, string::String, vec::Vec};
+    use alloc::{format, vec::Vec};
     use gear_wasm_instrument::{InstrumentationError, ModuleError, STACK_END_EXPORT_NAME};
 
     fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
@@ -1256,18 +1256,6 @@ mod tests {
         ));
     }
 
-    /// Walks a WASM binary and returns `true` if it contains a custom section
-    /// with the given name.
-    fn has_custom_section(wasm: &[u8], name: &str) -> bool {
-        wasmparser::Parser::new(0)
-            .parse_all(wasm)
-            .filter_map(|p| p.ok())
-            .any(|payload| match payload {
-                wasmparser::Payload::CustomSection(reader) => reader.name() == name,
-                _ => false,
-            })
-    }
-
     #[test]
     fn instrumented_code_strips_custom_sections_but_original_keeps_them() {
         // Build a valid gear program and inject a `sails:idl` custom section
@@ -1286,51 +1274,38 @@ mod tests {
         let module = gear_wasm_instrument::Module::new(&base_bytes).unwrap();
         let mut builder = gear_wasm_instrument::ModuleBuilder::from_module(module);
         builder.push_custom_section("sails:idl", idl_payload);
-        let original_with_idl = builder.build().serialize().unwrap();
+        let original_with_idl = builder.build();
 
         // Sanity: the constructed original actually carries the section.
         assert!(
-            has_custom_section(&original_with_idl, "sails:idl"),
+            original_with_idl
+                .custom_sections
+                .as_ref()
+                .is_some_and(|cs| cs.iter().any(|(section, _)| section == "sails:idl")),
             "test fixture must contain the sails:idl custom section before instrumentation"
         );
+        let original_with_idl = original_with_idl.serialize().unwrap();
 
         // Run through the full Code pipeline.
         let code = Code::try_new_mock_const_or_no_rules(
-            original_with_idl,
+            original_with_idl.clone(),
             true,
             TryNewCodeConfig::default(),
         )
         .expect("valid gear program must instrument");
 
         // OriginalCode preserves the section; IDL readers (RPC) rely on this.
-        assert!(
-            has_custom_section(code.original_code(), "sails:idl"),
-            "OriginalCode must retain sails:idl custom section"
-        );
+        assert_eq!(code.original_code(), original_with_idl);
 
         // InstrumentedCode must have the sails:idl section stripped.
+        let instrumented = gear_wasm_instrument::Module::new(code.instrumented_code().bytes())
+            .expect("instrumented code must parse");
         assert!(
-            !has_custom_section(code.instrumented_code().bytes(), "sails:idl"),
-            "InstrumentedCode must have sails:idl stripped"
-        );
-
-        // Broader check: every non-name custom section is gone.
-        // The WASM binary format stores the name section as a custom section
-        // named "name"; we intentionally preserve it for readable trap
-        // backtraces (see `Module::strip_custom_sections`).
-        let lingering: Vec<String> = wasmparser::Parser::new(0)
-            .parse_all(code.instrumented_code().bytes())
-            .filter_map(|p| p.ok())
-            .filter_map(|payload| match payload {
-                wasmparser::Payload::CustomSection(reader) if reader.name() != "name" => {
-                    Some(String::from(reader.name()))
-                }
-                _ => None,
-            })
-            .collect();
-        assert!(
-            lingering.is_empty(),
-            "InstrumentedCode must have no custom sections apart from `name`; found: {lingering:?}"
+            instrumented
+                .custom_sections
+                .as_ref()
+                .is_none_or(|cs| cs.is_empty()),
+            "InstrumentedCode must have no non-name custom sections"
         );
     }
 }

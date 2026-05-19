@@ -301,56 +301,6 @@ async fn handle_new_code_valid() {
 }
 
 #[tokio::test]
-async fn instrumented_code_strips_custom_sections() {
-    init_logger();
-
-    // Build a valid gear program and inject a `sails:idl` custom section
-    // into its original bytes, simulating what sails tooling emits.
-    let (_, base_bytes) = utils::wat_to_wasm(utils::VALID_PROGRAM);
-    let idl_payload: Vec<u8> = (0..128u8).collect();
-
-    let module = gear_wasm_instrument::Module::new(&base_bytes)
-        .expect("VALID_PROGRAM must parse as a Module");
-    let mut builder = gear_wasm_instrument::ModuleBuilder::from_module(module);
-    builder.push_custom_section("sails:idl", idl_payload);
-    let code_with_idl = builder.build().serialize().expect("serialize must succeed");
-    let code_id = CodeId::generate(&code_with_idl);
-
-    // Run through the ethexe processor pipeline.
-    let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
-    let info = processor
-        .process_code(CodeAndIdUnchecked {
-            code: code_with_idl,
-            code_id,
-        })
-        .await
-        .expect("process_code failed")
-        .valid
-        .expect("code must be valid");
-
-    // OriginalCode keeps the IDL; RPC readers depend on this.
-    let original = gear_wasm_instrument::Module::new(&info.code).expect("original code must parse");
-    assert!(
-        original
-            .custom_sections
-            .as_ref()
-            .is_some_and(|cs| cs.iter().any(|(n, _)| n == "sails:idl")),
-        "processor must not strip custom sections from OriginalCode"
-    );
-
-    // InstrumentedCode has no non-name custom sections after instrumentation.
-    let instrumented = gear_wasm_instrument::Module::new(info.instrumented_code.bytes())
-        .expect("instrumented code must parse");
-    assert!(
-        instrumented
-            .custom_sections
-            .as_ref()
-            .is_none_or(|cs| cs.is_empty()),
-        "InstrumentedCode must have no non-name custom sections after the strip"
-    );
-}
-
-#[tokio::test]
 async fn handle_new_code_invalid() {
     init_logger();
 
