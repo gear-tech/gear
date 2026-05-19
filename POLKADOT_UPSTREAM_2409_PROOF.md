@@ -22,6 +22,12 @@ rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 
 No Cargo dependency on `gear-tech/polkadot-sdk` remains. The only remaining `gear-tech/polkadot-sdk` references are old source-link comments in `vara/pallets/gear-eth-bridge/src/tests.rs`.
 
+## Upstream Attribution
+
+Copied or modified Polkadot SDK source files in this proof retain the upstream Parity copyright notice and `SPDX-License-Identifier: Apache-2.0` headers.
+
+The common source reference is `paritytech/polkadot-sdk` at `298f676c91d64f15f38ea7fd78f125c5889ab09c`. Apache-2.0 license text is available at <https://www.apache.org/licenses/LICENSE-2.0>.
+
 ## Localized Fork Diff
 
 The fork-only pieces that Gear still needs were copied into local crates or local patches:
