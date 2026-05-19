@@ -342,12 +342,9 @@ where
         self.state.current_round = round;
         self.state.current_proposer = Some(proposer);
 
-        // Promote any pending parts buffered for this (height, round)
-        // into proper undecided proposals. `record_assembled_block`
-        // must run here — without it `ingest_finalized` later hits the
-        // strict-ordering debug_assert because the entry exists as an
-        // undecided proposal but was never marked `saved`, and the
-        // sync path won't re-deliver this height's value.
+        // Promote buffered parts into undecided proposals. The
+        // record_assembled_block call is load-bearing: without it
+        // ingest_finalized's strict-ordering debug_assert fires.
         let pending = self.state.store.get_pending_proposal_parts(height, round)?;
         for parts in pending {
             let promote = async {
@@ -1121,27 +1118,8 @@ mod tests {
         let block_bytes = block.encode();
         let block_hash = block.hash();
 
-        let stream_id = StreamId::new(height.to_be_bytes().to_vec().into());
-        let stream = vec![
-            StreamMessage::new(
-                stream_id.clone(),
-                0,
-                StreamContent::Data(ProposalPart::Init(ProposalInit::new(
-                    Height::new(height),
-                    Round::new(0),
-                    Round::Nil,
-                    address,
-                ))),
-            ),
-            StreamMessage::new(
-                stream_id.clone(),
-                1,
-                StreamContent::Data(ProposalPart::Data(ProposalData::new(block_bytes.clone()))),
-            ),
-            StreamMessage::new(stream_id, 2, StreamContent::Fin),
-        ];
-
         // 1. Engine sits at height 0 → height-1 parts go into the buffer.
+        let stream = complete_stream(address, height, &block_bytes);
         let received = run_stream(&mut handler, peer, stream).await;
         assert!(received.is_none(), "future-height parts must be buffered");
         assert!(
@@ -1180,12 +1158,10 @@ mod tests {
             value_id,
             commit_signatures: Vec::new(),
         };
-        if let Err(e) = handler.process_finalized(cert).await {
-            let msg = match e {
-                FinalizationError::Fatal(err) => format!("Fatal: {err:?}"),
-                FinalizationError::NonFatal(err) => format!("NonFatal: {err:?}"),
-            };
-            panic!("finalize must complete cleanly when promotion saved the block — got {msg}");
+        match handler.process_finalized(cert).await {
+            Ok(()) => {}
+            Err(FinalizationError::Fatal(e)) => panic!("Fatal: {e:?}"),
+            Err(FinalizationError::NonFatal(e)) => panic!("NonFatal: {e:?}"),
         }
     }
 }
