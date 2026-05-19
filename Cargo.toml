@@ -690,3 +690,4 @@ sc-executor = { path = "protocol/runtime-executor" }
 sc-executor-common = { path = "protocol/runtime-executor/common" }
 sc-executor-polkavm = { path = "protocol/runtime-executor/polkavm" }
 sc-executor-wasmtime = { path = "protocol/runtime-executor/wasmtime" }
+substrate-wasm-builder = { path = "utils/substrate-wasm-builder" }
