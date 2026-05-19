@@ -125,7 +125,7 @@ impl Behaviour {
         metrics: Arc<libp2p::metrics::Metrics>,
     ) -> anyhow::Result<Self> {
         let commitments_topic = Self::topic_with_router("commitments", router_address);
-        let tx_receipts_topic = Self::topic_with_router("tx_receipts", router_address);
+        let tx_receipts_topic = Self::topic_with_router("receipts", router_address);
 
         let inner = ConfigBuilder::default()
             // dedup messages
