@@ -3,7 +3,7 @@
 // Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
-// See `POLKADOT_UPSTREAM_2409_PROOF.md` for the upstream source and license reference.
+// See `THIRD_PARTY_NOTICES.md` for the upstream source and license reference.
 
 use crate::{CargoCommand, CargoCommandVersioned, RuntimeTarget, write_file_if_changed};
 
