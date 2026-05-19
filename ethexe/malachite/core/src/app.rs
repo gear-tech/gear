@@ -418,6 +418,10 @@ where
         Ok(())
     }
 
+    // TODO: #5475 add per-peer token-bucket rate limit before `ingest_proposal_part`
+    //       (CPU/bandwidth bound; complements the memory bound from #5473).
+    // TODO: #5480 gate `from` against a validator-peer-id allowlist so random
+    //       gossip-mesh peers can't reach this code path at all.
     async fn process_received_proposal_part(
         &mut self,
         from: PeerId,
@@ -436,6 +440,9 @@ where
         }
 
         if parts.height > self.state.current_height {
+            // TODO: #5476 verify `ProposalFin` signature against the expected
+            //       proposer's pubkey BEFORE persisting — otherwise a Byzantine
+            //       peer can use this DB write as a write-amplified DoS sink.
             // Buffer until the engine catches up to that height.
             let value_id = compute_value_id_from_parts(&parts);
             self.state

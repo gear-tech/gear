@@ -442,6 +442,13 @@ impl Externalities<Transactions> for EthexeExternalities {
         // observer is still behind (rare), we vote nil immediately —
         // round-rotation lets the next proposer try again — instead of
         // blocking the consensus app task on a poll loop.
+        //
+        // TODO: #5477 extract a shared `check_eb_advance` helper so this
+        //       validator path and `find_eb_candidate_for_advancing` on the
+        //       producer side stay in lockstep through future refactors.
+        // TODO: #5479 emit `malachite_validate_abstain_total{reason=...}` at
+        //       each early-return below so operators can tune
+        //       `post_quarantine_delay` from observability rather than logs.
         if let Some(advance) = advance {
             let parent_advanced = if parent_hash.is_zero() {
                 H256::zero()

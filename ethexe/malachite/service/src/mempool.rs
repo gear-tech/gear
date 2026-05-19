@@ -154,12 +154,10 @@ impl Mempool for EmptyMempool {
 /// Default cap on the number of pending TXs the in-memory pool holds.
 pub const DEFAULT_POOL_CAPACITY: usize = 10_000;
 
-// TODO +_+_+ : a single signer can fill `DEFAULT_POOL_CAPACITY` with
+// TODO: #5474 a single signer can fill `DEFAULT_POOL_CAPACITY` with
 // distinct-salt valid txs and starve out the rest of the network until
-// `VALIDITY_WINDOW` ages them out. Add per-sender quota (probably keyed
-// on the recovered ECDSA address) so one key can hold at most ~K slots,
-// where K is chosen to keep typical bot patterns admissible without
-// letting a single address monopolise the pool.
+// `VALIDITY_WINDOW` ages them out. Needs a per-sender quota keyed on the
+// recovered ECDSA address.
 
 /// Pool state behind a single mutex — operations are short, contention low.
 #[derive(Debug, Default)]

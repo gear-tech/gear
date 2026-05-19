@@ -43,6 +43,10 @@ pub struct MalachiteConfig {
     /// before the proposer references it, eliminating the need for
     /// validators to wait on local sync inside `validate_block_above`.
     /// Defaults to 1.
+    ///
+    // TODO: #5478 reject unreasonable values at config load — `u32::MAX`
+    //       turns the producer's anchor walk into millions of RocksDB reads
+    //       per `wait_for_proposable_content` invocation.
     pub post_quarantine_delay: u32,
 
     /// Local libp2p listen address for the Malachite swarm.

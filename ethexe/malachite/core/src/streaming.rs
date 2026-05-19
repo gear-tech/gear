@@ -172,17 +172,10 @@ impl ProposalParts {
     }
 }
 
-// TODO +_+_+ : `PartStreamsMap` has no per-peer cap, no total cap, and no
-// eviction for streams that never receive a valid `Fin`. A single peer can
-// (a) open many distinct `stream_id`s and never close them, or
-// (b) send one `Fin` with `sequence = u64::MAX/2` so `total_messages` is
-// unreachable forever — either way the `(peer, stream)` slot lives until
-// process restart. Pinned by the (ignored) regression test
+// TODO: #5473 `PartStreamsMap` has no per-peer cap, no total cap, and no
+// eviction for streams that never receive a valid `Fin`. Pinned by the
+// (ignored) regression test
 // `streaming::tests::part_streams_map_grows_unbounded_under_fin_sequence_attack`.
-// Fix needs: per-peer slot cap + height/round-driven GC + bounded
-// `seen_sequences` and `buffer` per stream. Mitigation in deployment: set
-// `persistent_peers_only = true` in the inner Malachite P2pConfig +
-// add a validator peer_id allowlist on `ReceivedProposalPart` entry.
 #[derive(Default)]
 pub struct PartStreamsMap {
     streams: BTreeMap<(PeerId, StreamId), StreamState>,
@@ -326,7 +319,7 @@ mod tests {
     /// part it actually delivers so the `total_messages == buffer.len()`
     /// gate is unreachable.
     #[test]
-    #[ignore = "tracks TODO +_+_+ in streaming.rs: unbounded PartStreamsMap"]
+    #[ignore = "tracks issue #5473 in streaming.rs: unbounded PartStreamsMap"]
     fn part_streams_map_grows_unbounded_under_fin_sequence_attack() {
         let mut map = PartStreamsMap::new();
         let p = peer_id(1);

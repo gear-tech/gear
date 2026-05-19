@@ -10,6 +10,11 @@ pub use malachitebft_app_channel::app::net::Multiaddr;
 /// One entry of the validator set. The set is fixed for the lifetime
 /// of the deployment — to rotate validators every node must be
 /// re-bootstrapped from a fresh [`MalachiteConfig`].
+//
+// TODO: #5480 add `libp2p_peer_id: PeerId` so receivers can gate
+//       `ReceivedProposalPart` against a validator-peer-id allowlist
+//       (libp2p peer-id is not derivable from `public_key` alone — operators
+//       must compute it offline via `libp2p_peer_id(&secret)` and embed it).
 #[derive(Clone, Debug)]
 pub struct ValidatorEntry {
     /// secp256k1 public key for this validator. The on-chain address
