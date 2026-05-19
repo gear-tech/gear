@@ -324,11 +324,7 @@ mod tests {
     /// bound by either (a) opening fresh `stream_id`s and never sending
     /// `Fin`, or (b) sending a `Fin` with a `sequence` far above any
     /// part it actually delivers so the `total_messages == buffer.len()`
-    /// gate is unreachable. Independently flagged by all three
-    /// reviewers in the 2026-05 audit.
-    ///
-    /// Ignored until the cap/GC `TODO +_+_+` on `PartStreamsMap` lands —
-    /// keep this test, remove `#[ignore]` once the fix is in place.
+    /// gate is unreachable.
     #[test]
     #[ignore = "tracks TODO +_+_+ in streaming.rs: unbounded PartStreamsMap"]
     fn part_streams_map_grows_unbounded_under_fin_sequence_attack() {
