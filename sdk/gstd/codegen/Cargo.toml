@@ -23,7 +23,7 @@ gprimitives.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
-gstd.workspace = true
+gstd.path = ".."
 trybuild.workspace = true
 
 [features]
