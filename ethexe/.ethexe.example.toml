@@ -89,6 +89,13 @@
 # (optional, default: 16)
 # canonical-quarantine = 16
 
+# Extra anchor-depth slack the proposer adds on top of `canonical-quarantine`
+# when choosing which Ethereum block to advance to. A positive value gives
+# lagging validators time to receive the EB before the proposer references it,
+# so they don't have to wait on local sync inside `validate_block_above`.
+# (optional, default: 1)
+# post-quarantine-delay = 1
+
 # Do P2P database synchronization before the main loop.
 # (optional, default: false).
 # fast-sync = false

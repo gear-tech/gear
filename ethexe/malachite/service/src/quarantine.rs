@@ -48,16 +48,22 @@ const VERIFY_LOOKBACK_SLACK: u32 = 100_000;
 
 /// Youngest EB that has cleared quarantine. `Ok(None)` if the local chain is
 /// too short, `Err` on missing parent header.
+///
+/// `depth` is taken as `u32` to accommodate the proposer-side
+/// `canonical_quarantine + post_quarantine_delay` sum, which can exceed
+/// `u8::MAX`. `verify_passed` still takes `u8` because the protocol
+/// invariant validators enforce is anchored on `canonical_quarantine`
+/// only — the extra slack is a proposer-side hint.
 pub fn anchor(
     db: &Database,
     head: SimpleBlockData,
-    canonical_quarantine: u8,
+    depth: u32,
     start_block_hash: H256,
 ) -> Result<Option<H256>> {
     let mut current = head.hash;
     let mut header = head.header;
 
-    for _ in 0..canonical_quarantine {
+    for _ in 0..depth {
         if current == start_block_hash {
             return Ok(None);
         }
@@ -268,7 +274,7 @@ mod tests {
                 },
             };
             // start_block = genesis (so the fence never trips).
-            let result = anchor(&db, head, q, hashes[0]).unwrap();
+            let result = anchor(&db, head, q as u32, hashes[0]).unwrap();
             let expected = hashes[chain_len - 1 - q_usize];
             prop_assert_eq!(result, Some(expected));
         }

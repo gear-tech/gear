@@ -109,6 +109,12 @@ pub(crate) struct EthexeExternalities {
     pub(crate) pending_events: Mutex<VecDeque<PendingEvent>>,
     pub(crate) gas_allowance: u64,
     pub(crate) canonical_quarantine: u8,
+    /// See [`crate::MalachiteConfig::post_quarantine_delay`]. Producer-side
+    /// hint only: deepens the anchor in [`Self::find_eb_candidate_for_advancing`]
+    /// so lagging validators are likely to have synced the proposed EB by the
+    /// time they see the MB. Validators do NOT apply this depth — they accept
+    /// any advance at depth ≥ `canonical_quarantine`.
+    pub(crate) post_quarantine_delay: u32,
 }
 
 /// One outbound [`MalachiteEvent`] that can't be released until its
@@ -426,118 +432,72 @@ impl Externalities<Transactions> for EthexeExternalities {
             return Ok(false);
         }
 
-        // (2) Quarantine + local-sync — wait briefly for the local
-        // observer to catch up if the proposer raced ahead.
+        // (2) Quarantine + parent-link — single synchronous check.
         //
-        // The proposer was likely 1 Hoodi block ahead of us when it
-        // built this proposal: its anchor (`head - canonical_quarantine`)
-        // sits one block too shallow from our local head's POV, so a
-        // strict synchronous check would prevote nil and force the
-        // round to time out (≥ propose_timeout). Instead we poll —
-        // every chain_head update or up to a hard deadline — and
-        // succeed as soon as our DB covers the proposer's advance.
-        //
-        // The deadline is intentionally well below the engine's
-        // protocol-level propose timeout: if we still can't validate
-        // by then, the proposer's chain genuinely diverges from ours
-        // and prevoting nil is the correct outcome.
+        // Validators never wait for local sync here. The proposer's
+        // `post_quarantine_delay` config knob deepens its anchor by
+        // ≥ 1 Hoodi block on top of `canonical_quarantine`, so the
+        // referenced EB is almost certainly already in every
+        // validator's DB by the time the MB arrives. If a validator's
+        // observer is still behind (rare), we vote nil immediately —
+        // round-rotation lets the next proposer try again — instead of
+        // blocking the consensus app task on a poll loop.
         if let Some(advance) = advance {
             let parent_advanced = if parent_hash.is_zero() {
                 H256::zero()
             } else {
                 self.db.mb_meta(parent_hash).last_advanced_eb
             };
-
-            // TODO +_+_+ : the quarantine-wait loop below has two
-            // related fragility issues, both flagged 2/3 in the audit
-            // iter 3.
-            //
-            // (1) The whole `validate_block_above` call runs inline
-            // inside `app::handle_app_msg`, which is the single-thread
-            // consensus event loop. While we sit polling here for
-            // ≤ 2 s, the app task cannot consume any other `AppMsg`
-            // (votes, timeouts, sibling parts, Finalized cascades).
-            // A byzantine proposer who advances 1 EB ahead of victims
-            // can therefore stall every validator's consensus loop for
-            // up to 2 s per round — eroding the propose-timeout budget.
-            //
-            // (2) The loop uses bare `tokio::time::sleep(50ms)` and
-            // never awaits `self.chain_head_notify.notified()`. When
-            // the observer pushes a fresh head we miss the wake and
-            // sit out the rest of the current 50 ms slice; the
-            // matching producer-side `wait_for_proposable_content` does
-            // use the notify correctly. Replace `sleep` with
-            // `tokio::select!(notified, sleep)` (arming `notified()`
-            // before the gate read) for prompt wake-up, and consider
-            // moving the wait off the app task entirely.
-            //
-            // Reproducing in a unit test requires a full engine fake;
-            // TODO captures the precise lines and the desired shape.
-            const VALIDATE_WAIT_BUDGET: std::time::Duration =
-                std::time::Duration::from_millis(2000);
-            const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
-            let deadline = tokio::time::Instant::now() + VALIDATE_WAIT_BUDGET;
             let start_block_hash = self.db.globals().start_block_hash;
-            let mut error = anyhow!("validate: no chain-head event yet — abstaining from vote");
 
-            'quarantine: loop {
-                if tokio::time::Instant::now() >= deadline {
+            let Some(chain_head) = *self.chain_head.read().expect("chain_head poisoned") else {
+                warn!(
+                    %advance,
+                    "validate: no local chain_head yet — rejecting MB with advance",
+                );
+                return Ok(false);
+            };
+
+            if let Err(e) = quarantine::verify_passed(
+                &self.db,
+                chain_head,
+                advance,
+                self.canonical_quarantine,
+                start_block_hash,
+            ) {
+                warn!(
+                    error = %e,
+                    %advance,
+                    parent_advanced = %parent_advanced,
+                    "validate: advance not yet covered by local view — rejecting",
+                );
+                return Ok(false);
+            }
+
+            match quarantine::is_strict_descendant_of(
+                &self.db,
+                advance,
+                parent_advanced,
+                start_block_hash,
+            ) {
+                Ok(true) => {}
+                Ok(false) => {
                     warn!(
-                        error = %error,
                         %advance,
                         parent_advanced = %parent_advanced,
-                        "validate: advance still not locally synced within budget — rejecting",
+                        "validate: advance not strict descendant of parent.last_advanced_eb — rejecting",
                     );
                     return Ok(false);
                 }
-
-                if let Some(chain_head) = *self.chain_head.read().expect("chain_head poisoned") {
-                    match quarantine::verify_passed(
-                        &self.db,
-                        chain_head,
-                        advance,
-                        self.canonical_quarantine,
-                        start_block_hash,
-                    ) {
-                        Ok(_) => {
-                            match quarantine::is_strict_descendant_of(
-                                &self.db,
-                                advance,
-                                parent_advanced,
-                                start_block_hash,
-                            ) {
-                                Ok(true) => break 'quarantine,
-                                Ok(false) => {
-                                    warn!(
-                                        %advance,
-                                        parent_advanced = %parent_advanced,
-                                        "validate: advance is quarantine-passed but not a strict descendant of parent.last_advanced_eb — rejecting",
-                                    );
-                                    return Ok(false);
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        error = %e,
-                                        %advance,
-                                        parent_advanced = %parent_advanced,
-                                        "validate: is_strict_descendant_of failed — rejecting",
-                                    );
-                                    return Ok(false);
-                                }
-                            }
-                        }
-                        Err(e) => error = anyhow!(e),
-                    }
-                };
-
-                // Poll the local view periodically. The observer pumps
-                // a fresh chain_head into us asynchronously, so within a
-                // few hundred milliseconds the local DB is up-to-date
-                // and the next iteration of this loop succeeds. This
-                // avoids the older synchronous-prevote-nil path that
-                // forced rounds to time out at 13 s whenever the
-                // proposer was 1 Hoodi block ahead of us.
-                tokio::time::sleep(POLL_INTERVAL).await;
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        %advance,
+                        parent_advanced = %parent_advanced,
+                        "validate: is_strict_descendant_of failed — rejecting",
+                    );
+                    return Ok(false);
+                }
             }
         }
 
@@ -731,7 +691,11 @@ impl EthexeExternalities {
     fn find_eb_candidate_for_advancing(&self, prev_advanced_eb_hash: H256) -> Option<H256> {
         let head = (*self.chain_head.read().expect("chain_head poisoned"))?;
         let start = self.db.globals().start_block_hash;
-        let candidate = match quarantine::anchor(&self.db, head, self.canonical_quarantine, start) {
+        // Producer-side total depth: protocol-required `canonical_quarantine`
+        // plus `post_quarantine_delay` slack so validators have a fresh
+        // enough local view by the time they see this MB.
+        let total_depth = self.canonical_quarantine as u32 + self.post_quarantine_delay;
+        let candidate = match quarantine::anchor(&self.db, head, total_depth, start) {
             Ok(Some(c)) => c,
             Ok(None) => return None,
             Err(e) => {
@@ -790,6 +754,7 @@ mod tests {
             pending_events: Mutex::new(VecDeque::new()),
             gas_allowance: 1_000_000,
             canonical_quarantine: 0,
+            post_quarantine_delay: 0,
         };
         (ext, event_rx)
     }
@@ -1189,6 +1154,7 @@ mod tests {
             pending_events: Mutex::new(VecDeque::new()),
             gas_allowance: 1_000_000,
             canonical_quarantine: 0,
+            post_quarantine_delay: 0,
         };
 
         let payload = Transactions::new(vec![
@@ -1258,6 +1224,7 @@ mod tests {
             pending_events: Mutex::new(VecDeque::new()),
             gas_allowance: 1_000_000,
             canonical_quarantine: 0,
+            post_quarantine_delay: 0,
         };
         (ext, event_rx)
     }
@@ -1917,6 +1884,151 @@ mod tests {
             "MB whose AdvanceTillEthereumBlock regresses parent.last_advanced_eb \
              must be rejected — currently passes because validate_block_above \
              skips the strict-descendant check the producer enforces",
+        );
+    }
+
+    /// `validate_block_above` must return synchronously when the local
+    /// view does not yet cover the proposer's `advance`. Previously it
+    /// polled in a 2-second loop; now it abstains immediately so the
+    /// engine can rotate to the next proposer. The 50 ms timeout below
+    /// is *much* shorter than the old 2 s poll budget — if the function
+    /// still waited, the timeout would fire.
+    #[tokio::test]
+    async fn validate_rejects_advance_when_chain_head_does_not_cover_it() {
+        let db = Database::memory();
+
+        // Build a small canonical chain `[c0, c1, c2]`.
+        let mut parent = H256::zero();
+        let mut chain = Vec::new();
+        for i in 0..3u8 {
+            let mut hb = [0u8; 32];
+            hb[0] = 0x20 + i;
+            let hash = H256::from(hb);
+            let header = BlockHeader {
+                height: i as u32,
+                timestamp: i as u64,
+                parent_hash: parent,
+            };
+            db.set_block_header(hash, header);
+            db.set_block_events(hash, &[]);
+            db.mutate_block_meta(hash, |_| {});
+            chain.push((hash, header));
+            parent = hash;
+        }
+        // Local chain_head = c1 (lagging behind the proposer's view).
+        let head = ethexe_common::SimpleBlockData {
+            hash: chain[1].0,
+            header: chain[1].1,
+        };
+
+        // Proposer's `advance` points at a block our DB has no
+        // canonical-ancestor record for from `head` — a fully
+        // unrelated hash. `verify_passed` will return Err and
+        // validation must reject in one shot.
+        let stranger_advance = H256::from([0xEE; 32]);
+
+        let (ext, _rx) = make_externalities(db.clone());
+        *ext.chain_head.write().unwrap() = Some(head);
+
+        let payload = Transactions::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                block_hash: stranger_advance,
+            },
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+        ]);
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(50),
+            ext.validate_block_above(H256::zero(), payload),
+        )
+        .await
+        .expect("validate_block_above must return synchronously, not wait on local sync");
+        assert!(
+            !result.unwrap(),
+            "MB with an advance the local view doesn't cover must be rejected"
+        );
+    }
+
+    /// Producer-side: `find_eb_candidate_for_advancing` picks the
+    /// anchor at depth `canonical_quarantine + post_quarantine_delay`
+    /// from the local chain head. With `(canonical_quarantine = 2,
+    /// post_quarantine_delay = 3)` the candidate sits 5 blocks below
+    /// head — exactly what we verify by walking parent links.
+    #[test]
+    fn producer_picks_anchor_at_canonical_plus_post_delay() {
+        use ethexe_common::db::OnChainStorageRO;
+
+        let db = Database::memory();
+
+        // Long chain — `canonical_quarantine + post_quarantine_delay`
+        // must walk back 5 blocks, so we need at least 7 to leave
+        // headroom and confirm the walk stops at the right depth.
+        let mut parent = H256::zero();
+        let mut chain = Vec::new();
+        for i in 0..8u8 {
+            let mut hb = [0u8; 32];
+            hb[0] = 0x30 + i;
+            let hash = H256::from(hb);
+            let header = BlockHeader {
+                height: i as u32,
+                timestamp: i as u64,
+                parent_hash: parent,
+            };
+            db.set_block_header(hash, header);
+            db.set_block_events(hash, &[]);
+            db.mutate_block_meta(hash, |_| {});
+            chain.push((hash, header));
+            parent = hash;
+        }
+        // `start_block_hash = chain[0]` keeps the fence at genesis so it
+        // never trips for this walk.
+        db.globals_mutate(|g| g.start_block_hash = chain[0].0);
+
+        let head_idx = chain.len() - 1;
+        let head = ethexe_common::SimpleBlockData {
+            hash: chain[head_idx].0,
+            header: chain[head_idx].1,
+        };
+
+        let (event_tx, _event_rx) = mpsc::unbounded_channel();
+        let ext = EthexeExternalities {
+            db: db.clone(),
+            mempool: Arc::new(EmptyMempool),
+            chain_head: Arc::new(RwLock::new(Some(head))),
+            chain_head_notify: Arc::new(Notify::new()),
+            event_tx,
+            pending_events: Mutex::new(VecDeque::new()),
+            gas_allowance: 1_000_000,
+            canonical_quarantine: 2,
+            post_quarantine_delay: 3,
+        };
+
+        let candidate = ext
+            .find_eb_candidate_for_advancing(H256::zero())
+            .expect("must surface a candidate — chain is deep enough");
+        // Walk back `2 + 3 = 5` parents from head; that's the expected
+        // anchor.
+        let mut cursor = head.hash;
+        for _ in 0..5 {
+            let h = db
+                .block_header(cursor)
+                .expect("test chain headers are populated");
+            cursor = h.parent_hash;
+        }
+        assert_eq!(
+            candidate, cursor,
+            "anchor must sit at depth `canonical_quarantine + post_quarantine_delay` from head",
+        );
+        let candidate_height = db.block_header(candidate).unwrap().height;
+        assert_eq!(
+            candidate_height,
+            chain[head_idx].1.height - 5,
+            "depth arithmetic mismatch — expected exactly 5 blocks below head",
         );
     }
 }

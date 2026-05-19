@@ -129,6 +129,7 @@ pub struct TestEnv {
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: std::num::NonZero<u8>,
     pub canonical_quarantine: u8,
+    pub post_quarantine_delay: u32,
     pub kicking_per_blocks: Option<u32>,
     #[allow(unused)]
     pub db: Database,
@@ -198,6 +199,7 @@ impl TestEnv {
             deploy_params,
             commitment_delay_limit,
             canonical_quarantine,
+            post_quarantine_delay,
             kicking_per_blocks,
         } = config;
 
@@ -452,6 +454,7 @@ impl TestEnv {
             continuous_block_generation,
             commitment_delay_limit,
             canonical_quarantine,
+            post_quarantine_delay,
             kicking_per_blocks,
             db,
             malachite_endpoints,
@@ -545,6 +548,7 @@ impl TestEnv {
             running_service_handle: None,
             shutdown_tx: None,
             canonical_quarantine: self.canonical_quarantine,
+            post_quarantine_delay: self.post_quarantine_delay,
             kicking_per_blocks: self
                 .kicking_per_blocks
                 .map(|blocks| (blocks * self.eth_cfg.block_time, self.provider.clone())),
@@ -932,6 +936,9 @@ pub struct TestEnvConfig {
     pub commitment_delay_limit: std::num::NonZero<u8>,
     /// Canonical quarantine period in blocks.
     pub canonical_quarantine: u8,
+    /// Producer-side extra anchor-depth slack on top of `canonical_quarantine`.
+    /// Tests default this to 0 to keep the old timing behavior.
+    pub post_quarantine_delay: u32,
     /// How often the waiting for events streams should force new blocks mining in order to avoid tests hanging.
     /// Some contains amount of block intervals between forced blocks mining, None - means that blocks mining will not be forced at all.
     pub kicking_per_blocks: Option<u32>,
@@ -957,6 +964,7 @@ impl Default for TestEnvConfig {
             deploy_params: Default::default(),
             commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
             canonical_quarantine: 0,
+            post_quarantine_delay: 0,
             kicking_per_blocks: Some(3),
         }
     }
@@ -1086,6 +1094,7 @@ pub struct Node {
     fast_sync: bool,
     commitment_delay_limit: std::num::NonZero<u8>,
     canonical_quarantine: u8,
+    post_quarantine_delay: u32,
     kicking_per_blocks: Option<(Duration, RootProvider)>,
 
     /// Malachite WAL + store.db tempdir; lives with the node.
@@ -1255,6 +1264,7 @@ impl Node {
                 .with_persistent_peers(persistent_peers)
                 .with_validators(validators);
             mc.canonical_quarantine = self.canonical_quarantine;
+            mc.post_quarantine_delay = self.post_quarantine_delay;
             let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
             // Release the port-reservation listener moments before libp2p rebinds.
             drop(self.malachite_listener.take());

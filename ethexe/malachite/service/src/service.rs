@@ -179,6 +179,7 @@ impl MalachiteService {
             pending_events: std::sync::Mutex::new(std::collections::VecDeque::new()),
             gas_allowance: config.gas_allowance,
             canonical_quarantine: config.canonical_quarantine,
+            post_quarantine_delay: config.post_quarantine_delay,
         });
 
         // On-chain addresses → pub keys, so era rotations resolve back without an out-of-band lookup.

@@ -37,6 +37,14 @@ pub struct MalachiteConfig {
     /// sequencer block to.
     pub canonical_quarantine: u8,
 
+    /// Extra depth (in Hoodi blocks, on top of `canonical_quarantine`)
+    /// the proposer waits before choosing an EB to advance to. A
+    /// positive value gives lagging validators time to receive the EB
+    /// before the proposer references it, eliminating the need for
+    /// validators to wait on local sync inside `validate_block_above`.
+    /// Defaults to 1.
+    pub post_quarantine_delay: u32,
+
     /// Local libp2p listen address for the Malachite swarm.
     pub listen_addr: SocketAddr,
 
@@ -67,6 +75,10 @@ impl MalachiteConfig {
     pub const DEFAULT_GAS_ALLOWANCE: u64 = ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
     /// Default matches [`ethexe_common::gear::CANONICAL_QUARANTINE`].
     pub const DEFAULT_CANONICAL_QUARANTINE: u8 = ethexe_common::gear::CANONICAL_QUARANTINE;
+    /// Default extra anchor-depth slack the proposer adds on top of
+    /// `canonical_quarantine`; one Hoodi block is enough to absorb the
+    /// typical observer-to-observer skew between validators.
+    pub const DEFAULT_POST_QUARANTINE_DELAY: u32 = 1;
     /// Sits next to the typical ethexe-network 20333/udp QUIC port —
     /// operators can open one contiguous range. Note the protocol
     /// difference: Malachite binds a TCP listener.
@@ -83,6 +95,7 @@ impl MalachiteConfig {
         Self {
             gas_allowance: Self::DEFAULT_GAS_ALLOWANCE,
             canonical_quarantine: Self::DEFAULT_CANONICAL_QUARANTINE,
+            post_quarantine_delay: Self::DEFAULT_POST_QUARANTINE_DELAY,
             listen_addr: Self::DEFAULT_LISTEN_ADDR,
             home_dir,
             persistent_peers: Vec::new(),

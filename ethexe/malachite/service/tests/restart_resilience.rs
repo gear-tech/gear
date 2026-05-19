@@ -109,6 +109,7 @@ fn build_config(
     MalachiteConfig {
         gas_allowance: MalachiteConfig::DEFAULT_GAS_ALLOWANCE,
         canonical_quarantine: 0,
+        post_quarantine_delay: 0,
         listen_addr: std::net::SocketAddr::new(
             std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
             listen_port,

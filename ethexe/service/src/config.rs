@@ -98,6 +98,10 @@ pub struct NodeConfig {
     pub block_gas_limit: u64,
     pub batch_size_limit: u64,
     pub canonical_quarantine: u8,
+    /// Extra anchor-depth slack the proposer adds on top of
+    /// `canonical_quarantine`. See
+    /// [`ethexe_malachite::MalachiteConfig::post_quarantine_delay`].
+    pub post_quarantine_delay: u32,
     pub dev: bool,
     pub pre_funded_accounts: u32,
     pub fast_sync: bool,

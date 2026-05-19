@@ -343,14 +343,21 @@ where
         self.state.current_proposer = Some(proposer);
 
         // Promote any pending parts buffered for this (height, round)
-        // into proper undecided proposals.
+        // into proper undecided proposals. `record_assembled_block`
+        // must run here — without it `ingest_finalized` later hits the
+        // strict-ordering debug_assert because the entry exists as an
+        // undecided proposal but was never marked `saved`, and the
+        // sync path won't re-deliver this height's value.
         let pending = self.state.store.get_pending_proposal_parts(height, round)?;
         for parts in pending {
-            if let Err(e) = self
-                .assemble_and_validate(&parts)
-                .await
-                .and_then(|proposed| self.state.store.store_undecided_proposal(&proposed))
-            {
+            let promote = async {
+                let proposed = self.assemble_and_validate(&parts).await?;
+                self.state.store.store_undecided_proposal(&proposed)?;
+                let block = Block::<P>::decode(&mut &proposed.value.block_bytes[..])
+                    .map_err(|e| anyhow!("decoding Block from pending proposal: {e}"))?;
+                self.record_assembled_block(block).await
+            };
+            if let Err(e) = promote.await {
                 error!(?e, "rejecting invalid pending proposal");
             }
         }
@@ -756,7 +763,7 @@ fn compute_value_id_from_parts(parts: &ProposalParts) -> ValueId {
 mod tests {
     use super::*;
     use crate::{
-        context::{ProposalData, ProposalInit, Validator, ValidatorSet},
+        context::{ProposalData, ProposalInit, Validator, ValidatorSet, Value},
         signing::{MalachiteSigner, libp2p_peer_id, private_key_from_bytes},
         state::SharedValidatorSet,
         store::Store,
@@ -1081,6 +1088,104 @@ mod tests {
                 panic!("expected FinalizationError::Fatal — got NonFatal: {e:?}")
             }
             Ok(()) => panic!("expected FinalizationError::Fatal — got Ok(())"),
+        }
+    }
+
+    /// Regression for the multi-validator `tests::multiple_validators`
+    /// failure: a proposer's parts can land on a peer **before** that
+    /// peer's engine emits `process_started_round` for the same
+    /// height, which routes them through the
+    /// `pending_proposal_parts` buffer instead of the live
+    /// [`AppMsgHandler::process_received_proposal_part`] path. Earlier
+    /// the promotion in [`AppMsgHandler::process_started_round`] only
+    /// called `store_undecided_proposal` — it did NOT run
+    /// `record_assembled_block`, so the [`BlockEntry`] stayed
+    /// `saved=false`. The engine then decided the block and
+    /// [`AppMsgHandler::ingest_finalized`]'s `all_ancestors_saved`
+    /// debug-build assertion fired.
+    ///
+    /// This test drives that exact sequence end-to-end with a single
+    /// validator handler and asserts that finalize completes cleanly.
+    #[tokio::test]
+    async fn buffered_future_proposal_is_saved_on_promotion() {
+        use malachitebft_core_types::Value as _;
+
+        let height = 1u64;
+        let (mut handler, _dir, address) = make_handler(0);
+        let peer = test_peer(2);
+
+        // Build a real Block so `assemble_and_validate` can decode it
+        // during promotion. Genesis parent keeps the
+        // `finalized_block_at(height - 1)` lookup out of the picture.
+        let block = Block::<TestPayload>::new(H256::zero(), height, TestPayload);
+        let block_bytes = block.encode();
+        let block_hash = block.hash();
+
+        let stream_id = StreamId::new(height.to_be_bytes().to_vec().into());
+        let stream = vec![
+            StreamMessage::new(
+                stream_id.clone(),
+                0,
+                StreamContent::Data(ProposalPart::Init(ProposalInit::new(
+                    Height::new(height),
+                    Round::new(0),
+                    Round::Nil,
+                    address,
+                ))),
+            ),
+            StreamMessage::new(
+                stream_id.clone(),
+                1,
+                StreamContent::Data(ProposalPart::Data(ProposalData::new(block_bytes.clone()))),
+            ),
+            StreamMessage::new(stream_id, 2, StreamContent::Fin),
+        ];
+
+        // 1. Engine sits at height 0 → height-1 parts go into the buffer.
+        let received = run_stream(&mut handler, peer, stream).await;
+        assert!(received.is_none(), "future-height parts must be buffered");
+        assert!(
+            handler.state.store.get_block(block_hash).unwrap().is_none(),
+            "buffered parts must NOT produce a BlockEntry yet",
+        );
+
+        // 2. Engine reaches the buffered height → promotion fires.
+        handler
+            .process_started_round(Height::new(height), Round::new(0), address, Role::Validator)
+            .await
+            .expect("process_started_round must succeed on buffered parts");
+
+        // 3. With the fix in place, promotion ran `record_assembled_block`,
+        //    so the BlockEntry now exists with `saved=true`. Without the
+        //    fix, the entry would either be missing or `saved=false`.
+        let entry = handler
+            .state
+            .store
+            .get_block(block_hash)
+            .unwrap()
+            .expect("promoted block must be inserted as a BlockEntry");
+        assert!(
+            entry.saved,
+            "promoted future-height proposal must be marked saved — \
+             record_assembled_block was skipped on the promotion path",
+        );
+
+        // 4. Drive finalize through the same path the engine takes.
+        //    The debug_assert inside `ingest_finalized` is the regression
+        //    sentinel: without the fix it panics here.
+        let value_id = Value::new(block_bytes).id();
+        let cert = malachitebft_core_types::CommitCertificate {
+            height: Height::new(height),
+            round: Round::new(0),
+            value_id,
+            commit_signatures: Vec::new(),
+        };
+        if let Err(e) = handler.process_finalized(cert).await {
+            let msg = match e {
+                FinalizationError::Fatal(err) => format!("Fatal: {err:?}"),
+                FinalizationError::NonFatal(err) => format!("NonFatal: {err:?}"),
+            };
+            panic!("finalize must complete cleanly when promotion saved the block — got {msg}");
         }
     }
 }

@@ -54,6 +54,7 @@ async fn constructor() {
         chunk_processing_threads: 16,
         block_gas_limit: 4_000_000_000_000,
         canonical_quarantine: 0,
+        post_quarantine_delay: 0,
         dev: false,
         pre_funded_accounts: 10,
         fast_sync: false,

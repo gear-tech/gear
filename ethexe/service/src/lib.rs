@@ -512,6 +512,7 @@ impl Service {
             .with_persistent_peers(config.malachite.persistent_peers.clone());
         // Must match the compute layer's quarantine or consensus deadlocks.
         malachite_base_config.canonical_quarantine = config.node.canonical_quarantine;
+        malachite_base_config.post_quarantine_delay = config.node.post_quarantine_delay;
         log::info!(
             "Malachite listen: {}  persistent_peers: {}",
             malachite_base_config.listen_addr,

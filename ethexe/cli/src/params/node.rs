@@ -110,6 +110,11 @@ pub struct NodeParams {
     #[serde(rename = "canonical-quarantine")]
     pub canonical_quarantine: Option<u8>,
 
+    /// See `MalachiteConfig::post_quarantine_delay`. Default 1.
+    #[arg(long)]
+    #[serde(rename = "post-quarantine-delay")]
+    pub post_quarantine_delay: Option<u32>,
+
     /// Do P2P database synchronization before the main loop
     #[arg(long, default_value = "false")]
     #[serde(default, rename = "fast-sync")]
@@ -185,6 +190,9 @@ impl NodeParams {
                 .unwrap_or(DEFAULT_BATCH_SIZE_LIMIT)
                 .min(MAX_BATCH_SIZE_LIMIT),
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
+            post_quarantine_delay: self
+                .post_quarantine_delay
+                .unwrap_or(ethexe_malachite::MalachiteConfig::DEFAULT_POST_QUARANTINE_DELAY),
             dev: self.dev,
             pre_funded_accounts: self
                 .pre_funded_accounts
@@ -278,6 +286,7 @@ impl MergeParams for NodeParams {
             block_gas_limit: self.block_gas_limit.or(with.block_gas_limit),
             batch_size_limit: self.batch_size_limit.or(with.batch_size_limit),
             canonical_quarantine: self.canonical_quarantine.or(with.canonical_quarantine),
+            post_quarantine_delay: self.post_quarantine_delay.or(with.post_quarantine_delay),
 
             fast_sync: self.fast_sync || with.fast_sync,
 
