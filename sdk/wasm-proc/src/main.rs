@@ -200,10 +200,9 @@ fn has_custom_section(wasm: &[u8], expected_section: &str) -> Result<bool, Strin
     for payload in WasmParser::new(0).parse_all(wasm) {
         if let Payload::CustomSection(section) =
             payload.map_err(|e| format!("Deserialization error: {e}"))?
+            && section.name() == expected_section
         {
-            if section.name() == expected_section {
-                return Ok(true);
-            }
+            return Ok(true);
         }
     }
 

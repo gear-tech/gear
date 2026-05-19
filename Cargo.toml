@@ -223,7 +223,7 @@ wasmer-types = "6.1.0"
 wasmer-vm = "6.1.0"
 wasmer-compiler = "6.1.0"
 gear-wasmer-cache = { path = "protocol/wasmer-cache" }
-wasmtime = "8.0.1"
+wasmtime = { version = "8.0.1", default-features = false }
 wasmparser = { version = "0.230", default-features = false, features = [
     "validate",
     "features",
