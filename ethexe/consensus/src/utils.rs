@@ -23,20 +23,15 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Digest, ToDigest, ValidatorsVec,
+    Address, Digest, ToDigest,
     consensus::BatchCommitmentValidationReply,
     db::OnChainStorageRO,
     ecdsa::{ContractSignature, PublicKey},
-    gear::{AggregatedPublicKey, BatchCommitment},
+    gear::BatchCommitment,
 };
-use gprimitives::{H256, U256};
+use gprimitives::H256;
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
-use rand::SeedableRng;
-use roast_secp256k1_evm::frost::{
-    Identifier,
-    keys::{self, IdentifierList, VerifiableSecretSharingCommitment},
-};
 use std::collections::{BTreeMap, HashSet};
 
 /// A batch commitment, that has been signed by multiple validators.
@@ -125,49 +120,6 @@ impl MultisignedBatchCommitment {
         (self.batch, self.signatures.into_values().collect())
     }
 }
-// TODO: #5019 this is a temporal solution. In future need to implement DKG algorithm.
-pub fn generate_roast_keys(
-    validators: &ValidatorsVec,
-) -> Result<(AggregatedPublicKey, VerifiableSecretSharingCommitment)> {
-    let validators_identifiers = validators
-        .iter()
-        .map(|validator| {
-            let mut bytes = [0u8; 32];
-            bytes[12..32].copy_from_slice(&validator.0);
-            Identifier::deserialize(&bytes).unwrap()
-        })
-        .collect::<Vec<_>>();
-
-    let identifiers = IdentifierList::Custom(&validators_identifiers);
-
-    let rng = rand_chacha::ChaCha8Rng::from_seed([1u8; 32]);
-
-    let (mut secret_shares, public_key_package) =
-        keys::generate_with_dealer(validators.len() as u16, 1, identifiers, rng)?;
-
-    let verifiable_secret_sharing_commitment = secret_shares
-        .pop_first()
-        .map(|(_key, value)| value.commitment().clone())
-        .ok_or_else(|| anyhow!("Expect at least one identifier"))?;
-
-    let public_key_compressed: [u8; 33] = public_key_package
-        .verifying_key()
-        .serialize()?
-        .try_into()
-        .map_err(|_| anyhow!("Failed to convert public key to compressed format"))?;
-    let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed)
-        .expect("valid aggregated public key")
-        .to_uncompressed();
-    let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
-
-    let aggregated_public_key = AggregatedPublicKey {
-        x: U256::from_big_endian(public_key_x_bytes),
-        y: U256::from_big_endian(public_key_y_bytes),
-    };
-
-    Ok((aggregated_public_key, verifiable_secret_sharing_commitment))
-}
-
 pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
     let mut seen = HashSet::new();
     data.iter().any(|item| !seen.insert(item))

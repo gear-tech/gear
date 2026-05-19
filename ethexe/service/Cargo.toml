@@ -1,11 +1,14 @@
 [package]
 name = "ethexe-service"
+description = "Service orchestration for ethexe nodes"
+documentation = "https://docs.rs/ethexe-service"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 ethexe-compute.workspace = true
@@ -21,7 +24,7 @@ ethexe-ethereum.workspace = true
 ethexe-common = { workspace = true, features = ["std", "mock"] }
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
-ethexe-rpc.workspace = true
+ethexe-rpc = { workspace = true, features = ["server"] }
 gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["std", "ethexe"] }
@@ -39,7 +42,6 @@ tokio = { workspace = true, features = [
 ] }
 futures.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
-rand.workspace = true
 derive_more.workspace = true
 async-trait.workspace = true
 gear-workspace-hack.workspace = true
@@ -62,8 +64,7 @@ ntest.workspace = true
 gear-core-errors.workspace = true
 ethexe-network.workspace = true
 ethexe-db = { workspace = true, features = ["mock"] }
-roast-secp256k1-evm.workspace = true
-ethexe-rpc = { workspace = true, features = ["client"] }
+ethexe-rpc = { workspace = true, features = ["client", "server"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }

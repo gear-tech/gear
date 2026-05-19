@@ -1,13 +1,14 @@
 [package]
 name = "ethexe-rpc"
+description = "JSON-RPC server and client APIs for ethexe"
+documentation = "https://docs.rs/ethexe-rpc"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+rust-version.workspace = true
 
 [dependencies]
 tokio = { workspace = true, features = ["sync"] }
@@ -15,7 +16,7 @@ anyhow.workspace = true
 futures.workspace = true
 gprimitives = { workspace = true, features = ["serde", "ethexe"] }
 ethexe-db.workspace = true
-ethexe-processor.workspace = true
+ethexe-processor = { workspace = true, optional = true }
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["cors"] }
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
@@ -43,4 +44,6 @@ tracing-subscriber.workspace = true
 ethexe-db = {workspace = true, features = ["mock"]}
 
 [features]
+default = ["server"]
 client = ["jsonrpsee/client"]
+server = ["dep:ethexe-processor", "jsonrpsee/server", "hyper/server"]

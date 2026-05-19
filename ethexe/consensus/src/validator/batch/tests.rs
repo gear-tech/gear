@@ -37,7 +37,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::{ElectionProvider, MockElectionProvider};
 use gear_core::ids::prelude::CodeIdExt;
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256, U256};
 use std::num::{NonZero, NonZeroU64};
 
 const BLOCK_GAS_LIMIT: u64 = ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
@@ -731,6 +731,9 @@ async fn test_aggregate_validators_commitment() {
         .expect("validators commitment expected");
     assert_eq!(commitment.validators, validators1);
     assert_eq!(commitment.era_index, 1);
+    assert_eq!(commitment.aggregated_public_key.x, U256::zero());
+    assert_eq!(commitment.aggregated_public_key.y, U256::zero());
+    assert!(commitment.verifiable_secret_sharing_commitment.is_empty());
 
     // Inside era 1 election period → still validators1.
     let commitment = manager
@@ -740,6 +743,9 @@ async fn test_aggregate_validators_commitment() {
         .expect("validators commitment expected");
     assert_eq!(commitment.validators, validators1);
     assert_eq!(commitment.era_index, 1);
+    assert_eq!(commitment.aggregated_public_key.x, U256::zero());
+    assert_eq!(commitment.aggregated_public_key.y, U256::zero());
+    assert!(commitment.verifiable_secret_sharing_commitment.is_empty());
 
     // Mark era 1 already committed for `block 7` → manager skips.
     db.mutate_block_meta(chain.blocks[7].hash, |meta| {
@@ -766,6 +772,9 @@ async fn test_aggregate_validators_commitment() {
         .expect("validators commitment expected");
     assert_eq!(commitment.validators, validators2);
     assert_eq!(commitment.era_index, 2);
+    assert_eq!(commitment.aggregated_public_key.x, U256::zero());
+    assert_eq!(commitment.aggregated_public_key.y, U256::zero());
+    assert!(commitment.verifiable_secret_sharing_commitment.is_empty());
 
     // Bookkeeping past the next era is restricted — must error out.
     db.mutate_block_meta(chain.blocks[15].hash, |meta| {

@@ -1,5 +1,7 @@
 [package]
 name = "ethexe-cli"
+description = "Command-line interface for running and managing ethexe nodes"
+documentation = "https://docs.rs/ethexe-cli"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

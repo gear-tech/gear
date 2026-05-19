@@ -98,7 +98,7 @@ library Gear {
 
     /**
      * @dev Represents an aggregated public key.
-     *      It checked with `FROST.isValidPublicKey(x, y)` in `Router._resetValidators(...)`,
+     *      When present (`hasAggregatedPublicKey` is `true`), it is checked with `FROST.isValidPublicKey(x, y)` in `Router._resetValidators(...)`,
      *      so we can be sure that it is valid.
      */
     struct AggregatedPublicKey {
@@ -203,6 +203,7 @@ library Gear {
      * @dev Represents validators commitment.
      */
     struct ValidatorsCommitment {
+        bool hasAggregatedPublicKey;
         AggregatedPublicKey aggregatedPublicKey;
         bytes verifiableSecretSharingCommitment;
         address[] validators;
@@ -586,6 +587,7 @@ library Gear {
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
+                commitment.hasAggregatedPublicKey,
                 commitment.aggregatedPublicKey.x,
                 commitment.aggregatedPublicKey.y,
                 commitment.validators,

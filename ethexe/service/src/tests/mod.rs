@@ -1989,8 +1989,8 @@ async fn validators_election() {
         validators.push(validator);
     }
 
-    let (next_validators_configs, _commitment) =
-        TestEnv::define_session_keys(&signer, next_validators);
+    // Setup next validators to be elected for previous era
+    let next_validators_configs = TestEnv::define_session_keys(next_validators);
 
     let next_validator_addrs: Vec<_> = next_validators_configs
         .iter()
