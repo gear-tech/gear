@@ -11975,10 +11975,11 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "numerated"
-version = "1.10.0"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bb05ee6a72ffda467820752dd866979c8d0aaf170c74d341ee2438e691cf58e"
 dependencies = [
  "derive_more 2.1.1",
- "gear-workspace-hack",
  "log",
  "num-traits",
  "proptest",
