@@ -41,11 +41,13 @@ environmental::environmental!(SupervisorContextStore: trait SupervisorContextDis
 
 pub struct FuncEnv {
     store: Weak<StoreRefCell>,
-    gas_global: wasmtime::Global,
+    // Gas global is absent for non-instrumented modules used in tests and benchmarks.
+    // It is only required by v2 host function dispatch.
+    gas_global: Option<wasmtime::Global>,
 }
 
 impl FuncEnv {
-    pub fn new(store: Weak<StoreRefCell>, gas_global: wasmtime::Global) -> Self {
+    pub fn new(store: Weak<StoreRefCell>, gas_global: Option<wasmtime::Global>) -> Self {
         Self { store, gas_global }
     }
 }
@@ -386,7 +388,9 @@ fn dispatch_function_v2(
             SupervisorContextStore::with(|supervisor_context| {
                 let func_env = caller.data().as_ref().expect("func env should be set");
                 let store_ref_cell = func_env.store.upgrade().expect("store should be alive");
-                let gas_global = func_env.gas_global;
+                let gas_global = func_env
+                    .gas_global
+                    .ok_or_else(|| host_trap(format!("Failed to get {GLOBAL_NAME_GAS} global")))?;
 
                 let gas = gas_global.get(caller.as_context_mut());
                 let store_ctx_mut = caller.as_context_mut();
@@ -521,9 +525,7 @@ pub fn invoke(
 
     // Init func env
     {
-        let gas_global = instance
-            .get_global(&mut *store.borrow_mut(), GLOBAL_NAME_GAS)
-            .ok_or_else(|| Error::Sandbox("Failed to get gas global".into()))?;
+        let gas_global = instance.get_global(&mut *store.borrow_mut(), GLOBAL_NAME_GAS);
 
         store
             .borrow_mut()
