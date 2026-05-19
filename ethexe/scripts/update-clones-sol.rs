@@ -9,6 +9,9 @@
 //! serde_json = { version = "^1.0.140" }
 //! ```
 
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 extern crate anyhow;
 extern crate clap;
 extern crate hex;
