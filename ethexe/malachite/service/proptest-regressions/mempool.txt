@@ -1,8 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc 07682000ff3cf8ae7c31d84af0c872bc1d32bb991b62d059a1a1d76c5e41444c # shrinks to salt = 0, seed = 0
-cc 31d0c59e53facb463e02183310fd86aa616f0e9abdd744494d03ee7cd8a7eb70 # shrinks to actions = [Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }, Insert { ref_idx: 0, salt: 0 }], cap = 1, seed = 4189

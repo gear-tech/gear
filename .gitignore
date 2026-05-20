@@ -4,6 +4,9 @@ log/
 weight-dumps/
 vara/sdk/gsdk/vara_runtime_prod.scale
 *.meta.txt
+ok.md
+.claude/
+**/proptest-regressions/
 
 # cargo
 target/
