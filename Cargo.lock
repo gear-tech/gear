@@ -5825,10 +5825,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "metrics",
  "metrics-derive",
- "nonempty 0.12.0",
  "parity-scale-codec",
- "rand 0.8.5",
- "rand_chacha 0.3.1",
  "tokio",
  "tracing",
 ]
