@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use crate::{
     Config, EthMessage, QueueId, QueueOverflowedSince, QueuesInfo, WeightInfo,
     internal::{EthMessageExt, QueueInfo},
