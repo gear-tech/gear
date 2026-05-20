@@ -3075,13 +3075,13 @@ async fn reply_callback() {
 }
 
 #[tokio::test]
-#[ignore = "TODO: +_+_+ port to MB-driven test harness"]
+#[ignore = "TODO: #5487 port to MB-driven test harness"]
 async fn fast_sync() {}
 
 #[tokio::test]
-#[ignore = "TODO: +_+_+ port to MB-driven test harness"]
+#[ignore = "TODO: #5488 port to MB-driven test harness"]
 async fn re_genesis_with_state_dump() {}
 
 #[tokio::test]
-#[ignore = "TODO: +_+_+ port to MB-driven test harness"]
+#[ignore = "TODO: #5488 port to MB-driven test harness"]
 async fn re_genesis_delayed_message() {}

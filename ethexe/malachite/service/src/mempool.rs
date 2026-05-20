@@ -323,7 +323,7 @@ impl Mempool for InjectedTxMempool {
         // filled the last capacity slot, while we were writing.
         drop(inner);
 
-        // TODO: +_+_+ remove, set in db only after mb finalization
+        // TODO: #5489 remove, set in db only after mb finalization
         // Persist the tx so the local RPC's `injected_getTransactions`
         // can serve it to clients that look it up by hash later.
         // Done before inserting into the pool so a producer that
