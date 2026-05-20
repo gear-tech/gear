@@ -46,13 +46,11 @@ use gprimitives::H256;
 use tokio::sync::Notify;
 use tracing::{info, trace};
 
-/// Reasons a tx can be rejected at insert time.
+/// Reasons a tx can be rejected at insert time. Duplicate / already-committed
+/// inserts are not represented here — they are idempotent successes and
+/// surface as `Ok(())` from [`Mempool::insert`].
 #[derive(Debug, thiserror::Error)]
 pub enum MempoolInsertError {
-    #[error("tx hash already committed within validity window")]
-    AlreadyCommitted,
-    #[error("tx already in pool")]
-    Duplicate,
     #[error("reference_block past validity window")]
     ExpiredRefBlock,
     #[error("mempool at capacity")]
@@ -63,24 +61,6 @@ pub enum MempoolInsertError {
     /// charge a panicking program for an out-of-budget transfer.
     #[error("non-zero value injected txs are not yet supported (#5083)")]
     NonZeroValue,
-}
-
-/// Map a mempool insert outcome to the public acceptance. `Duplicate` and
-/// `AlreadyCommitted` are treated as idempotent successes — the original
-/// submission's promise covers the caller — so only fatal variants surface
-/// as `Reject`.
-pub fn classify_insert_outcome(
-    outcome: Result<(), MempoolInsertError>,
-) -> ethexe_common::injected::InjectedTransactionAcceptance {
-    use ethexe_common::injected::InjectedTransactionAcceptance;
-    match outcome {
-        Ok(()) | Err(MempoolInsertError::Duplicate | MempoolInsertError::AlreadyCommitted) => {
-            InjectedTransactionAcceptance::Accept
-        }
-        Err(err) => InjectedTransactionAcceptance::Reject {
-            reason: err.to_string(),
-        },
-    }
 }
 
 /// Producer-side source of injected transactions. Fetch is non-destructive;
@@ -277,13 +257,13 @@ impl Mempool for InjectedTxMempool {
         let inner = self.inner.lock().expect("poisoned mempool");
 
         if inner.seen.contains_key(&tx_hash) {
-            info!(%tx_hash, "mempool: rejecting tx — hash already committed within validity window");
-            return Err(MempoolInsertError::AlreadyCommitted);
+            info!(%tx_hash, "mempool: idempotent no-op — hash already committed within validity window");
+            return Ok(());
         }
 
         if inner.pool.contains_key(&tx_hash) {
-            info!(%tx_hash, pool_len = inner.pool.len(), "mempool: skip — duplicate insert");
-            return Err(MempoolInsertError::Duplicate);
+            info!(%tx_hash, pool_len = inner.pool.len(), "mempool: idempotent no-op — duplicate insert");
+            return Ok(());
         }
 
         // ref_block resolution is best-effort: a recipient that hasn't yet
@@ -326,11 +306,8 @@ impl Mempool for InjectedTxMempool {
         let mut inner = self.inner.lock().expect("poisoned mempool");
 
         // Recheck dedup / capacity after the lock-free window.
-        if inner.seen.contains_key(&tx_hash) {
-            return Err(MempoolInsertError::AlreadyCommitted);
-        }
-        if inner.pool.contains_key(&tx_hash) {
-            return Err(MempoolInsertError::Duplicate);
+        if inner.seen.contains_key(&tx_hash) || inner.pool.contains_key(&tx_hash) {
+            return Ok(());
         }
         if inner.pool.len() >= self.capacity {
             return Err(MempoolInsertError::PoolFull);
@@ -420,28 +397,15 @@ mod tests {
     use gprimitives::ActorId;
     use std::time::Duration;
 
-    /// Pins idempotent classification: `Duplicate`/`AlreadyCommitted` look
-    /// like `Accept` to RPC callers, only fatal variants surface as
-    /// `Reject`. Adding a fatal variant without updating
-    /// [`classify_insert_outcome`] will be caught here.
+    /// Pins the `Result -> Acceptance` mapping for fatal variants — duplicate /
+    /// already-committed inserts return `Ok(())`, so the generic `From` impl
+    /// translates them to `Accept` automatically.
     #[test]
-    fn classify_insert_outcome_maps_each_variant() {
+    fn fatal_variants_map_to_reject() {
         assert!(matches!(
-            classify_insert_outcome(Ok(())),
+            InjectedTransactionAcceptance::from(Ok::<_, MempoolInsertError>(())),
             InjectedTransactionAcceptance::Accept
         ));
-        for err in [
-            MempoolInsertError::AlreadyCommitted,
-            MempoolInsertError::Duplicate,
-        ] {
-            assert!(
-                matches!(
-                    classify_insert_outcome(Err(err)),
-                    InjectedTransactionAcceptance::Accept
-                ),
-                "duplicate / already-committed must be idempotent Accept",
-            );
-        }
         for err in [
             MempoolInsertError::ExpiredRefBlock,
             MempoolInsertError::PoolFull,
@@ -449,10 +413,10 @@ mod tests {
         ] {
             assert!(
                 matches!(
-                    classify_insert_outcome(Err(err)),
+                    InjectedTransactionAcceptance::from(Err::<(), _>(err)),
                     InjectedTransactionAcceptance::Reject { .. }
                 ),
-                "fatal variant must classify as Reject",
+                "fatal variant must surface as Reject",
             );
         }
     }
@@ -576,10 +540,7 @@ mod tests {
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 7);
         pool.insert(tx.clone()).unwrap();
         assert_eq!(pool.len(), 1);
-        assert!(matches!(
-            pool.insert(tx),
-            Err(MempoolInsertError::Duplicate)
-        ));
+        pool.insert(tx).unwrap();
         assert_eq!(pool.len(), 1, "duplicate by hash should be a no-op");
     }
 
@@ -673,11 +634,8 @@ mod tests {
         futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
         assert_eq!(pool.len(), 0);
 
-        // Re-inserting the same tx must be rejected (seen-hash hit).
-        assert!(matches!(
-            pool.insert(tx),
-            Err(MempoolInsertError::AlreadyCommitted),
-        ));
+        // Re-inserting the same tx is a seen-hash no-op.
+        pool.insert(tx).unwrap();
         assert_eq!(pool.len(), 0, "forgotten tx must not return to the pool");
     }
 
@@ -751,9 +709,10 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn wait_for_new_tx_does_not_wake_on_rejected_insert() {
-        // A duplicate / capped insert should not wake a waiter — Notify
-        // is signalled only on a successful insert.
+    async fn wait_for_new_tx_does_not_wake_on_duplicate_insert() {
+        // A duplicate insert returns Ok(()) but must not signal Notify —
+        // the pool state didn't change, so there's nothing new for the
+        // producer to fetch.
         let db = Database::memory();
         let chain = linear_chain(&db, 2);
         let pool = std::sync::Arc::new(InjectedTxMempool::new(db));
@@ -774,17 +733,14 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(10)).await;
 
-        // Same tx hash — rejected as duplicate, no signal.
-        assert!(matches!(
-            pool.insert(tx),
-            Err(MempoolInsertError::Duplicate)
-        ));
+        // Same tx hash — idempotent no-op, no signal sent.
+        pool.insert(tx).unwrap();
 
         // Waiter must still be pending.
         tokio::time::sleep(Duration::from_millis(50)).await;
         assert!(
             !waiter.is_finished(),
-            "waiter must stay blocked when insert was rejected"
+            "waiter must stay blocked when insert was a duplicate"
         );
         waiter.abort();
     }
@@ -958,12 +914,9 @@ mod tests {
             prop_assert_eq!(pool.len(), 1);
             futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
             prop_assert_eq!(pool.len(), 0);
-            // Re-insert: rejected because the hash sits in the
-            // seen-set and `reference_block` hasn't aged out.
-            prop_assert!(matches!(
-                pool.insert(tx),
-                Err(MempoolInsertError::AlreadyCommitted)
-            ));
+            // Re-insert: idempotent no-op because the hash sits in
+            // the seen-set and `reference_block` hasn't aged out.
+            pool.insert(tx).unwrap();
             prop_assert_eq!(pool.len(), 0);
         }
     }

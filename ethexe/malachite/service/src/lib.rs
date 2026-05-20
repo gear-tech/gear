@@ -26,7 +26,6 @@ pub use crate::{
     config::{MalachiteConfig, ValidatorEntry},
     mempool::{
         DEFAULT_POOL_CAPACITY, EmptyMempool, InjectedTxMempool, Mempool, MempoolInsertError,
-        classify_insert_outcome,
     },
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
