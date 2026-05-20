@@ -39,7 +39,6 @@ pub fn patch_publish(name: &str, doc: &mut toml_edit::DocumentMut) {
         "ethexe-rpc" => ethexe_rpc::patch(doc),
         "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
-        "gear-sandbox-host" => sandbox_host::patch(doc),
         "gear-sandbox-interface" => sandbox_interface::patch(doc),
         _ => {}
     }
@@ -188,21 +187,6 @@ mod sandbox_interface {
         wi.insert("version", toml_edit::value(GP_RUNTIME_INTERFACE_VERSION));
         wi.insert("package", toml_edit::value("gp-runtime-interface"));
         wi.remove("workspace");
-    }
-}
-
-/// sandbox_host handler.
-mod sandbox_host {
-    use toml_edit::DocumentMut;
-
-    /// Replace the wasmi module to the crates-io version.
-    pub fn patch(manifest: &mut DocumentMut) {
-        let Some(wasmi) = manifest["dependencies"]["sandbox-wasmi"].as_table_like_mut() else {
-            return;
-        };
-        wasmi.insert("package", toml_edit::value("wasmi"));
-        wasmi.insert("version", toml_edit::value("0.13.2"));
-        wasmi.remove("workspace");
     }
 }
 
