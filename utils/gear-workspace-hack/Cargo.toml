@@ -215,7 +215,6 @@ features = ["test-helpers"]
 
 ### BEGIN HAKARI SECTION
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -496,7 +495,6 @@ winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
-aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
