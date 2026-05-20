@@ -13,7 +13,35 @@
 set -euo pipefail
 
 ROOT="${1:-.}"
-SPDX="// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0"
+GEAR_SPDX="// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0"
+APACHE_SPDX="// SPDX-License-Identifier: Apache-2.0"
+
+expected_spdx_for() {
+    case "$1" in
+        substrate/sp-allocator/* | substrate/substrate-wasm-builder/*)
+            printf '%s\n' "$APACHE_SPDX"
+            ;;
+        *)
+            printf '%s\n' "$GEAR_SPDX"
+            ;;
+    esac
+}
+
+copyright_pattern_for() {
+    case "$1" in
+        substrate/runtime-executor/wasmtime/src/host_state.rs | \
+        substrate/runtime-executor/wasmtime/src/memory_wrapper.rs | \
+        substrate/runtime-executor/wasmtime/src/store_data.rs)
+            printf '%s\n' '^// Copyright'
+            ;;
+        substrate/runtime-executor/* | substrate/sp-allocator/* | substrate/substrate-wasm-builder/*)
+            printf '%s\n' '^// Copyright [(]C[)] Parity Technologies'
+            ;;
+        *)
+            printf '%s\n' '^// Copyright'
+            ;;
+    esac
+}
 
 ISSUES=$(mktemp)
 trap "rm -f '$ISSUES'" EXIT
@@ -27,14 +55,17 @@ git -C "$ROOT" ls-files -z '*.rs' \
 
 # ── 2-4. Per-file SPDX checks (awk reads each file once) ─────────────────────
 while IFS= read -r -d '' file; do
-    awk -v spdx="$SPDX" -v f="$ROOT/$file" '
+    spdx=$(expected_spdx_for "$file")
+    copyright=$(copyright_pattern_for "$file")
+
+    awk -v spdx="$spdx" -v copyright="$copyright" -v f="$ROOT/$file" '
         { prev = cur; cur = $0 }
 
         cur ~ /SPDX-License-Identifier/ {
             if (cur != spdx) {
-                print "wrong SPDX value: " f
+                print "wrong SPDX value: " f " (expected: " spdx ")"
             } else {
-                if (prev !~ /^\/\/ Copyright/)
+                if (prev !~ copyright)
                     print "no Copyright line above SPDX: " f
                 getline nxt
                 if (nxt !~ /^[[:space:]]*$/ && nxt != "")
