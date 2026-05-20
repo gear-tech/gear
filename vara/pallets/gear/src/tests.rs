@@ -14605,6 +14605,65 @@ fn remove_from_waitlist_after_exit_reply() {
     })
 }
 
+#[test]
+fn remove_from_waitlist_init_does_not_send_signal() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let source_var = "source_var";
+        let init_signal = b"init_signal".to_vec();
+        let scheme = Scheme::predefined(
+            Calls::builder()
+                .source(source_var)
+                .send(source_var, [])
+                .system_reserve_gas(1_000_000_000)
+                .wait(),
+            Calls::builder().noop(),
+            Calls::builder().noop(),
+            Calls::builder().send(source_var, init_signal.clone()),
+        );
+
+        let (init_mid, program_id) = init_constructor(scheme);
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(utils::is_active(program_id));
+
+        run_to_next_block(None);
+
+        let (waited_mid, remove_from_waitlist_block) = get_last_message_waited();
+        assert_eq!(init_mid, waited_mid);
+        assert_eq!(QueueOf::<Test>::len(), 0);
+        assert!(TaskPoolOf::<Test>::contains(
+            &remove_from_waitlist_block,
+            &ScheduledTask::RemoveFromWaitlist(program_id, init_mid)
+        ));
+
+        let (builtins, _) = <Test as crate::Config>::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<Test>::new(builtins);
+        ScheduledTask::RemoveFromWaitlist(program_id, init_mid).process_with(&mut ext_manager);
+
+        assert!(Gear::is_terminated(program_id));
+        assert_eq!(QueueOf::<Test>::len(), 0);
+        assert!(System::events().into_iter().any(|e| {
+            matches!(
+                e.event,
+                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. })
+                    if message.source() == program_id
+                        && message.reply_code()
+                            == Some(ReplyCode::Error(ErrorReplyReason::RemovedFromWaitlist))
+            )
+        }));
+        assert!(!System::events().into_iter().any(|e| {
+            matches!(
+                e.event,
+                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. })
+                    if message.source() == program_id
+                        && message.payload_bytes() == init_signal
+            )
+        }));
+    })
+}
+
 // currently we don't support WASM reference types
 #[test]
 fn wasm_ref_types_doesnt_work() {

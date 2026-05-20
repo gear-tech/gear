@@ -74,11 +74,17 @@ impl TaskHandler<ActorId, MessageId, bool> for ExtManager {
                 unreachable!("{err_msg}");
             });
 
-        self.send_signal(
-            message_id,
-            waitlisted.destination(),
-            SignalCode::RemovedFromWaitlist,
-        );
+        if matches!(waitlisted.kind(), DispatchKind::Signal | DispatchKind::Init) {
+            self.gas_tree
+                .system_unreserve(message_id)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        } else {
+            self.send_signal(
+                message_id,
+                waitlisted.destination(),
+                SignalCode::RemovedFromWaitlist,
+            );
+        }
 
         if !waitlisted.is_reply() && waitlisted.kind() != DispatchKind::Signal {
             let err = ErrorReplyReason::RemovedFromWaitlist;

@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    Config, DispatchStashOf, Event, Pallet, QueueOf, manager::ExtManager, weights::WeightInfo,
+    Config, DispatchStashOf, Event, GasHandlerOf, Pallet, QueueOf, manager::ExtManager,
+    weights::WeightInfo,
 };
 use alloc::{format, string::ToString};
 use common::{
-    Gas, Origin,
+    Gas, Origin, ReservableTree,
     event::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
         UserMessageReadSystemReason,
@@ -113,11 +114,23 @@ where
                 unreachable!("{err_msg}");
             });
 
-        self.send_signal(
-            message_id,
-            waitlisted.destination(),
-            SignalCode::RemovedFromWaitlist,
-        );
+        if matches!(waitlisted.kind(), DispatchKind::Signal | DispatchKind::Init) {
+            GasHandlerOf::<T>::system_unreserve(message_id).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "TaskHandler::remove_from_waitlist: failed system unreserve. \
+                    Message id - {message_id}. Got error: {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
+        } else {
+            self.send_signal(
+                message_id,
+                waitlisted.destination(),
+                SignalCode::RemovedFromWaitlist,
+            );
+        }
 
         if !waitlisted.is_reply() && waitlisted.kind() != DispatchKind::Signal {
             // Trap explanation.
