@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Handlers for patching manifests.
 
@@ -42,6 +27,7 @@ pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<M
     let doc = &mut manifest.mutable_manifest;
 
     match manifest.name.as_str() {
+        "ethexe-rpc" => ethexe_rpc::patch(doc),
         "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
@@ -72,6 +58,36 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
             substrate::patch_workspace(name, table)
         }
         _ => {}
+    }
+}
+
+/// ethexe-rpc handler.
+mod ethexe_rpc {
+    use toml_edit::{Array, DocumentMut};
+
+    /// Remove the `ethexe-processor` dependency from the crates.io manifest,
+    /// because it is not part of the crates.io set.
+    pub fn patch(manifest: &mut DocumentMut) {
+        if let Some(deps) = manifest["dependencies"].as_table_like_mut() {
+            deps.remove("ethexe-processor");
+        }
+
+        let Some(features) = manifest["features"].as_table_like_mut() else {
+            return;
+        };
+
+        let mut default_features = Array::default();
+        default_features.push("client");
+
+        features.insert("default", toml_edit::value(default_features));
+
+        let Some(server_features) = features
+            .get_mut("server")
+            .and_then(toml_edit::Item::as_array_mut)
+        else {
+            return;
+        };
+        server_features.retain(|feature| feature.as_str() != Some("dep:ethexe-processor"));
     }
 }
 

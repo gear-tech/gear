@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 //! CLI args for the `ethexe-node-loader`
 
 use crate::batch::value::ValueProfile;

@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! This module implements sandboxing support in the runtime.
 //!
@@ -23,17 +8,7 @@
 mod wasmer_backend;
 mod wasmi_backend;
 
-use std::{collections::HashMap, pin::Pin, rc::Rc};
-
-use env::Instantiate;
-use gear_sandbox_env as sandbox_env;
-use parity_scale_codec::Decode;
-use sp_wasm_interface_common::{Pointer, Value, WordSize};
-
-use crate::{
-    error::{self, Result},
-    util,
-};
+pub use gear_sandbox_env as env;
 
 use self::{
     wasmer_backend::{
@@ -50,9 +25,16 @@ use self::{
     },
 };
 
-pub use gear_sandbox_env as env;
-
-type SandboxResult<T> = core::result::Result<T, String>;
+use crate::{
+    context::SupervisorContextDispatcher,
+    error::{self, Result},
+    util,
+};
+use env::Instantiate;
+use gear_sandbox_env as sandbox_env;
+use parity_scale_codec::Decode;
+use sp_wasm_interface_common::{Pointer, Value};
+use std::{collections::HashMap, pin::Pin, rc::Rc};
 
 /// Index of a function inside the supervisor.
 ///
@@ -124,48 +106,6 @@ impl Imports {
     }
 }
 
-/// The supervisor context used to execute sandboxed functions.
-pub trait SupervisorContext {
-    /// Invoke a function in the supervisor environment.
-    ///
-    /// This first invokes the dispatch thunk function, passing in the function index of the
-    /// desired function to call and serialized arguments. The thunk calls the desired function
-    /// with the deserialized arguments, then serializes the result into memory and returns
-    /// reference. The pointer to and length of the result in linear memory is encoded into an
-    /// `i64`, with the upper 32 bits representing the pointer and the lower 32 bits representing
-    /// the length.
-    ///
-    /// # Errors
-    ///
-    /// Returns `Err` if the dispatch_thunk function has an incorrect signature or traps during
-    /// execution.
-    fn invoke(
-        &mut self,
-        invoke_args_ptr: Pointer<u8>,
-        invoke_args_len: WordSize,
-        func_idx: SupervisorFuncIndex,
-    ) -> Result<i64>;
-
-    /// Read memory from `address` into a vector.
-    fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> SandboxResult<()>;
-
-    /// Read memory into the given `dest` buffer from `address`.
-    fn read_memory(&self, address: Pointer<u8>, size: WordSize) -> Result<Vec<u8>> {
-        let mut vec = vec![0; size as usize];
-        self.read_memory_into(address, &mut vec)?;
-        Ok(vec)
-    }
-
-    /// Write the given data at `address` into the memory.
-    fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> SandboxResult<()>;
-
-    /// Allocate a memory instance of `size` bytes.
-    fn allocate_memory(&mut self, size: WordSize) -> SandboxResult<Pointer<u8>>;
-
-    /// Deallocate a given memory instance.
-    fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> SandboxResult<()>;
-}
-
 /// Module instance in terms of selected backend
 enum BackendInstanceBundle {
     /// Wasmi module instance
@@ -212,7 +152,7 @@ impl SandboxInstance {
         &self,
         export_name: &str,
         args: &[Value],
-        supervisor_context: &mut dyn SupervisorContext,
+        supervisor_context: &mut dyn SupervisorContextDispatcher,
     ) -> std::result::Result<Option<Value>, error::Error> {
         match &self.backend_instance {
             BackendInstanceBundle::Wasmi { instance, store } => {
@@ -376,8 +316,8 @@ impl GuestEnvironment {
     /// Decodes an environment definition from the given raw bytes.
     ///
     /// Returns `Err` if the definition cannot be decoded.
-    pub fn decode<DT>(
-        store: &SandboxComponents<DT>,
+    pub fn decode(
+        store: &SandboxComponents,
         raw_env_def: &[u8],
     ) -> std::result::Result<Self, InstantiationError> {
         let (imports, guest_to_supervisor_mapping) =
@@ -399,9 +339,9 @@ pub struct UnregisteredInstance {
 
 impl UnregisteredInstance {
     /// Finalizes instantiation of this module.
-    pub fn register<DT>(self, store: &mut SandboxComponents<DT>, dispatch_thunk: DT) -> u32 {
+    pub fn register(self, store: &mut SandboxComponents, dispatch_thunk_id: u32) -> u32 {
         // At last, register the instance.
-        store.register_sandbox_instance(self.sandbox_instance, dispatch_thunk)
+        store.register_sandbox_instance(self.sandbox_instance, dispatch_thunk_id)
     }
 }
 
@@ -516,19 +456,17 @@ impl BackendContext {
 }
 
 /// This struct keeps track of all sandboxed components.
-///
-/// This is generic over a supervisor function reference type.
-pub struct SandboxComponents<DT> {
+pub struct SandboxComponents {
     /// Stores the instance and the dispatch thunk associated to per instance.
     ///
     /// Instances are `Some` until torn down.
-    instances: Vec<Option<(Pin<Rc<SandboxInstance>>, DT)>>,
+    instances: Vec<Option<(Pin<Rc<SandboxInstance>>, u32)>>,
     /// Memories are `Some` until torn down.
     memories: Vec<Option<Memory>>,
     backend_context: BackendContext,
 }
 
-impl<DT: Clone> SandboxComponents<DT> {
+impl SandboxComponents {
     /// Create a new empty sandbox store.
     pub fn new(backend: SandboxBackend) -> Self {
         SandboxComponents {
@@ -607,13 +545,13 @@ impl<DT: Clone> SandboxComponents<DT> {
     /// Returns `Err` If `instance_idx` isn't a valid index of an instance or
     /// instance is already torndown.
     #[allow(clippy::useless_asref)]
-    pub fn dispatch_thunk(&self, instance_idx: u32) -> Result<DT> {
+    pub fn dispatch_thunk_id(&self, instance_idx: u32) -> Result<u32> {
         self.instances
             .get(instance_idx as usize)
             .as_ref()
             .ok_or("Trying to access a non-existent instance")?
             .as_ref()
-            .map(|v| v.1.clone())
+            .map(|v| v.1)
             .ok_or_else(|| "Trying to access a torndown instance".into())
     }
 
@@ -679,7 +617,7 @@ impl<DT: Clone> SandboxComponents<DT> {
         version: Instantiate,
         wasm: &[u8],
         guest_env: GuestEnvironment,
-        supervisor_context: &mut dyn SupervisorContext,
+        supervisor_context: &mut impl SupervisorContextDispatcher,
     ) -> std::result::Result<UnregisteredInstance, InstantiationError> {
         let sandbox_instance = match self.backend_context {
             BackendContext::Wasmi(ref context) => {
@@ -696,15 +634,15 @@ impl<DT: Clone> SandboxComponents<DT> {
 }
 
 // Private routines
-impl<DT> SandboxComponents<DT> {
+impl SandboxComponents {
     fn register_sandbox_instance(
         &mut self,
         sandbox_instance: SandboxInstance,
-        dispatch_thunk: DT,
+        dispatch_thunk_id: u32,
     ) -> u32 {
         let instance_idx = self.instances.len();
         self.instances
-            .push(Some((Rc::pin(sandbox_instance), dispatch_thunk)));
+            .push(Some((Rc::pin(sandbox_instance), dispatch_thunk_id)));
         instance_idx as u32
     }
 }

@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use demo_waiter::{Command, LockContinuation, LockStaticAccessSubcommand, MxLockContinuation};
 use gear_core::ids::MessageId;
 use gtest::{Program, System, constants::DEFAULT_USER_ALICE};

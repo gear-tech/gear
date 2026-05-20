@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 //! Batch execution engine for load mode.
 //!
 //! This module owns the long-running worker pool used by `ethexe-node-loader

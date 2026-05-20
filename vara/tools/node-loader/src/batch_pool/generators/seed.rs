@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use crate::args::SeedVariant;
 use gear_call_gen::{CallGenRng, CallGenRngCore};
 use rand::RngCore;
