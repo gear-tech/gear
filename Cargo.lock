@@ -5283,6 +5283,7 @@ version = "1.10.0"
 dependencies = [
  "alloy",
  "ethexe-common",
+ "ethexe-db",
  "ethexe-ethereum",
  "futures",
  "gear-workspace-hack",
