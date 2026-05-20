@@ -1,5 +1,5 @@
-// Copyright (C) 2026 Gear Technologies Inc.
-// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 //! secp256k1 / ECDSA signing primitives plus the libp2p identity
 //! derivation that the Malachite swarm uses.

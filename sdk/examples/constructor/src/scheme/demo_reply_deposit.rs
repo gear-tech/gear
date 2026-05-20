@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use crate::{Arg, Call, Calls, Scheme};
 
 pub const DESTINATION_MESSAGE: &[u8] = b"We are doing!";
