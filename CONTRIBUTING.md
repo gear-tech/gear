@@ -285,4 +285,26 @@ Pull Request title = source of truth for release notes
 
 ---
 
+## 14. Licensing
+
+All `.rs` source files MUST include a license header as the first two lines:
+
+```rust
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+```
+
+A blank line MUST follow the header before any code or module-level comments.
+
+Files derived from third-party sources MUST preserve the original copyright line and MUST NOT include the Gear copyright line:
+
+```rust
+// Copyright (C) 2017-2024 Parity Technologies.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+```
+
+The `LICENSE` file in the repository root is the authoritative license text.
+
+---
+
 This process is intentionally minimal and designed for a small, fast-moving team.
