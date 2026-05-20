@@ -65,27 +65,18 @@ pub enum MempoolInsertError {
     NonZeroValue,
 }
 
-impl MempoolInsertError {
-    /// The tx is already known to a validator (either pooled or recently
-    /// committed) — its promise will still fire, so RPC callers can keep
-    /// watching for the reply.
-    pub fn is_already_pooled(&self) -> bool {
-        matches!(self, Self::AlreadyCommitted | Self::Duplicate)
-    }
-}
-
-/// Surface a mempool insert outcome as a typed acceptance: `AlreadyPooled`
-/// for `AlreadyCommitted` / `Duplicate` (promise still fires), `Reject` for
-/// fatal cases.
+/// Map a mempool insert outcome to the public acceptance. `Duplicate` and
+/// `AlreadyCommitted` are treated as idempotent successes — the original
+/// submission's promise covers the caller — so only fatal variants surface
+/// as `Reject`.
 pub fn classify_insert_outcome(
     outcome: Result<(), MempoolInsertError>,
 ) -> ethexe_common::injected::InjectedTransactionAcceptance {
     use ethexe_common::injected::InjectedTransactionAcceptance;
     match outcome {
-        Ok(()) => InjectedTransactionAcceptance::Accept,
-        Err(err) if err.is_already_pooled() => InjectedTransactionAcceptance::AlreadyPooled {
-            reason: err.to_string(),
-        },
+        Ok(()) | Err(MempoolInsertError::Duplicate | MempoolInsertError::AlreadyCommitted) => {
+            InjectedTransactionAcceptance::Accept
+        }
         Err(err) => InjectedTransactionAcceptance::Reject {
             reason: err.to_string(),
         },
@@ -429,10 +420,10 @@ mod tests {
     use gprimitives::ActorId;
     use std::time::Duration;
 
-    /// Pins the link between [`MempoolInsertError`] variants and the
-    /// `AlreadyPooled` / `Reject` classification consumed by RPC fan-out.
-    /// Adding a variant without updating [`MempoolInsertError::is_already_pooled`]
-    /// will be caught here.
+    /// Pins idempotent classification: `Duplicate`/`AlreadyCommitted` look
+    /// like `Accept` to RPC callers, only fatal variants surface as
+    /// `Reject`. Adding a fatal variant without updating
+    /// [`classify_insert_outcome`] will be caught here.
     #[test]
     fn classify_insert_outcome_maps_each_variant() {
         assert!(matches!(
@@ -446,9 +437,9 @@ mod tests {
             assert!(
                 matches!(
                     classify_insert_outcome(Err(err)),
-                    InjectedTransactionAcceptance::AlreadyPooled { .. }
+                    InjectedTransactionAcceptance::Accept
                 ),
-                "already-pooled variant must classify as AlreadyPooled",
+                "duplicate / already-committed must be idempotent Accept",
             );
         }
         for err in [
