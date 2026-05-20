@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Vara.eth RPC client and server APIs.
 //!
@@ -38,6 +23,7 @@
 //! ## Features
 //! The following features are available:
 //! - `client` - enables the client APIs generate from [`jsonrpsee::proc_macros::rpc`] macro.
+//! - `server` - enables the RPC server implementation.
 //!
 //! ### RPC server configuration details
 //! The RPC server is configured from [`RpcConfig`]. It provides the following configuration:
@@ -52,34 +38,49 @@ pub use crate::apis::{
     BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient,
 };
 
+#[cfg(feature = "server")]
 use anyhow::Result;
+#[cfg(feature = "server")]
 use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InjectedApi, InjectedServer,
     ProgramApi, ProgramServer,
 };
+#[cfg(feature = "server")]
 use ethexe_common::injected::{
     AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactPromise,
 };
+#[cfg(feature = "server")]
 use ethexe_db::Database;
+#[cfg(feature = "server")]
 use ethexe_processor::{Processor, ProcessorConfig};
+#[cfg(feature = "server")]
 use futures::{Stream, stream::FusedStream};
+#[cfg(feature = "server")]
 use hyper::header::HeaderValue;
+#[cfg(feature = "server")]
 use jsonrpsee::{
     RpcModule as JsonrpcModule,
     server::{PingConfig, RpcServiceBuilder, Server, ServerHandle},
 };
+#[cfg(feature = "server")]
 use metrics::RpcMetricsLayer;
+#[cfg(feature = "server")]
 use std::{
     net::SocketAddr,
     pin::Pin,
     task::{Context, Poll},
 };
+#[cfg(feature = "server")]
 use tokio::sync::{mpsc, oneshot};
+#[cfg(feature = "server")]
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod apis;
+#[cfg(feature = "server")]
 mod errors;
+#[cfg(feature = "server")]
 mod metrics;
+#[cfg(feature = "server")]
 mod utils;
 
 #[cfg(all(test, feature = "client"))]
@@ -87,6 +88,7 @@ mod tests;
 
 pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
 
+#[cfg(feature = "server")]
 #[derive(Debug)]
 pub enum RpcEvent {
     InjectedTransaction {
@@ -96,6 +98,7 @@ pub enum RpcEvent {
 }
 
 /// Configuration of the RPC endpoint.
+#[cfg(feature = "server")]
 #[derive(Debug, Clone)]
 pub struct RpcConfig {
     /// Listen address.
@@ -111,11 +114,13 @@ pub struct RpcConfig {
     pub with_dev_api: bool,
 }
 
+#[cfg(feature = "server")]
 pub struct RpcServer {
     config: RpcConfig,
     db: Database,
 }
 
+#[cfg(feature = "server")]
 impl RpcServer {
     pub fn new(config: RpcConfig, db: Database) -> Self {
         Self { config, db }
@@ -180,6 +185,7 @@ impl RpcServer {
     }
 }
 
+#[cfg(feature = "server")]
 pub struct RpcService {
     /// Receiver for incoming RPC events to forward to the main service.
     receiver: mpsc::UnboundedReceiver<RpcEvent>,
@@ -187,6 +193,7 @@ pub struct RpcService {
     injected_api: InjectedApi,
 }
 
+#[cfg(feature = "server")]
 impl RpcService {
     pub fn new(receiver: mpsc::UnboundedReceiver<RpcEvent>, injected_api: InjectedApi) -> Self {
         Self {
@@ -204,6 +211,7 @@ impl RpcService {
     }
 }
 
+#[cfg(feature = "server")]
 impl Stream for RpcService {
     type Item = RpcEvent;
 
@@ -212,12 +220,14 @@ impl Stream for RpcService {
     }
 }
 
+#[cfg(feature = "server")]
 impl FusedStream for RpcService {
     fn is_terminated(&self) -> bool {
         self.receiver.is_closed()
     }
 }
 
+#[cfg(feature = "server")]
 struct RpcServerApis {
     pub block: BlockApi,
     pub code: CodeApi,
@@ -226,6 +236,7 @@ struct RpcServerApis {
     pub dev: Option<DevApi>,
 }
 
+#[cfg(feature = "server")]
 impl RpcServerApis {
     pub fn into_module(self) -> jsonrpsee::server::RpcModule<()> {
         let mut module = JsonrpcModule::new(());

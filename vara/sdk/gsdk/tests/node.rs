@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use gear_core::ids::ActorId;
 use gsdk::{Error, SignedApi, events};
 use parity_scale_codec::Encode;

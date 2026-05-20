@@ -14,7 +14,11 @@ rust-version.workspace = true
 ethexe-common = { workspace = true, features = ["std"] }
 gprimitives = { workspace = true, features = ["std"] }
 
-alloy = { workspace = true, features = ["rpc", "rpc-types", "rpc-types-beacon"] }
+alloy = { workspace = true, features = [
+    "rpc",
+    "rpc-types",
+    "rpc-types-beacon",
+] }
 thiserror.workspace = true
 reqwest = { workspace = true, features = ["default-tls", "json"] }
 serde_json.workspace = true
@@ -24,6 +28,7 @@ tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
+ethexe-db = { workspace = true, features = ["mock"] }
 gprimitives = { workspace = true, features = ["ethexe", "std"] }
 gsigner.workspace = true
 ethexe-ethereum.workspace = true
