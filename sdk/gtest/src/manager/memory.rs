@@ -1,10 +1,14 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+#[cfg(not(feature = "ethexe"))]
 use super::*;
+#[cfg(not(feature = "ethexe"))]
 use crate::state::programs::GTestProgram;
+#[cfg(not(feature = "ethexe"))]
 use gear_core::code::SyscallKind;
 
+#[cfg(not(feature = "ethexe"))]
 impl ExtManager {
     /// Call non-void meta function from actor stored in manager.
     /// Warning! This is a static call that doesn't change actors pages data.

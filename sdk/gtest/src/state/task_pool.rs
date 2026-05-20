@@ -4,9 +4,11 @@
 //! Auxiliary (for tests) task pool implementation for the crate.
 
 use crate::{constants::BlockNumber, state::WithOverlay};
+#[cfg(any(test, not(feature = "ethexe")))]
+use gear_common::storage::KeyIterableByKeyMap;
 use gear_common::{
     scheduler::{TaskPool, TaskPoolCallbacks, TaskPoolError, TaskPoolImpl},
-    storage::{AuxiliaryDoubleStorageWrap, DoubleBTreeMap, KeyIterableByKeyMap},
+    storage::{AuxiliaryDoubleStorageWrap, DoubleBTreeMap},
 };
 use gear_core::{ids::ActorId, tasks::VaraScheduledTask};
 use std::thread::LocalKey;
@@ -68,6 +70,7 @@ impl TaskPoolManager {
 
     /// Adapted by argument types version of the task pool `drain_prefix_keys`
     /// method.
+    #[cfg(any(test, not(feature = "ethexe")))]
     pub(crate) fn drain_prefix_keys(
         &self,
         block_number: BlockNumber,

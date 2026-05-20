@@ -54,7 +54,7 @@ impl BlsOpsGasCost for BlsOpsGasCostsImpl {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "ethexe")))]
 mod tests {
     use super::*;
     use crate::{DEFAULT_USER_ALICE, Log, Program, System};

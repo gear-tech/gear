@@ -203,7 +203,7 @@ impl GasTreeManager {
         )
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, not(feature = "ethexe")))]
     pub(crate) fn exists(&self, node_id: impl Origin) -> bool {
         GasTree::exists(GasNodeId::from(node_id.cast::<PlainNodeId>()))
     }

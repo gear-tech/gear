@@ -155,6 +155,7 @@ impl Accounts {
     }
 
     // Overrides account balance.
+    #[cfg(not(feature = "ethexe"))]
     pub(crate) fn override_balance(id: ActorId, amount: Value) {
         if amount < EXISTENTIAL_DEPOSIT {
             panic!(

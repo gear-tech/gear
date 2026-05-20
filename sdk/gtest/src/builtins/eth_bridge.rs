@@ -58,7 +58,7 @@ fn create_bridge_call_output(source: ActorId, destination: H160, payload: Vec<u8
     (nonce, hash)
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "ethexe")))]
 mod tests {
     use super::*;
     use crate::{DEFAULT_USER_ALICE, Log, Program, System};

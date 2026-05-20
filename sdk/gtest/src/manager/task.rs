@@ -4,17 +4,22 @@
 //! Implementation of the `TaskHandler` trait for the `ExtManager`.
 
 use super::ExtManager;
-use crate::{Gas, state::programs::ProgramsStorageManager};
+#[cfg(not(feature = "ethexe"))]
+use crate::Gas;
+use crate::state::programs::ProgramsStorageManager;
 use core_processor::common::JournalHandler;
 use gear_common::{Gas as GearCommonGas, scheduler::StorageType};
+#[cfg(not(feature = "ethexe"))]
+use gear_core::tasks::{ScheduledTask, VaraScheduledTask};
 use gear_core::{
     gas_metering::TaskWeights,
     ids::{ActorId, MessageId, ReservationId},
     message::{DispatchKind, ReplyMessage},
-    tasks::{ScheduledTask, TaskHandler, VaraScheduledTask},
+    tasks::TaskHandler,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 
+#[cfg(not(feature = "ethexe"))]
 pub(crate) fn get_maximum_task_gas(task: &VaraScheduledTask<ActorId>) -> Gas {
     use ScheduledTask::*;
     let weights = TaskWeights::default();
