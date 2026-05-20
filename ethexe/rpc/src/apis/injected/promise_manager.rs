@@ -5,7 +5,9 @@ use anyhow::Result;
 use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
     HashOf,
-    db::{InjectedStorageRO, InjectedStorageRW},
+    db::{
+        ConfigStorageRO, GlobalsStorageRO, InjectedStorageRO, InjectedStorageRW, OnChainStorageRO,
+    },
     injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedPromise},
 };
 use ethexe_db::Database;
@@ -13,7 +15,7 @@ use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{trace, warn};
 
-// TODO: Issues #5384 and #5385.
+// TODO: Issue #5384.
 type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, SignedCompactPromise>>;
 
@@ -92,10 +94,13 @@ impl PromiseSubscriptionManager {
         self.subscribers.remove(&tx_hash).map(|(_, v)| v)
     }
 
-    // TODO: Issue #5403
     pub fn on_compact_promise(&self, compact: SignedCompactPromise) {
         trace!(?compact, "received new compact promise");
         let tx_hash = compact.data().tx_hash;
+
+        if !self.compact_promise_signed_by_known_validator(&compact) {
+            return;
+        }
 
         match self.db.promise(tx_hash) {
             Some(promise) => match compact.restore(promise) {
@@ -123,6 +128,10 @@ impl PromiseSubscriptionManager {
         self.db.set_promise(&promise);
 
         if let Some((_, compact_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) {
+            if !self.compact_promise_signed_by_known_validator(&compact_promise) {
+                return;
+            }
+
             match compact_promise.restore(promise) {
                 Ok(signed_promise) => {
                     self.db.set_compact_promise(&compact_promise);
@@ -133,6 +142,53 @@ impl PromiseSubscriptionManager {
                 }
             }
         }
+    }
+
+    pub(crate) fn compact_promise_signed_by_known_validator(
+        &self,
+        compact: &SignedCompactPromise,
+    ) -> bool {
+        let address = compact.address();
+        let tx_hash = compact.data().tx_hash;
+        let timestamp = self.db.globals().latest_synced_block.header.timestamp;
+        let timelines = self.db.config().timelines;
+
+        let Some(current_era) = timelines.era_from_ts(timestamp) else {
+            warn!(
+                %tx_hash,
+                ?address,
+                timestamp,
+                "failed to calculate current era for compact promise validator check"
+            );
+            return false;
+        };
+
+        let Some(current_validators) = self.db.validators(current_era) else {
+            warn!(
+                %tx_hash,
+                ?address,
+                current_era,
+                "current validator set not found for compact promise validator check"
+            );
+            return false;
+        };
+
+        let signer_is_known = current_validators.contains(&address)
+            || current_era
+                .checked_add(1)
+                .and_then(|next_era| self.db.validators(next_era))
+                .is_some_and(|next_validators| next_validators.contains(&address));
+
+        if !signer_is_known {
+            warn!(
+                %tx_hash,
+                ?address,
+                current_era,
+                "compact promise signer is not in the known validator set"
+            );
+        }
+
+        signer_is_known
     }
 
     fn dispatch_promise(&self, promise: SignedPromise) {
@@ -159,5 +215,82 @@ mod utils {
     pub fn promise_waiting_timeout<DB: ConfigStorageRO>(db: &DB) -> std::time::Duration {
         let slot_duration_secs = db.config().timelines.slot.get();
         std::time::Duration::from_secs(slot_duration_secs * MAX_PROMISE_WAITING_SLOTS)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{
+        Address, ValidatorsVec,
+        db::{InjectedStorageRO, OnChainStorageRW},
+        ecdsa::PrivateKey,
+        injected::SignedCompactPromise,
+        mock::Mock,
+    };
+
+    fn set_current_validators(db: &Database, validators: Vec<Address>) {
+        db.set_validators(
+            0,
+            ValidatorsVec::try_from(validators).expect("validators must be non-empty"),
+        );
+    }
+
+    fn set_next_validators(db: &Database, validators: Vec<Address>) {
+        db.set_validators(
+            1,
+            ValidatorsVec::try_from(validators).expect("validators must be non-empty"),
+        );
+    }
+
+    fn signed_compact_promise(private_key: PrivateKey) -> (Promise, SignedCompactPromise) {
+        let promise = Promise::mock(());
+        let compact = SignedCompactPromise::create_from_promise(private_key, &promise)
+            .expect("compact promise signing succeeds");
+
+        (promise, compact)
+    }
+
+    #[test]
+    fn on_compact_promise_ignores_non_validator_signature() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, compact) = signed_compact_promise(PrivateKey::random());
+
+        set_current_validators(&db, vec![Address::from(1)]);
+        db.set_promise(&promise);
+
+        manager.on_compact_promise(compact);
+
+        assert_eq!(db.compact_promise(promise.tx_hash), None);
+    }
+
+    #[test]
+    fn on_compact_promise_accepts_validator_signature() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, compact) = signed_compact_promise(PrivateKey::random());
+
+        set_current_validators(&db, vec![compact.address()]);
+        db.set_promise(&promise);
+
+        manager.on_compact_promise(compact.clone());
+
+        assert_eq!(db.compact_promise(promise.tx_hash), Some(compact));
+    }
+
+    #[test]
+    fn on_compact_promise_accepts_next_era_validator_signature() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, compact) = signed_compact_promise(PrivateKey::random());
+
+        set_current_validators(&db, vec![Address::from(1)]);
+        set_next_validators(&db, vec![compact.address()]);
+        db.set_promise(&promise);
+
+        manager.on_compact_promise(compact.clone());
+
+        assert_eq!(db.compact_promise(promise.tx_hash), Some(compact));
     }
 }

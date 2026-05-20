@@ -6,8 +6,9 @@ use crate::{
     RpcService,
 };
 use ethexe_common::{
-    db::InjectedStorageRW,
-    ecdsa::PrivateKey,
+    ValidatorsVec,
+    db::{InjectedStorageRW, OnChainStorageRW},
+    ecdsa::{PrivateKey, PublicKey},
     gear::MAX_BLOCK_GAS_LIMIT,
     injected::{AddressedInjectedTransaction, Promise, SignedCompactPromise},
     mock::Mock,
@@ -25,14 +26,27 @@ struct MockService {
     rpc: RpcService,
     handle: ServerHandle,
     db: Database,
+    validator_key: PrivateKey,
 }
 
 impl MockService {
     /// Creates a new mock service which runs an RPC server listening on the given address.
     pub async fn new(listen_addr: SocketAddr) -> Self {
         let db = Database::memory();
+        let validator_key = PrivateKey::random();
+        let validator_address = PublicKey::from(&validator_key).to_address();
+        db.set_validators(
+            0,
+            ValidatorsVec::try_from(vec![validator_address])
+                .expect("test validator set must be non-empty"),
+        );
         let (handle, rpc) = start_new_server(listen_addr, db.clone()).await;
-        Self { rpc, handle, db }
+        Self {
+            rpc,
+            handle,
+            db,
+            validator_key,
+        }
     }
 
     pub fn injected_api(&self) -> InjectedApi {
@@ -74,12 +88,12 @@ impl MockService {
         &self,
         txs: impl IntoIterator<Item = AddressedInjectedTransaction>,
     ) -> Vec<SignedCompactPromise> {
-        let pk = PrivateKey::random();
         txs.into_iter()
             .map(|tx| {
                 let promise = Promise::mock(tx.tx.data().to_hash());
                 self.db.set_promise(&promise);
-                SignedCompactPromise::create_from_promise(pk.clone(), &promise).unwrap()
+                SignedCompactPromise::create_from_promise(self.validator_key.clone(), &promise)
+                    .unwrap()
             })
             .collect()
     }

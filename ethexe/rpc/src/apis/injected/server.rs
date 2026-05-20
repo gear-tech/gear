@@ -151,6 +151,17 @@ impl InjectedApi {
             return Ok(None);
         };
 
+        if !self
+            .manager
+            .compact_promise_signed_by_known_validator(&compact)
+        {
+            trace!(
+                ?tx_hash,
+                "compact promise signer is not in the known validator set"
+            );
+            return Ok(None);
+        }
+
         match compact.restore(promise) {
             Ok(message) => Ok(Some(message)),
             Err(err) => {
@@ -188,7 +199,12 @@ impl InjectedApi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{PrivateKey, db::InjectedStorageRW, mock::Mock};
+    use ethexe_common::{
+        Address, PrivateKey, ValidatorsVec,
+        db::{InjectedStorageRW, OnChainStorageRW},
+        injected::{Promise, SignedCompactPromise},
+        mock::Mock,
+    };
 
     fn make_signed_tx() -> SignedInjectedTransaction {
         SignedInjectedTransaction::create(PrivateKey::random(), InjectedTransaction::mock(()))
@@ -198,6 +214,13 @@ mod tests {
     fn make_injected_api(db: Database) -> InjectedApi {
         let (sender, _receiver) = mpsc::unbounded_channel();
         InjectedApi::new(db, sender)
+    }
+
+    fn set_current_validators(db: &Database, validators: Vec<Address>) {
+        db.set_validators(
+            0,
+            ValidatorsVec::try_from(validators).expect("validators must be non-empty"),
+        );
     }
 
     #[tokio::test]
@@ -238,6 +261,23 @@ mod tests {
 
         let result = api.get_transactions(vec![hash1, hash2]).await.unwrap();
         assert_eq!(result, vec![Some(tx1), None]);
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_promise_rejects_non_validator_cached_compact() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+        let promise = Promise::mock(());
+        let compact = SignedCompactPromise::create_from_promise(PrivateKey::random(), &promise)
+            .expect("compact promise signing succeeds");
+
+        set_current_validators(&db, vec![Address::from(1)]);
+        db.set_promise(&promise);
+        db.set_compact_promise(&compact);
+
+        let result = api.get_transaction_promise(promise.tx_hash).await.unwrap();
+
+        assert_eq!(result, None);
     }
 
     #[tokio::test]
