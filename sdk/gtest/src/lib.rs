@@ -30,7 +30,7 @@
 //!
 //! This mode is available with the `ethexe` feature.
 //!
-//! `System::new_ethexe()` creates a test system that uses ethexe execution
+//! `System::new()` creates a test system that uses ethexe execution
 //! semantics. Program sends are queued as canonical ethexe messages, injected
 //! messages are queued with `System::inject_message`, and gas is charged from
 //! a program executable balance funded by `System::top_up_executable_balance`.

@@ -442,7 +442,7 @@ impl<S: Storage + ?Sized> JournalHandler for NativeJournalHandler<'_, S> {
         _code_id: CodeId,
         _candidates: Vec<(MessageId, ActorId)>,
     ) {
-        unreachable!("program-from-program creation is not supported in the ethexe gtest backend")
+        todo!()
     }
 
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {

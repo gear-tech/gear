@@ -1,10 +1,12 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+#[cfg(not(feature = "ethexe"))]
+use crate::log::CoreLog;
 use crate::{
     GAS_ALLOWANCE, Gas, Value,
     error::usage_panic,
-    log::{BlockRunResult, CoreLog},
+    log::BlockRunResult,
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
     state::{
@@ -14,21 +16,27 @@ use crate::{
 };
 use core_processor::common::JournalNote;
 use gear_common::MessageId;
+#[cfg(not(feature = "ethexe"))]
+use gear_core::pages::GearPage;
 use gear_core::{
     ids::{
         ActorId, CodeId,
         prelude::{CodeIdExt, MessageIdExt},
     },
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
-    pages::GearPage,
     program::Program as PrimaryProgram,
     rpc::ReplyInfo,
 };
+#[cfg(not(feature = "ethexe"))]
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
+#[cfg(not(feature = "ethexe"))]
 use gear_lazy_pages_common::LazyPagesInitContext;
+#[cfg(not(feature = "ethexe"))]
 use parity_scale_codec::{Decode, DecodeAll};
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, mem, panic, path::Path};
+#[cfg(not(feature = "ethexe"))]
+use std::mem;
+use std::{borrow::Cow, cell::RefCell, env, fs, panic, path::Path};
 use tracing_subscriber::EnvFilter;
 
 thread_local! {
@@ -39,6 +47,7 @@ thread_local! {
     static SYSTEM_INITIALIZED: RefCell<bool> = const { RefCell::new(false) };
 }
 
+#[cfg(not(feature = "ethexe"))]
 #[derive(Decode)]
 struct PageKey {
     _page_storage_prefix: [u8; 32],
@@ -47,9 +56,11 @@ struct PageKey {
     page: GearPage,
 }
 
+#[cfg(not(feature = "ethexe"))]
 #[derive(Debug)]
 struct PagesStorage;
 
+#[cfg(not(feature = "ethexe"))]
 impl LazyPagesStorage for PagesStorage {
     fn page_exists(&self, mut key: &[u8]) -> bool {
         let PageKey {
@@ -88,6 +99,7 @@ pub struct System(pub(crate) RefCell<ExtManager>);
 
 impl System {
     /// Prefix for lazy pages.
+    #[cfg(not(feature = "ethexe"))]
     pub(crate) const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gtestgtestgtestgtestgtestgtest00";
 
     /// Create a new testing environment.
@@ -102,7 +114,9 @@ impl System {
                 panic!("Impossible to have multiple instances of the `System`.");
             }
 
-            let ext_manager = ExtManager::new();
+            #[cfg(feature = "ethexe")]
+            crate::ethexe::init_lazy_pages();
+            #[cfg(not(feature = "ethexe"))]
             gear_lazy_pages::init(
                 LazyPagesVersion::Version1,
                 LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
@@ -112,28 +126,7 @@ impl System {
 
             *initialized = true;
 
-            Self(RefCell::new(ext_manager))
-        })
-    }
-
-    /// Create a new testing environment in Ethexe execution mode.
-    ///
-    /// # Panics
-    /// Only one instance in the current thread of the `System` is possible to
-    /// create. Instantiation of the other one leads to runtime panic.
-    #[cfg(feature = "ethexe")]
-    pub fn new_ethexe() -> Self {
-        SYSTEM_INITIALIZED.with_borrow_mut(|initialized| {
-            if *initialized {
-                panic!("Impossible to have multiple instances of the `System`.");
-            }
-
-            let ext_manager = ExtManager::new_ethexe();
-            crate::ethexe::init_lazy_pages();
-
-            *initialized = true;
-
-            Self(RefCell::new(ext_manager))
+            Self(RefCell::new(ExtManager::new()))
         })
     }
 
@@ -163,14 +156,14 @@ impl System {
 
     /// Returns amount of dispatches in the queue.
     pub fn queue_len(&self) -> usize {
-        let manager = self.0.borrow();
-
         #[cfg(feature = "ethexe")]
-        if manager.is_ethexe() {
-            return manager.ethexe().queue_len();
+        {
+            self.0.borrow().ethexe().queue_len()
         }
-
-        manager.dispatches.len()
+        #[cfg(not(feature = "ethexe"))]
+        {
+            self.0.borrow().dispatches.len()
+        }
     }
 
     /// Run next block.
@@ -212,19 +205,18 @@ impl System {
             );
         }
 
-        let mut manager = self.0.borrow_mut();
-
         #[cfg(feature = "ethexe")]
-        if manager.is_ethexe() {
+        {
+            let mut manager = self.0.borrow_mut();
             let block_info = manager.blocks_manager.next_block();
-            return manager.ethexe_mut().run_new_block(
-                block_info.height,
-                block_info.timestamp,
-                allowance,
-            );
+            manager
+                .ethexe_mut()
+                .run_new_block(block_info.height, block_info.timestamp, allowance)
         }
-
-        manager.run_new_block(allowance)
+        #[cfg(not(feature = "ethexe"))]
+        {
+            self.0.borrow_mut().run_new_block(allowance)
+        }
     }
 
     /// Runs blocks same as [`Self::run_next_block`], but executes blocks to
@@ -240,15 +232,13 @@ impl System {
         let mut ret = Vec::with_capacity((bn - current_block) as usize);
         while current_block != bn {
             #[cfg(feature = "ethexe")]
-            let res = if manager.is_ethexe() {
+            let res = {
                 let block_info = manager.blocks_manager.next_block();
                 manager.ethexe_mut().run_new_block(
                     block_info.height,
                     block_info.timestamp,
                     GAS_ALLOWANCE,
                 )
-            } else {
-                manager.run_new_block(GAS_ALLOWANCE)
             };
             #[cfg(not(feature = "ethexe"))]
             let res = manager.run_new_block(GAS_ALLOWANCE);
@@ -270,24 +260,26 @@ impl System {
             .map(|_| {
                 let block_info = manager.blocks_manager.next_block();
                 #[cfg(feature = "ethexe")]
-                if manager.is_ethexe() {
-                    return manager
+                {
+                    manager
                         .ethexe_mut()
-                        .run_scheduled_block(block_info.height, block_info.timestamp);
+                        .run_scheduled_block(block_info.height, block_info.timestamp)
                 }
+                #[cfg(not(feature = "ethexe"))]
+                {
+                    let next_block_number = block_info.height;
+                    manager.process_tasks(next_block_number);
 
-                let next_block_number = block_info.height;
-                manager.process_tasks(next_block_number);
-
-                let log = mem::take(&mut manager.log)
-                    .into_iter()
-                    .map(CoreLog::from)
-                    .collect();
-                BlockRunResult {
-                    block_info,
-                    gas_allowance_spent: GAS_ALLOWANCE - manager.gas_allowance,
-                    log,
-                    ..Default::default()
+                    let log = mem::take(&mut manager.log)
+                        .into_iter()
+                        .map(CoreLog::from)
+                        .collect();
+                    BlockRunResult {
+                        block_info,
+                        gas_allowance_spent: GAS_ALLOWANCE - manager.gas_allowance,
+                        log,
+                        ..Default::default()
+                    }
                 }
             })
             .collect()
@@ -444,10 +436,6 @@ impl System {
         let program = program.into().0;
         let mut manager = self.0.borrow_mut();
 
-        if !manager.is_ethexe() {
-            usage_panic!("Executable balance exists only in `System::new_ethexe()` mode");
-        }
-
         manager
             .ethexe_mut()
             .top_up_executable_balance(program, value);
@@ -458,10 +446,6 @@ impl System {
     pub fn top_up_balance(&self, program: impl Into<ProgramIdWrapper>, value: Value) {
         let program = program.into().0;
         let mut manager = self.0.borrow_mut();
-
-        if !manager.is_ethexe() {
-            usage_panic!("`top_up_balance` is available only in `System::new_ethexe()` mode");
-        }
 
         manager.ethexe_mut().top_up_balance(program, value);
     }
@@ -478,10 +462,6 @@ impl System {
         let destination = destination.into().0;
         let source = source.into().0;
         let mut manager = self.0.borrow_mut();
-
-        if !manager.is_ethexe() {
-            usage_panic!("Injected messages are available only in `System::new_ethexe()` mode");
-        }
 
         manager.ethexe().ensure_can_queue_injected(destination);
 
@@ -526,7 +506,7 @@ impl System {
         let manager = self.0.borrow();
 
         #[cfg(feature = "ethexe")]
-        if manager.is_ethexe() && ProgramsStorageManager::is_program(actor_id) {
+        if ProgramsStorageManager::is_program(actor_id) {
             return manager.ethexe().balance_of(actor_id);
         }
 
@@ -656,7 +636,7 @@ impl Drop for System {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "ethexe")))]
 mod tests {
     use super::*;
     use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, MAX_USER_GAS_LIMIT};

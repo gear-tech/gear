@@ -4,12 +4,11 @@
 #[cfg(feature = "ethexe")]
 use crate::ethexe::EthexeBackend;
 use crate::{
-    EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
-    ProgramBuilder, RESERVE_FOR, Result, TestError, VALUE_PER_GAS,
+    EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, ProgramBuilder,
+    RESERVE_FOR, Result, VALUE_PER_GAS,
     builtins::{BLS12_381_ID, ETH_BRIDGE_ID},
     constants::{BlockNumber, Gas, Value},
     error::usage_panic,
-    log::{BlockRunResult, CoreLog},
     state::{
         self,
         accounts::Accounts,
@@ -24,6 +23,11 @@ use crate::{
         task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
+};
+#[cfg(not(feature = "ethexe"))]
+use crate::{
+    GAS_ALLOWANCE, TestError,
+    log::{BlockRunResult, CoreLog},
 };
 use core_processor::{Ext, common::*, configs::BlockConfig};
 use gear_common::{
@@ -45,11 +49,12 @@ use gear_core::{
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
+#[cfg(not(feature = "ethexe"))]
+use std::mem;
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryInto,
     fmt::Debug,
-    mem,
 };
 
 mod block_exec;
@@ -67,15 +72,6 @@ const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 
 pub(crate) const CUSTOM_WASM_PROGRAM_CODE_ID: CodeId =
     CodeId::new(*b"CUSTOM_WASM_PROGRAM_CODE_ID\0\0\0\0\0");
-
-#[derive(Debug, Default)]
-#[allow(dead_code)]
-#[cfg(feature = "ethexe")]
-pub(crate) enum ExecutionMode {
-    #[default]
-    Vara,
-    Ethexe(EthexeBackend),
-}
 
 #[derive(Debug, Default)]
 pub(crate) struct ExtManager {
@@ -97,10 +93,11 @@ pub(crate) struct ExtManager {
     pub(crate) instrumented_codes: BTreeMap<CodeId, InstrumentedCode>,
     pub(crate) code_metadata: BTreeMap<CodeId, CodeMetadata>,
     pub(crate) messages_processing_enabled: bool,
+    #[cfg(not(feature = "ethexe"))]
     pub(crate) first_incomplete_tasks_block: Option<u32>,
     pub(crate) builtins: BTreeSet<ActorId>,
     #[cfg(feature = "ethexe")]
-    pub(crate) execution_mode: ExecutionMode,
+    pub(crate) ethexe: EthexeBackend,
 
     // Last block execution info
     pub(crate) succeed: BTreeSet<MessageId>,
@@ -119,37 +116,19 @@ impl ExtManager {
             messages_processing_enabled: true,
             builtins,
             #[cfg(feature = "ethexe")]
-            execution_mode: ExecutionMode::Vara,
+            ethexe: EthexeBackend::new(),
             ..Default::default()
         }
     }
 
     #[cfg(feature = "ethexe")]
-    pub(crate) fn new_ethexe() -> Self {
-        let mut manager = Self::new();
-        manager.execution_mode = ExecutionMode::Ethexe(EthexeBackend::new());
-        manager
-    }
-
-    #[cfg(feature = "ethexe")]
-    pub(crate) fn is_ethexe(&self) -> bool {
-        matches!(self.execution_mode, ExecutionMode::Ethexe(_))
-    }
-
-    #[cfg(feature = "ethexe")]
     pub(crate) fn ethexe(&self) -> &EthexeBackend {
-        match &self.execution_mode {
-            ExecutionMode::Ethexe(backend) => backend,
-            ExecutionMode::Vara => unreachable!("ethexe backend requested in Vara mode"),
-        }
+        &self.ethexe
     }
 
     #[cfg(feature = "ethexe")]
     pub(crate) fn ethexe_mut(&mut self) -> &mut EthexeBackend {
-        match &mut self.execution_mode {
-            ExecutionMode::Ethexe(backend) => backend,
-            ExecutionMode::Vara => unreachable!("ethexe backend requested in Vara mode"),
-        }
+        &mut self.ethexe
     }
 
     pub fn block_height(&self) -> u32 {
@@ -216,6 +195,7 @@ impl ExtManager {
         Accounts::balance(id)
     }
 
+    #[cfg(not(feature = "ethexe"))]
     pub(crate) fn override_balance(&mut self, id: ActorId, balance: Value) {
         if ProgramsStorageManager::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
             usage_panic!(

@@ -1,29 +1,34 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+#[cfg(not(feature = "ethexe"))]
+use crate::state::programs::ProgramsStorageManager;
 use crate::{
     MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
     error::usage_panic,
     manager::{CUSTOM_WASM_PROGRAM_CODE_ID, ExtManager},
-    state::programs::{GTestProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager},
+    state::programs::{GTestProgram, PLACEHOLDER_MESSAGE_ID},
     system::System,
 };
 use gear_common::Origin;
 #[cfg(feature = "ethexe")]
 use gear_core::code::{CodeMetadata, InstrumentedCode};
+#[cfg(not(feature = "ethexe"))]
+use gear_core::message::{Dispatch, DispatchKind, Message};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndMetadata, SyscallKind},
     gas_metering::Schedule,
     ids::{ActorId, CodeId, MessageId, prelude::*},
-    message::{Dispatch, DispatchKind, Message},
     program::{ActiveProgram, Program as PrimaryProgram, ProgramState},
 };
+#[cfg(not(feature = "ethexe"))]
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use parity_scale_codec::{Codec, Decode, Encode};
 use path_clean::PathClean;
+#[cfg(not(feature = "ethexe"))]
+use std::convert::TryInto;
 use std::{
     cell::RefCell,
-    convert::TryInto,
     env,
     ffi::OsStr,
     fmt::Debug,
@@ -234,7 +239,6 @@ impl ProgramBuilder {
         Program::program_with_id(
             system,
             id,
-            Some(code_id),
             GTestProgram::Default {
                 primary: PrimaryProgram::Active(ActiveProgram {
                     allocations_tree_len: 0,
@@ -315,7 +319,6 @@ impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
-        ethexe_code_id: Option<CodeId>,
         program: GTestProgram,
     ) -> Self {
         let program_id = id.clone().into().0;
@@ -327,6 +330,14 @@ impl<'a> Program<'a> {
             )
         }
 
+        #[cfg(feature = "ethexe")]
+        let ethexe_code_id = match &program {
+            GTestProgram::Default {
+                primary: PrimaryProgram::Active(active_program),
+            } => Some(active_program.code_id),
+            _ => None,
+        };
+
         if system.0.borrow_mut().store_program(program_id, program) {
             usage_panic!(
                 "Can't create program with id {id:?}, because Program with this id already exists. \
@@ -334,14 +345,9 @@ impl<'a> Program<'a> {
             )
         }
 
-        #[cfg(not(feature = "ethexe"))]
-        let _ = ethexe_code_id;
-
         #[cfg(feature = "ethexe")]
         {
-            if let Some(code_id) = ethexe_code_id
-                && system.0.borrow().is_ethexe()
-            {
+            if let Some(code_id) = ethexe_code_id {
                 let (instrumented_code, code_metadata) = {
                     let manager = system.0.borrow();
                     let code = manager
@@ -445,7 +451,6 @@ impl<'a> Program<'a> {
         Self::program_with_id(
             system,
             id,
-            None,
             GTestProgram::Mock {
                 primary: primary_program,
                 handlers: Box::new(mock),
@@ -537,65 +542,73 @@ impl<'a> Program<'a> {
 
         #[cfg(feature = "ethexe")]
         {
-            if system.is_ethexe() && gas_limit != MAX_USER_GAS_LIMIT {
+            if gas_limit != MAX_USER_GAS_LIMIT {
                 usage_panic!("Explicit gas limits are not supported in ethexe gtest mode");
             }
+
+            // The current block number is always a block number of the "executed" block.
+            // So before sending any messages and triggering a block run the block number
+            // equals to 0 (curr). So any new message sent by user goes to a new block,
+            // that will be executed, i.e. block with number curr + 1.
+            let block_number = system.block_height() + 1;
+            let message_id = MessageId::generate_from_user(
+                block_number,
+                source,
+                system.fetch_inc_message_nonce() as u128,
+            );
+
+            system
+                .ethexe_mut()
+                .queue_canonical(self.id, message_id, source, payload, value);
+
+            message_id
         }
-
-        // The current block number is always a block number of the "executed" block.
-        // So before sending any messages and triggering a block run the block number
-        // equals to 0 (curr). So any new message sent by user goes to a new block,
-        // that will be executed, i.e. block with number curr + 1.
-        let block_number = system.block_height() + 1;
-        let message_id = MessageId::generate_from_user(
-            block_number,
-            source,
-            system.fetch_inc_message_nonce() as u128,
-        );
-
-        #[cfg(feature = "ethexe")]
+        #[cfg(not(feature = "ethexe"))]
         {
-            if system.is_ethexe() {
-                system
-                    .ethexe_mut()
-                    .queue_canonical(self.id, message_id, source, payload, value);
+            // The current block number is always a block number of the "executed" block.
+            // So before sending any messages and triggering a block run the block number
+            // equals to 0 (curr). So any new message sent by user goes to a new block,
+            // that will be executed, i.e. block with number curr + 1.
+            let block_number = system.block_height() + 1;
+            let message_id = MessageId::generate_from_user(
+                block_number,
+                source,
+                system.fetch_inc_message_nonce() as u128,
+            );
 
-                return message_id;
-            }
-        }
+            let message = Message::new(
+                message_id,
+                source,
+                self.id,
+                payload.try_into().unwrap(),
+                Some(gas_limit),
+                value,
+                None,
+            );
+            let kind = if system.is_builtin(self.id) {
+                DispatchKind::Handle
+            } else {
+                ProgramsStorageManager::modify_program(self.id, |program| {
+                    let program = program.expect("Can't fail");
+                    let PrimaryProgram::Active(active_program) = program.as_primary_program_mut()
+                    else {
+                        usage_panic!("Program with id {} is not active - {program:?}", self.id);
+                    };
+                    match active_program.state {
+                        ProgramState::Uninitialized { ref mut message_id }
+                            if *message_id == PLACEHOLDER_MESSAGE_ID =>
+                        {
+                            *message_id = message.id();
 
-        let message = Message::new(
-            message_id,
-            source,
-            self.id,
-            payload.try_into().unwrap(),
-            Some(gas_limit),
-            value,
-            None,
-        );
-        let kind = if system.is_builtin(self.id) {
-            DispatchKind::Handle
-        } else {
-            ProgramsStorageManager::modify_program(self.id, |program| {
-                let program = program.expect("Can't fail");
-                let PrimaryProgram::Active(active_program) = program.as_primary_program_mut()
-                else {
-                    usage_panic!("Program with id {} is not active - {program:?}", self.id);
-                };
-                match active_program.state {
-                    ProgramState::Uninitialized { ref mut message_id }
-                        if *message_id == PLACEHOLDER_MESSAGE_ID =>
-                    {
-                        *message_id = message.id();
-
-                        DispatchKind::Init
+                            DispatchKind::Init
+                        }
+                        _ => DispatchKind::Handle,
                     }
-                    _ => DispatchKind::Handle,
-                }
-            })
-        };
+                })
+            };
 
-        system.validate_and_route_dispatch(Dispatch::new(kind, message))
+            system.validate_and_route_dispatch(Dispatch::new(kind, message))
+        }
     }
 }
 
@@ -608,18 +621,16 @@ impl Program<'_> {
 
     /// Reads the program’s state as a byte vector.
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
-        let mut manager = self.manager.borrow_mut();
-
         #[cfg(feature = "ethexe")]
         {
-            if manager.is_ethexe() {
-                usage_panic!(
-                    "Program state reads are not supported in `System::new_ethexe()` mode"
-                );
-            }
+            let _ = payload;
+            usage_panic!("Program state reads are not supported in ethexe gtest mode");
         }
 
-        manager.read_state_bytes(payload, self.id)
+        #[cfg(not(feature = "ethexe"))]
+        {
+            self.manager.borrow_mut().read_state_bytes(payload, self.id)
+        }
     }
 
     /// Reads and decodes the program's state .
@@ -634,12 +645,12 @@ impl Program<'_> {
 
         #[cfg(feature = "ethexe")]
         {
-            if manager.is_ethexe() {
-                return manager.ethexe().balance_of(self.id);
-            }
+            manager.ethexe().balance_of(self.id)
         }
-
-        manager.balance_of(self.id())
+        #[cfg(not(feature = "ethexe"))]
+        {
+            manager.balance_of(self.id())
+        }
     }
 
     /// Returns the executable balance of the ethexe program.
@@ -647,14 +658,11 @@ impl Program<'_> {
     pub fn executable_balance(&self) -> Value {
         let manager = self.manager.borrow();
 
-        if !manager.is_ethexe() {
-            usage_panic!("Executable balance exists only in `System::new_ethexe()` mode");
-        }
-
         manager.ethexe().executable_balance_of(self.id)
     }
 
     /// Save the program's memory to path.
+    #[cfg(not(feature = "ethexe"))]
     pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
         let manager = self.manager.borrow();
         let mem = manager.read_memory_pages(self.id);
@@ -674,6 +682,7 @@ impl Program<'_> {
     }
 
     /// Load the program's memory from path.
+    #[cfg(not(feature = "ethexe"))]
     pub fn load_memory_dump(&mut self, path: impl AsRef<Path>) {
         let memory_dump = ProgramMemoryDump::load_from_file(path);
         let mem = memory_dump
@@ -771,7 +780,7 @@ pub mod gbuild {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "ethexe")))]
 mod tests {
     use super::*;
     use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, ProgramIdWrapper, System, Value};

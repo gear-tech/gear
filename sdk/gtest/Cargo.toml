@@ -10,9 +10,6 @@ homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
-[features]
-ethexe = ["ethexe-common", "ethexe-runtime-common"]
-
 [dependencies]
 # Gear related dependencies
 builtins-common = { workspace = true, features = ["bls12-381-std", "eth-bridge-std"] }
@@ -54,3 +51,6 @@ demo-futures-unordered.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 demo-delayed-sender.workspace = true
 gear-core = { workspace = true, features = ["mock"] }
+
+[features]
+ethexe = ["dep:ethexe-common", "dep:ethexe-runtime-common"]

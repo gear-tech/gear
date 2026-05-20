@@ -13,18 +13,6 @@ use super::runtime::GTestEthexeRuntime;
 const ETHEXE_EXECUTABLE_BALANCE: u128 = 2_000_000_000_000;
 
 #[test]
-fn system_new_ethexe_sets_ethexe_mode() {
-    let system = System::new_ethexe();
-    assert!(system.0.borrow().is_ethexe());
-}
-
-#[test]
-fn system_new_keeps_vara_mode() {
-    let system = System::new();
-    assert!(!system.0.borrow().is_ethexe());
-}
-
-#[test]
 fn ethexe_runtime_interface_tracks_state_hash_updates() {
     let storage = MemStorage::default();
     let state_hash = storage.write_program_state(ProgramState::zero());
@@ -40,7 +28,7 @@ fn ethexe_runtime_interface_tracks_state_hash_updates() {
 
 #[test]
 fn ethexe_program_registration_creates_zero_balances() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 100, demo_ping::WASM_BINARY);
 
     assert_eq!(program.balance(), 0);
@@ -49,7 +37,7 @@ fn ethexe_program_registration_creates_zero_balances() {
 
 #[test]
 fn ethexe_top_up_executable_balance_changes_only_executable_pool() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 101, demo_ping::WASM_BINARY);
 
     system.top_up_executable_balance(program.id(), 55 * UNITS);
@@ -60,7 +48,7 @@ fn ethexe_top_up_executable_balance_changes_only_executable_pool() {
 
 #[test]
 fn ethexe_duplicate_program_creation_does_not_reset_backend_state() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 200, demo_ping::WASM_BINARY);
     system.top_up_executable_balance(program.id(), 55 * UNITS);
 
@@ -74,7 +62,7 @@ fn ethexe_duplicate_program_creation_does_not_reset_backend_state() {
 
 #[test]
 fn ethexe_top_up_balance_changes_only_reducible_pool() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 201, demo_ping::WASM_BINARY);
 
     system.top_up_balance(program.id(), 77 * UNITS);
@@ -85,7 +73,7 @@ fn ethexe_top_up_balance_changes_only_reducible_pool() {
 
 #[test]
 fn ethexe_user_balance_still_uses_accounts() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let user = 300;
 
     system.mint_to(user, 13 * UNITS);
@@ -95,7 +83,7 @@ fn ethexe_user_balance_still_uses_accounts() {
 
 #[test]
 fn ethexe_canonical_send_queues_init_then_handle() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 102, demo_ping::WASM_BINARY);
 
     let first = program.send_bytes(1, b"PING");
@@ -132,7 +120,7 @@ fn ethexe_canonical_send_queues_init_then_handle() {
 
 #[test]
 fn ethexe_injected_message_rejects_uninitialized_program() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 103, demo_ping::WASM_BINARY);
 
     let rejected = catch_unwind(AssertUnwindSafe(|| {
@@ -151,7 +139,7 @@ fn ethexe_injected_message_rejects_uninitialized_program() {
 
 #[test]
 fn ethexe_send_with_gas_is_rejected() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 104, demo_ping::WASM_BINARY);
 
     let rejected = catch_unwind(AssertUnwindSafe(|| {
@@ -169,7 +157,7 @@ fn ethexe_send_with_gas_is_rejected() {
 
 #[test]
 fn ethexe_ping_canonical_decreases_executable_balance() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 105, demo_ping::WASM_BINARY);
 
     system.top_up_executable_balance(program.id(), 500_000_000_000u128);
@@ -184,7 +172,7 @@ fn ethexe_ping_canonical_decreases_executable_balance() {
 
 #[test]
 fn ethexe_injected_queue_runs_before_canonical_queue() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 106, demo_ping::WASM_BINARY);
 
     system.top_up_executable_balance(program.id(), ETHEXE_EXECUTABLE_BALANCE);
@@ -211,7 +199,7 @@ fn ethexe_injected_queue_runs_before_canonical_queue() {
 
 #[test]
 fn ethexe_first_injected_panic_below_threshold_does_not_charge() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 107, demo_panic_payload::WASM_BINARY);
 
     system.top_up_executable_balance(program.id(), ETHEXE_EXECUTABLE_BALANCE);
@@ -228,7 +216,7 @@ fn ethexe_first_injected_panic_below_threshold_does_not_charge() {
 
 #[test]
 fn ethexe_canonical_panic_charges_executable_balance() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 108, demo_panic_payload::WASM_BINARY);
 
     system.top_up_executable_balance(program.id(), ETHEXE_EXECUTABLE_BALANCE);
@@ -246,7 +234,7 @@ fn ethexe_canonical_panic_charges_executable_balance() {
 #[test]
 fn ethexe_chunk_charges_max_gas_not_sum() {
     let measure = |program_ids: &[u64]| {
-        let system = System::new_ethexe();
+        let system = System::new();
         let first = Program::from_binary_with_id(&system, 109, demo_ping::WASM_BINARY);
         let second = Program::from_binary_with_id(&system, 110, demo_ping::WASM_BINARY);
 
@@ -281,7 +269,7 @@ fn ethexe_chunk_charges_max_gas_not_sum() {
 
 #[test]
 fn ethexe_run_to_block_uses_ethexe_execution() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 111, demo_ping::WASM_BINARY);
     system.top_up_executable_balance(program.id(), 500_000_000_000u128);
 
@@ -295,7 +283,7 @@ fn ethexe_run_to_block_uses_ethexe_execution() {
 
 #[test]
 fn ethexe_read_state_is_rejected() {
-    let system = System::new_ethexe();
+    let system = System::new();
     let program = Program::from_binary_with_id(&system, 112, demo_ping::WASM_BINARY);
 
     let rejected = catch_unwind(AssertUnwindSafe(|| {
