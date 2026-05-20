@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use crate::{Program, System, UNITS};
 use ethexe_common::gear::MessageType;
 use ethexe_runtime_common::{

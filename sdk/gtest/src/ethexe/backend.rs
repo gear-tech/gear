@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use crate::{Value, error::usage_panic};
 use ethexe_common::{ProgramStates, Schedule, StateHashWithQueueSize, gear::MessageType};
 use ethexe_runtime_common::state::{
