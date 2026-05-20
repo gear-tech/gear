@@ -41,7 +41,6 @@ impl QueueManager {
     }
 
     /// Returns queue length.
-    #[cfg(any(test, not(feature = "ethexe")))]
     pub(crate) fn len(&self) -> usize {
         storage().with(|queue| queue.data().len())
     }

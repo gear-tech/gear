@@ -143,7 +143,6 @@ impl ProgramsStorageManager {
     }
 
     // Checks if the `id` belongs to a mock program.
-    #[cfg(not(feature = "ethexe"))]
     pub(crate) fn is_mock_program(id: ActorId) -> bool {
         programs_storage().with(|storage| {
             storage
@@ -187,12 +186,10 @@ impl ProgramsStorageManager {
         });
     }
 
-    #[cfg(not(feature = "ethexe"))]
     pub(crate) fn program_page(program_id: ActorId, page: GearPage) -> Option<PageBuf> {
         memory_pages_storage().with(|storage| storage.data().get(&program_id, &page).cloned())
     }
 
-    #[cfg(not(feature = "ethexe"))]
     pub(crate) fn program_pages(program_id: ActorId) -> BTreeMap<GearPage, PageBuf> {
         memory_pages_storage().with(|storage| storage.data().iter_key(&program_id).collect())
     }

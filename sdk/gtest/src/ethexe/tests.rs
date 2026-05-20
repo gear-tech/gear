@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{Program, System, UNITS};
+use crate::{DEFAULT_USER_ALICE, UNITS};
 use ethexe_common::gear::MessageType;
 use ethexe_runtime_common::{
     RuntimeInterface,
@@ -11,9 +11,20 @@ use gear_core::ids::{ActorId, MessageId, prelude::MessageIdExt};
 use parity_scale_codec::Encode;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use super::runtime::GTestEthexeRuntime;
+use super::{Program, System, runtime::GTestEthexeRuntime};
 
 const ETHEXE_EXECUTABLE_BALANCE: u128 = 2_000_000_000_000;
+
+#[test]
+fn top_level_gtest_stays_vara_when_ethexe_feature_enabled() {
+    let system = crate::System::new();
+    let program = crate::Program::from_binary_with_id(&system, 113, demo_ping::WASM_BINARY);
+
+    let message_id = program.send_bytes(DEFAULT_USER_ALICE, b"PING");
+    let result = system.run_next_block();
+
+    assert!(result.succeed.contains(&message_id));
+}
 
 #[test]
 fn ethexe_runtime_interface_tracks_state_hash_updates() {

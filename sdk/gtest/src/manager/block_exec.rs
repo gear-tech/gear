@@ -130,7 +130,6 @@ impl ExtManager {
         message_id
     }
 
-    #[cfg(not(feature = "ethexe"))]
     pub(crate) fn run_new_block(&mut self, allowance: Gas) -> BlockRunResult {
         self.gas_allowance = allowance;
         self.blocks_manager.next_block();
@@ -161,7 +160,6 @@ impl ExtManager {
         }
     }
 
-    #[cfg(not(feature = "ethexe"))]
     pub(crate) fn process_tasks(&mut self, current_bn: u32) {
         let db_weights = DbWeights::default();
 
@@ -258,7 +256,6 @@ impl ExtManager {
         }
     }
 
-    #[cfg(not(feature = "ethexe"))]
     fn process_messages(&mut self) -> u32 {
         self.messages_processing_enabled = true;
 

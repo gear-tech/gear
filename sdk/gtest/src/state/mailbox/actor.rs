@@ -168,7 +168,7 @@ impl<'a> ActorMailbox<'a> {
     }
 }
 
-#[cfg(all(test, not(feature = "ethexe")))]
+#[cfg(test)]
 mod tests {
     use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER, Log, Program, System};
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
