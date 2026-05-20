@@ -169,7 +169,7 @@ impl Publisher {
     }
 
     /// Check the to-be-published packages
-    pub fn check(self) -> Result<Self> {
+    pub fn check(&self) -> Result<()> {
         // Post tests for gtest
         for (pkg, test) in [
             ("demo-syscall-error", "program_can_be_initialized"),
@@ -180,7 +180,20 @@ impl Publisher {
             }
         }
 
-        Ok(self)
+        Ok(())
+    }
+
+    /// Apply publish-only workspace dependency rewrites.
+    pub fn prepare_publish(&mut self) -> Result<()> {
+        for manifest in self.graph.iter_mut() {
+            handler::patch_publish(&manifest.name, &mut manifest.mutable_manifest);
+        }
+
+        if let Some(workspace) = self.workspace.as_mut() {
+            workspace.rename()?;
+        }
+
+        self.patch()
     }
 
     /// Publish packages

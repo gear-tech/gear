@@ -41,7 +41,16 @@ pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<M
     let mut manifest = Manifest::new(pkg, is_published, is_actualized)?;
     let doc = &mut manifest.mutable_manifest;
 
-    match manifest.name.as_str() {
+    if manifest.name.as_str() == "gear-core-processor" {
+        core_processor::patch(doc);
+    }
+
+    Ok(manifest)
+}
+
+/// Apply publish-only manifest patches.
+pub fn patch_publish(name: &str, doc: &mut toml_edit::DocumentMut) {
+    match name {
         "ethexe-rpc" => ethexe_rpc::patch(doc),
         "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
@@ -49,8 +58,6 @@ pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<M
         "gear-sandbox-interface" => sandbox_interface::patch(doc),
         _ => {}
     }
-
-    Ok(manifest)
 }
 
 /// Patch package alias.
@@ -64,14 +71,23 @@ pub fn patch_alias(index: &mut Vec<&str>) {
 
 /// Patch the workspace manifest.
 pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
+    patch_workspace_alias(name, table);
+
     match name {
-        "core-processor" | "gear-core-processor" => core_processor::patch_workspace(name, table),
         sub if ["sc-", "sp-", "frame-", "try-runtime-cli"]
             .iter()
             .any(|p| sub.starts_with(p)) =>
         {
             substrate::patch_workspace(name, table)
         }
+        _ => {}
+    }
+}
+
+/// Patch workspace aliases required by package manifest patches.
+pub fn patch_workspace_alias(name: &str, table: &mut toml_edit::InlineTable) {
+    match name {
+        "core-processor" | "gear-core-processor" => core_processor::patch_workspace(name, table),
         _ => {}
     }
 }
@@ -161,6 +177,26 @@ mod sandbox_interface {
     /// `sp_runtime_interface_proc_macro` includes some hardcode
     /// that could not locate alias packages.
     pub fn patch(manifest: &mut DocumentMut) {
+        if let Some(deps) = manifest["dependencies"].as_table_like_mut() {
+            deps.remove("sc-executor");
+        }
+
+        if let Some(features) = manifest["features"].as_table_like_mut() {
+            if let Some(default_features) = features
+                .get_mut("default")
+                .and_then(toml_edit::Item::as_array_mut)
+            {
+                default_features.retain(|feature| feature.as_str() != Some("host-api"));
+            }
+
+            if let Some(host_api_features) = features
+                .get_mut("host-api")
+                .and_then(toml_edit::Item::as_array_mut)
+            {
+                host_api_features.retain(|feature| feature.as_str() != Some("sc-executor"));
+            }
+        }
+
         let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_like_mut() else {
             return;
         };
@@ -233,7 +269,9 @@ mod substrate {
             _ => return,
         }
 
+        table.remove("path");
         table.remove("branch");
         table.remove("git");
+        table.remove("rev");
     }
 }

@@ -15,6 +15,14 @@ default-members = ["vara/node/cli"]
 exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
 
 members = [
+  # substrate
+  "substrate/runtime-executor",
+  "substrate/runtime-executor/common",
+  "substrate/runtime-executor/polkavm",
+  "substrate/runtime-executor/wasmtime",
+  "substrate/sp-allocator",
+  "substrate/sp-wasm-interface-common",
+  "substrate/substrate-wasm-builder",
   # protocol
   "protocol/*",
   "protocol/lazy-pages",
@@ -26,9 +34,6 @@ members = [
   "protocol/sandbox",
   "protocol/sandbox/env",
   "protocol/sandbox/host",
-  "protocol/runtime-executor/common",
-  "protocol/runtime-executor/polkavm",
-  "protocol/runtime-executor/wasmtime",
   # vara
   "vara/common",
   "vara/common/codegen",
@@ -434,10 +439,10 @@ sp-debug-derive = { version = "14.0.0", git = "https://github.com/paritytech/pol
 sc-chain-spec = { version = "38.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-cli = { version = "0.47.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-client-api = { version = "37.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
-sc-executor = { path = "protocol/runtime-executor" }
-sc-executor-common = { path = "protocol/runtime-executor/common" }
-sc-executor-polkavm = { path = "protocol/runtime-executor/polkavm" }
-sc-executor-wasmtime = { path = "protocol/runtime-executor/wasmtime" }
+sc-executor = { path = "substrate/runtime-executor" }
+sc-executor-common = { path = "substrate/runtime-executor/common" }
+sc-executor-polkavm = { path = "substrate/runtime-executor/polkavm" }
+sc-executor-wasmtime = { path = "substrate/runtime-executor/wasmtime" }
 sc-consensus-grandpa = { version = "0.30.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-consensus-grandpa-rpc = { version = "0.30.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-network = { version = "0.45.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
@@ -453,7 +458,7 @@ sc-sysinfo = { version = "38.0.0", git = "https://github.com/paritytech/polkadot
 sc-transaction-pool = { version = "37.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-transaction-pool-api = { version = "37.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-tracing = { version = "37.0.1", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
-sp-allocator = { path = "protocol/sp-allocator", default-features = false }
+sp-allocator = { path = "substrate/sp-allocator", default-features = false }
 sp-api = { version = "34.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-authority-discovery = { version = "34.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-arithmetic = { version = "26.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
@@ -490,13 +495,13 @@ sp-trie = { version = "37.0.0", git = "https://github.com/paritytech/polkadot-sd
 sp-version = { version = "37.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-wasm-interface = { version = "21.0.1", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-panic-handler = { version = "13.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
-sp-wasm-interface-common = { path = "protocol/wasm-interface-common", default-features = false }
+sp-wasm-interface-common = { path = "substrate/sp-wasm-interface-common", default-features = false }
 substrate-build-script-utils = { version = "11.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 substrate-frame-rpc-system = { version = "39.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 substrate-rpc-client = { version = "0.44.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 substrate-state-trie-migration-rpc = { version = "38.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 substrate-test-client = { version = "2.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
-substrate-wasm-builder = { path = "utils/substrate-wasm-builder" }
+substrate-wasm-builder = { path = "substrate/substrate-wasm-builder" }
 
 # Examples
 test-syscalls = { path = "sdk/examples/syscalls", default-features = false }
@@ -686,8 +691,8 @@ wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-
 wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }
 
 [patch."https://github.com/paritytech/polkadot-sdk.git"]
-sc-executor = { path = "protocol/runtime-executor" }
-sc-executor-common = { path = "protocol/runtime-executor/common" }
-sc-executor-polkavm = { path = "protocol/runtime-executor/polkavm" }
-sc-executor-wasmtime = { path = "protocol/runtime-executor/wasmtime" }
-substrate-wasm-builder = { path = "utils/substrate-wasm-builder" }
+sc-executor = { path = "substrate/runtime-executor" }
+sc-executor-common = { path = "substrate/runtime-executor/common" }
+sc-executor-polkavm = { path = "substrate/runtime-executor/polkavm" }
+sc-executor-wasmtime = { path = "substrate/runtime-executor/wasmtime" }
+substrate-wasm-builder = { path = "substrate/substrate-wasm-builder" }

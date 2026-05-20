@@ -26,7 +26,7 @@ use std::{
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
-use toml_edit::{DocumentMut, Item};
+use toml_edit::{DocumentMut, InlineTable, Item, Value};
 
 const WORKSPACE_NAME: &str = "__gear_workspace";
 
@@ -76,6 +76,7 @@ impl Workspace {
         }
 
         workspace.mutable_manifest["workspace"]["dependencies"]["gstd"]["features"] = Item::None;
+        workspace.patch_wasmi_sign_ext();
 
         Ok(workspace)
     }
@@ -122,7 +123,7 @@ impl Workspace {
             }
         }
 
-        self.rename()?;
+        self.rename_aliases()?;
         Ok(())
     }
 
@@ -140,7 +141,15 @@ impl Workspace {
     }
 
     /// Rename workspace manifest.
-    fn rename(&mut self) -> Result<()> {
+    pub(crate) fn rename(&mut self) -> Result<()> {
+        self.rename_with(handler::patch_workspace)
+    }
+
+    fn rename_aliases(&mut self) -> Result<()> {
+        self.rename_with(handler::patch_workspace_alias)
+    }
+
+    fn rename_with(&mut self, patch: fn(&str, &mut InlineTable)) -> Result<()> {
         let Some(deps) = self.mutable_manifest["workspace"]["dependencies"].as_table_like_mut()
         else {
             return Ok(());
@@ -152,10 +161,24 @@ impl Workspace {
                 continue;
             };
 
-            handler::patch_workspace(name, table);
+            patch(name, table);
         }
 
         Ok(())
+    }
+
+    fn patch_wasmi_sign_ext(&mut self) {
+        for package in ["wasmi", "wasmi-validation", "wasmi_core"] {
+            let mut patch = InlineTable::default();
+            patch.insert("git", "https://github.com/gear-tech/wasmi".into());
+            patch.insert("branch", "v0.13.2-sign-ext".into());
+            if package != "wasmi" {
+                patch.insert("package", package.into());
+            }
+
+            self.mutable_manifest["patch"]["crates-io"][package] =
+                Item::Value(Value::InlineTable(patch));
+        }
     }
 
     /// Returns Cargo lock file
