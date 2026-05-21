@@ -1,6 +1,8 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+#[cfg(feature = "ethexe")]
+use crate::ethexe::EthexeBackend;
 use crate::{
     EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
     ProgramBuilder, RESERVE_FOR, Result, TestError, VALUE_PER_GAS,
@@ -88,6 +90,8 @@ pub(crate) struct ExtManager {
     pub(crate) messages_processing_enabled: bool,
     pub(crate) first_incomplete_tasks_block: Option<u32>,
     pub(crate) builtins: BTreeSet<ActorId>,
+    #[cfg(feature = "ethexe")]
+    pub(crate) ethexe: EthexeBackend,
 
     // Last block execution info
     pub(crate) succeed: BTreeSet<MessageId>,
@@ -105,8 +109,20 @@ impl ExtManager {
             blocks_manager: BlocksManager,
             messages_processing_enabled: true,
             builtins,
+            #[cfg(feature = "ethexe")]
+            ethexe: EthexeBackend::new(),
             ..Default::default()
         }
+    }
+
+    #[cfg(feature = "ethexe")]
+    pub(crate) fn ethexe(&self) -> &EthexeBackend {
+        &self.ethexe
+    }
+
+    #[cfg(feature = "ethexe")]
+    pub(crate) fn ethexe_mut(&mut self) -> &mut EthexeBackend {
+        &mut self.ethexe
     }
 
     pub fn block_height(&self) -> u32 {

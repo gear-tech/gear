@@ -26,6 +26,24 @@
 //! - [`Log`] — a structure that represents a message log. It allows checking
 //!   the result of the program execution.
 //!
+//! ## Ethexe execution mode
+//!
+//! This mode is available with the `ethexe` feature.
+//!
+//! The top-level [`System`] and [`Program`] APIs always use Vara execution
+//! semantics. Ethexe tests use the separate `gtest::ethexe` namespace:
+//!
+//! ```ignore
+//! use gtest::ethexe::{Program, System};
+//! ```
+//!
+//! `gtest::ethexe::System::new()` creates a test system that uses ethexe
+//! execution semantics. Program sends are queued as canonical ethexe messages,
+//! injected messages are queued with `System::inject_message`, and gas is
+//! charged from a program executable balance funded by
+//! `System::top_up_executable_balance`. Explicit user gas limits and gas
+//! reservations are not supported in this mode.
+//!
 //! Let's take a closer look at how to write tests using `gtest`.
 //!
 //! ## Import `gtest` lib
@@ -481,6 +499,9 @@
 
 mod builtins;
 mod error;
+#[cfg(feature = "ethexe")]
+/// Ethexe execution-mode testing APIs.
+pub mod ethexe;
 mod log;
 mod manager;
 mod program;
