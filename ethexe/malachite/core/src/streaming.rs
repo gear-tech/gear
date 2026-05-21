@@ -539,4 +539,57 @@ mod tests {
              violation.",
         );
     }
+
+    /// REPRODUCES: `StreamState::insert` computes
+    /// `total_messages = msg.sequence as usize + 1` unconditionally
+    /// for every `Fin` message. On a 64-bit target `usize == u64`, so a
+    /// peer-controlled `sequence == u64::MAX` produces `u64::MAX + 1`
+    /// — which panics under the workspace's debug profile
+    /// (overflow-checks default to on for `dev`). One unsigned
+    /// stream message from a peer who's already in the proposer's
+    /// gossip group is enough to abort the engine's app task.
+    ///
+    /// Distinct from iter #3 (double-Fin), iter #5 (Init at non-zero
+    /// seq), iter #8 (lone Fin@0 stuck slot), and from issue #5473
+    /// (unbounded growth via `u64::MAX / 2` style Fins): those all
+    /// stay in pure-data land and leak resources. This case crashes
+    /// the task outright in debug builds and silently wraps
+    /// `total_messages` to 0 in release — locking the slot forever
+    /// no matter what other parts arrive (`buffer.len() == 0` is
+    /// already false after the Fin push and stays false).
+    ///
+    /// Expected fix: clamp / saturate the `sequence + 1` arithmetic,
+    /// or reject any `Fin` whose sequence exceeds some sane
+    /// per-stream cap (mirroring the pending #5473 caps) so the
+    /// engine never executes a wrap-prone add on attacker-controlled
+    /// input.
+    #[test]
+    #[ignore = "tracks bug: StreamState panics on Fin@u64::MAX (debug) / wraps total_messages to 0 (release)"]
+    fn fin_at_u64_max_sequence_panics_in_debug() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(13);
+        let s = sid(0xDEADBEEF);
+
+        // A peer-controlled `Fin` with the maximum possible `sequence`.
+        // SCALE encodes `sequence: u64` with no upper bound, so this
+        // value is reachable from the wire (`RawStreamMessage.sequence`
+        // is `u64`). The arithmetic `u64::MAX as usize + 1` overflows
+        // under the dev profile's `overflow-checks = true` and
+        // unwinds the app task.
+        //
+        // We catch the unwind to keep the assertion side intact —
+        // the failure mode IS the panic, not a value-check.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            map.insert(p, fin_msg(s.clone(), u64::MAX))
+        }));
+
+        assert!(
+            result.is_ok(),
+            "Fin@u64::MAX panicked StreamState::insert (overflow in \
+             `msg.sequence as usize + 1` under overflow-checks). \
+             A single wire-legal stream message from any gossip peer \
+             can crash the engine's app task. Saturate or reject \
+             oversize sequences before the add.",
+        );
+    }
 }
