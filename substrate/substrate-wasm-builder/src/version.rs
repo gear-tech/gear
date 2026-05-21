@@ -1,7 +1,7 @@
 // Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
-// See `THIRD_PARTY_NOTICES.md` for the upstream source and license reference.
+// See `README.md` for the upstream source and license reference.
 
 use std::cmp::Ordering;
 
