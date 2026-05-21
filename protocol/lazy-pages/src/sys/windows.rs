@@ -35,6 +35,15 @@ where
     }
 
     let addr = unsafe { (*exception_record).ExceptionInformation[1] };
+
+    // Classify the fault before doing anything that is not safe to run from
+    // an exception handler. An address outside the WASM memory lazy-pages
+    // currently manages on this thread is not a lazy-pages page fault: hand
+    // it straight back to the OS exception chain.
+    if !crate::active_wasm_region_contains(addr) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     let is_write = match unsafe { (*exception_record).ExceptionInformation[0] } {
         0 /* read */ => Some(false),
         1 /* write */ => Some(true),

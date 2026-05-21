@@ -80,6 +80,22 @@ where
 {
     unsafe {
         let addr = (*info).si_addr();
+
+        // Classify the fault before doing anything that is not
+        // async-signal-safe. If the address is outside the WASM memory
+        // lazy-pages currently manages on this thread, this is not a
+        // lazy-pages page fault: the interrupted code may hold the
+        // allocator or logger lock, so only async-signal-safe work is
+        // allowed. Forward it without touching thread-locals or logging.
+        if !crate::active_wasm_region_contains(addr as usize) {
+            let _ = old_sig_handler(sig, info, ucontext);
+            return;
+        }
+
+        // The fault is inside managed WASM memory: the thread was
+        // executing WASM and holds no allocator/logger lock, so the
+        // processing below (thread-local access, logging, page loading)
+        // is safe in this context.
         let is_write = ucontext_get_write(ucontext as *mut _);
         let exc_info = ExceptionInfo {
             fault_addr: addr as *mut _,
@@ -88,12 +104,9 @@ where
 
         if let Err(err) = H::handle(exc_info) {
             let old_sig_handler_works = match err {
-                // None of these is a genuine lazy-pages page fault: the
-                // access is outside managed WASM memory, or the thread
-                // holds no lazy-pages context at all (e.g. a SIGSEGV
-                // raised by RocksDB on an RPC thread). Forward such faults
-                // to the previously installed handler rather than
-                // panicking inside this async-signal-unsafe handler.
+                // Defensive: an in-region fault should be handled above,
+                // but if `H::handle` still declines it, forward rather
+                // than panic inside the handler.
                 Error::OutOfWasmMemoryAccess
                 | Error::WasmMemAddrIsNotSet
                 | Error::GlobalContext(_) => old_sig_handler(sig, info, ucontext),
