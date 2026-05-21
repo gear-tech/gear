@@ -2023,4 +2023,111 @@ mod tests {
             "depth arithmetic mismatch — expected exactly 5 blocks below head",
         );
     }
+
+    /// REPRODUCES: `build_block_above` enforces the producer-side
+    /// `MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB` cap (127 KiB) on the
+    /// cumulative encoded size of `Transaction::Injected` entries
+    /// (externalities.rs:321-326), but `validate_block_above`
+    /// (externalities.rs:546-560) deliberately does **not** mirror
+    /// that check on the validator side. The inline comment justifies
+    /// the omission by appealing to "the Malachite engine's 1 MiB
+    /// hard cap on the encoded `Block` payload" — i.e. the validator
+    /// accepts up to ~8x the protocol's intended per-MB injected
+    /// budget. A malicious proposer can submit an MB containing two
+    /// max-payload injected txs (each ~126 KiB → cumulative ~252 KiB,
+    /// well above the 127 KiB producer cap but under the 1 MiB
+    /// engine cap) and every validator will accept it. This lets a
+    /// proposer balloon `compute_mb`'s injected-message work
+    /// (storage I/O, signature checks, queue inserts) past the
+    /// budget the rest of the design assumes — exactly the
+    /// inconsistency the producer-side cap was meant to prevent.
+    ///
+    /// Expected behaviour: the validator should reject an MB whose
+    /// cumulative `Transaction::Injected` encoded size exceeds
+    /// `MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB`, mirroring the
+    /// producer's `build_block_above` rule.
+    #[tokio::test]
+    #[ignore = "tracks bug: validate_block_above lacks per-MB injected-tx size cap that build_block_above enforces"]
+    async fn validate_rejects_mb_exceeding_injected_size_cap() {
+        use ethexe_common::{
+            injected::{
+                InjectedTransaction, MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB,
+                MAX_INJECTED_TX_PAYLOAD_SIZE,
+            },
+            mock::{BlockChain, Mock},
+        };
+        use gprimitives::ActorId;
+        use parity_scale_codec::Encode;
+
+        let db = Database::memory();
+        let chain = BlockChain::mock(10u32).setup(&db);
+        let head = chain.blocks[10].to_simple();
+
+        // Two distinct destinations so the touched-programs cap
+        // can't be the reason for rejection — both well under
+        // MAX_TOUCHED_PROGRAMS_PER_MB.
+        let dest_a = ActorId::from(1u64);
+        let dest_b = ActorId::from(2u64);
+        let parent_mb =
+            setup_mb_with_destinations(&db, chain.mb_hash_at(9), &[dest_a, dest_b]);
+        db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
+
+        let (ext, _rx) = make_externalities(db.clone());
+        *ext.chain_head.write().unwrap() = Some(head);
+
+        // Two max-payload txs — each ~126 KiB, cumulative ~252 KiB
+        // (well above the 127 KiB producer cap, well below the
+        // ~1 MiB engine cap).
+        let pk = ethexe_common::PrivateKey::random();
+        let mk_tx = |dest, salt_byte| {
+            ethexe_common::SignedMessage::create(
+                pk.clone(),
+                InjectedTransaction {
+                    destination: dest,
+                    payload: vec![0u8; MAX_INJECTED_TX_PAYLOAD_SIZE].try_into().unwrap(),
+                    value: 0,
+                    reference_block: chain.blocks[9].hash,
+                    salt: vec![salt_byte; 32].try_into().unwrap(),
+                },
+            )
+            .unwrap()
+        };
+        let tx_a = mk_tx(dest_a, 0xAA);
+        let tx_b = mk_tx(dest_b, 0xBB);
+        let cumulative_size = tx_a.encoded_size() + tx_b.encoded_size();
+        assert!(
+            cumulative_size > MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB,
+            "test setup invariant: cumulative encoded size {cumulative_size} \
+             must exceed the producer cap {MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB} \
+             so this represents a real violation",
+        );
+
+        // Craft the MB payload — strict shape, no AdvanceTillEthereumBlock
+        // (so eb_touched_programs returns empty and only the two injected
+        // destinations contribute to the touched-programs check; both fit
+        // under MAX_TOUCHED_PROGRAMS_PER_MB).
+        let payload = Transactions::new(vec![
+            Transaction::Injected(tx_a),
+            Transaction::Injected(tx_b),
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+        ]);
+
+        let accepted = ext
+            .validate_block_above(parent_mb, payload)
+            .await
+            .expect("validate_block_above must complete without internal error");
+        assert!(
+            !accepted,
+            "validator MUST reject an MB whose cumulative injected-tx encoded \
+             size ({cumulative_size}) exceeds MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB \
+             ({MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB}); current impl accepts it \
+             because validate_block_above's only size guard is the Malachite \
+             engine's 1 MiB block cap — ~8x looser than the producer rule.",
+        );
+    }
 }
