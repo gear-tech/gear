@@ -940,6 +940,65 @@ mod tests {
         );
     }
 
+    /// REPRODUCES: `insert` gates the `is_expired` check on
+    /// `latest_head_height.is_some()`. Before the first `set_chain_head`
+    /// arrives — the node's "cold start" window between process boot
+    /// and the first observer tick — the check is silently skipped.
+    /// During fast-sync the local DB already holds a long chain of
+    /// `block_header` rows (so `ref_block_height` resolves), but
+    /// `set_chain_head` hasn't fired yet because the observer hasn't
+    /// produced its first event. In this window, a public RPC caller
+    /// can submit txs anchored on arbitrarily-old ref_blocks (well
+    /// past `VALIDITY_WINDOW`) and the pool accepts them.
+    ///
+    /// Concrete consequence: RPC returns `Accept` to the client, the
+    /// tx occupies a pool slot, and the first `set_chain_head` call
+    /// then evicts it via `purge_expired` — the promise the client is
+    /// waiting on never resolves. An attacker who races the cold-start
+    /// window can DoS legitimate clients by burning capacity slots
+    /// AND by tricking the local RPC into returning misleading
+    /// acceptances. Distinct from iter #2 (future-anchored ref_block,
+    /// chain_head SET) and iter #4 (unknown ref_block, insert tolerance
+    /// vs purge mismatch).
+    ///
+    /// Expected fix: when `latest_head_height` is `None` but the
+    /// `ref_block` IS in the local DB, derive the expiry from a
+    /// canonical-head proxy (e.g. the DB's `latest_synced_eb` or the
+    /// max known block_header height), so cold-start inserts use the
+    /// same expiry rule as steady-state inserts.
+    #[test]
+    #[ignore = "tracks bug: cold-start mempool insert skips is_expired when latest_head_height is None"]
+    fn cold_start_insert_accepts_expired_ref_block_before_first_set_chain_head() {
+        let db = Database::memory();
+        // A long chain in the DB — mirrors the post-fast-sync state at
+        // boot, BEFORE the observer has produced its first event.
+        let chain = linear_chain(&db, (VALIDITY_WINDOW as usize) + 5);
+        let pool = InjectedTxMempool::with_capacity(db, 4);
+        let pk = PrivateKey::random();
+
+        // No `pool.set_chain_head(..)` call — simulate cold start.
+
+        // A tx anchored at block 1 — height 1. The actual chain tip
+        // (chain[VALIDITY_WINDOW + 4]) is well past the validity window
+        // for block 1, so this tx would be expired against any sane
+        // canonical head. Insert MUST reject it; current behaviour
+        // accepts it because `latest_head_height` is None.
+        let expired_tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
+        let insert_result = pool.insert(expired_tx);
+
+        assert!(
+            matches!(insert_result, Err(MempoolInsertError::ExpiredRefBlock)),
+            "cold-start insert accepted an expired-against-DB-tip tx \
+             (ref_block height 1; DB has blocks up to height {}). The \
+             pool must apply the same `is_expired` rule when \
+             `latest_head_height` is None — otherwise public RPC \
+             returns Accept to clients for txs that the very next \
+             `set_chain_head` will silently purge. Got: {:?}",
+            (VALIDITY_WINDOW as usize) + 4,
+            insert_result,
+        );
+    }
+
     #[tokio::test(start_paused = true)]
     async fn wait_for_new_tx_wakes_on_insert() {
         let db = Database::memory();
