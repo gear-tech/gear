@@ -1,18 +1,12 @@
-A crate that provides means of executing/dispatching calls into the runtime.
+# sc-executor
 
-There are a few responsibilities of this crate at the moment:
+A crate that provides means of executing and dispatching calls into the runtime.
 
-- It provides an implementation of a common entrypoint for calling into the runtime, both
-wasm and compiled.
-- It defines the environment for the wasm execution, namely the host functions that are to be
-provided into the wasm runtime module.
-- It also provides the required infrastructure for executing the current wasm runtime (specified
-by the current value of `:code` in the provided externalities), i.e. interfacing with
-wasm engine used, instance cache.
+Local Cargo package name: `sc-executor`.
+Gear publish name: `gsc-executor`.
 
-License: GPL-3.0-or-later WITH Classpath-exception-2.0
+License: GPL-3.0-or-later WITH Classpath-exception-2.0.
 
+See [`../README.md`](../README.md) for the shared fork, provenance, and publishing notice.
 
-## Release
-
-Polkadot SDK stable2409
+Release source: Polkadot SDK stable2409.

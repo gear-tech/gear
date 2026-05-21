@@ -3,10 +3,12 @@ name = "sc-executor-polkavm"
 version = "0.32.0"
 authors.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 homepage.workspace = true
 repository.workspace = true
 description = "PolkaVM executor for Substrate"
+documentation = "https://docs.rs/sc-executor-polkavm"
 readme = "README.md"
 
 [lints]

@@ -1,11 +1,12 @@
-Collection of allocator implementations.
+# sp-allocator
 
-This crate provides the following allocator implementations:
-- A freeing-bump allocator: [`FreeingBumpHeapAllocator`](https://docs.rs/sc-allocator/latest/sc_allocator/struct.FreeingBumpHeapAllocator.html)
+Collection of allocator implementations, including `FreeingBumpHeapAllocator`.
 
-License: Apache-2.0
+Local Cargo package name: `sp-allocator`.
+Gear publish name: `gsp-allocator`.
 
+License: Apache-2.0.
 
-## Release
+See [`../README.md`](../README.md) for the shared fork, provenance, and publishing notice.
 
-Polkadot SDK stable2409
+Release source: Polkadot SDK stable2409.

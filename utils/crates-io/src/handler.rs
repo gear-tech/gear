@@ -12,12 +12,18 @@ pub const GP_RUNTIME_INTERFACE_VERSION: &str = "18.0.0";
 
 /// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
-    // `gear-core-processor` is taken by others, see the docs
-    // of [`core-processor::patch_workspace`] for more details.
-    if pkg == "gear-core-processor" {
-        "core-processor"
-    } else {
-        pkg
+    match pkg {
+        // `gear-core-processor` is taken by others, see the docs
+        // of [`core_processor::patch_workspace`] for more details.
+        "gear-core-processor" => "core-processor",
+        "sp-allocator" => "gsp-allocator",
+        "sp-wasm-interface-common" => "gsp-wasm-interface-common",
+        "sc-executor" => "gsc-executor",
+        "sc-executor-common" => "gsc-executor-common",
+        "sc-executor-polkavm" => "gsc-executor-polkavm",
+        "sc-executor-wasmtime" => "gsc-executor-wasmtime",
+        "substrate-wasm-builder" => "gsubstrate-wasm-builder",
+        _ => pkg,
     }
 }
 
@@ -36,6 +42,9 @@ pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<M
 /// Apply publish-only manifest patches.
 pub fn patch_publish(name: &str, doc: &mut toml_edit::DocumentMut) {
     match name {
+        local_name if crate::GEAR_SUBSTRATE_DEPENDENCIES.contains(&local_name) => {
+            substrate_fork::patch_manifest(local_name, doc)
+        }
         "ethexe-rpc" => ethexe_rpc::patch(doc),
         "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
@@ -58,6 +67,9 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
     patch_workspace_alias(name, table);
 
     match name {
+        local_name if crate::GEAR_SUBSTRATE_DEPENDENCIES.contains(&local_name) => {
+            substrate_fork::patch_workspace(local_name, table)
+        }
         sub if ["sc-", "sp-", "frame-", "try-runtime-cli"]
             .iter()
             .any(|p| sub.starts_with(p)) =>
@@ -68,11 +80,70 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
     }
 }
 
+/// Patch the workspace manifest for publish-only state.
+pub fn patch_publish_workspace(doc: &mut toml_edit::DocumentMut) {
+    substrate_fork::patch_publish_workspace(doc);
+}
+
 /// Patch workspace aliases required by package manifest patches.
 pub fn patch_workspace_alias(name: &str, table: &mut toml_edit::InlineTable) {
     match name {
         "core-processor" | "gear-core-processor" => core_processor::patch_workspace(name, table),
         _ => {}
+    }
+}
+
+/// Gear-maintained Polkadot SDK-compatible local crates.
+mod substrate_fork {
+    use toml_edit::{DocumentMut, InlineTable};
+
+    /// Rename the package manifest to the Gear-owned crates.io alias.
+    pub fn patch_manifest(local_name: &str, manifest: &mut DocumentMut) {
+        let crates_io_name = super::crates_io_name(local_name);
+
+        manifest["package"]["name"] = toml_edit::value(crates_io_name);
+        manifest["package"]["documentation"] =
+            toml_edit::value(format!("https://docs.rs/{crates_io_name}"));
+
+        if local_name == "sc-executor-wasmtime" {
+            // `sc-runtime-test` is a Polkadot SDK git-only dev dependency and
+            // is not part of the Gear crates.io publish set.
+            if let Some(dev_deps) = manifest["dev-dependencies"].as_table_like_mut() {
+                dev_deps.remove("sc-runtime-test");
+            }
+        }
+    }
+
+    /// Point the workspace dependency to the Gear-owned crates.io alias.
+    pub fn patch_workspace(local_name: &str, table: &mut InlineTable) {
+        table.insert("package", super::crates_io_name(local_name).into());
+
+        table.remove("branch");
+        table.remove("git");
+        table.remove("rev");
+    }
+
+    /// Remove local Polkadot SDK source patches after copied crates are renamed.
+    pub fn patch_publish_workspace(manifest: &mut DocumentMut) {
+        let Some(patches) = manifest["patch"].as_table_like_mut() else {
+            return;
+        };
+
+        let source = "https://github.com/paritytech/polkadot-sdk.git";
+        let Some(polkadot_sdk) = patches
+            .get_mut(source)
+            .and_then(toml_edit::Item::as_table_mut)
+        else {
+            return;
+        };
+
+        for local_name in crate::GEAR_SUBSTRATE_DEPENDENCIES {
+            polkadot_sdk.remove(local_name);
+        }
+
+        if polkadot_sdk.is_empty() {
+            patches.remove(source);
+        }
     }
 }
 
@@ -187,6 +258,16 @@ mod sandbox_interface {
         wi.insert("version", toml_edit::value(GP_RUNTIME_INTERFACE_VERSION));
         wi.insert("package", toml_edit::value("gp-runtime-interface"));
         wi.remove("workspace");
+
+        let Some(wi) = manifest["dependencies"]["sp-wasm-interface"].as_table_like_mut() else {
+            return;
+        };
+        // The copied stable2409 executor crates use upstream `sp-wasm-interface`
+        // 21.0.1, but `gear-sandbox-interface` still pairs with the old
+        // Gear-published runtime-interface stack.
+        wi.insert("version", toml_edit::value("15.0.0"));
+        wi.insert("package", toml_edit::value("gp-wasm-interface"));
+        wi.remove("workspace");
     }
 }
 
@@ -207,18 +288,10 @@ mod substrate {
     /// <https://github.com/gear-tech/substrate/tree/cl/v1.1.x-crates-io>.
     pub fn patch_workspace(name: &str, table: &mut InlineTable) {
         match name {
-            // sp-allocator is outdated on crates.io, last
-            // 3.0.0 forever, here we use gp-allocator instead.
-            "sp-allocator" => {
-                table.insert("version", "4.1.2".into());
-                table.insert("package", "gp-allocator".into());
-            }
-            // Our sp-wasm-interface is different from the substrate one.
-            //
-            // ref: sp-wasm-interface-15.0.0
+            // stable2409 executor crates require the upstream 21.0.1 API.
             "sp-wasm-interface" => {
-                table.insert("package", "gp-wasm-interface".into());
-                table.insert("version", "15.0.0".into());
+                table.insert("version", "21.0.1".into());
+                table.remove("package");
             }
             // Related to sp-wasm-interface.
             //
