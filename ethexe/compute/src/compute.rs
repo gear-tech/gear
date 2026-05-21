@@ -583,7 +583,7 @@ mod tests {
             Err(ComputeError::AdvanceMissingHeader { hash }) => assert_eq!(hash, parent_b),
             other => panic!(
                 "expected AdvanceMissingHeader for {parent_b:?}, got {other:?} — \
-                 a silent truncation here would non-determinism event replay across peers"
+                 a silent truncation here would make event replay non-deterministic across peers"
             ),
         }
     }

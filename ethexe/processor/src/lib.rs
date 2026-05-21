@@ -308,7 +308,7 @@ impl Processor {
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_sink: Option<BoundPromiseSink>,
+        mut promise_sink: Option<BoundPromiseSink>,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!("{executable}");
 
@@ -322,10 +322,6 @@ impl Processor {
 
         let mut transitions = InBlockTransitions::new(height, program_states, schedule);
 
-        // The promise sink is consumed by the (single, by MB shape)
-        // `ProcessQueues` transaction; `take` it so the loop type-checks.
-        let mut promise_sink = promise_sink;
-
         // Apply each transaction in the order the malachite block
         // sequenced it: events/injected mutate program queues, then the
         // scheduled-task and queue-draining bookends run.
@@ -335,10 +331,13 @@ impl Processor {
                     self.handle_events(transitions, events)?
                 }
                 ProcessorTransaction::Injected(tx) => self.handle_injected(transitions, tx)?,
+                // `ProgressTasksLimits` is an empty placeholder — nothing to thread.
                 ProcessorTransaction::ProgressTasks { limits: _ } => {
                     self.process_tasks(transitions)
                 }
                 ProcessorTransaction::ProcessQueues { limits } => {
+                    // `take` hands the sink to this single (by MB shape)
+                    // `ProcessQueues`, leaving `None` for any other.
                     self.process_queues(
                         transitions,
                         height,
