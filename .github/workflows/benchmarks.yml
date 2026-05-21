@@ -232,7 +232,8 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
       with:
-        sparse-checkout: terraform
+        sparse-checkout: |
+          .github/terraform/bench-runner
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v4
