@@ -22,12 +22,10 @@ where
     let is_access_violation =
         unsafe { (*exception_record).ExceptionCode == EXCEPTION_ACCESS_VIOLATION };
     let num_params = unsafe { (*exception_record).NumberParameters };
+    // Not an access violation — not a lazy-pages page fault. Hand it back to
+    // the OS exception chain without running any non-async-signal-safe work
+    // (e.g. logging) in the handler.
     if !is_access_violation || num_params != 2 {
-        log::trace!(
-            "Skip exception in handler: is access violation: {}, parameters: {}",
-            is_access_violation,
-            num_params
-        );
         return EXCEPTION_CONTINUE_SEARCH;
     }
 

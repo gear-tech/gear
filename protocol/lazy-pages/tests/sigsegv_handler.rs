@@ -1,15 +1,22 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Regression test: the lazy-pages signal handler must not panic on a fault
-//! raised outside any lazy-pages-managed region.
+//! Regression test: the lazy-pages fault handler must stay async-signal-safe
+//! for a fault raised outside any lazy-pages-managed memory.
 //!
-//! `gear_lazy_pages::init` installs a process-wide SIGSEGV handler. When a
-//! SIGSEGV is raised on a thread that never entered a lazy-pages WASM
-//! execution (e.g. a RocksDB worker), the handler used to `panic!` with
-//! `RuntimeContextIsNotSet`. Panicking is not async-signal-safe and aborted
-//! otherwise-healthy validator nodes. The handler must instead forward the
-//! fault so the process dies via the kernel's default action.
+//! `gear_lazy_pages::init` installs a process-wide SIGSEGV handler. The
+//! handler classifies the fault by address first: a fault outside the WASM
+//! memory lazy-pages currently protects on the faulting thread is forwarded
+//! to the previous handler / the kernel's default action, without touching
+//! thread-locals or logging. Before that classification existed, such a
+//! fault — e.g. a SIGSEGV from a RocksDB worker thread — reached the full
+//! handler path and `panic!`ed (`RuntimeContextIsNotSet`); panicking inside
+//! a fault handler is not async-signal-safe and aborted otherwise-healthy
+//! validator nodes.
+//!
+//! This test raises a SIGSEGV on a thread running no lazy-pages execution
+//! and asserts the process dies cleanly via the default action, not via a
+//! handler panic.
 //!
 //! The handler intercepts SIGSEGV only on Linux (on other unixes it is
 //! installed for SIGBUS), so the regression is reproducible on Linux only.
@@ -25,7 +32,7 @@ use std::{env, os::unix::process::ExitStatusExt, process::Command, thread};
 const CHILD_ENV: &str = "LAZY_PAGES_SIGSEGV_REGRESSION_CHILD";
 
 /// Exact name of the test below — used to re-exec the test binary.
-const TEST_NAME: &str = "handler_forwards_fault_from_thread_without_runtime_context";
+const TEST_NAME: &str = "handler_forwards_fault_outside_managed_region";
 
 const WASM_PAGE_SIZE: u32 = 0x10000;
 const GEAR_PAGE_SIZE: u32 = 0x4000;
@@ -57,8 +64,9 @@ fn run_faulting_child() {
 
     eprintln!("child: lazy-pages handler installed; faulting on a context-less thread");
 
-    // This thread never calls `init`, so its thread-local lazy-pages context
-    // stays empty — exactly like a RocksDB or RPC worker thread.
+    // This thread never calls `init`, so its thread-local lazy-pages state
+    // stays empty (no runtime context, no managed region) — exactly like a
+    // RocksDB or RPC worker thread.
     let faulting_thread = thread::spawn(|| {
         let wild_ptr = std::ptr::null::<u8>();
         // SAFETY: dereferencing an unmapped address on purpose, to raise a
@@ -72,7 +80,7 @@ fn run_faulting_child() {
 }
 
 #[test]
-fn handler_forwards_fault_from_thread_without_runtime_context() {
+fn handler_forwards_fault_outside_managed_region() {
     if env::var(CHILD_ENV).is_ok() {
         run_faulting_child();
         return;
@@ -92,8 +100,8 @@ fn handler_forwards_fault_from_thread_without_runtime_context() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
 
-    // Before the fix the handler turned this foreign fault into
-    // `panic!("Signal handler failed: RuntimeContextIsNotSet")`.
+    // A regression in fault classification would route this foreign fault
+    // into the full handler path, which `panic!`s with `RuntimeContextIsNotSet`.
     assert!(
         !stderr.contains("RuntimeContextIsNotSet"),
         "lazy-pages handler panicked on a fault outside any managed region \
