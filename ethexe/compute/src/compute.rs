@@ -154,16 +154,23 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 
         log::debug!("walking {} uncomputed MBs", uncomputed_chain.len());
         for (mb_hash, compact_mb) in uncomputed_chain {
-            let predecessor_sink = match (promise_emission_mode, promise_policy) {
-                (PromiseEmissionMode::AlwaysEmit, _)
-                | (PromiseEmissionMode::ConsensusDriven, PromisePolicy::Enabled)
+            // `AlwaysEmit` surfaces promises for every MB in the walked
+            // chain — RPC nodes catching up need replies for predecessor
+            // MBs too. `ConsensusDriven` emits only for the directly
+            // requested head, and only when the caller opted in;
+            // predecessors stay silent (already gossiped by the producer).
+            let promise_sink = match (promise_emission_mode, promise_policy) {
+                (PromiseEmissionMode::AlwaysEmit, _) => {
+                    Some(BoundPromiseSink::new(promise_tx.clone(), mb_hash))
+                }
+                (PromiseEmissionMode::ConsensusDriven, PromisePolicy::Enabled)
                     if mb_hash == head_mb_hash =>
                 {
                     Some(BoundPromiseSink::new(promise_tx.clone(), mb_hash))
                 }
                 _ => None,
             };
-            Self::compute_one(&db, &mut processor, mb_hash, compact_mb, predecessor_sink).await?;
+            Self::compute_one(&db, &mut processor, mb_hash, compact_mb, promise_sink).await?;
         }
 
         Ok(head_mb_hash)
@@ -439,10 +446,20 @@ mod tests {
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
-        BlockHeader,
-        db::{CompactMb, OnChainStorageRW},
+        BlockHeader, CodeAndIdUnchecked, DEFAULT_BLOCK_GAS_LIMIT, PrivateKey, SignedMessage,
+        db::*,
+        events::{
+            BlockEvent, MirrorEvent, RouterEvent,
+            mirror::{ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent},
+            router::ProgramCreatedEvent,
+        },
+        injected::{InjectedTransaction, SignedInjectedTransaction},
         malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction},
     };
+    use ethexe_processor::{Processor, ValidCodeInfo};
+    use ethexe_runtime_common::RUNTIME_ID;
+    use gear_core::ids::prelude::CodeIdExt;
+    use gprimitives::{ActorId, CodeId, MessageId};
 
     fn dummy_txs(db: &Database, tag: u8) -> Transactions {
         // Tag-derived AdvanceTillEthereumBlock makes each block's
@@ -596,5 +613,228 @@ mod tests {
             result.is_err(),
             "stream must stay pending — re-queue of computed MB is a no-op"
         );
+    }
+
+    // --- Promise emission-mode tests (real Processor + demo-ping) ---
+    //
+    // `compute_mb` walks back uncomputed ancestor MBs and runs them
+    // oldest-first. Which of those MBs surface `ComputeEvent::Promise`s
+    // depends on the sub-service's `PromiseEmissionMode`:
+    //   * `ConsensusDriven` — only the directly requested head emits,
+    //     and only when the caller passes `PromisePolicy::Enabled`.
+    //   * `AlwaysEmit` — every MB in the walked chain emits, so an RPC
+    //     node catching up still surfaces replies for predecessors.
+
+    async fn upload_ping_code(processor: &mut Processor, db: &Database) -> CodeId {
+        let code = demo_ping::WASM_BINARY;
+        let code_id = CodeId::generate(code);
+        let ValidCodeInfo {
+            code,
+            instrumented_code,
+            code_metadata,
+        } = processor
+            .process_code(CodeAndIdUnchecked {
+                code: code.to_vec(),
+                code_id,
+            })
+            .await
+            .expect("failed to process demo-ping code")
+            .valid
+            .expect("demo-ping code is invalid");
+        db.set_original_code(&code);
+        db.set_instrumented_code(RUNTIME_ID, code_id, instrumented_code);
+        db.set_code_metadata(code_id, code_metadata);
+        db.set_code_valid(code_id, true);
+        code_id
+    }
+
+    /// Synthetic Ethereum block with a zeroed parent, so the compute-side
+    /// advance walk collects exactly this single block.
+    fn synthetic_eb(db: &Database, tag: u8, events: Vec<BlockEvent>) -> H256 {
+        let hash = H256::from_low_u64_be(0xEB00 + tag as u64);
+        db.set_block_header(
+            hash,
+            BlockHeader {
+                height: tag as u32,
+                timestamp: tag as u64,
+                parent_hash: H256::zero(),
+            },
+        );
+        db.set_block_events(hash, &events);
+        hash
+    }
+
+    fn ping_injected(destination: ActorId) -> SignedInjectedTransaction {
+        let tx = InjectedTransaction {
+            destination,
+            payload: b"PING".to_vec().try_into().unwrap(),
+            value: 0,
+            reference_block: H256::random(),
+            salt: H256::random().0.to_vec().try_into().unwrap(),
+        };
+        SignedMessage::create(PrivateKey::random(), tx).expect("failed to sign injected tx")
+    }
+
+    fn mb_bookend() -> [Transaction; 2] {
+        [
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits {
+                    gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+                },
+            },
+        ]
+    }
+
+    /// MB #0 creates + funds a demo-ping program; each later MB injects
+    /// one `PING`. Returns the MB hashes, head last.
+    async fn build_ping_mb_chain(
+        db: &Database,
+        processor: &mut Processor,
+        pinger_count: u64,
+    ) -> Vec<H256> {
+        let ping_code_id = upload_ping_code(processor, db).await;
+        let ping_id = ActorId::from(0x10000);
+
+        let mut mb_hashes = Vec::new();
+
+        // MB #0 — create + fund + initialize the ping program via an
+        // Ethereum block. The canonical init message is required: an
+        // injected transaction cannot target an uninitialized program.
+        let create_eb = synthetic_eb(
+            db,
+            0,
+            vec![
+                BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
+                    actor_id: ping_id,
+                    code_id: ping_code_id,
+                })),
+                BlockEvent::Mirror {
+                    actor_id: ping_id,
+                    event: MirrorEvent::ExecutableBalanceTopUpRequested(
+                        ExecutableBalanceTopUpRequestedEvent {
+                            value: 500_000_000_000_000,
+                        },
+                    ),
+                },
+                BlockEvent::Mirror {
+                    actor_id: ping_id,
+                    event: MirrorEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                        id: MessageId::new(H256::random().0),
+                        source: ActorId::from(0xa11ce),
+                        payload: b"PING".to_vec(),
+                        value: 0,
+                        call_reply: false,
+                    }),
+                },
+            ],
+        );
+        let creator = H256::from_low_u64_be(0x1000);
+        let mut txs = vec![Transaction::AdvanceTillEthereumBlock {
+            block_hash: create_eb,
+        }];
+        txs.extend(mb_bookend());
+        seed_mb(db, creator, H256::zero(), 0, Transactions::new(txs));
+        mb_hashes.push(creator);
+
+        // MB #1.. — each injects a single PING into the ping program.
+        for i in 1..=pinger_count {
+            let eb = synthetic_eb(db, i as u8, vec![]);
+            let mb_hash = H256::from_low_u64_be(0x1000 + i);
+            let mut txs = vec![
+                Transaction::AdvanceTillEthereumBlock { block_hash: eb },
+                Transaction::Injected(ping_injected(ping_id)),
+            ];
+            txs.extend(mb_bookend());
+            seed_mb(
+                db,
+                mb_hash,
+                *mb_hashes.last().unwrap(),
+                i,
+                Transactions::new(txs),
+            );
+            mb_hashes.push(mb_hash);
+        }
+
+        mb_hashes
+    }
+
+    /// Computes the chain head and returns `(mb_hashes, promises)` where
+    /// each promise is paired with the MB hash that produced it.
+    async fn run_emission(
+        mode: PromiseEmissionMode,
+        policy: PromisePolicy,
+        pinger_count: u64,
+    ) -> (Vec<H256>, Vec<(H256, Promise)>) {
+        let db = Database::memory();
+        let mut processor = Processor::new(db.clone()).expect("failed to create processor");
+        let mb_hashes = build_ping_mb_chain(&db, &mut processor, pinger_count).await;
+
+        let mut sub = ComputeSubService::with_promise_mode(db.clone(), processor, mode);
+        let head = *mb_hashes.last().unwrap();
+        sub.receive_mb(head, policy);
+
+        let mut promises = Vec::new();
+        loop {
+            match sub.next().await.expect("compute sub-service event") {
+                ComputeEvent::Promise(promise, mb_hash) => promises.push((mb_hash, promise)),
+                ComputeEvent::MbComputed(hash) => {
+                    assert_eq!(hash, head, "MbComputed must report the requested head");
+                    break;
+                }
+                other => panic!("unexpected compute event: {other:?}"),
+            }
+        }
+        (mb_hashes, promises)
+    }
+
+    /// `ConsensusDriven`: only the directly requested head MB emits a
+    /// promise — the parent-walked predecessors stay silent even though
+    /// each of them also carries an injected `PING`.
+    #[tokio::test]
+    #[ntest::timeout(60000)]
+    async fn consensus_driven_emits_only_head_mb() {
+        gear_utils::init_default_logger();
+
+        let (mb_hashes, promises) = run_emission(
+            PromiseEmissionMode::ConsensusDriven,
+            PromisePolicy::Enabled,
+            3,
+        )
+        .await;
+
+        let head = *mb_hashes.last().unwrap();
+        let emitting: Vec<H256> = promises.iter().map(|(mb, _)| *mb).collect();
+        assert_eq!(
+            emitting,
+            vec![head],
+            "ConsensusDriven must emit promises only for the requested head MB"
+        );
+        assert_eq!(promises[0].1.reply.payload, *b"PONG");
+    }
+
+    /// `AlwaysEmit`: every walked MB emits a promise, predecessors
+    /// included — and it does so regardless of the per-MB `PromisePolicy`.
+    #[tokio::test]
+    #[ntest::timeout(60000)]
+    async fn always_emit_emits_every_walked_mb() {
+        gear_utils::init_default_logger();
+
+        let (mb_hashes, promises) =
+            run_emission(PromiseEmissionMode::AlwaysEmit, PromisePolicy::Disabled, 3).await;
+
+        // mb_hashes[0] creates the program (no injected tx); the three
+        // pingers each produce one promise, in oldest-first order.
+        let expected: Vec<H256> = mb_hashes[1..].to_vec();
+        let emitting: Vec<H256> = promises.iter().map(|(mb, _)| *mb).collect();
+        assert_eq!(
+            emitting, expected,
+            "AlwaysEmit must surface a promise for every MB in the walked chain"
+        );
+        for (_, promise) in &promises {
+            assert_eq!(promise.reply.payload, *b"PONG");
+        }
     }
 }
