@@ -12,6 +12,7 @@ use ethexe_common::{
         mirror::{ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent},
         router::ProgramCreatedEvent,
     },
+    malachite::{ProcessQueuesLimits, ProgressTasksLimits},
     mock::*,
 };
 use ethexe_runtime_common::{RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue};
@@ -24,6 +25,29 @@ use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use tokio::sync::mpsc;
 use utils::*;
+
+/// Build a processor transaction list for the pipeline tests: optional
+/// `EthereumEvents`, then `Injected` transactions, then the
+/// `ProgressTasks` + `ProcessQueues` bookend that every MB carries.
+fn pipeline_txs(
+    events: Vec<BlockRequestEvent>,
+    injected: Vec<VerifiedData<InjectedTransaction>>,
+) -> Vec<ProcessorTransaction> {
+    let mut txs = Vec::new();
+    if !events.is_empty() {
+        txs.push(ProcessorTransaction::EthereumEvents { events });
+    }
+    txs.extend(injected.into_iter().map(ProcessorTransaction::Injected));
+    txs.push(ProcessorTransaction::ProgressTasks {
+        limits: ProgressTasksLimits::default(),
+    });
+    txs.push(ProcessorTransaction::ProcessQueues {
+        limits: ProcessQueuesLimits {
+            gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+        },
+    });
+    txs
+}
 
 mod utils {
     use super::*;
@@ -180,6 +204,7 @@ async fn ping_init() {
     let executable = ExecutableData {
         height: block1.header.height,
         timestamp: block1.header.timestamp,
+        transactions: pipeline_txs(vec![], vec![]),
         ..Default::default()
     };
     let FinalizedBlockTransitions {
@@ -226,8 +251,7 @@ async fn ping_init() {
         timestamp: block2.header.timestamp,
         program_states: states,
         schedule,
-        events: create_program_events,
-        ..Default::default()
+        transactions: pipeline_txs(create_program_events, vec![]),
     };
     let FinalizedBlockTransitions {
         states,
@@ -260,8 +284,7 @@ async fn ping_init() {
         timestamp: block3.header.timestamp,
         program_states: states,
         schedule,
-        events: vec![send_message_event],
-        ..Default::default()
+        transactions: pipeline_txs(vec![send_message_event], vec![]),
     };
     processor
         .process_programs(executable, None)
@@ -1005,8 +1028,7 @@ async fn overlay_execution() {
     let executable_data = ExecutableData {
         height: block1.header.height,
         timestamp: block1.header.timestamp,
-        events,
-        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+        transactions: pipeline_txs(events, vec![]),
         ..Default::default()
     };
 
@@ -1840,8 +1862,7 @@ async fn injected_and_events_then_tasks_then_queues() {
     let executable = ExecutableData {
         height: block1.header.height,
         timestamp: block1.header.timestamp,
-        events: create_and_init_events,
-        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+        transactions: pipeline_txs(create_and_init_events, vec![]),
         ..Default::default()
     };
     let FinalizedBlockTransitions {
@@ -1873,9 +1894,7 @@ async fn injected_and_events_then_tasks_then_queues() {
         timestamp: block2.header.timestamp,
         program_states: states,
         schedule,
-        events: wait_message_event,
-        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
-        ..Default::default()
+        transactions: pipeline_txs(wait_message_event, vec![]),
     };
     let FinalizedBlockTransitions {
         states, schedule, ..
@@ -1925,9 +1944,7 @@ async fn injected_and_events_then_tasks_then_queues() {
         timestamp: block3.header.timestamp,
         program_states: states,
         schedule,
-        injected_transactions: vec![verified_injected],
-        events: canonical_event,
-        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+        transactions: pipeline_txs(canonical_event, vec![verified_injected]),
     };
     let FinalizedBlockTransitions { transitions, .. } = processor
         .process_programs(executable, Some(promise_sink))

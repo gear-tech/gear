@@ -37,6 +37,12 @@ pub(super) mod test {
     use scale_info::{MetaType, PortableRegistry, Registry};
     use sha3::{Digest, Sha3_256};
 
+    /// Panic loudly if any SCALE-encoded type used by `migration` drifted
+    /// from `expected_hash`. Migrations operate on (possibly old)
+    /// on-disk schemas: every involved type must stay byte-stable, or
+    /// the migration silently breaks the database. Wire this into the
+    /// test of each new migration so renames/field-order changes are
+    /// caught before the migration is shipped.
     #[allow(unused)]
     #[track_caller]
     pub fn assert_migration_types_hash(migration: &str, types: Vec<MetaType>, expected_hash: &str) {

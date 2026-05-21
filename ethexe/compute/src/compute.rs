@@ -18,7 +18,7 @@ use ethexe_common::{
     malachite::{Transaction, Transactions},
 };
 use ethexe_db::Database;
-use ethexe_processor::{BoundPromiseSink, ExecutableData};
+use ethexe_processor::{BoundPromiseSink, ExecutableData, ProcessorTransaction};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture};
 use gprimitives::H256;
@@ -265,32 +265,34 @@ fn build_executable_data(
     schedule: ethexe_common::Schedule,
     initial_advanced_block: H256,
 ) -> Result<ExecutableData> {
-    let mut events: Vec<BlockRequestEvent> = Vec::new();
-    let mut injected_transactions = Vec::new();
-    let mut gas_allowance: Option<u64> = None;
+    let mut processor_txs: Vec<ProcessorTransaction> = Vec::with_capacity(transactions.0.len());
     let mut current_anchor = initial_advanced_block;
 
+    // Map each MB transaction 1:1 into a `ProcessorTransaction`,
+    // preserving order. `AdvanceTillEthereumBlock` is resolved here
+    // (compute has DB access) into the concrete events it pins.
     for tx in transactions.0 {
         match tx {
             Transaction::AdvanceTillEthereumBlock { block_hash } => {
                 let chain = collect_advance_chain(db, block_hash, current_anchor)?;
+                let mut events: Vec<BlockRequestEvent> = Vec::new();
                 for hash in chain {
                     let block_events = db
                         .block_events(hash)
                         .ok_or(ComputeError::AdvanceBlockEventsMissing(hash))?;
-                    for event in block_events.into_iter().filter_map(|e| e.to_request()) {
-                        events.push(event);
-                    }
+                    events.extend(block_events.into_iter().filter_map(|e| e.to_request()));
                 }
                 current_anchor = block_hash;
+                processor_txs.push(ProcessorTransaction::EthereumEvents { events });
             }
             Transaction::Injected(signed) => {
-                let verified = signed.into_verified();
-                injected_transactions.push(verified);
+                processor_txs.push(ProcessorTransaction::Injected(signed.into_verified()));
             }
-            Transaction::ProgressTasks { limits: _ } => {}
+            Transaction::ProgressTasks { limits } => {
+                processor_txs.push(ProcessorTransaction::ProgressTasks { limits });
+            }
             Transaction::ProcessQueues { limits } => {
-                gas_allowance = Some(limits.gas_allowance);
+                processor_txs.push(ProcessorTransaction::ProcessQueues { limits });
             }
         }
     }
@@ -311,9 +313,7 @@ fn build_executable_data(
         timestamp,
         program_states,
         schedule,
-        injected_transactions,
-        gas_allowance,
-        events,
+        transactions: processor_txs,
     })
 }
 
@@ -583,7 +583,7 @@ mod tests {
             Err(ComputeError::AdvanceMissingHeader { hash }) => assert_eq!(hash, parent_b),
             other => panic!(
                 "expected AdvanceMissingHeader for {parent_b:?}, got {other:?} — \
-                 a silent truncation here would non-determinise event replay across peers"
+                 a silent truncation here would non-determinism event replay across peers"
             ),
         }
     }
