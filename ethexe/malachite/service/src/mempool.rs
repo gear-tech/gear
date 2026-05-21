@@ -732,6 +732,60 @@ mod tests {
         assert_eq!(pool.len(), 1);
     }
 
+    /// REPRODUCES: the mempool accepts txs whose `reference_block` is at a
+    /// height STRICTLY GREATER than the current chain head ("future
+    /// reference"). Such txs are NEVER fetchable (the future block is not
+    /// on `recent_ancestors` of any present head) and `tx_validity.rs`
+    /// (`is_reference_block_within_validity_window`) explicitly rejects
+    /// `reference_block_height > chain_head_height`. They are also not
+    /// purged by `set_chain_head` until the head catches up past their
+    /// height + VALIDITY_WINDOW. That window can be made arbitrarily wide
+    /// — a malicious caller can mint a payload to permanently exhaust pool
+    /// capacity with txs that no producer will ever include.
+    ///
+    /// The desired behaviour is that the mempool refuses to accept
+    /// future-anchored refs (aligning with `tx_validity.rs:184`). The
+    /// final assertion below pins that invariant; the test currently
+    /// fails because mempool accepts the legitimate fresh tx after the
+    /// poisoned ones (capacity is not actually full — because the future
+    /// txs are unfetchable but still occupy slots — the inserts succeed
+    /// when they should have been rejected outright).
+    #[test]
+    #[ignore = "tracks bug: mempool accepts future-anchored ref_block but tx_validity rejects it — capacity DoS"]
+    fn insert_should_reject_future_ref_block() {
+        let db = Database::memory();
+        // Build a short canonical chain so head_height is meaningful.
+        let chain = linear_chain(&db, 3);
+        // Inject a "future" block header at height 100 — well above the
+        // head_height of 2 that we will set. This simulates a block the
+        // observer wrote (any branch ever seen lands in DB) that hasn't
+        // been promoted to head locally.
+        let future_hash = H256::from([0xFE; 32]);
+        let future_header = BlockHeader {
+            height: 100,
+            timestamp: 100,
+            parent_hash: chain[2].hash,
+        };
+        db.set_block_header(future_hash, future_header);
+        db.mutate_block_meta(future_hash, |_| {});
+
+        let pool = InjectedTxMempool::with_capacity(db, 4);
+        pool.set_chain_head(chain[2]); // head_height = 2
+
+        let pk = PrivateKey::random();
+        // A tx anchored to a FUTURE block (height 100 > head_height 2).
+        // Desired: rejected. Actual (bug): accepted.
+        let future_tx = signed_tx(&pk, ActorId::zero(), future_hash, 0);
+        let insert_result = pool.insert(future_tx);
+        assert!(
+            matches!(insert_result, Err(MempoolInsertError::ExpiredRefBlock)),
+            "tx with reference_block_height ({}) > chain_head_height ({}) \
+             must be rejected at insert to match tx_validity.rs:184 \
+             (`reference_block_height <= chain_head_height`); got {:?}",
+            100, 2, insert_result,
+        );
+    }
+
     #[tokio::test(start_paused = true)]
     async fn wait_for_new_tx_wakes_on_insert() {
         let db = Database::memory();
