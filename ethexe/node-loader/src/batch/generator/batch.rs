@@ -157,10 +157,14 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
     }
 
     fn select_program_creation_batch_id(&mut self, context: &Context) -> u8 {
-        if context.all_code_ids().is_empty() || self.batch_gen_rng.gen_bool(0.5) {
-            UPLOAD_PROGRAM_BATCH_ID
-        } else {
-            CREATE_PROGRAM_BATCH_ID
+        if context.all_code_ids().is_empty() {
+            return UPLOAD_PROGRAM_BATCH_ID;
+        }
+
+        match self.batch_gen_rng.gen_range(0..3) {
+            0 => UPLOAD_PROGRAM_BATCH_ID,
+            1 => CREATE_PROGRAM_BATCH_ID,
+            _ => UPLOAD_CODE_BATCH_ID,
         }
     }
 
@@ -511,13 +515,17 @@ mod tests {
             },
         );
         let context = context_with_programs();
+        let mut seen_upload_code = false;
 
         for _ in 0..128 {
             match generator.select_batch_id(&context) {
                 UPLOAD_PROGRAM_BATCH_ID | CREATE_PROGRAM_BATCH_ID => {}
+                UPLOAD_CODE_BATCH_ID => seen_upload_code = true,
                 other => panic!("unexpected non-creation batch id selected: {other}"),
             }
         }
+
+        assert!(seen_upload_code);
     }
 
     #[test]
