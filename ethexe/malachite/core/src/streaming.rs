@@ -352,4 +352,64 @@ mod tests {
             map.streams.len(),
         );
     }
+
+    /// REPRODUCES: a malicious sender can prematurely complete a
+    /// proposal stream by sending two `Fin` messages with different
+    /// sequences. `StreamState::insert` unconditionally overwrites
+    /// `total_messages = msg.sequence as usize + 1` on every `Fin`,
+    /// so a second `Fin` at a lower sequence lowers the completion
+    /// target. By choosing the second `Fin`'s sequence to equal the
+    /// current `buffer.len()`, the attacker forces
+    /// `is_done` (`buffer.len() == total_messages`) to fire even though
+    /// the proposer's original intent (encoded in the FIRST `Fin`)
+    /// was a much larger part count.
+    ///
+    /// Expected behaviour: once a `Fin` has been seen, a later `Fin`
+    /// at a different sequence must be rejected — `total_messages`
+    /// should be locked, or the second `Fin` should mark the stream
+    /// as corrupted and drop the state.
+    #[test]
+    #[ignore = "tracks double-Fin-sequence completion bug in streaming.rs"]
+    fn double_fin_with_smaller_sequence_completes_stream_prematurely() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(7);
+        let s = sid(0xD00D);
+
+        // Attacker plays the role of the proposer for (p, s). They
+        // send a partial proposal: Init + three Data parts.
+        assert!(map.insert(p, msg(s.clone(), 0, init_part(42))).is_none());
+        assert!(
+            map.insert(p, msg(s.clone(), 1, data_part(b"AAAA")))
+                .is_none(),
+        );
+        assert!(
+            map.insert(p, msg(s.clone(), 2, data_part(b"BBBB")))
+                .is_none(),
+        );
+        assert!(
+            map.insert(p, msg(s.clone(), 3, data_part(b"CCCC")))
+                .is_none(),
+        );
+        // First `Fin` at sequence 100 — the proposer "intends" 101
+        // parts in this stream. buffer.len() = 5 ≠ total = 101 ⇒ not
+        // done.
+        assert!(map.insert(p, fin_msg(s.clone(), 100)).is_none());
+
+        // Malicious second `Fin` at sequence 5. `seen_sequences`
+        // doesn't yet contain 5, so it's accepted. The bug:
+        // `total_messages` is overwritten to 6, and the buffer grows
+        // to 6 entries (Init + 3 Data + 2 Fins). 6 == 6 ⇒ DONE.
+        let done = map.insert(p, fin_msg(s.clone(), 5));
+
+        assert!(
+            done.is_none(),
+            "double-Fin attack: a second `Fin` lowered \
+             `total_messages` so that `buffer.len() == total_messages` \
+             fires early. The stream completed even though only 4 of \
+             the proposer's intended 101 parts were delivered. \
+             total_messages should be locked after the first Fin, or \
+             the second Fin should be rejected as a protocol \
+             violation.",
+        );
+    }
 }
