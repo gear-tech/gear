@@ -2130,4 +2130,93 @@ mod tests {
              engine's 1 MiB block cap — ~8x looser than the producer rule.",
         );
     }
+
+    /// REPRODUCES: `validate_block_above` (externalities.rs:524-544)
+    /// runs `TxValidityChecker::check_tx_validity` against every
+    /// `Transaction::Injected` in the proposed MB, but the checker's
+    /// `recent_included_txs` set only contains txs from the **previous**
+    /// MBs (see `collect_recent_included_txs`, tx_validity.rs:222-249).
+    /// Nothing in the validator's per-tx loop tracks hashes seen
+    /// **earlier in the same MB** — so a malicious proposer can
+    /// include the exact same `SignedInjectedTransaction` (same payload,
+    /// same salt, same signature → identical `to_hash()`) multiple
+    /// times in one MB and every check returns `TxValidity::Valid`.
+    ///
+    /// `build_block_above` never emits duplicates because it drains
+    /// from the mempool, which is keyed by `tx_hash` and physically
+    /// cannot hold the same tx twice. So this is an asymmetry between
+    /// producer and validator: an honest producer ships a clean MB,
+    /// but a Byzantine proposer can balloon the MB's injected payload
+    /// by spamming the same tx hash, and validators sign it.
+    ///
+    /// Downstream impact at compute time: replaying the same tx
+    /// twice produces two queue inserts with the same `MessageId`
+    /// (derived deterministically from `to_hash()`) — at best a
+    /// duplicate-mid panic / silent overwrite; at worst a double
+    /// `executable_balance` charge and a double reply.
+    ///
+    /// Expected behaviour: validator should track tx hashes seen
+    /// within the current MB and reject on the first repeat —
+    /// mirroring what the mempool's keyed map enforces for the
+    /// producer side implicitly.
+    #[tokio::test]
+    #[ignore = "tracks bug: validate_block_above accepts duplicate Transaction::Injected within one MB"]
+    async fn validate_rejects_within_mb_duplicate_injected_tx() {
+        use ethexe_common::{
+            injected::InjectedTransaction,
+            mock::{BlockChain, Mock},
+        };
+        use gprimitives::ActorId;
+
+        let db = Database::memory();
+        let chain = BlockChain::mock(10u32).setup(&db);
+        let head = chain.blocks[10].to_simple();
+
+        let dest = ActorId::from(1u64);
+        let parent_mb = setup_mb_with_destinations(&db, chain.mb_hash_at(9), &[dest]);
+        db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
+
+        let (ext, _rx) = make_externalities(db.clone());
+        *ext.chain_head.write().unwrap() = Some(head);
+
+        // One tx, included twice. Identical bytes, identical hash.
+        let pk = ethexe_common::PrivateKey::random();
+        let tx = ethexe_common::SignedMessage::create(
+            pk.clone(),
+            InjectedTransaction {
+                destination: dest,
+                payload: vec![0xAA, 0xBB].try_into().unwrap(),
+                value: 0,
+                reference_block: chain.blocks[9].hash,
+                salt: vec![0xCD; 32].try_into().unwrap(),
+            },
+        )
+        .unwrap();
+
+        let payload = Transactions::new(vec![
+            Transaction::Injected(tx.clone()),
+            Transaction::Injected(tx.clone()),
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+        ]);
+
+        let accepted = ext
+            .validate_block_above(parent_mb, payload)
+            .await
+            .expect("validate_block_above must complete without internal error");
+
+        assert!(
+            !accepted,
+            "validator MUST reject an MB containing the same Transaction::Injected \
+             (tx_hash {}) more than once — duplicate injected txs in a single MB \
+             would double-execute at compute time. Current impl accepts the MB \
+             because the per-tx loop in validate_block_above never tracks \
+             already-seen tx hashes within the current MB.",
+            tx.data().to_hash(),
+        );
+    }
 }
