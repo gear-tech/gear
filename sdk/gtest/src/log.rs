@@ -29,6 +29,35 @@ pub struct CoreLog {
 }
 
 impl CoreLog {
+    #[cfg(feature = "ethexe")]
+    pub(crate) fn from_ethexe_message(
+        source: ActorId,
+        message: ethexe_common::gear::Message,
+    ) -> Self {
+        let ethexe_common::gear::Message {
+            id,
+            destination,
+            payload,
+            reply_details,
+            ..
+        } = message;
+        let (reply_to, reply_code) = reply_details
+            .map(|details| {
+                let (reply_to, reply_code) = details.into_parts();
+                (Some(reply_to), Some(reply_code))
+            })
+            .unwrap_or((None, None));
+
+        Self {
+            id,
+            source,
+            destination,
+            payload: payload.try_into().unwrap(),
+            reply_code,
+            reply_to,
+        }
+    }
+
     /// Get the id of the message that emitted this log.
     pub fn id(&self) -> MessageId {
         self.id
