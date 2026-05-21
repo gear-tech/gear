@@ -88,9 +88,15 @@ where
 
         if let Err(err) = H::handle(exc_info) {
             let old_sig_handler_works = match err {
-                Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet => {
-                    old_sig_handler(sig, info, ucontext)
-                }
+                // None of these is a genuine lazy-pages page fault: the
+                // access is outside managed WASM memory, or the thread
+                // holds no lazy-pages context at all (e.g. a SIGSEGV
+                // raised by RocksDB on an RPC thread). Forward such faults
+                // to the previously installed handler rather than
+                // panicking inside this async-signal-unsafe handler.
+                Error::OutOfWasmMemoryAccess
+                | Error::WasmMemAddrIsNotSet
+                | Error::GlobalContext(_) => old_sig_handler(sig, info, ucontext),
                 _ => false,
             };
             if !old_sig_handler_works {
@@ -232,20 +238,27 @@ where
 }
 
 unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) -> bool {
-    if let Some(old_sig_handler) = OLD_SIG_HANDLER.get() {
-        match old_sig_handler {
-            SigHandler::SigDfl | SigHandler::SigIgn => false,
-            SigHandler::Handler(func) => {
-                func(sig);
-                true
-            }
-            SigHandler::SigAction(func) => {
-                func(sig, info, ucontext);
-                true
-            }
+    match OLD_SIG_HANDLER.get() {
+        Some(SigHandler::Handler(func)) => {
+            func(sig);
+            true
         }
-    } else {
-        false
+        Some(SigHandler::SigAction(func)) => {
+            func(sig, info, ucontext);
+            true
+        }
+        // No chainable previous handler exists: `SigDfl`/`SigIgn` carry no
+        // function to call, and `None` means nothing was captured at install
+        // time. Restore the default disposition so the re-executed faulting
+        // instruction is terminated by the kernel's default action, and
+        // report success so the caller does not `panic!` inside this
+        // async-signal-unsafe handler. The disposition MUST be reset first:
+        // `SA_NODEFER` would otherwise re-enter this handler on every
+        // re-fault, looping forever.
+        Some(SigHandler::SigDfl | SigHandler::SigIgn) | None => {
+            unsafe { libc::signal(sig, libc::SIG_DFL) };
+            true
+        }
     }
 }
 
