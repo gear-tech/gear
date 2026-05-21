@@ -353,6 +353,67 @@ mod tests {
         );
     }
 
+    /// REPRODUCES: a single-message stuck-stream attack — distinct
+    /// from iter #3 (double-Fin, 5+ messages), iter #5 (Data@0 +
+    /// Init@1 + …, 4 messages), and #5473 (generic unbounded growth).
+    ///
+    /// A peer sends ONLY one message: `Fin` at sequence 0. The
+    /// `StreamState::insert` path then runs:
+    ///   - `msg.is_first()` true (sequence == 0). `msg.content.as_data()`
+    ///     returns `None` (content is `Fin`, not `Data`) →
+    ///     `init_info = None`.
+    ///   - `msg.is_fin()` true → `fin_received = true`,
+    ///     `total_messages = 0 as usize + 1 = 1`.
+    ///   - `buffer.push(msg)` → `buffer.len() = 1`.
+    ///   - `is_done()` requires `init_info.is_some()` → **false**.
+    ///
+    /// The state is permanently non-completable: `init_info` will
+    /// never be set (no future sequence-0 message can ever land —
+    /// `seen_sequences` deduplicates), `fin_received` is locked true,
+    /// and `buffer.len() == total_messages` is already satisfied. The
+    /// `(peer_id, stream_id)` slot is held forever.
+    ///
+    /// Cost to attacker: **one** stream message per stuck slot — the
+    /// cheapest possible variant. With multiple `stream_id`s a single
+    /// peer can permanently allocate one slot per message it sends,
+    /// 1:1 amplification.
+    ///
+    /// Expected fix: when `is_done`-relevant invariants are reached
+    /// (fin_received && buffer.len() == total_messages) but
+    /// `init_info` is still `None`, drop the state as a protocol
+    /// violation rather than leaving it parked forever. (Or, more
+    /// broadly, require any complete stream to contain a `Data(Init)`
+    /// part among its delivered messages — if none arrives, the
+    /// stream is malformed and the slot must be released.)
+    #[test]
+    #[ignore = "tracks bug: single Fin@0 message holds a PartStreamsMap slot indefinitely"]
+    fn lone_fin_at_seq_zero_holds_slot_forever() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(11);
+        let s = sid(0xCAFEBABE);
+
+        // ONE message: Fin at sequence 0.
+        let done = map.insert(p, fin_msg(s.clone(), 0));
+
+        // The stream "should" either complete (impossible — there's no
+        // Init in the payload, so nothing to emit) OR the state must
+        // be dropped immediately as a malformed stream. Right now
+        // neither happens: the slot is parked.
+        assert!(
+            done.is_none(),
+            "Fin@0 alone cannot legitimately complete a proposal stream — \
+             there is no Init data to extract.",
+        );
+        assert!(
+            map.streams.is_empty(),
+            "single-Fin@0 attack: a malformed 1-message stream parked a \
+             PartStreamsMap slot indefinitely. Expected the state to be \
+             dropped on detection that a complete-by-counters stream has \
+             no Init. (1:1 amplification — n messages → n stuck slots; \
+             compounds with #5473's no-cap issue.)",
+        );
+    }
+
     /// REPRODUCES: `StreamState::insert` couples Init-extraction with
     /// `msg.is_first()` (= `sequence == 0`). If a peer puts a `Data`
     /// part at sequence 0 and the actual `Init` at sequence 1, the
