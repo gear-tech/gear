@@ -353,6 +353,72 @@ mod tests {
         );
     }
 
+    /// REPRODUCES: `StreamState::insert` couples Init-extraction with
+    /// `msg.is_first()` (= `sequence == 0`). If a peer puts a `Data`
+    /// part at sequence 0 and the actual `Init` at sequence 1, the
+    /// `is_first()` branch fires for the Data — `as_init()` returns
+    /// `None` — so `init_info` stays `None` forever. When the proper
+    /// `Init` arrives at sequence 1 it's filed into the buffer as a
+    /// regular data part (no special handling), `init_info` is never
+    /// populated, and `is_done()`'s `init_info.is_some()` gate can
+    /// never succeed even after every part + Fin arrives.
+    ///
+    /// Concrete consequence: the `(peer_id, stream_id)` slot is held
+    /// indefinitely — `PartStreamsMap::insert` removes the entry only
+    /// when `state.is_done()` returns true. A single malicious peer
+    /// can hold one stuck slot per stream they open (and open
+    /// arbitrarily many slots — see #5473 for the broader cap issue).
+    ///
+    /// Expected fix: either (a) extract the Init from whichever
+    /// `ProposalPart::Init` arrives, regardless of its sequence
+    /// position, or (b) reject any sequence-0 message whose content
+    /// is not a `ProposalPart::Init` as a protocol violation so the
+    /// state is dropped immediately rather than left in a permanently
+    /// non-completable shape.
+    ///
+    /// This pins (a): a stream with Data@0, Init@1, Data@2, Fin@3
+    /// must still assemble — every part the proposer intended is
+    /// present; the only oddity is the (peer-controlled) ordering of
+    /// the Init part within the sequence space.
+    #[test]
+    #[ignore = "tracks bug: StreamState ties Init extraction to sequence==0, stuck stream when Init isn't first"]
+    fn init_at_non_zero_sequence_never_completes() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(8);
+        let s = sid(0xBADF00D);
+
+        // Sequence 0: a Data part (not Init). `is_first()` true, but
+        // `as_init()` on a Data returns None — init_info stays None.
+        assert!(
+            map.insert(p, msg(s.clone(), 0, data_part(b"AAAA")))
+                .is_none(),
+        );
+        // Sequence 1: the actual Init. `is_first()` false — Init is
+        // filed as a plain buffered part, init_info never updated.
+        assert!(map.insert(p, msg(s.clone(), 1, init_part(99))).is_none());
+        // Sequence 2: another data part.
+        assert!(
+            map.insert(p, msg(s.clone(), 2, data_part(b"BBBB")))
+                .is_none(),
+        );
+        // Fin at sequence 3 — total_messages = 4, buffer.len() = 4.
+        // `is_done()` would fire IF `init_info` was set. Currently it
+        // isn't — so the stream is stuck.
+        let done = map.insert(p, fin_msg(s.clone(), 3));
+
+        assert!(
+            done.is_some(),
+            "stream with Init at sequence > 0 must still assemble: \
+             the proposer placed Init + Data + Fin and the buffer has \
+             all 4 parts, but `init_info` was never populated because \
+             `is_first()` (= sequence == 0) saw the Data part instead. \
+             StreamState should extract Init by content kind, not by \
+             sequence position — otherwise a malicious peer can hold a \
+             PartStreamsMap slot indefinitely with a single 4-message \
+             stream (compounding the no-cap issue in #5473).",
+        );
+    }
+
     /// REPRODUCES: a malicious sender can prematurely complete a
     /// proposal stream by sending two `Fin` messages with different
     /// sequences. `StreamState::insert` unconditionally overwrites
