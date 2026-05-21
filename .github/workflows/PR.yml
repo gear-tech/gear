@@ -25,7 +25,6 @@ jobs:
       ci_release: ${{ steps.ci.outputs.release }}
       ci_production: ${{ steps.ci.outputs.production }}
       ci_docker: ${{ steps.ci.outputs.docker }}
-      ci_check_node_sync: ${{ steps.ci.outputs.check_node_sync }}
 
     steps:
       - name: Wait a bit for label storms
@@ -79,7 +78,6 @@ jobs:
           set_output "release" "ci: release"
           set_output "production" "ci: production"
           set_output "docker" "ci: docker"
-          set_output "check_node_sync" "check-node-sync"
 
       - name: Only run latest workflow-run for this PR
         id: skip
@@ -133,8 +131,3 @@ jobs:
       release: ${{ needs.gate.outputs.ci_release == 'true' }}
       production: ${{ needs.gate.outputs.ci_production == 'true' }}
       docker: ${{ needs.gate.outputs.ci_docker == 'true' }}
-
-  check-node-sync:
-    needs: gate
-    if: ${{ needs.gate.outputs.should_skip != 'true' && needs.gate.outputs.ci_check_node_sync == 'true' }}
-    uses: ./.github/workflows/check-node-sync.yml
