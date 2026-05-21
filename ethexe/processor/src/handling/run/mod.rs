@@ -145,6 +145,8 @@ pub(super) async fn run_for_queue_type(
                 break 'main_loop;
             };
 
+            let chunk = lazy_instrument_chunk(ctx, chunk)?;
+
             // Spawn on a separate thread an execution of each program (it's queue) in the chunk.
             let chunk_outputs =
                 chunk_execution_spawn::spawn_chunk_execution(ctx, chunk, queue_type).await?;
@@ -179,6 +181,28 @@ pub(super) async fn run_for_queue_type(
     );
 
     Ok(())
+}
+
+fn lazy_instrument_chunk(
+    ctx: &mut impl RunContext,
+    chunk: Vec<(ActorId, H256)>,
+) -> Result<Vec<chunk_execution_spawn::ChunkItemInput>> {
+    let mut instrumentation_instance = None;
+
+    chunk
+        .into_iter()
+        .map(|(program_id, state_hash)| {
+            let (instrumented_code, code_metadata) =
+                ctx.program_code(program_id, &mut instrumentation_instance)?;
+
+            Ok(chunk_execution_spawn::ChunkItemInput {
+                program_id,
+                state_hash,
+                instrumented_code,
+                code_metadata,
+            })
+        })
+        .collect()
 }
 
 #[derive(Debug)]
