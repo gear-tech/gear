@@ -102,7 +102,6 @@ impl System {
                 panic!("Impossible to have multiple instances of the `System`.");
             }
 
-            let ext_manager = ExtManager::new();
             gear_lazy_pages::init(
                 LazyPagesVersion::Version1,
                 LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
@@ -112,7 +111,7 @@ impl System {
 
             *initialized = true;
 
-            Self(RefCell::new(ext_manager))
+            Self(RefCell::new(ExtManager::new()))
         })
     }
 
