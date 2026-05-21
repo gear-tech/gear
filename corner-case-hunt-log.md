@@ -48,3 +48,4 @@ Format: each entry is one row in the table below. Add new entries APPEND-ONLY
 | # | UTC timestamp | Hypothesis | Area / file | Test name | Outcome | Notes |
 |---|---|---|---|---|---|---|
 | 0 | 2026-05-20T21:00:00Z | seed | — | — | — | log initialized |
+| 1 | 2026-05-21T08:55:00Z | validate_block_above lacks per-MB injected-tx size cap that build_block_above enforces — relies on 1MB Malachite hard cap (~8x looser than 127KB protocol cap) | ethexe/malachite/service/src/externalities.rs:557-560,584-590 | validate_rejects_mb_exceeding_injected_size_cap | abandoned | tmpfs /tmp full (6/7.5GB), rocksdb cc build OOM disk-quota. Couldn't compile to verify within budget. Hypothesis stands on code-reading: validator checks shape+quarantine+TxValidity+touched-cap but NOT cumulative `tx.encoded_size()` sum. Worth re-running with target on /home. |
