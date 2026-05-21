@@ -57,7 +57,13 @@ where
 
     if let Err(err) = unsafe { H::handle(info) } {
         check_windows_stack();
-        if let Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet = err {
+        // None of these is a genuine lazy-pages page fault: the access is
+        // outside managed WASM memory, or the thread holds no lazy-pages
+        // context at all. Hand such faults back to the OS exception chain
+        // instead of panicking inside this handler.
+        if let Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet | Error::GlobalContext(_) =
+            err
+        {
             return EXCEPTION_CONTINUE_SEARCH;
         } else {
             panic!("Signal handler failed: {err}");
