@@ -1,10 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{
-    common::Error,
-    signal::{ExceptionInfo, UserSignalHandler},
-};
+use crate::signal::{ExceptionInfo, UserSignalHandler};
 use cfg_if::cfg_if;
 use nix::{
     libc::{c_void, siginfo_t},
@@ -103,18 +100,12 @@ where
         };
 
         if let Err(err) = H::handle(exc_info) {
-            let old_sig_handler_works = match err {
-                // Defensive: an in-region fault should be handled above,
-                // but if `H::handle` still declines it, forward rather
-                // than panic inside the handler.
-                Error::OutOfWasmMemoryAccess
-                | Error::WasmMemAddrIsNotSet
-                | Error::GlobalContext(_) => old_sig_handler(sig, info, ucontext),
-                _ => false,
-            };
-            if !old_sig_handler_works {
-                panic!("Signal handler failed: {err}");
-            }
+            // The fault is inside managed WASM memory (classified above) but
+            // `H::handle` could not service it — a lazy-pages invariant
+            // violation, not a foreign fault. Panic: this thread was
+            // executing WASM, so the panic runs safely and its backtrace
+            // points at the bug.
+            panic!("Signal handler failed: {err}");
         }
     }
 }
