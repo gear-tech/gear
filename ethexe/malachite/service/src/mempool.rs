@@ -786,6 +786,76 @@ mod tests {
         );
     }
 
+    /// REPRODUCES: `insert` deliberately tolerates a `reference_block`
+    /// that hasn't yet been observed locally (see the comment at
+    /// mempool.rs:298-301: "ref_block resolution is best-effort: a
+    /// recipient that hasn't yet observed the producer's reference Eth
+    /// block accepts and filters at fetch time once the block lands
+    /// locally").
+    ///
+    /// But `purge_expired` — invoked by `set_chain_head` on every
+    /// height advance — treats `db.block_header(ref_block) == None` as
+    /// "drop this tx". So the very next time the local node receives a
+    /// block, every pool entry whose ref_block hasn't yet replicated
+    /// is silently evicted, even though the network as a whole has it
+    /// and would have produced the block in a few hundred ms.
+    ///
+    /// Concrete attack/race: validator A publishes its `BlockSynced`
+    /// for an EB at the same instant validator B fans out an injected
+    /// tx whose ref_block is that EB. If B's RPC reaches A a tick
+    /// before A's observer writes the EB header, A accepts the tx
+    /// (insert tolerates unknown ref_block). The next `set_chain_head`
+    /// on A (very next EB) purges the tx — but A's RPC had already
+    /// returned `Accept` to the client, and the promise will never
+    /// fire because the tx is gone before any producer fetched it.
+    ///
+    /// Desired behaviour (one of two fixes):
+    ///   (a) `purge_expired` keeps unknown-ref_block entries that
+    ///       arrived within a short grace window of `latest_head_height`
+    ///       (mirroring the insert tolerance), OR
+    ///   (b) `insert` rejects unknown ref_block when a `chain_head` is
+    ///       already set, so RPC's `Accept` matches the runtime fate.
+    ///
+    /// This test asserts (a): an unknown-ref_block tx accepted by
+    /// `insert` must survive the next `set_chain_head` for at least
+    /// one block. It currently fails because the tx is dropped
+    /// immediately.
+    #[test]
+    #[ignore = "tracks bug: purge_expired drops unknown-ref_block txs that insert just accepted"]
+    fn purge_expired_must_not_evict_unknown_ref_block_within_grace() {
+        let db = Database::memory();
+        // Canonical chain so set_chain_head has a real head to consume.
+        let chain = linear_chain(&db, 3);
+        let pool = InjectedTxMempool::with_capacity(db, 8);
+        let pk = PrivateKey::random();
+
+        // Simulate the race: the producer's ref_block hasn't replicated
+        // to this validator's DB yet. Use a random hash that's NOT in
+        // the DB. insert tolerates this and accepts.
+        let unsynced_ref_block = H256::from([0xCA; 32]);
+        let tx = signed_tx(&pk, ActorId::zero(), unsynced_ref_block, 0);
+        pool.insert(tx).expect("insert tolerates unknown ref_block");
+        assert_eq!(pool.len(), 1, "insert path accepted the tx");
+
+        // The very next chain-head advance triggers purge_expired.
+        // The tx's ref_block is still unknown in the local DB — but
+        // that's the EXACT race the insert tolerance is meant to
+        // cover. The producer-side EB will replicate to this node a
+        // few hundred ms later, and at that point the tx should still
+        // be fetchable.
+        pool.set_chain_head(chain[1]);
+
+        assert_eq!(
+            pool.len(),
+            1,
+            "tx with not-yet-replicated ref_block must survive \
+             set_chain_head for at least one block — insert tolerates \
+             unknown ref_block, so purge_expired must mirror that \
+             tolerance (else RPC returns Accept but the promise never \
+             fires)",
+        );
+    }
+
     #[tokio::test(start_paused = true)]
     async fn wait_for_new_tx_wakes_on_insert() {
         let db = Database::memory();
