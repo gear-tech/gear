@@ -1,10 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{
-    common::Error,
-    signal::{ExceptionInfo, UserSignalHandler},
-};
+use crate::signal::{ExceptionInfo, UserSignalHandler};
 use std::io;
 use winapi::{
     shared::ntdef::LONG,
@@ -35,6 +32,15 @@ where
     }
 
     let addr = unsafe { (*exception_record).ExceptionInformation[1] };
+
+    // Classify the fault before doing anything that is not safe to run from
+    // an exception handler. An address outside the WASM memory lazy-pages
+    // currently manages on this thread is not a lazy-pages page fault: hand
+    // it straight back to the OS exception chain.
+    if !crate::active_wasm_region_contains(addr) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     let is_write = match unsafe { (*exception_record).ExceptionInformation[0] } {
         0 /* read */ => Some(false),
         1 /* write */ => Some(true),
@@ -57,17 +63,11 @@ where
 
     if let Err(err) = unsafe { H::handle(info) } {
         check_windows_stack();
-        // None of these is a genuine lazy-pages page fault: the access is
-        // outside managed WASM memory, or the thread holds no lazy-pages
-        // context at all. Hand such faults back to the OS exception chain
-        // instead of panicking inside this handler.
-        if let Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet | Error::GlobalContext(_) =
-            err
-        {
-            return EXCEPTION_CONTINUE_SEARCH;
-        } else {
-            panic!("Signal handler failed: {err}");
-        }
+        // The fault is inside managed WASM memory (classified above) but
+        // `H::handle` could not service it — a lazy-pages invariant
+        // violation, not a foreign fault. Panic so the backtrace points at
+        // the bug.
+        panic!("Signal handler failed: {err}");
     }
 
     check_windows_stack();
