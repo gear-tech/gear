@@ -856,6 +856,90 @@ mod tests {
         );
     }
 
+    /// REPRODUCES: `forget()` unconditionally stamps every committed
+    /// tx into the `seen` table with its `reference_block` hash. When
+    /// `ref_block` isn't (yet) in this node's local DB,
+    /// `purge_expired` — fired on every `set_chain_head` — evicts the
+    /// seen entry because the `db.block_header(ref_block)` lookup
+    /// returns `None` (see `Self::purge_expired`'s seen-retain loop:
+    /// match arm `_ => false`). Once the seen entry is gone, the
+    /// network-committed tx can be re-inserted into the local pool —
+    /// the dedup guarantee `forget_moves_committed_to_seen_table`
+    /// relies on is silently broken in this race.
+    ///
+    /// The race is realistic: the proposer's MB references an EB the
+    /// validator hasn't yet observed via the observer stream
+    /// (the insert path explicitly tolerates this in
+    /// `mempool.rs:298-301`). `process_finalized` calls `forget()`
+    /// for every tx in the committed MB — including ones the local
+    /// node never saw because its EB stream lags. Those forgotten
+    /// txs are then evicted from `seen` on the next chain-head
+    /// advance.
+    ///
+    /// Concrete consequence: a client can re-submit the SAME signed
+    /// tx after it was already committed by the network, and this
+    /// node will admit it into its pool a second time. If this node
+    /// later becomes proposer, it would include the duplicate —
+    /// `TxValidityChecker::recent_included_txs` covers only the last
+    /// `VALIDITY_WINDOW` MBs, so a sufficiently lagged ref_block plus
+    /// a deeply committed earlier tx slip through. Even before that,
+    /// it inflates pool occupancy with already-committed work.
+    ///
+    /// Expected fix: `purge_expired` must retain `seen` entries
+    /// whose ref_block isn't yet in the DB — same grace the insert
+    /// path extends to incoming txs. The eviction rule should be
+    /// "known AND expired", not "known AND expired OR unknown".
+    /// (Symmetric to iter #4 but on the forget→purge path, not the
+    /// insert→purge path.)
+    #[test]
+    #[ignore = "tracks bug: purge_expired evicts seen-table entries whose ref_block hasn't replicated yet"]
+    fn forget_then_purge_evicts_seen_entry_for_unknown_ref_block() {
+        let db = Database::memory();
+        // Canonical chain so set_chain_head has a real head to consume.
+        let chain = linear_chain(&db, 3);
+        let pool = InjectedTxMempool::with_capacity(db, 8);
+        let pk = PrivateKey::random();
+
+        // The committed tx references an EB that this validator hasn't
+        // yet observed — its ref_block hash is NOT in the local DB.
+        // process_finalized calls forget() with this tx anyway: the
+        // tx was committed by the network, and the local node accepts
+        // the commit even when its observer stream lags.
+        let unsynced_ref_block = H256::from([0xCA; 32]);
+        let tx = signed_tx(&pk, ActorId::zero(), unsynced_ref_block, 0);
+
+        // Simulate process_finalized → forget() for a tx that was
+        // never in our local pool. forget() unconditionally stamps
+        // the tx_hash into `seen` with its ref_block.
+        futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
+
+        // Sanity: re-inserting the just-forgotten tx is blocked by the
+        // seen-hash gate.
+        assert!(
+            matches!(
+                pool.insert(tx.clone()),
+                Err(MempoolInsertError::AlreadyCommitted),
+            ),
+            "seen-hash gate must block re-insert of a just-forgotten tx",
+        );
+
+        // The next chain-head advance triggers purge_expired. Its
+        // seen-retain loop falls through to `_ => false` for the
+        // unknown ref_block — and silently drops the seen entry.
+        pool.set_chain_head(chain[1]);
+
+        // The bug: the dedup gate is gone. The same network-committed
+        // tx now slips back into the local pool.
+        let reinsert = pool.insert(tx);
+        assert!(
+            matches!(reinsert, Err(MempoolInsertError::AlreadyCommitted)),
+            "forgotten tx with not-yet-replicated ref_block must remain \
+             in the `seen` table across set_chain_head — purge_expired \
+             must mirror insert's tolerance for unknown ref_block. \
+             Currently re-insert returns: {reinsert:?}",
+        );
+    }
+
     #[tokio::test(start_paused = true)]
     async fn wait_for_new_tx_wakes_on_insert() {
         let db = Database::memory();
