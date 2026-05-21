@@ -39,7 +39,10 @@ use parity_scale_codec::{Decode, Encode};
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
-pub use journal::{NativeJournalHandler as JournalHandler, WAIT_UP_TO_SAFE_DURATION};
+pub use journal::{
+    NativeJournalHandler as JournalHandler, RuntimeDispatchReport, RuntimeGasBurnReport,
+    RuntimeQueueReport, WAIT_UP_TO_SAFE_DURATION,
+};
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 
@@ -140,7 +143,19 @@ impl<S: Storage + ?Sized> TransitionController<'_, S> {
     }
 }
 
-pub fn process_queue<RI>(mut ctx: ProcessQueueContext, ri: &RI) -> (ProgramJournals, u64)
+pub fn process_queue<RI>(ctx: ProcessQueueContext, ri: &RI) -> (ProgramJournals, u64)
+where
+    RI: RuntimeInterface + 'static,
+    RI::LazyPages: Send,
+{
+    let (journals, gas_spent, _report) = process_queue_with_report(ctx, ri);
+    (journals, gas_spent)
+}
+
+pub fn process_queue_with_report<RI>(
+    mut ctx: ProcessQueueContext,
+    ri: &RI,
+) -> (ProgramJournals, u64, RuntimeQueueReport)
 where
     RI: RuntimeInterface + 'static,
     RI::LazyPages: Send,
@@ -160,7 +175,7 @@ where
 
     if is_queue_empty {
         // Queue is empty, nothing to process.
-        return (Vec::new(), 0);
+        return (Vec::new(), 0, RuntimeQueueReport::default());
     }
 
     let queue = program_state
@@ -210,6 +225,7 @@ where
     };
 
     let mut mega_journal = Vec::new();
+    let mut report = RuntimeQueueReport::default();
     let initial_gas_allowance = ctx.gas_allowance.left();
 
     let mut limiter = Limiter {
@@ -249,7 +265,9 @@ where
             parse_journal_for_injected_dispatch(ri, &journal, dispatch_id);
         }
 
-        let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
+        let (unhandled_journal_notes, new_state_hash, dispatch_report) =
+            handler.handle_journal_with_report(journal);
+        report.extend(dispatch_report);
         mega_journal.push((unhandled_journal_notes, message_type, call_reply));
 
         // Update state hash if it was changed.
@@ -275,7 +293,7 @@ where
         .checked_sub(ctx.gas_allowance.left())
         .expect("cannot spend more gas than allowed");
 
-    (mega_journal, gas_spent)
+    (mega_journal, gas_spent, report)
 }
 
 /// Finds in [`process_dispatch`]'s the [`JournalNote::SendDispatch`] note and builds from it
@@ -463,4 +481,65 @@ pub const fn unpack_i64_to_u32(val: i64) -> (u32, u32) {
     let high = (val >> 32) as u32;
     let low = val as u32;
     (low, high)
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::collections::BTreeSet;
+
+    use super::*;
+    use crate::state::MemStorage;
+    use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
+
+    impl RuntimeInterface for MemStorage {
+        type LazyPages = ();
+
+        fn init_lazy_pages(&self) {}
+
+        fn random_data(&self) -> (Vec<u8>, u32) {
+            (Vec::new(), 0)
+        }
+
+        fn update_state_hash(&self, _state_hash: &H256) {}
+
+        fn publish_promise(&self, _promise: &Promise) {}
+    }
+
+    fn empty_queue_context(storage: &MemStorage) -> ProcessQueueContext {
+        ProcessQueueContext {
+            program_id: ActorId::from(42),
+            state_root: storage.write_program_state(ProgramState::zero()),
+            queue_type: MessageType::Canonical,
+            instrumented_code: InstrumentedCode::new(
+                Vec::new(),
+                InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
+            ),
+            code_metadata: CodeMetadata::new(
+                0,
+                BTreeSet::new(),
+                0.into(),
+                None,
+                InstrumentationStatus::NotInstrumented,
+            ),
+            gas_allowance: GasAllowanceCounter::new(1_000_000),
+            block_info: BlockInfo::default(),
+            promise_policy: PromisePolicy::Disabled,
+        }
+    }
+
+    #[test]
+    fn process_queue_with_report_keeps_empty_queue_abi_compatible() {
+        let storage = MemStorage::default();
+
+        let (journals, gas_spent, report) =
+            process_queue_with_report(empty_queue_context(&storage), &storage);
+        let (legacy_journals, legacy_gas_spent) =
+            process_queue(empty_queue_context(&storage), &storage);
+
+        assert!(journals.is_empty());
+        assert_eq!(gas_spent, 0);
+        assert_eq!(report, RuntimeQueueReport::default());
+        assert!(legacy_journals.is_empty());
+        assert_eq!(legacy_gas_spent, gas_spent);
+    }
 }
