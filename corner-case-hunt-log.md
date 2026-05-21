@@ -23,6 +23,7 @@ Do NOT re-test these areas. They are pinned in memory
 | `externalities.rs:validate_block_above` quarantine-poll | `6d302a7a0` (post_quarantine_delay) |
 | `externalities.rs:validate_block_above` missing strict-descendant | `1052391fa` |
 | `mempool.rs:purge_expired` unresolved ref_block DoS | `d52c62e01` |
+| `mempool.rs:purge_expired` drops unknown ref_block — ACCEPTED tradeoff: insert tolerates "ref_block not in local DB yet" but purge_expired evicts on next `set_chain_head`. SDK must set `ref_block ≤ head-1`. Do NOT test this asymmetry as a fresh bug. | (documented in iter #4 — already covered by issue #9 fix policy) |
 | `codec.rs:From<RawProposedValue>` Round::Nil aliasing | `503a3d43d` (TryFrom) |
 
 ### Known-open follow-ups (tracked as GitHub issues — do NOT add new tests for these)
