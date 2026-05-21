@@ -56,6 +56,11 @@ jobs:
             esac
           }
 
+          if [ -n "$MQ_HEAD_REF" ] && has_label "pr: do-not-merge"; then
+            echo "::error::PR is labeled 'pr: do-not-merge' - merge blocked"
+            exit 1
+          fi
+
           has_full=false
           if has_label "ci: full"; then
             has_full=true
