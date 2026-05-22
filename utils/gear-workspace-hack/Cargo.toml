@@ -318,9 +318,10 @@ hyper-dff4ba8e3ae991db = { package = "hyper", version = "1", features = ["client
 hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "service"] }
 impl-codec = { version = "0.6", default-features = false, features = ["std"] }
 impl-serde = { version = "0.4" }
-indexmap = { version = "2", features = ["serde"] }
+indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-features = false, features = ["serde-1", "std"] }
+indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
 ipnet = { version = "2" }
-itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
@@ -343,6 +344,8 @@ num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
+numerated = { version = "2", default-features = false, features = ["mock"] }
+object-fa1f6196edfd7249 = { package = "object", version = "0.30", default-features = false, features = ["read_core", "write"] }
 once_cell = { version = "1" }
 pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 pallet-staking-reward-fn = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
@@ -362,6 +365,7 @@ predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
+proptest = { version = "1", features = ["alloc", "no_std"] }
 prost = { version = "0.12", features = ["prost-derive"] }
 pulley-interpreter = { version = "44", default-features = false, features = ["disas", "interp", "std"] }
 quanta = { version = "0.12" }
@@ -401,6 +405,7 @@ sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
 sha3 = { version = "0.10", features = ["asm"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
+slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
@@ -414,7 +419,7 @@ sp-consensus-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", 
 sp-consensus-slots = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-core = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-crypto-ec-utils = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["bls12-381", "std"] }
-sp-crypto-hashing-9f597594a8958a7f = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sp-crypto-hashing-3ff189d7ed0a83d0 = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-crypto-hashing-c65f7effa3be6d31 = { package = "sp-crypto-hashing", version = "0.1", default-features = false, features = ["std"] }
 sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-genesis-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
@@ -448,7 +453,6 @@ substrate-bip39 = { git = "https://github.com/gear-tech/polkadot-sdk.git", branc
 subtle = { version = "2" }
 subxt-metadata = { version = "0.44", default-features = false, features = ["std"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
-target-lexicon = { version = "0.13", features = ["std"] }
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tiny-keccak = { version = "2", features = ["keccak", "shake"] }
@@ -474,17 +478,17 @@ unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
-wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
+wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
 wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
 wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["virtual_memory"] }
 wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
 wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
-wasmtime = { version = "44", features = ["winch"] }
-wasmtime-environ = { version = "44", default-features = false, features = ["backtrace", "compile", "component-model", "demangle", "gc-drc", "gc-null", "stack-switching", "threads"] }
+wasmtime = { version = "8", default-features = false, features = ["cache", "cranelift", "jitdump", "parallel-compilation", "pooling-allocator"] }
 wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
-wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
+wasmtime-jit = { version = "8", default-features = false, features = ["jitdump"] }
+wasmtime-jit-debug = { version = "8", default-features = false, features = ["gdb_jit_int", "perf_jitdump"] }
+wasmtime-runtime = { version = "8", default-features = false, features = ["pooling-allocator"] }
 winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
@@ -598,9 +602,10 @@ hyper-dff4ba8e3ae991db = { package = "hyper", version = "1", features = ["client
 hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "service"] }
 impl-codec = { version = "0.6", default-features = false, features = ["std"] }
 impl-serde = { version = "0.4" }
-indexmap = { version = "2", features = ["serde"] }
+indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-features = false, features = ["serde-1", "std"] }
+indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
 ipnet = { version = "2" }
-itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
@@ -623,6 +628,8 @@ num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
+numerated = { version = "2", default-features = false, features = ["mock"] }
+object-fa1f6196edfd7249 = { package = "object", version = "0.30", default-features = false, features = ["read_core", "write"] }
 once_cell = { version = "1" }
 pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 pallet-staking-reward-fn = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
@@ -643,6 +650,7 @@ predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
+proptest = { version = "1", features = ["alloc", "no_std"] }
 prost = { version = "0.12", features = ["prost-derive"] }
 pulley-interpreter = { version = "44", default-features = false, features = ["disas", "interp", "std"] }
 quanta = { version = "0.12" }
@@ -683,6 +691,7 @@ sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
 sha3 = { version = "0.10", features = ["asm"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
+slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
@@ -697,7 +706,7 @@ sp-consensus-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", 
 sp-consensus-slots = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-core = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-crypto-ec-utils = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["bls12-381", "std"] }
-sp-crypto-hashing-9f597594a8958a7f = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sp-crypto-hashing-3ff189d7ed0a83d0 = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-crypto-hashing-c65f7effa3be6d31 = { package = "sp-crypto-hashing", version = "0.1", default-features = false, features = ["std"] }
 sp-debug-derive = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["force-debug", "std"] }
 sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
@@ -733,7 +742,6 @@ subtle = { version = "2" }
 subxt-metadata = { version = "0.44", default-features = false, features = ["std"] }
 syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "full", "visit"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
-target-lexicon = { version = "0.13", features = ["std"] }
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tiny-keccak = { version = "2", features = ["keccak", "shake"] }
@@ -759,17 +767,17 @@ unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
-wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
+wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
 wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
 wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["virtual_memory"] }
 wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
 wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
-wasmtime = { version = "44", features = ["winch"] }
-wasmtime-environ = { version = "44", default-features = false, features = ["backtrace", "compile", "component-model", "demangle", "gc-drc", "gc-null", "stack-switching", "threads"] }
+wasmtime = { version = "8", default-features = false, features = ["cache", "cranelift", "jitdump", "parallel-compilation", "pooling-allocator"] }
 wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
-wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
+wasmtime-jit = { version = "8", default-features = false, features = ["jitdump"] }
+wasmtime-jit-debug = { version = "8", default-features = false, features = ["gdb_jit_int", "perf_jitdump"] }
+wasmtime-runtime = { version = "8", default-features = false, features = ["pooling-allocator"] }
 winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
@@ -784,10 +792,12 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
+object-d736d0ac4424f0f1 = { package = "object", version = "0.37", default-features = false, features = ["read", "std"] }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -805,10 +815,12 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
+object-d736d0ac4424f0f1 = { package = "object", version = "0.37", default-features = false, features = ["read", "std"] }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -826,10 +838,12 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
+object-d736d0ac4424f0f1 = { package = "object", version = "0.37", default-features = false, features = ["read", "std"] }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -847,10 +861,12 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
+object-d736d0ac4424f0f1 = { package = "object", version = "0.37", default-features = false, features = ["read", "std"] }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -865,9 +881,11 @@ hyper-util = { version = "0.1", default-features = false, features = ["client-pr
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }
+object-d736d0ac4424f0f1 = { package = "object", version = "0.37", default-features = false, features = ["read", "std"] }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "use-libc"] }
+rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "use-libc"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "mm", "param", "process", "termios", "thread"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 security-framework = { version = "3", features = ["OSX_10_14"] }
@@ -884,9 +902,11 @@ hyper-util = { version = "0.1", default-features = false, features = ["client-pr
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }
+object-d736d0ac4424f0f1 = { package = "object", version = "0.37", default-features = false, features = ["read", "std"] }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "use-libc"] }
+rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "use-libc"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "mm", "param", "process", "termios", "thread"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 security-framework = { version = "3", features = ["OSX_10_14"] }
