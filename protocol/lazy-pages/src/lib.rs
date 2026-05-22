@@ -72,6 +72,12 @@ thread_local! {
     /// with no lazy initialization, no allocation and no destructor, so it can
     /// be read from the fault handler — which must be async-signal-safe — even
     /// on threads that never entered lazy-pages.
+    ///
+    /// This holds only because lazy-pages is statically linked into the node
+    /// binary, giving the local-exec / initial-exec TLS model — the read is a
+    /// bare thread-pointer-relative load. If lazy-pages were ever moved into a
+    /// `dlopen`ed shared object, the slot would use dynamic TLS and the read
+    /// would route through `__tls_get_addr`, which is not async-signal-safe.
     static ACTIVE_WASM_REGION: Cell<(usize, usize)> = const { Cell::new((0, 0)) };
 }
 

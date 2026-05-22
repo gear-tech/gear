@@ -85,7 +85,7 @@ where
         // allocator or logger lock, so only async-signal-safe work is
         // allowed. Forward it without touching thread-locals or logging.
         if !crate::active_wasm_region_contains(addr as usize) {
-            let _ = old_sig_handler(sig, info, ucontext);
+            old_sig_handler(sig, info, ucontext);
             return;
         }
 
@@ -241,27 +241,18 @@ where
     Ok(())
 }
 
-unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) -> bool {
+unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) {
     match OLD_SIG_HANDLER.get() {
-        Some(SigHandler::Handler(func)) => {
-            func(sig);
-            true
-        }
-        Some(SigHandler::SigAction(func)) => {
-            func(sig, info, ucontext);
-            true
-        }
+        Some(SigHandler::Handler(func)) => func(sig),
+        Some(SigHandler::SigAction(func)) => func(sig, info, ucontext),
         // No chainable previous handler exists: `SigDfl`/`SigIgn` carry no
         // function to call, and `None` means nothing was captured at install
         // time. Restore the default disposition so the re-executed faulting
-        // instruction is terminated by the kernel's default action, and
-        // report success so the caller does not `panic!` inside this
-        // async-signal-unsafe handler. The disposition MUST be reset first:
-        // `SA_NODEFER` would otherwise re-enter this handler on every
-        // re-fault, looping forever.
+        // instruction is terminated by the kernel's default action. The
+        // disposition MUST be reset first: `SA_NODEFER` would otherwise
+        // re-enter this handler on every re-fault, looping forever.
         Some(SigHandler::SigDfl | SigHandler::SigIgn) | None => {
             unsafe { libc::signal(sig, libc::SIG_DFL) };
-            true
         }
     }
 }
