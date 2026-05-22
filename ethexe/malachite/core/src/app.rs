@@ -31,7 +31,7 @@
 use crate::{
     codec::{decode_value, encode_value},
     context::{Height, MalachiteCtx, ProposalPart, ValueId},
-    externalities::{BlockPayload, Externalities},
+    externalities::Externalities,
     state::State,
     store::BlockEntry,
     streaming::ProposalParts,
@@ -66,14 +66,13 @@ type EngineCert = malachitebft_core_types::CommitCertificate<MalachiteCtx>;
 /// channel closes (engine shut down). Non-terminating errors raised
 /// by individual `process_*` steps are forwarded to `errors_tx`;
 /// terminating errors propagate out of this future.
-pub async fn run<P, EXT>(
-    state: State<P>,
+pub async fn run<EXT>(
+    state: State,
     channels: Channels<MalachiteCtx>,
     externalities: Arc<EXT>,
 ) -> Result<()>
 where
-    P: BlockPayload,
-    EXT: Externalities<P>,
+    EXT: Externalities,
 {
     AppMsgHandler {
         state,
@@ -93,16 +92,15 @@ enum FinalizationError {
 /// [`AppMsg`] variant to its matching `process_*` method. The dispatch
 /// holds the engine reply channel — `process_*` only produces the
 /// value (or fails) and never touches the reply itself.
-struct AppMsgHandler<P: BlockPayload, EXT: Externalities<P>> {
-    state: State<P>,
+struct AppMsgHandler<EXT: Externalities> {
+    state: State,
     channels: Channels<MalachiteCtx>,
     externalities: Arc<EXT>,
 }
 
-impl<P, EXT> AppMsgHandler<P, EXT>
+impl<EXT> AppMsgHandler<EXT>
 where
-    P: BlockPayload,
-    EXT: Externalities<P>,
+    EXT: Externalities,
 {
     async fn run(mut self) -> Result<()> {
         loop {
@@ -350,7 +348,7 @@ where
             let promote = async {
                 let proposed = self.assemble_and_validate(&parts).await?;
                 self.state.store.store_undecided_proposal(&proposed)?;
-                let block = Block::<P>::decode(&mut &proposed.value.block_bytes[..])
+                let block = Block::decode(&mut &proposed.value.block_bytes[..])
                     .map_err(|e| anyhow!("decoding Block from pending proposal: {e}"))?;
                 self.record_assembled_block(block).await
             };
@@ -398,7 +396,7 @@ where
                 return Err(anyhow!("Externalities::build_block_above timed out"));
             }
         };
-        let block = Block::<P>::new(parent_hash, height.as_u64(), payload);
+        let block = Block::new(parent_hash, height.as_u64(), payload);
         let block_bytes = block.encode();
         let locally = self
             .state
@@ -452,7 +450,7 @@ where
         } else {
             let proposed = self.assemble_and_validate(&parts).await?;
             self.state.store.store_undecided_proposal(&proposed)?;
-            let block = Block::<P>::decode(&mut &proposed.value.block_bytes[..])
+            let block = Block::decode(&mut &proposed.value.block_bytes[..])
                 .map_err(|e| anyhow!("decoding Block from received proposal: {e}"))?;
             self.record_assembled_block(block).await?;
             Ok(Some(proposed))
@@ -505,7 +503,7 @@ where
             // `record_assembled_block` runs the parent has already
             // been processed (cascade_save would be a no-op on a
             // missing ancestor anyway — see `Store::save_chain`).
-            let block = Block::<P>::decode(&mut &proposed.value.block_bytes[..])
+            let block = Block::decode(&mut &proposed.value.block_bytes[..])
                 .map_err(|e| anyhow!("decoding Block from synced value: {e}"))?;
             self.record_assembled_block(block).await?;
         }
@@ -577,8 +575,8 @@ where
         &self,
         parts: &ProposalParts,
     ) -> Result<ProposedValue<MalachiteCtx>> {
-        let proposed = State::<P>::assemble_value_from_parts(parts.clone())?;
-        let block = Block::<P>::decode(&mut &proposed.value.block_bytes[..])
+        let proposed = State::assemble_value_from_parts(parts.clone())?;
+        let block = Block::decode(&mut &proposed.value.block_bytes[..])
             .map_err(|e| anyhow!("decoding Block from value bytes: {e}"))?;
         if block.height != proposed.height.as_u64() {
             return Err(anyhow!(
@@ -641,9 +639,9 @@ where
     /// dedup is idempotent and `cascade_save` skips already-saved
     /// entries, so the application's `process_mb_proposal` runs at
     /// most once per `block_hash`.
-    async fn record_assembled_block(&self, block: Block<P>) -> Result<()> {
+    async fn record_assembled_block(&self, block: Block) -> Result<()> {
         let block_hash = block.hash();
-        self.state.store.insert_block(BlockEntry::<P> {
+        self.state.store.insert_block(BlockEntry {
             block_hash,
             parent_hash: block.parent_hash,
             height: block.height,
@@ -674,7 +672,7 @@ where
     /// ancestor (the `finalize_chain` walk returns `None`), and the
     /// `errors_tx` channel surfaces the contract breach upstream.
     async fn ingest_finalized(&self, cert: EngineCert, block_bytes: Vec<u8>) -> Result<()> {
-        let block = Block::<P>::decode(&mut &block_bytes[..])
+        let block = Block::decode(&mut &block_bytes[..])
             .map_err(|e| anyhow!("decoding Block at finalize: {e}"))?;
         let block_hash = block.hash();
         let height = cert.height.as_u64();
@@ -694,7 +692,7 @@ where
         // promotes the cert into it. The remaining fields are picked
         // for the rare "we never saw the proposal" recovery path —
         // the debug_assert below catches it.
-        self.state.store.insert_block(BlockEntry::<P> {
+        self.state.store.insert_block(BlockEntry {
             block_hash,
             parent_hash: block.parent_hash,
             height,
@@ -773,6 +771,7 @@ mod tests {
         store::Store,
     };
     use async_trait::async_trait;
+    use ethexe_common::malachite::BlockPayload;
     use malachitebft_app_channel::{
         ConsensusRequest, NetworkRequest,
         app::{events::TxEvent, streaming::StreamId},
@@ -781,23 +780,24 @@ mod tests {
     use tempfile::TempDir;
     use tokio::sync::mpsc;
 
-    #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-    struct TestPayload;
+    fn test_payload() -> BlockPayload {
+        BlockPayload::default()
+    }
 
     struct NoopExt;
 
     #[async_trait]
-    impl Externalities<TestPayload> for NoopExt {
-        async fn process_mb_proposal(&self, _: H256, _: Block<TestPayload>) -> Result<()> {
+    impl Externalities for NoopExt {
+        async fn process_mb_proposal(&self, _: H256, _: Block) -> Result<()> {
             Ok(())
         }
         async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Ok(())
         }
-        async fn build_block_above(&self, _: H256) -> Result<TestPayload> {
-            Ok(TestPayload)
+        async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
+            Ok(test_payload())
         }
-        async fn validate_block_above(&self, _: H256, _: TestPayload) -> Result<bool> {
+        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
             Ok(true)
         }
     }
@@ -848,18 +848,16 @@ mod tests {
     /// a fresh on-disk store. Channels are dummy senders/receivers
     /// — `process_received_proposal_part` never touches them on the
     /// future-height paths under test.
-    fn make_handler(
-        current_height: u64,
-    ) -> (AppMsgHandler<TestPayload, NoopExt>, TempDir, Address) {
+    fn make_handler(current_height: u64) -> (AppMsgHandler<NoopExt>, TempDir, Address) {
         let dir = TempDir::new().unwrap();
-        let store = Store::<TestPayload>::open(dir.path()).unwrap();
+        let store = Store::open(dir.path()).unwrap();
         let signer = test_signer(1);
         let address = Address::from_public_key(&signer.public_key());
         let validator_set = SharedValidatorSet::new(ValidatorSet::new(vec![Validator::new(
             signer.public_key(),
             1,
         )]));
-        let mut state = State::<TestPayload>::new(
+        let mut state = State::new(
             signer,
             validator_set,
             address,
@@ -894,7 +892,7 @@ mod tests {
     /// value (`Some(proposed)` on the same-height happy path, `None`
     /// when the parts were dropped or buffered).
     async fn run_stream(
-        handler: &mut AppMsgHandler<TestPayload, NoopExt>,
+        handler: &mut AppMsgHandler<NoopExt>,
         peer: PeerId,
         stream: Vec<StreamMessage<ProposalPart>>,
     ) -> Option<ProposedValue<MalachiteCtx>> {
@@ -972,17 +970,17 @@ mod tests {
     struct FailingFinalizeExt;
 
     #[async_trait]
-    impl Externalities<TestPayload> for FailingFinalizeExt {
-        async fn process_mb_proposal(&self, _: H256, _: Block<TestPayload>) -> Result<()> {
+    impl Externalities for FailingFinalizeExt {
+        async fn process_mb_proposal(&self, _: H256, _: Block) -> Result<()> {
             Ok(())
         }
         async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Err(anyhow!("application: finalize-side store write failed"))
         }
-        async fn build_block_above(&self, _: H256) -> Result<TestPayload> {
-            Ok(TestPayload)
+        async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
+            Ok(test_payload())
         }
-        async fn validate_block_above(&self, _: H256, _: TestPayload) -> Result<bool> {
+        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
             Ok(true)
         }
     }
@@ -990,19 +988,19 @@ mod tests {
     /// Same shape as [`make_handler`] but with a caller-supplied
     /// externalities impl. Used by the [`FinalizationError`] tests
     /// below that need to inject a failing callback.
-    fn make_handler_with<EXT: Externalities<TestPayload>>(
+    fn make_handler_with<EXT: Externalities>(
         current_height: u64,
         ext: EXT,
-    ) -> (AppMsgHandler<TestPayload, EXT>, TempDir, Address) {
+    ) -> (AppMsgHandler<EXT>, TempDir, Address) {
         let dir = TempDir::new().unwrap();
-        let store = Store::<TestPayload>::open(dir.path()).unwrap();
+        let store = Store::open(dir.path()).unwrap();
         let signer = test_signer(1);
         let address = Address::from_public_key(&signer.public_key());
         let validator_set = SharedValidatorSet::new(ValidatorSet::new(vec![Validator::new(
             signer.public_key(),
             1,
         )]));
-        let mut state = State::<TestPayload>::new(
+        let mut state = State::new(
             signer,
             validator_set,
             address,
@@ -1055,7 +1053,7 @@ mod tests {
         // below. The genesis parent (`H256::zero()`) means the
         // ancestor walk inside `ingest_finalized` only inspects this
         // single block.
-        let block = Block::<TestPayload>::new(H256::zero(), height, TestPayload);
+        let block = Block::new(H256::zero(), height, test_payload());
         let block_bytes = block.encode();
         let proposed = handler
             .state
@@ -1121,7 +1119,7 @@ mod tests {
         // Build a real Block so `assemble_and_validate` can decode it
         // during promotion. Genesis parent keeps the
         // `finalized_block_at(height - 1)` lookup out of the picture.
-        let block = Block::<TestPayload>::new(H256::zero(), height, TestPayload);
+        let block = Block::new(H256::zero(), height, test_payload());
         let block_bytes = block.encode();
         let block_hash = block.hash();
 

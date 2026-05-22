@@ -4,12 +4,17 @@
 //! Application-level block shape produced by the Malachite sequencer
 //! and consumed by the ethexe executor.
 //!
-//! [`Transactions`] is the application's `BlockPayload` — an ordered
-//! list of [`Transaction`]s. Block-level identity (parent linkage,
-//! height) lives in [`crate::db::CompactMb`], indexed by the
-//! `ethexe_malachite_core::Block` envelope hash. The transaction list
-//! itself is stored in the content-addressed half of the ethexe db
-//! and referenced by `CompactMb::transactions_hash`.
+//! Two layers live here:
+//!
+//! - [`BlockPayload`] is the opaque, versioned, size-capped wire
+//!   envelope the consensus engine ships around. The application
+//!   schema — [`Transactions`] (an ordered list of [`Transaction`]s) —
+//!   lives SCALE-encoded inside [`BlockPayload::bytes`].
+//! - Block-level identity (parent linkage, height) lives in
+//!   [`crate::db::CompactMb`], indexed by the consensus block envelope
+//!   hash. The matching [`BlockPayload`] / [`Transactions`] blob is
+//!   stored in the content-addressed half of the ethexe db and
+//!   referenced by `CompactMb::transactions_hash`.
 //!
 //! These types live in `ethexe-common` (rather than inside
 //! `ethexe-malachite`) so `ethexe-processor` can accept them without
@@ -17,13 +22,58 @@
 
 use crate::injected::SignedInjectedTransaction;
 use alloc::vec::Vec;
+use anyhow::{Result, anyhow};
 use derive_more::{Deref, DerefMut, IntoIterator};
+use gear_core::limited::LimitedVec;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
+
+/// Per-block payload size cap: 1000 KiB, leaving headroom under the
+/// 1 MiB engine block ceiling for the consensus block envelope
+/// (parent hash, height, reserved tail) and SCALE framing.
+pub const MAX_BLOCK_PAYLOAD_BYTES: usize = 1024 * 1000;
+
+/// Current `BlockPayload::version` written by this code path.
+///
+/// Bump in lockstep with a wire-format change in how the application
+/// interprets [`BlockPayload::bytes`]; decoders MUST tolerate seeing
+/// versions strictly less than the current one but MAY reject newer
+/// ones.
+pub const BLOCK_PAYLOAD_VERSION: u16 = 0;
+
+/// Versioned, size-capped block payload.
+///
+/// The consensus engine treats `bytes` as an opaque byte string —
+/// the application crate is responsible for the schema (today, a
+/// SCALE-encoded [`Transactions`]). `version` exists so a future
+/// protocol bump can change the `bytes` encoding without breaking the
+/// consensus block wire shape: decoders inspect `version` and
+/// dispatch accordingly.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
+pub struct BlockPayload {
+    pub version: u16,
+    pub bytes: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
+}
+
+impl BlockPayload {
+    /// Wrap raw application bytes at the current
+    /// [`BLOCK_PAYLOAD_VERSION`]. Returns `Err` if `bytes` exceeds
+    /// [`MAX_BLOCK_PAYLOAD_BYTES`].
+    pub fn new(bytes: Vec<u8>) -> Result<Self> {
+        let len = bytes.len();
+        let bytes = LimitedVec::try_from(bytes).map_err(|_| {
+            anyhow!("block payload exceeds {MAX_BLOCK_PAYLOAD_BYTES}-byte cap (got {len})")
+        })?;
+        Ok(Self {
+            version: BLOCK_PAYLOAD_VERSION,
+            bytes,
+        })
+    }
+}
 
 /// A single transaction in the malachite block.
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
@@ -147,5 +197,39 @@ mod tests {
         let decoded = Transactions::decode(&mut encoded.as_slice()).expect("decode");
         assert_eq!(original, decoded);
         assert_eq!(original.hash(), decoded.hash());
+    }
+
+    #[test]
+    fn block_payload_new_accepts_at_or_below_cap() {
+        BlockPayload::new(alloc::vec![]).expect("empty payload");
+        BlockPayload::new(alloc::vec![0u8; MAX_BLOCK_PAYLOAD_BYTES]).expect("payload at cap");
+    }
+
+    #[test]
+    fn block_payload_new_rejects_above_cap() {
+        let err = BlockPayload::new(alloc::vec![0u8; MAX_BLOCK_PAYLOAD_BYTES + 1])
+            .expect_err("over-cap must reject");
+        assert!(
+            err.to_string()
+                .contains(&MAX_BLOCK_PAYLOAD_BYTES.to_string()),
+            "expected cap-sized error mention, got: {err}",
+        );
+    }
+
+    #[test]
+    fn block_payload_decode_rejects_oversized_bytes_field() {
+        // Hand-roll an encoded `BlockPayload` whose `bytes` length
+        // exceeds the cap. SCALE prefixes `Vec<u8>` with a `Compact<u32>`
+        // length; we use the 4-byte mode for clarity. Decode must reject
+        // before allocating the over-cap buffer.
+        use parity_scale_codec::DecodeAll;
+
+        let oversize = (MAX_BLOCK_PAYLOAD_BYTES + 1) as u32;
+        let mut encoded = alloc::vec::Vec::new();
+        encoded.extend_from_slice(&BLOCK_PAYLOAD_VERSION.encode());
+        encoded.extend_from_slice(&parity_scale_codec::Compact(oversize).encode());
+        encoded.extend(core::iter::repeat_n(0u8, oversize as usize));
+        BlockPayload::decode_all(&mut encoded.as_slice())
+            .expect_err("decode must reject over-cap payload");
     }
 }

@@ -9,11 +9,12 @@
 //! libp2p swarm and the persistent BFT-side state, and exposes a
 //! minimal trait-based API so any application can plug in:
 //!
-//! - [`BlockPayload`] — marker trait the application's payload type
-//!   must satisfy (`Clone + Encode + Decode + Send + Sync + 'static`,
-//!   covered by a blanket impl). The service wraps the payload into
-//!   [`Block`] itself (adds `parent_hash`, `height`, `reserved`) and
-//!   computes the canonical [`H256`] block hash via Blake2b-256.
+//! - [`ethexe_common::malachite::BlockPayload`] — versioned, size-capped
+//!   opaque byte string the application produces and consumes. The
+//!   service wraps it into [`Block`] (adds `parent_hash`, `height`,
+//!   `reserved`) and computes the canonical [`H256`] block hash via
+//!   Blake2b-256; schema interpretation lives entirely in the
+//!   application.
 //! - [`Externalities`] — async callbacks the service invokes to
 //!   process proposals, mark them finalized, build new ones (when
 //!   proposer), and validate incoming proposals. These callbacks are
@@ -62,7 +63,7 @@ mod streaming;
 
 pub use crate::{
     config::{MalachiteConfig, Multiaddr, NodeRole, ValidatorEntry},
-    externalities::{BlockPayload, Externalities},
+    externalities::Externalities,
     service::{MService, MalachiteService},
     signing::{
         MalachiteSigner, PrivateKey, PublicKey, Signature, derive_libp2p_secret,

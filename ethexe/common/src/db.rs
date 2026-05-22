@@ -257,7 +257,7 @@ pub use mock_interfaces::{SetConfig, SetGlobals};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::malachite::Transactions;
+    use crate::malachite::{BlockPayload, Transactions};
     use indoc::formatdoc;
     use scale_info::{PortableRegistry, Registry, meta_type};
     use sha3::{Digest, Sha3_256};
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "512eb917dfc6c79ecfbab68492ceeb4871f6c47e4afd7040a74c5c34182a5969";
+            "7e0ef3b2f5f720c051c6dc3084995abb1cf256e1fa5f0d818f64eaa2c99eae4d";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -283,6 +283,7 @@ mod tests {
             meta_type::<Schedule>(),
             meta_type::<MbMeta>(),
             meta_type::<CompactMb>(),
+            meta_type::<BlockPayload>(),
             meta_type::<Transactions>(),
             meta_type::<DBConfig>(),
             meta_type::<DBGlobals>(),

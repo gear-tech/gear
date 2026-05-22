@@ -3,13 +3,11 @@
 
 //! Core public types for [`crate::MalachiteService`].
 
-use derive_where::derive_where;
+use ethexe_common::malachite::BlockPayload;
 pub use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-
-use crate::externalities::BlockPayload;
 
 /// 20-byte validator address.
 ///
@@ -54,18 +52,17 @@ impl Address {
 /// (Blake2b-256) over a SCALE-encoded
 /// `(parent_hash, height, payload_hash, reserved)` tuple, where
 /// `payload_hash = gear_core::utils::hash(payload.encode())`.
-#[derive_where(Clone)]
-#[derive(Encode, Decode)]
-pub struct Block<P: BlockPayload> {
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct Block {
     pub parent_hash: H256,
     pub height: u64,
-    pub payload: P,
+    pub payload: BlockPayload,
     pub reserved: [u8; 64],
 }
 
-impl<P: BlockPayload> Block<P> {
+impl Block {
     /// Construct a block with `reserved` zeroed out.
-    pub fn new(parent_hash: H256, height: u64, payload: P) -> Self {
+    pub fn new(parent_hash: H256, height: u64, payload: BlockPayload) -> Self {
         Self {
             parent_hash,
             height,

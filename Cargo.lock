@@ -5929,7 +5929,7 @@ dependencies = [
  "arc-malachitebft-test",
  "async-trait",
  "bytes",
- "derive-where",
+ "ethexe-common",
  "futures",
  "gear-core",
  "gear-workspace-hack",

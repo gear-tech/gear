@@ -5,22 +5,17 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use parity_scale_codec::{Decode, Encode};
+use ethexe_common::malachite::BlockPayload;
 
 use crate::types::{Block, CommitCertificate, H256};
 
-/// Marker trait for application block payloads.
-///
-/// Any type that is `Clone + Encode + Decode + Send + Sync + 'static`
-/// qualifies — the service never inspects the payload's contents,
-/// it just SCALE-encodes it as part of [`Block`] for gossip / WAL /
-/// RocksDB. The blanket impl below means application code never has
-/// to write `impl BlockPayload for ... {}`.
-pub trait BlockPayload: Clone + Encode + Decode + Send + Sync + 'static {}
-
-impl<T> BlockPayload for T where T: Clone + Encode + Decode + Send + Sync + 'static {}
-
 /// Application-side callbacks the consensus service requires.
+///
+/// The service is application-agnostic: it owns the BFT engine, the
+/// libp2p swarm, and the persistent BFT state. The opaque
+/// [`BlockPayload`] (a versioned, size-capped byte string) is the only
+/// shape the application contributes to a [`Block`] — encoding and
+/// decoding of any application-level schema lives behind this trait.
 ///
 /// The service guarantees a strict happens-before ordering for the
 /// callbacks below — the application never has to maintain its own
@@ -55,12 +50,12 @@ impl<T> BlockPayload for T where T: Clone + Encode + Decode + Send + Sync + 'sta
 /// to handle the surfaced error therefore causes the consensus loop
 /// to abort, not to skip the missing callback silently.
 #[async_trait]
-pub trait Externalities<P: BlockPayload>: Send + Sync + 'static {
+pub trait Externalities: Send + Sync + 'static {
     /// Persist `block` indexed by `mb_hash`. Called exactly once
     /// per `mb_hash` over the lifetime of an application instance,
     /// at proposal-assembly time, after every ancestor's
     /// `process_mb_proposal` has already returned `Ok`.
-    async fn process_mb_proposal(&self, mb_hash: H256, block: Block<P>) -> Result<()>;
+    async fn process_mb_proposal(&self, mb_hash: H256, block: Block) -> Result<()>;
 
     /// Mark `mb_hash` as finalized and durable.
     ///
@@ -84,7 +79,7 @@ pub trait Externalities<P: BlockPayload>: Send + Sync + 'static {
     ///
     /// `parent_hash == H256::zero()` is passed when building the
     /// genesis block.
-    async fn build_block_above(&self, parent_mb_hash: H256) -> Result<P>;
+    async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload>;
 
     /// Application-side validation of an incoming proposal's
     /// **payload only**.
@@ -97,7 +92,9 @@ pub trait Externalities<P: BlockPayload>: Send + Sync + 'static {
     /// signals the genesis block.
     ///
     /// Typical responsibilities:
-    /// - the payload is well-formed against the application's
+    /// - the payload bytes decode against the application's schema
+    ///   (at the version recorded in [`BlockPayload::version`]);
+    /// - the decoded content is well-formed against the application's
     ///   protocol invariants (gas budget, single anchor advance,
     ///   transaction shape, etc.).
     /// - Optionally a stronger proposer-authorization check on top
@@ -109,5 +106,9 @@ pub trait Externalities<P: BlockPayload>: Send + Sync + 'static {
     ///
     /// Not called on the sync path — sync values come with a quorum
     /// commit certificate and are accepted on that basis alone.
-    async fn validate_block_above(&self, parent_mb_hash: H256, payload: P) -> Result<bool>;
+    async fn validate_block_above(
+        &self,
+        parent_mb_hash: H256,
+        payload: BlockPayload,
+    ) -> Result<bool>;
 }

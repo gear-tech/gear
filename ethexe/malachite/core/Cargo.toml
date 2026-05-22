@@ -25,7 +25,6 @@ malachitebft-test.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
-derive-where.workspace = true
 futures.workspace = true
 hex.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive", "std"] }
@@ -33,6 +32,11 @@ serde = { workspace = true, features = ["derive"] }
 sha3 = { workspace = true, features = ["std"] }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
 tracing.workspace = true
+
+# Shared ethexe types: `BlockPayload` (the versioned, size-capped wire
+# envelope) lives in ethexe-common so the executor side can consume it
+# without depending on the consensus layer.
+ethexe-common = { workspace = true, features = ["std"] }
 
 # Crypto + libp2p (kept ethexe-shaped per design: secp256k1 + 20-byte addresses).
 # Address type is reused from gsigner so the application side (ethexe today,
