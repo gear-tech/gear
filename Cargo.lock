@@ -4997,6 +4997,7 @@ version = "1.10.0"
 dependencies = [
  "alloy",
  "ethexe-common",
+ "ethexe-db",
  "ethexe-ethereum",
  "futures",
  "gear-workspace-hack",
@@ -7924,9 +7925,12 @@ dependencies = [
  "demo-custom",
  "demo-delayed-sender",
  "demo-futures-unordered",
+ "demo-panic-payload",
  "demo-piggy-bank",
  "demo-ping",
  "etc",
+ "ethexe-common",
+ "ethexe-runtime-common",
  "gear-common",
  "gear-core",
  "gear-core-errors",
@@ -11487,10 +11491,11 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "numerated"
-version = "1.10.0"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c7ad0af6965663810629c35d60e4e6d2ea46e84372ce398f0fed0a05eb930a5"
 dependencies = [
  "derive_more 2.1.1",
- "gear-workspace-hack",
  "log",
  "num-traits",
  "proptest",

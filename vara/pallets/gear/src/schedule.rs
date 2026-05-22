@@ -890,7 +890,7 @@ impl<T: Config> Default for InstructionWeights<T> {
         // See below for the assembly-shaped listings of the mentioned instructions.
         type W<T> = <T as Config>::WeightInfo;
         Self {
-            version: 1900,
+            version: 1901,
             i64const: cost_i64const::<T>(),
             i64load: cost_instr::<T>(W::<T>::instr_i64load, 0),
             i32load: cost_instr::<T>(W::<T>::instr_i32load, 0),

@@ -41,7 +41,6 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
     "gear-wasm-instrument",
     "gsdk-codegen",
     "gsys",
-    "numerated",
     "gbuiltin-bls381",
 ];
 
