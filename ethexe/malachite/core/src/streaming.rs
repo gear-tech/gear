@@ -98,7 +98,12 @@ impl StreamState {
         }
         if msg.is_fin() {
             self.fin_received = true;
-            self.total_messages = msg.sequence as usize + 1;
+            // Peer-controlled `sequence` (u64) can reach `u64::MAX`. A plain
+            // `+ 1` panics under `overflow-checks` (dev profile default) and
+            // wraps to `0` in release — either way a single wire-legal Fin
+            // can kill or stall the engine's app task. Stuck-slot cleanup for
+            // streams that never complete is tracked separately by #5473.
+            self.total_messages = (msg.sequence as usize).saturating_add(1);
         }
         self.buffer.push(msg);
         if self.is_done() {
@@ -351,5 +356,22 @@ mod tests {
              needs per-peer cap + GC for never-finalised / bogus-Fin streams",
             map.streams.len(),
         );
+    }
+
+    /// Regression test: a peer-controlled `Fin` with `sequence == u64::MAX`
+    /// must not panic `StreamState::insert` (debug profile, `overflow-checks`
+    /// default = on) or silently wrap `total_messages` to `0` (release).
+    /// Before the saturating fix, the unchecked `msg.sequence as usize + 1`
+    /// crashed the engine's app task on a single wire-legal stream message.
+    #[test]
+    fn fin_at_u64_max_sequence_does_not_panic() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(13);
+        let s = sid(0xDEADBEEF);
+
+        // Any panic here would fail the test directly. The slot is left
+        // stuck-but-alive (no Init, counters saturated) — eviction for
+        // never-completing streams is the responsibility of #5473.
+        let _ = map.insert(p, fin_msg(s, u64::MAX));
     }
 }
