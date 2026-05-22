@@ -4,9 +4,6 @@ log/
 weight-dumps/
 vara/sdk/gsdk/vara_runtime_prod.scale
 *.meta.txt
-ok.md
-.claude/
-**/proptest-regressions/
 
 # cargo
 target/
@@ -26,4 +23,4 @@ utils/**/fuzz/fuzz/*
 fuzz_run
 lazy_pages_fuzz_run
 seed.bin
-.vscode/settings.json
+
