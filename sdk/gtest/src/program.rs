@@ -214,20 +214,18 @@ impl ProgramBuilder {
 
     /// Build program with set parameters.
     pub fn build(self, system: &System) -> Program<'_> {
-        let id = self
-            .id
-            .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
+        let Self { code, meta, id } = self;
+        let id = id.unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let code_id = CodeId::generate(&self.code);
-        system.0.borrow_mut().store_code(code_id, self.code);
-        if let Some(metadata) = self.meta {
+        let code_id = CodeId::generate(&code);
+        system.0.borrow_mut().store_code(code_id, code);
+        if let Some(metadata) = meta {
             system
                 .0
                 .borrow_mut()
                 .meta_binaries
                 .insert(code_id, metadata);
         }
-
         // Expiration block logic isn't yet fully implemented in Gear protocol,
         // so we set it to the current block height.
         let expiration_block = system.block_height();
@@ -484,21 +482,24 @@ impl<'a> Program<'a> {
         let mut system = self.manager.borrow_mut();
 
         let source = from.into().0;
+        let payload = payload.into();
 
         // The current block number is always a block number of the "executed" block.
         // So before sending any messages and triggering a block run the block number
         // equals to 0 (curr). So any new message sent by user goes to a new block,
         // that will be executed, i.e. block with number curr + 1.
         let block_number = system.block_height() + 1;
+        let message_id = MessageId::generate_from_user(
+            block_number,
+            source,
+            system.fetch_inc_message_nonce() as u128,
+        );
+
         let message = Message::new(
-            MessageId::generate_from_user(
-                block_number,
-                source,
-                system.fetch_inc_message_nonce() as u128,
-            ),
+            message_id,
             source,
             self.id,
-            payload.into().try_into().unwrap(),
+            payload.try_into().unwrap(),
             Some(gas_limit),
             value,
             None,

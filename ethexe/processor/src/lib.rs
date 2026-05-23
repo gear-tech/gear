@@ -134,6 +134,9 @@
 //!   deployed ethexe networks, so be careful when modifying the
 //!   processing pipeline, and always check backwards compatibility with
 //!   deployed networks.
+//! - If queue processing, chunking, gas accounting, or journal handling
+//!   semantics change here, open an issue to check whether `gtest`'s
+//!   ethexe execution mode must be updated to match.
 //! - Processor is designed to write only in CAS, it must NEVER modify
 //!   key-value storage from Database.
 

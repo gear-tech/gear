@@ -81,8 +81,8 @@ pub struct LoadParams {
     pub batch_size: usize,
     /// Percentage of load batches that create new programs after bootstrapping.
     ///
-    /// The default preserves the historical mix: `upload_program` and
-    /// `create_program` were two out of six uniformly selected batch families.
+    /// Standalone `upload_code` batches are excluded from steady-state traffic,
+    /// so `0` stops scheduling new code/program growth once a program exists.
     #[arg(long, value_parser = clap::value_parser!(u8).range(0..=100))]
     pub program_creation_ratio: Option<u8>,
     /// Whether to batch regular `send_message` calls through the multicall contract.
