@@ -202,7 +202,37 @@ tokio = { version = "1.38.0" }
 lru = "0.16.1"
 url = "2.5.2"
 wat = "1.0.71"
-wasmtime = { version = "44.0.1", features = ["winch"] }
+wasmtime = { version = "44.0.1", default-features = false, features = [
+  # default features
+  'anyhow',
+  'async',
+  'backtrace',
+  'cache',
+  'gc',
+  'gc-drc',
+  'gc-null',
+  'wat',
+  'profiling',
+  'parallel-compilation',
+  'cranelift',
+  'pooling-allocator',
+  'demangle',
+  'addr2line',
+  'coredump',
+  # the feature is disabled because Substrate uses Wasmtime 8,
+  # so `__jit_debug_register_code` and `__jit_debug_descriptor` symbols are not defined by both versions
+  # 'debug-builtins',
+  'runtime',
+  'component-model',
+  'component-model-async',
+  'threads',
+  'stack-switching',
+  'std',
+  'debug',
+  'compile-time-builtins',
+  # non-default features
+  'winch'
+] }
 wasmparser = { version = "0.230", default-features = false, features = ["validate", "features"] }
 which = "4.4.2"
 winapi = "0.3.9"
