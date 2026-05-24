@@ -464,9 +464,10 @@ library Gear {
          */
         bool valueToReceiveNegativeSign;
         /**
-         * @dev Array of value claims.
+         * @dev Merkle root of outgoing actions (mailboxed messages, replies and value claims).
+         *      Currently, we use it only for value claims.
          */
-        ValueClaim[] valueClaims;
+        bytes32 merkleRoot;
         /**
          * @dev Array of messages.
          */
@@ -667,7 +668,7 @@ library Gear {
      * @param inheritor The inheritor address.
      * @param valueToReceive The value to receive.
      * @param valueToReceiveNegativeSign The sign of the value to receive.
-     * @param valueClaimsHash The hash of the value claims.
+     * @param merkleRoot The merkle root of outgoing actions.
      * @param messagesHashesHash The hash of the messages hashes.
      */
     function stateTransitionHash(
@@ -677,7 +678,7 @@ library Gear {
         address inheritor,
         uint128 valueToReceive,
         bool valueToReceiveNegativeSign,
-        bytes32 valueClaimsHash,
+        bytes32 merkleRoot,
         bytes32 messagesHashesHash
     ) internal pure returns (bytes32) {
         return keccak256(
@@ -688,7 +689,7 @@ library Gear {
                 inheritor,
                 valueToReceive,
                 valueToReceiveNegativeSign,
-                valueClaimsHash,
+                merkleRoot,
                 messagesHashesHash
             )
         );

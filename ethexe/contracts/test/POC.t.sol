@@ -240,7 +240,7 @@ contract POCTest is Base {
             address(0), // inheritor
             uint128(0), // value to receive
             false, // value to receive negative sign
-            new Gear.ValueClaim[](0), // value claims
+            bytes32(uint256(2)), // value claims
             _outgoingMessages // messages
         );
 
@@ -277,7 +277,7 @@ contract POCTest is Base {
             address(0), // inheritor
             0, // value to receive
             false, // value to receive negative sign
-            new Gear.ValueClaim[](0), // value claims
+            bytes32(uint256(3)), // value claims
             _outgoingMessages // messages
         );
 

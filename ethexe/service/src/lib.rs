@@ -184,9 +184,9 @@ impl Service {
     /// Number of reserved dev accounts (deployer, validator).
     const RESERVED_DEV_ACCOUNTS: u32 = 2;
     /// Expected Foundry toolchain commit sha.
-    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "f83bad912a9dba7bf0371def1e70bb1896048356";
+    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "4072e48705af9d93e3c0f6e29e93b5e9a40caed8";
     /// Expected Foundry toolchain version.
-    const FOUNDRY_TOOLCHAIN_VERSION: &str = "1.7.0";
+    const FOUNDRY_TOOLCHAIN_VERSION: &str = "1.7.1";
 
     fn check_foundry_toolchain_version(client_commit_sha: Option<String>) -> Result<()> {
         if let Some(client_commit_sha) = client_commit_sha

@@ -356,6 +356,8 @@ pub struct ProgramState {
     pub balance: Value,
     /// Executable balance.
     pub executable_balance: Value,
+    /// Counter of outgoing actions, used for generating unique state hash.
+    pub outgoing_actions_counter: u64,
 }
 
 impl ProgramState {
@@ -380,6 +382,7 @@ impl ProgramState {
             mailbox_hash: MaybeHashOf::empty(),
             balance: 0,
             executable_balance: 0,
+            outgoing_actions_counter: 0,
         }
     }
 
@@ -807,6 +810,10 @@ impl UserMailbox {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_user_mailbox(self)))
     }
 
+    pub fn into_inner(self) -> BTreeMap<MessageId, Expiring<MailboxMessage>> {
+        self.0
+    }
+
     #[cfg(any(test, feature = "mock"))]
     pub fn from_inner(inner: BTreeMap<MessageId, Expiring<MailboxMessage>>) -> Self {
         Self(inner)
@@ -841,6 +848,14 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
+    pub fn into_inner(self) -> BTreeMap<ActorId, HashOf<UserMailbox>> {
+        self.inner
+    }
+
+    pub fn changed(&self) -> bool {
+        self.changed
+    }
+
     pub fn add_and_store_user_mailbox<S: Storage + ?Sized>(
         &mut self,
         storage: &S,

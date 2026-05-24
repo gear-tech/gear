@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::events::BlockEvent;
+use crate::{ToDigest, events::BlockEvent, gear::ValueClaim};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -215,6 +215,57 @@ impl ProtocolTimelines {
     pub fn slot_from_ts(&self, ts: u64) -> Option<u64> {
         ts.checked_sub(self.genesis_ts)
             .map(|delta| delta / self.slot.get())
+    }
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[repr(u8)]
+pub enum OutgoingAction {
+    ValueClaim(ValueClaim),
+}
+
+impl OutgoingAction {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::ValueClaim(claim) => claim.to_bytes(),
+        }
+    }
+
+    pub fn message_id(&self) -> MessageId {
+        match self {
+            Self::ValueClaim(claim) => claim.message_id,
+        }
+    }
+}
+
+impl ToDigest for OutgoingAction {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        match self {
+            Self::ValueClaim(claim) => claim.update_hasher(hasher),
+        }
+    }
+}
+
+#[derive(
+    Clone,
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    Hash,
+    derive_more::From,
+    derive_more::Into,
+    derive_more::AsRef,
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct OutgoingActions(Vec<OutgoingAction>);
+
+impl OutgoingActions {
+    pub fn into_inner(self) -> Vec<OutgoingAction> {
+        self.0
     }
 }
 

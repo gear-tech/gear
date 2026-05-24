@@ -35,7 +35,7 @@
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
-    BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient,
+    BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient, Proof,
 };
 
 #[cfg(feature = "server")]

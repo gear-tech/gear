@@ -10,10 +10,15 @@ use crate::validator::{
 use alloy::sol_types::SolValue;
 use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
-    SimpleBlockData, ToDigest,
+    OutgoingAction, OutgoingActions, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
-    gear::{BatchCommitment, ChainCommitment, RewardsCommitment, ValidatorsCommitment},
+    db::{
+        BlockMetaStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO, OnChainStorageRO,
+        OutgoingActionStorageRW,
+    },
+    gear::{
+        BatchCommitment, ChainCommitment, RewardsCommitment, StateTransition, ValidatorsCommitment,
+    },
 };
 use ethexe_db::Database;
 use ethexe_ethereum::abi::Gear;
@@ -120,12 +125,37 @@ impl BatchCommitmentManager {
             }
         }
 
-        super::utils::create_batch_commitment(
+        let batch_commitment = super::utils::create_batch_commitment(
             &self.db,
             &block,
             batch_filler.into_parts(),
             self.limits.commitment_delay_limit,
-        )
+        );
+
+        if let Ok(Some(BatchCommitment {
+            chain_commitment: Some(ChainCommitment { transitions, .. }),
+            ..
+        })) = batch_commitment.as_ref()
+        {
+            for StateTransition {
+                new_state_hash,
+                value_claims,
+                ..
+            } in transitions
+            {
+                let mut outgoing_actions = vec![];
+
+                for value_claim in value_claims {
+                    outgoing_actions.push(OutgoingAction::ValueClaim(value_claim.clone()));
+                }
+
+                let outgoing_actions: OutgoingActions = outgoing_actions.into();
+                self.db
+                    .set_outgoing_actions(*new_state_hash, outgoing_actions);
+            }
+        }
+
+        batch_commitment
     }
 
     /// Participant: re-derive the coordinator's batch and return whether digests agree.

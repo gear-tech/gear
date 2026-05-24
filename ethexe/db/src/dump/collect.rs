@@ -254,6 +254,7 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
     }
 
     fn collect_program_state(&mut self, state_hash: H256) -> Result<()> {
+        // TODO: do we need to collect it here?
         let Some(ProgramState {
             program,
             canonical_queue,
@@ -265,6 +266,7 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
             // in the program state blob (see read_and_decode below)
             balance: _,
             executable_balance: _,
+            outgoing_actions_counter: _,
         }) = self.read_and_decode::<ProgramState>(state_hash)?
         else {
             return Ok(());

@@ -7,10 +7,11 @@ use crate::{Address, Digest, ToDigest, ValidatorsVec};
 use alloc::vec::Vec;
 use alloy_primitives::U256 as AlloyU256;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
-use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
+use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sha3::Digest as _;
+use sp_runtime::traits::Keccak256 as SpRuntimeKeccak256;
 
 // TODO: support query from router.
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
@@ -389,13 +390,20 @@ impl ToDigest for StateTransition {
             messages,
         } = self;
 
+        let value_claims: Vec<_> = value_claims
+            .iter()
+            .map(|value_claim| H256(value_claim.to_digest().0))
+            .collect();
+        let value_claims_merkle_root =
+            binary_merkle_tree::merkle_root_raw::<SpRuntimeKeccak256, _>(value_claims);
+
         hasher.update(actor_id.to_address_lossy());
         hasher.update(new_state_hash);
         hasher.update([*exited as u8]);
         hasher.update(inheritor.to_address_lossy());
         hasher.update(value_to_receive.to_be_bytes());
         hasher.update([*value_to_receive_negative_sign as u8]);
-        hasher.update(value_claims.to_digest());
+        hasher.update(value_claims_merkle_root);
         hasher.update(messages.to_digest());
     }
 }
@@ -406,6 +414,23 @@ pub struct ValueClaim {
     pub message_id: MessageId,
     pub destination: ActorId,
     pub value: u128,
+}
+
+impl ValueClaim {
+    const VALUE_CLAIM_DISCRIMINANT: u8 = 0x02;
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut payload = Vec::with_capacity(
+            size_of::<u8>() + size_of::<MessageId>() + size_of::<H160>() + size_of::<u128>(),
+        );
+
+        payload.extend_from_slice(&[Self::VALUE_CLAIM_DISCRIMINANT]);
+        payload.extend_from_slice(self.message_id.as_ref());
+        payload.extend_from_slice(self.destination.to_address_lossy().as_ref());
+        payload.extend_from_slice(self.value.to_be_bytes().as_ref());
+
+        payload
+    }
 }
 
 impl ToDigest for ValueClaim {

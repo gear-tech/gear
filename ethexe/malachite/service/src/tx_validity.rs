@@ -424,6 +424,7 @@ mod tests {
             mailbox_hash: MaybeHashOf::empty(),
             balance: 0,
             executable_balance,
+            outgoing_actions_counter: 0,
         }
     }
 

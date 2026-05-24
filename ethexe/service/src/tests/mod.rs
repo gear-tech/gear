@@ -14,13 +14,14 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
+    OutgoingAction,
     db::{CodesStorageRO, GlobalsStorageRO, InjectedStorageRO, MbStorageRO, OnChainStorageRO},
     ecdsa::ContractSignature,
     events::{
         BlockEvent, MirrorEvent,
-        mirror::{MessageEvent, ReplyEvent},
+        mirror::{MessageEvent, ReplyEvent, ValueClaimedEvent},
     },
-    gear::BatchCommitment,
+    gear::{BatchCommitment, ValueClaim},
     injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
     mock::*,
 };
@@ -669,24 +670,54 @@ async fn mailbox() {
     test_info!("📗 Claiming value for message {mid_expected_message_id}");
     mirror.claim_value(mid_expected_message_id).await.unwrap();
 
-    let mut claimed = false;
+    let receiver = env.new_observer_events();
+
+    // Force-process the claim by sending a follow-up no-op message
+    // through the program. Once its reply lands, the claim has been
+    // executed in the executor and committed to the mirror.
+    let _ = env
+        .send_message(async_pid, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
     let mb_hash = receiver
+        .clone()
+        .filter_map_block_synced()
+        .find_map(|e| match e {
+            BlockEvent::Router(ethexe_common::events::RouterEvent::MBCommitted(
+                ethexe_common::events::router::MBCommittedEvent(mb_hash),
+            )) => Some(mb_hash),
+            _ => None,
+        })
+        .await;
+
+    let state_hash = mirror.query().state_hash().await.unwrap();
+    let sender_address = env.ethereum.provider().default_signer_address();
+    mirror
+        .process_outgoing_action(
+            state_hash,
+            1.into(),
+            0.into(),
+            OutgoingAction::ValueClaim(ValueClaim {
+                message_id: mid_expected_message_id,
+                destination: sender_address.into(),
+                value: 0,
+            }),
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    let claimed = receiver
         .filter_map_block_synced()
         .find_map(|event| match event {
             BlockEvent::Mirror {
                 actor_id,
-                event:
-                    MirrorEvent::ValueClaimed(ethexe_common::events::mirror::ValueClaimedEvent {
-                        claimed_id,
-                        ..
-                    }),
-            } if actor_id == async_pid && claimed_id == mid_expected_message_id => {
-                claimed = true;
-                None
-            }
-            BlockEvent::Router(ethexe_common::events::RouterEvent::MBCommitted(
-                ethexe_common::events::router::MBCommittedEvent(ah),
-            )) if claimed => Some(ah),
+                event: MirrorEvent::ValueClaimed(ValueClaimedEvent { claimed_id, .. }),
+            } if actor_id == async_pid && claimed_id == mid_expected_message_id => Some(true),
             _ => None,
         })
         .await;
@@ -941,6 +972,22 @@ async fn value_send_program_to_user_and_claimed() {
         .await
         .unwrap();
 
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    piggy_bank
+        .process_outgoing_action(
+            state_hash,
+            1.into(),
+            0.into(),
+            OutgoingAction::ValueClaim(ValueClaim {
+                message_id: mailboxed_msg_id,
+                destination: sender_address.into(),
+                value: VALUE_SENT,
+            }),
+            vec![],
+        )
+        .await
+        .unwrap();
+
     let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
     let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
     let balance = env
@@ -1078,6 +1125,22 @@ async fn value_send_program_to_user_and_replied() {
         .await
         .unwrap()
         .wait_for()
+        .await
+        .unwrap();
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    piggy_bank
+        .process_outgoing_action(
+            state_hash,
+            1.into(),
+            0.into(),
+            OutgoingAction::ValueClaim(ValueClaim {
+                message_id: mailboxed_msg_id,
+                destination: sender_address.into(),
+                value: VALUE_SENT,
+            }),
+            vec![],
+        )
         .await
         .unwrap();
 
