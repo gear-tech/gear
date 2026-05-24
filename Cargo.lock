@@ -6242,6 +6242,7 @@ dependencies = [
  "log",
  "ntest",
  "parity-scale-codec",
+ "rand 0.8.5",
  "tempfile",
  "tokio",
  "tracing",

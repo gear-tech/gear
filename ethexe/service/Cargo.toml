@@ -28,6 +28,7 @@ ethexe-rpc = { workspace = true, features = ["server"] }
 gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["std", "ethexe"] }
+rand.workspace = true
 
 log.workspace = true
 tracing.workspace = true

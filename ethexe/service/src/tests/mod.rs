@@ -14,21 +14,25 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
-    OutgoingAction,
+    ScheduledTask,
     db::{CodesStorageRO, GlobalsStorageRO, InjectedStorageRO, MbStorageRO, OnChainStorageRO},
     ecdsa::ContractSignature,
     events::{
         BlockEvent, MirrorEvent,
-        mirror::{MessageEvent, ReplyEvent, ValueClaimedEvent},
+        mirror::{MessageEvent, ReplyEvent, StateChangedEvent},
+        router::MBCommittedEvent,
     },
-    gear::{BatchCommitment, ValueClaim},
+    gear::{BatchCommitment, MessageType, ValueClaim},
     injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
     mock::*,
 };
 use ethexe_consensus::BatchCommitter;
 use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
 use ethexe_rpc::InjectedClient;
-use ethexe_runtime_common::state::Storage;
+use ethexe_runtime_common::state::{
+    Expiring, MAILBOX_VALIDITY, MailboxMessage, PayloadLookup, Storage,
+};
+use futures::StreamExt;
 use gear_core::{
     ids::prelude::MessageIdExt,
     message::{ReplyCode, SuccessReplyReason},
@@ -37,7 +41,12 @@ use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailable
 use gprimitives::{ActorId, H160, H256, MessageId};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use rand::Rng;
+use std::{
+    collections::{BTreeMap, BTreeSet, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::sync::Mutex;
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
@@ -447,103 +456,109 @@ async fn uninitialized_program() {
     stop_nodes([node]).await;
 }
 
-/// Mailbox round-trip with demo_async: Mutex command writes the original mid
-/// and a PING into the mailbox, sender replies, value gets claimed.
 #[tokio::test]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn mailbox() {
     init_logger();
 
-    let mut env = TestEnv::default().await;
+    let mut env = TestEnv::new(TestEnvConfig {
+        continuous_block_generation: true,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let mut rng = rand::thread_rng();
+    let rpc_port: u16 = rng.gen_range(1024..=u16::MAX);
 
     let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(rpc_port)
+                .validator(env.validators[0]),
+        )
         .await;
     node.start_service().await;
 
-    let res = env
-        .upload_code(demo_async::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
+    let vara_eth_api = node.vara_eth_api(env.ethereum.clone()).await.unwrap();
+    let router = vara_eth_api.router();
+
+    let (_, code_id) = router
+        .request_code_validation(demo_async::WASM_BINARY)
         .await
         .unwrap();
 
+    let res = router.wait_for_code_validation(code_id).await.unwrap();
     assert!(res.valid);
-    let code_id = res.code_id;
 
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
+    let (_, demo_async_id) = router
+        .create_program_with_executable_balance(code_id, H256::zero(), None, 500_000_000_000_000)
         .await
         .unwrap();
 
-    let init_res = env
-        .send_message(res.program_id, &env.sender_id.encode())
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    let demo_async = vara_eth_api.mirror(demo_async_id);
 
-    let async_pid = res.program_id;
-
-    let receiver = env.new_observer_events();
-
-    let wait_for_mutex_request_command_reply = env
-        .send_message(async_pid, &demo_async::Command::Mutex.encode())
+    let (_, message_id) = demo_async
+        .send_message(&env.sender_id.encode(), 0)
         .await
         .unwrap();
 
-    let original_mid = wait_for_mutex_request_command_reply.message_id;
+    let reply = demo_async.wait_for_reply(message_id).await.unwrap();
+    assert_eq!(reply.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(reply.value, 0);
+
+    let (_, original_mid) = demo_async
+        .send_message(&demo_async::Command::Mutex.encode(), 0)
+        .await
+        .unwrap();
+
     let mid_expected_message_id = MessageId::generate_outgoing(original_mid, 0);
     let ping_expected_message_id = MessageId::generate_outgoing(original_mid, 1);
 
     test_info!("📗 Waiting for MB with PING message committed");
-    let (mut block, mut mb_hash_opt) = (None, None);
-    receiver
-        .clone()
-        .filter_map_block_synced_with_header()
-        .find(|(event, block_data)| match event {
-            BlockEvent::Mirror {
-                actor_id,
-                event:
-                    MirrorEvent::Message(MessageEvent {
-                        id,
-                        destination,
-                        payload,
-                        ..
-                    }),
-            } if *actor_id == async_pid => {
-                assert_eq!(*destination, env.sender_id);
 
-                if *id == mid_expected_message_id {
-                    assert_eq!(*payload, original_mid.encode());
-                } else if *id == ping_expected_message_id {
-                    assert_eq!(*payload, b"PING");
-                    block = Some(*block_data);
-                } else {
-                    panic!("Unexpected message id {id}");
-                }
+    let mut stream1 = demo_async
+        .events()
+        .message()
+        .subscribe()
+        .await
+        .unwrap()
+        .take(2);
 
-                false
-            }
-            BlockEvent::Router(ethexe_common::events::RouterEvent::MBCommitted(ah))
-                if block.is_some() =>
-            {
-                mb_hash_opt = Some(ah.clone());
-                true
-            }
-            _ => false,
-        })
-        .await;
+    let mut stream2 = router
+        .events()
+        .mb_committed()
+        .subscribe()
+        .await
+        .unwrap()
+        .take(1);
 
-    let block = block.expect("must be set");
-    let ethexe_common::events::router::MBCommittedEvent(mb_hash) =
-        mb_hash_opt.expect("must be set");
+    let mut message_events = vec![];
+
+    while let Some(result) = stream1.next().await {
+        if let Ok((event, _)) = result {
+            message_events.push(event);
+        }
+    }
+
+    assert_eq!(message_events.len(), 2);
+
+    assert_eq!(message_events[0].id, mid_expected_message_id);
+    assert_eq!(message_events[0].destination, env.sender_id);
+
+    assert_eq!(message_events[1].id, ping_expected_message_id);
+    assert_eq!(message_events[1].destination, env.sender_id);
+    assert_eq!(message_events[1].payload, b"PING");
+
+    let mb_hash = loop {
+        if let Some(result) = stream2.next().await
+            && let Ok((MBCommittedEvent(mb_hash), _)) = result
+        {
+            break mb_hash;
+        }
+    };
+
+    let block = env.ethereum.get_latest_block().await.unwrap();
 
     // In MB-driven flow the synthetic block height that the executor sees
     // is `last_advanced_eth_block.height`, which is one Eth block behind
@@ -551,25 +566,22 @@ async fn mailbox() {
     // adds one block of distance). Schedule expiries are computed against
     // that synthetic height.
     let wake_expiry = block.header.height - 2 + 100;
-    let expiry = block.header.height - 2 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
+    let expiry = block.header.height - 2 + MAILBOX_VALIDITY;
 
-    let expected_schedule = std::collections::BTreeMap::from_iter([
+    let expected_schedule = BTreeMap::from_iter([
         (
             wake_expiry,
-            std::collections::BTreeSet::from_iter([ethexe_common::ScheduledTask::WakeMessage(
-                async_pid,
-                original_mid,
-            )]),
+            BTreeSet::from_iter([ScheduledTask::WakeMessage(demo_async_id, original_mid)]),
         ),
         (
             expiry,
-            std::collections::BTreeSet::from_iter([
-                ethexe_common::ScheduledTask::RemoveFromMailbox(
-                    (async_pid, env.sender_id),
+            BTreeSet::from_iter([
+                ScheduledTask::RemoveFromMailbox(
+                    (demo_async_id, env.sender_id),
                     mid_expected_message_id,
                 ),
-                ethexe_common::ScheduledTask::RemoveFromMailbox(
-                    (async_pid, env.sender_id),
+                ScheduledTask::RemoveFromMailbox(
+                    (demo_async_id, env.sender_id),
                     ping_expected_message_id,
                 ),
             ]),
@@ -582,33 +594,31 @@ async fn mailbox() {
         .expect("MB schedule must exist");
     assert_eq!(schedule, expected_schedule);
 
-    let mid_payload = ethexe_runtime_common::state::PayloadLookup::Direct(
-        original_mid.into_bytes().to_vec().try_into().unwrap(),
-    );
-    let ping_payload =
-        ethexe_runtime_common::state::PayloadLookup::Direct(b"PING".to_vec().try_into().unwrap());
+    let mid_payload = PayloadLookup::Direct(original_mid.into_bytes().to_vec().try_into().unwrap());
+    let ping_payload = PayloadLookup::Direct(b"PING".to_vec().try_into().unwrap());
 
-    let expected_mailbox = std::collections::BTreeMap::from_iter([(
-        env.sender_id,
-        std::collections::BTreeMap::from_iter([
+    let sender_actor_id = env.ethereum.sender_actor_id();
+    let expected_mailbox = BTreeMap::from_iter([(
+        sender_actor_id,
+        BTreeMap::from_iter([
             (
                 mid_expected_message_id,
-                ethexe_runtime_common::state::Expiring {
-                    value: ethexe_runtime_common::state::MailboxMessage {
+                Expiring {
+                    value: MailboxMessage {
                         payload: mid_payload.clone(),
                         value: 0,
-                        message_type: ethexe_common::gear::MessageType::Canonical,
+                        message_type: MessageType::Canonical,
                     },
                     expiry,
                 },
             ),
             (
                 ping_expected_message_id,
-                ethexe_runtime_common::state::Expiring {
-                    value: ethexe_runtime_common::state::MailboxMessage {
+                Expiring {
+                    value: MailboxMessage {
                         payload: ping_payload,
                         value: 0,
-                        message_type: ethexe_common::gear::MessageType::Canonical,
+                        message_type: MessageType::Canonical,
                     },
                     expiry,
                 },
@@ -616,116 +626,111 @@ async fn mailbox() {
         ]),
     )]);
 
-    let mirror = env.ethereum.mirror(async_pid);
-    let state_hash = mirror.query().state_hash().await.unwrap();
-
-    let state = node.db.program_state(state_hash).unwrap();
+    let state = demo_async.state().await.unwrap();
     assert!(!state.mailbox_hash.is_empty());
-    let mailbox = state
-        .mailbox_hash
-        .map_or_default(|hash| node.db.mailbox(hash).unwrap());
+    let mailbox = demo_async
+        .mailbox(state.mailbox_hash.to_inner().unwrap())
+        .await
+        .unwrap();
+    let mailbox_map = mailbox.into_inner();
+    let user_mailbox_hash = *mailbox_map.get(&sender_actor_id).unwrap();
+    let user_mailbox = demo_async
+        .user_mailbox(user_mailbox_hash)
+        .await
+        .unwrap()
+        .into_inner();
+    let mailbox: BTreeMap<_, _> = mailbox_map
+        .into_keys()
+        .map(|k| (k, user_mailbox.clone()))
+        .collect();
+    assert_eq!(mailbox, expected_mailbox);
 
-    assert_eq!(mailbox.into_values(&node.db), expected_mailbox);
-
-    mirror
+    demo_async
         .send_reply(ping_expected_message_id, "PONG", 0)
         .await
         .unwrap();
 
-    let reply_info = wait_for_mutex_request_command_reply
-        .wait_for()
-        .await
-        .unwrap();
+    let reply_info = demo_async.wait_for_reply(original_mid).await.unwrap();
     assert_eq!(
         reply_info.code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
+    assert_eq!(reply_info.value, 0);
     assert_eq!(reply_info.payload, original_mid.encode());
 
-    let state_hash = mirror.query().state_hash().await.unwrap();
-
-    let state = node.db.program_state(state_hash).unwrap();
-    assert!(!state.mailbox_hash.is_empty());
-    let mailbox = state
-        .mailbox_hash
-        .map_or_default(|hash| node.db.mailbox(hash).unwrap());
-
-    let expected_mailbox = std::collections::BTreeMap::from_iter([(
-        env.sender_id,
-        std::collections::BTreeMap::from_iter([(
+    let expected_mailbox = BTreeMap::from_iter([(
+        sender_actor_id,
+        BTreeMap::from_iter([(
             mid_expected_message_id,
-            ethexe_runtime_common::state::Expiring {
-                value: ethexe_runtime_common::state::MailboxMessage {
+            Expiring {
+                value: MailboxMessage {
                     payload: mid_payload,
                     value: 0,
-                    message_type: ethexe_common::gear::MessageType::Canonical,
+                    message_type: MessageType::Canonical,
                 },
                 expiry,
             },
         )]),
     )]);
 
-    assert_eq!(mailbox.into_values(&node.db), expected_mailbox);
-
-    test_info!("📗 Claiming value for message {mid_expected_message_id}");
-    mirror.claim_value(mid_expected_message_id).await.unwrap();
-
-    let receiver = env.new_observer_events();
-
-    // Force-process the claim by sending a follow-up no-op message
-    // through the program. Once its reply lands, the claim has been
-    // executed in the executor and committed to the mirror.
-    let _ = env
-        .send_message(async_pid, b"")
+    let state = demo_async.state().await.unwrap();
+    assert!(!state.mailbox_hash.is_empty());
+    let mailbox = demo_async
+        .mailbox(state.mailbox_hash.to_inner().unwrap())
+        .await
+        .unwrap();
+    let mailbox_map = mailbox.into_inner();
+    let user_mailbox_hash = *mailbox_map.get(&sender_actor_id).unwrap();
+    let user_mailbox = demo_async
+        .user_mailbox(user_mailbox_hash)
         .await
         .unwrap()
-        .wait_for()
+        .into_inner();
+    let mailbox: BTreeMap<_, _> = mailbox_map
+        .into_keys()
+        .map(|k| (k, user_mailbox.clone()))
+        .collect();
+    assert_eq!(mailbox, expected_mailbox);
+
+    test_info!("📗 Claiming value for message {mid_expected_message_id}");
+    demo_async
+        .claim_value(mid_expected_message_id)
         .await
         .unwrap();
 
-    let mb_hash = receiver
-        .clone()
-        .filter_map_block_synced()
-        .find_map(|e| match e {
-            BlockEvent::Router(ethexe_common::events::RouterEvent::MBCommitted(
-                ethexe_common::events::router::MBCommittedEvent(mb_hash),
-            )) => Some(mb_hash),
-            _ => None,
-        })
-        .await;
+    let mut stream = router
+        .events()
+        .mb_committed()
+        .subscribe()
+        .await
+        .unwrap()
+        .take(1);
 
-    let state_hash = mirror.query().state_hash().await.unwrap();
-    let sender_address = env.ethereum.provider().default_signer_address();
-    mirror
-        .process_outgoing_action(
-            state_hash,
-            1.into(),
-            0.into(),
-            OutgoingAction::ValueClaim(ValueClaim {
-                message_id: mid_expected_message_id,
-                destination: sender_address.into(),
-                value: 0,
-            }),
-            vec![],
-        )
+    let value_claim = demo_async
+        .wait_for_value_claim(mid_expected_message_id)
         .await
         .unwrap();
+    let expected_value_claim = ValueClaim {
+        message_id: mid_expected_message_id,
+        destination: sender_actor_id,
+        value: 0,
+    };
+    assert_eq!(value_claim, expected_value_claim);
 
-    let claimed = receiver
-        .filter_map_block_synced()
-        .find_map(|event| match event {
-            BlockEvent::Mirror {
-                actor_id,
-                event: MirrorEvent::ValueClaimed(ValueClaimedEvent { claimed_id, .. }),
-            } if actor_id == async_pid && claimed_id == mid_expected_message_id => Some(true),
-            _ => None,
-        })
-        .await;
-    assert!(claimed, "Value must be claimed");
+    let state = demo_async.state().await.unwrap();
+    assert!(state.mailbox_hash.is_empty());
 
-    let state_hash = mirror.query().state_hash().await.unwrap();
+    let state_hash = demo_async.state_hash().await.unwrap();
     let state = node.db.program_state(state_hash).unwrap();
     assert!(state.mailbox_hash.is_empty());
+
+    let mb_hash = loop {
+        if let Some(result) = stream.next().await
+            && let Ok((MBCommittedEvent(mb_hash), _)) = result
+        {
+            break mb_hash;
+        }
+    };
 
     let schedule = node
         .db
@@ -850,153 +855,129 @@ async fn value_reply_program_to_user() {
 async fn value_send_program_to_user_and_claimed() {
     init_logger();
 
-    let mut env = TestEnv::default().await;
+    let mut env = TestEnv::new(TestEnvConfig {
+        continuous_block_generation: true,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let mut rng = rand::thread_rng();
+    let rpc_port: u16 = rng.gen_range(1024..=u16::MAX);
 
     let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(rpc_port)
+                .validator(env.validators[0]),
+        )
         .await;
     node.start_service().await;
 
-    let res = env
-        .upload_code(demo_piggy_bank::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
+    let vara_eth_api = node.vara_eth_api(env.ethereum.clone()).await.unwrap();
+    let router = vara_eth_api.router();
 
-    let code_id = res.code_id;
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
+    let (_, code_id) = router
+        .request_code_validation(demo_piggy_bank::WASM_BINARY)
         .await
         .unwrap();
 
-    let _ = env
-        .send_message(res.program_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
+    let res = router.wait_for_code_validation(code_id).await.unwrap();
+    assert!(res.valid);
+
+    let (_, piggy_bank_id) = router
+        .create_program_with_executable_balance(code_id, H256::zero(), None, 500_000_000_000_000)
         .await
         .unwrap();
 
-    let piggy_bank_id = res.program_id;
+    let piggy_bank = vara_eth_api.mirror(piggy_bank_id);
 
-    let wvara = env.ethereum.router().wvara();
+    let (_, message_id) = piggy_bank.send_message(b"", 0).await.unwrap();
 
-    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+    let reply = piggy_bank.wait_for_reply(message_id).await.unwrap();
+    assert_eq!(reply.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(reply.value, 0);
 
-    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+    let wvara = vara_eth_api.wrapped_vara();
+    assert_eq!(wvara.decimals().await.unwrap(), 12);
 
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    let on_eth_balance = piggy_bank.balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    let local_balance = piggy_bank.state().await.unwrap().balance;
     assert_eq!(local_balance, 0);
 
-    // 1_000 ETH
-    const VALUE_SENT: u128 = 1_000 * ETHER;
+    // 10 ETH
+    const VALUE_SENT: u128 = 10 * ETHER;
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
-    // Force the validator to fold the deposit into a finalised
-    // MB by sending a no-op message and waiting for the reply.
-    let res = env
-        .send_message(piggy_bank_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
+    let mut stream = piggy_bank
+        .events()
+        .state_changed()
+        .subscribe()
         .await
         .unwrap();
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    while let Some(result) = stream.next().await {
+        if let Ok((StateChangedEvent { .. }, _)) = result {
+            break;
+        }
+    }
+
+    let on_eth_balance = piggy_bank.balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    let local_balance = piggy_bank.state().await.unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
 
-    let res = env
-        .send_message(piggy_bank_id, b"smash")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
+    let (_, message_id) = piggy_bank.send_message(b"smash", 0).await.unwrap();
 
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert_eq!(res.value, 0);
+    let reply = piggy_bank.wait_for_reply(message_id).await.unwrap();
+    assert_eq!(reply.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(reply.value, 0);
 
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    let on_eth_balance = piggy_bank.balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    let local_balance = piggy_bank.state().await.unwrap().balance;
     assert_eq!(local_balance, 0);
 
-    let router_address = env.ethereum.router().address();
-    let router_balance = env
-        .ethereum
-        .provider()
-        .get_balance(router_address.into())
-        .await
-        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
-        .unwrap();
-
+    let router_balance = router.balance().await.unwrap();
     assert_eq!(router_balance, VALUE_SENT);
 
-    let sender_address = env.ethereum.provider().default_signer_address();
-
-    let program_state = node.db.program_state(state_hash).unwrap();
-    let mailbox = node
-        .db
+    let program_state = piggy_bank.state().await.unwrap();
+    let mailbox = piggy_bank
         .mailbox(program_state.mailbox_hash.to_inner().unwrap())
+        .await
         .unwrap();
-    let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
+    let mailbox_map = mailbox.into_inner();
+    let sender_actor_id = env.ethereum.sender_actor_id();
+    let user_mailbox_hash = *mailbox_map.get(&sender_actor_id).unwrap();
+    let user_mailbox = piggy_bank
+        .user_mailbox(user_mailbox_hash)
+        .await
+        .unwrap()
+        .into_inner();
     let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
 
     piggy_bank.claim_value(mailboxed_msg_id).await.unwrap();
 
-    // Force-process the claim by sending a follow-up no-op message
-    // through the program. Once its reply lands, the claim has been
-    // executed in the executor and committed to the mirror.
-    let _ = env
-        .send_message(piggy_bank_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
+    let value_claim = piggy_bank
+        .wait_for_value_claim(mailboxed_msg_id)
         .await
         .unwrap();
+    let expected_value_claim = ValueClaim {
+        message_id: mailboxed_msg_id,
+        destination: sender_actor_id,
+        value: VALUE_SENT,
+    };
+    assert_eq!(value_claim, expected_value_claim);
 
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    piggy_bank
-        .process_outgoing_action(
-            state_hash,
-            1.into(),
-            0.into(),
-            OutgoingAction::ValueClaim(ValueClaim {
-                message_id: mailboxed_msg_id,
-                destination: sender_address.into(),
-                value: VALUE_SENT,
-            }),
-            vec![],
-        )
-        .await
-        .unwrap();
-
-    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
-    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
-    let balance = env
-        .ethereum
-        .provider()
-        .get_balance(sender_address)
-        .await
-        .unwrap();
-    assert!(default_anvil_balance - balance <= measurement_error);
+    let measurement_error = ETHER / 50; // 0.02 ETH for gas costs
+    let default_anvil_balance = 10_000 * ETHER;
+    let sender_balance = env.ethereum.sender_balance().await.unwrap();
+    assert!(default_anvil_balance - sender_balance <= measurement_error);
 
     stop_nodes([node]).await;
 }
@@ -1006,112 +987,110 @@ async fn value_send_program_to_user_and_claimed() {
 async fn value_send_program_to_user_and_replied() {
     init_logger();
 
-    let mut env = TestEnv::default().await;
+    let mut env = TestEnv::new(TestEnvConfig {
+        continuous_block_generation: true,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let mut rng = rand::thread_rng();
+    let rpc_port: u16 = rng.gen_range(1024..=u16::MAX);
 
     let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(rpc_port)
+                .validator(env.validators[0]),
+        )
         .await;
     node.start_service().await;
 
-    let res = env
-        .upload_code(demo_piggy_bank::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
+    let vara_eth_api = node.vara_eth_api(env.ethereum.clone()).await.unwrap();
+    let router = vara_eth_api.router();
 
-    let code_id = res.code_id;
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
+    let (_, code_id) = router
+        .request_code_validation(demo_piggy_bank::WASM_BINARY)
         .await
         .unwrap();
 
-    let _ = env
-        .send_message(res.program_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
+    let res = router.wait_for_code_validation(code_id).await.unwrap();
+    assert!(res.valid);
+
+    let (_, piggy_bank_id) = router
+        .create_program_with_executable_balance(code_id, H256::zero(), None, 500_000_000_000_000)
         .await
         .unwrap();
 
-    let piggy_bank_id = res.program_id;
+    let piggy_bank = vara_eth_api.mirror(piggy_bank_id);
 
-    let wvara = env.ethereum.router().wvara();
+    let (_, message_id) = piggy_bank.send_message(b"", 0).await.unwrap();
 
-    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+    let reply = piggy_bank.wait_for_reply(message_id).await.unwrap();
+    assert_eq!(reply.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(reply.value, 0);
 
-    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+    let wvara = vara_eth_api.wrapped_vara();
+    assert_eq!(wvara.decimals().await.unwrap(), 12);
 
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    let on_eth_balance = piggy_bank.balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    let local_balance = piggy_bank.state().await.unwrap().balance;
     assert_eq!(local_balance, 0);
 
-    // 1_000 ETH
-    const VALUE_SENT: u128 = 1_000 * ETHER;
+    // 10 ETH
+    const VALUE_SENT: u128 = 10 * ETHER;
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
-    // Force-fold the deposit into the next finalised MB.
-    let res = env
-        .send_message(piggy_bank_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
+    let mut stream = piggy_bank
+        .events()
+        .state_changed()
+        .subscribe()
         .await
         .unwrap();
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    while let Some(result) = stream.next().await {
+        if let Ok((StateChangedEvent { .. }, _)) = result {
+            break;
+        }
+    }
+
+    let on_eth_balance = piggy_bank.balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    let local_balance = piggy_bank.state().await.unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
 
-    let res = env
-        .send_message(piggy_bank_id, b"smash")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
+    let (_, message_id) = piggy_bank.send_message(b"smash", 0).await.unwrap();
 
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert_eq!(res.value, 0);
+    let reply = piggy_bank.wait_for_reply(message_id).await.unwrap();
+    assert_eq!(reply.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(reply.value, 0);
 
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    let on_eth_balance = piggy_bank.balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    let local_balance = piggy_bank.state().await.unwrap().balance;
     assert_eq!(local_balance, 0);
 
-    let router_address = env.ethereum.router().address();
-    let router_balance = env
-        .ethereum
-        .provider()
-        .get_balance(router_address.into())
-        .await
-        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
-        .unwrap();
-
+    let router_balance = router.balance().await.unwrap();
     assert_eq!(router_balance, VALUE_SENT);
 
-    let sender_address = env.ethereum.provider().default_signer_address();
-
-    let program_state = node.db.program_state(state_hash).unwrap();
-    let mailbox = node
-        .db
+    let program_state = piggy_bank.state().await.unwrap();
+    let mailbox = piggy_bank
         .mailbox(program_state.mailbox_hash.to_inner().unwrap())
+        .await
         .unwrap();
-    let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
+    let mailbox_map = mailbox.into_inner();
+    let sender_actor_id = env.ethereum.sender_actor_id();
+    let user_mailbox_hash = *mailbox_map.get(&sender_actor_id).unwrap();
+    let user_mailbox = piggy_bank
+        .user_mailbox(user_mailbox_hash)
+        .await
+        .unwrap()
+        .into_inner();
     let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
 
     piggy_bank
@@ -1119,40 +1098,21 @@ async fn value_send_program_to_user_and_replied() {
         .await
         .unwrap();
 
-    // Force-process the reply by sending a follow-up no-op message.
-    let _ = env
-        .send_message(piggy_bank_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
+    let value_claim = piggy_bank
+        .wait_for_value_claim(mailboxed_msg_id)
         .await
         .unwrap();
+    let expected_value_claim = ValueClaim {
+        message_id: mailboxed_msg_id,
+        destination: sender_actor_id,
+        value: VALUE_SENT,
+    };
+    assert_eq!(value_claim, expected_value_claim);
 
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    piggy_bank
-        .process_outgoing_action(
-            state_hash,
-            1.into(),
-            0.into(),
-            OutgoingAction::ValueClaim(ValueClaim {
-                message_id: mailboxed_msg_id,
-                destination: sender_address.into(),
-                value: VALUE_SENT,
-            }),
-            vec![],
-        )
-        .await
-        .unwrap();
-
-    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
-    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
-    let balance = env
-        .ethereum
-        .provider()
-        .get_balance(sender_address)
-        .await
-        .unwrap();
-    assert!(default_anvil_balance - balance <= measurement_error);
+    let measurement_error = ETHER / 50; // 0.02 ETH for gas costs
+    let default_anvil_balance = 10_000 * ETHER;
+    let sender_balance = env.ethereum.sender_balance().await.unwrap();
+    assert!(default_anvil_balance - sender_balance <= measurement_error);
 
     stop_nodes([node]).await;
 }
