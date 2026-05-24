@@ -1,7 +1,7 @@
 
 <p align="center">
   <a href="https://gear-tech.io">
-    <img src="images/title-grey.png" width="700" alt="Gear">
+    <img src=".github/images/title-grey.png" width="700" alt="Gear">
   </a>
 </p>
 
@@ -115,19 +115,19 @@ Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](LI
 <h4>
 <p align="left" nowrap>
     <a href="https://twitter.com/gear_techs">
-        <img src="./images/social-icon-1.svg" alt="twit" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-1.svg" alt="twit" style="vertical-align:middle" >
     </a>
     <a href="https://github.com/gear-tech">
-        <img src="./images/social-icon-2.svg" alt="github" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-2.svg" alt="github" style="vertical-align:middle" >
     </a>
     <a href="https://discord.gg/7BQznC9uD9">
-        <img src="./images/social-icon-3.svg" alt="discord" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-3.svg" alt="discord" style="vertical-align:middle" >
     </a>
     <a href="https://medium.com/@gear_techs">
-        <img src="./images/social-icon-4.svg" alt="medium" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-4.svg" alt="medium" style="vertical-align:middle" >
     </a>
     <a href="https://t.me/gear_tech">
-        <img src="./images/social-icon-5.svg" alt="medium" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-5.svg" alt="medium" style="vertical-align:middle" >
    </a>
     <br> •
     <a href="https://gear-tech.io">
