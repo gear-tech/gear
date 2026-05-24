@@ -127,7 +127,7 @@ Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](LI
         <img src=".github/images/social-icon-4.svg" alt="medium" style="vertical-align:middle" >
     </a>
     <a href="https://t.me/gear_tech">
-        <img src=".github/images/social-icon-5.svg" alt="medium" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-5.svg" alt="telegram" style="vertical-align:middle" >
    </a>
     <br> •
     <a href="https://gear-tech.io">
