@@ -30,7 +30,7 @@
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
-/// TPKE encrypt/decrypt impelementation.
+/// TPKE encrypt/decrypt implementation.
 mod tpke;
 pub use tpke::{HKDF_DEM_INFO, decrypt, encrypt};
 

@@ -30,6 +30,12 @@ pub trait Injected {
         transaction: AddressedInjectedTransaction,
     ) -> jsonrpsee::core::RpcResult<InjectedTransactionAcceptance>;
 
+    #[method(name = "sendShieldedTransaction")]
+    async fn send_shielded_transaction(
+        &self,
+        transaction: (),
+    ) -> jsonrpsee::core::RpcResult<InjectedTransactionAcceptance>;
+
     /// Sends an injected transaction and subscribes to its promise.
     #[subscription(
         name = "sendTransactionAndWatch",
@@ -40,6 +46,7 @@ pub trait Injected {
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> jsonrpsee::core::SubscriptionResult;
+
 
     #[method(name = "getTransactionPromise")]
     async fn get_transaction_promise(

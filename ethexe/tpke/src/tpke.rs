@@ -183,14 +183,7 @@ fn decrypt_payload<P: Decode>(
         )
         .map_err(|_| TpkeError::Aead)?;
 
-    let decoded_payload =
-        P::decode(&mut decrypted_bytes.as_slice()).map_err(TpkeError::PayloadDecode)?;
-
-    // if Blake2b256Hash::from(&decoded_payload) != *hash {
-    //     todo!("return error here, because the payload mismatch")
-    // }
-
-    Ok(decoded_payload)
+    P::decode(&mut decrypted_bytes.as_slice()).map_err(TpkeError::PayloadDecode)
 }
 
 /// Calculates Lagrange Polynomial coefficient at x = 0.
@@ -212,6 +205,6 @@ pub(crate) fn lagrange_coefficient(i: u32, indices: &[u32]) -> Option<Fr> {
         denominator *= xj - xi;
     }
 
-    // numerator * denominator^-1 = numerator / denominato
+    // numerator * denominator^-1 = numerator / denominator
     Some(numerator * denominator.inverse()?)
 }
