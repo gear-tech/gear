@@ -22,9 +22,12 @@ where
     let is_access_violation =
         unsafe { (*exception_record).ExceptionCode == EXCEPTION_ACCESS_VIOLATION };
     let num_params = unsafe { (*exception_record).NumberParameters };
-    // Not an access violation — not a lazy-pages page fault. Hand it back to
-    // the OS exception chain without running any non-async-signal-safe work
-    // (e.g. logging) in the handler.
+    // Not an access violation — not a lazy-pages page fault. Hand it back
+    // to the OS exception chain without running anything the Microsoft
+    // VEH contract disallows in a vectored handler (heap allocation
+    // through the process heap, re-entering the SEH dispatcher, logging
+    // that may take a lock the interrupted thread already holds, etc.).
+    // See `PVECTORED_EXCEPTION_HANDLER` remarks for the constraint set.
     if !is_access_violation || num_params != 2 {
         return EXCEPTION_CONTINUE_SEARCH;
     }
