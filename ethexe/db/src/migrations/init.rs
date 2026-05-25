@@ -3,15 +3,16 @@
 
 use std::collections::BTreeMap;
 
-use super::{InitConfig, LATEST_VERSION, MIGRATIONS, OLDEST_SUPPORTED_VERSION};
+use super::{InitConfig, LATEST_VERSION, migrate};
 use crate::{Database, RawDatabase, dump::StateDump, migrations::GenesisInitializer};
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, bail, ensure};
 use ethexe_common::{
-    Announce, BlockHeader, HashOf, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
+    BlockHeader, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
     StateHashWithQueueSize,
-    db::{CodesStorageRO, CodesStorageRW, ComputedAnnounceData, PreparedBlockData},
+    db::{CodesStorageRO, CodesStorageRW, CompactMb, MbStorageRW, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
+    malachite::Transactions,
 };
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_runtime_common::{RUNTIME_ID, ScheduleRestorer, state::Storage};
@@ -27,65 +28,14 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
         );
         initialize_empty_db(config, &db).await?;
     } else {
-        let db_version = db.kv.version()?;
-
-        ensure!(
-            db_version != Some(0),
-            "Database at version 0 must not have config, but we found it. Consider to clean up database"
-        );
-        let db_version = db_version.unwrap_or(0);
-
-        ensure!(
-            db_version <= LATEST_VERSION,
-            "Cannot initialize database to version {LATEST_VERSION} from version {}",
-            db_version
-        );
-
+        let db_version = db.kv.version()?.context("Version not found")?;
         log::info!("Database has version {db_version}");
 
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if db_version < OLDEST_SUPPORTED_VERSION {
-            log::info!(
-                "The oldest supported database version is {}",
-                OLDEST_SUPPORTED_VERSION
-            );
-            bail!(
-                "Database version is too old: expected at least {}, found {}",
-                OLDEST_SUPPORTED_VERSION,
-                db_version
-            );
-        }
-
-        for (i, &migration) in MIGRATIONS.iter().enumerate() {
-            let from_version = i as u32 + OLDEST_SUPPORTED_VERSION;
-
-            if from_version >= db_version {
-                log::info!(
-                    "Migrating the database from version {} to version {}",
-                    from_version,
-                    from_version + 1
-                );
-
-                migration.migrate(&config, &db).await?;
-
-                let version_after_migration = db
-                    .kv
-                    .version()
-                    .and_then(|v| v.context("Config not found"))
-                    .context("Cannot retrieve database version after migration")?;
-                ensure!(
-                    version_after_migration == from_version + 1,
-                    "Expected database version {}, but found {}",
-                    from_version + 1,
-                    version_after_migration
-                );
-
-                log::info!(
-                    "Migration from version {} to version {} completed",
-                    from_version,
-                    from_version + 1
-                );
-            }
+        if db_version != LATEST_VERSION {
+            log::info!("Upgrading database from version {db_version} to {LATEST_VERSION}...");
+            migrate(&config, &db)
+                .await
+                .context("Failed to migrate database")?;
         }
 
         validate_db(config, &db).await?;
@@ -142,28 +92,34 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         },
     };
 
-    let genesis_announce = Announce {
-        block_hash: genesis_block.hash,
-        parent: HashOf::zero(),
-        gas_allowance: None,
-        injected_transactions: vec![],
-    };
-
-    let (program_states, schedule) = if let Some(initializer) = config.genesis_initializer {
-        genesis_data_initialization(initializer, db, genesis_block).await?
+    let genesis_mb = if let Some(initializer) = config.genesis_initializer {
+        let (mb_hash, program_states, schedule) =
+            genesis_data_initialization(initializer, db, genesis_block).await?;
+        // Seed MB rows so RPC reads (program_states / schedule / outcome)
+        // resolve before the first post-genesis MB lands. The empty
+        // Transactions blob is persisted in CAS so downstream walkers
+        // (`prepare_executable_for_mb`, `ethexe check`) can resolve
+        // `transactions_hash` without tripping on `H256::zero`.
+        let transactions_hash = db.set_transactions(Transactions::default());
+        db.set_mb_compact_block(
+            mb_hash,
+            CompactMb {
+                parent: H256::zero(),
+                height: 0,
+                transactions_hash,
+            },
+        );
+        db.set_mb_program_states(mb_hash, program_states);
+        db.set_mb_schedule(mb_hash, schedule);
+        db.set_mb_outcome(mb_hash, Vec::new());
+        db.mutate_mb_meta(mb_hash, |m| {
+            m.computed = true;
+            m.last_advanced_eb = genesis_block.hash;
+        });
+        Some(mb_hash)
     } else {
-        (Default::default(), Default::default())
+        None
     };
-
-    let genesis_announce_hash = ethexe_common::setup_announce_in_db(
-        &db,
-        ComputedAnnounceData {
-            announce: genesis_announce,
-            program_states,
-            schedule,
-            outcome: Default::default(),
-        },
-    );
 
     ethexe_common::setup_block_in_db(
         &db,
@@ -172,9 +128,9 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
             header: genesis_block.header,
             events: Default::default(),
             codes_queue: Default::default(),
-            announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
-            last_committed_announce: HashOf::zero(),
+            last_committed_mb: H256::zero(),
+            last_committed_eb: H256::zero(),
             latest_era_with_committed_validators: 0,
         },
     );
@@ -198,17 +154,17 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
                 .context("slot duration must be non-zero")?,
         },
         genesis_block_hash: genesis.hash,
-        genesis_announce_hash,
         max_validators: storage_view.maxValidators,
     };
 
-    // NOTE: start block and announce could be changed later by fast-sync
+    // NOTE: start block could be changed later by fast-sync
+    let genesis_mb_hash = genesis_mb.unwrap_or(H256::zero());
     let globals = ethexe_common::db::DBGlobals {
         start_block_hash: genesis_block.hash,
-        start_announce_hash: genesis_announce_hash,
-        latest_synced_block: genesis_block,
-        latest_prepared_block_hash: genesis_block.hash,
-        latest_computed_announce_hash: genesis_announce_hash,
+        latest_synced_eb: genesis_block,
+        latest_prepared_eb_hash: genesis_block.hash,
+        latest_finalized_mb_hash: genesis_mb_hash,
+        latest_computed_mb_hash: genesis_mb_hash,
     };
 
     db.kv.set_globals(globals);
@@ -221,11 +177,11 @@ async fn genesis_data_initialization(
     mut initializer: Box<dyn GenesisInitializer>,
     db: &RawDatabase,
     genesis_block: SimpleBlockData,
-) -> Result<(ProgramStates, Schedule)> {
+) -> Result<(H256, ProgramStates, Schedule)> {
     log::info!("Start genesis {genesis_block} data initialization...");
 
     let StateDump {
-        announce_hash,
+        mb_hash,
         block_hash,
         codes,
         programs,
@@ -240,14 +196,12 @@ async fn genesis_data_initialization(
     }
 
     log::info!(
-        "Genesis data for announce {announce_hash} and block {block_hash} \
+        "Genesis data for MB {mb_hash} and block {block_hash} \
          contains {} codes, {} programs, {} blobs",
         codes.len(),
         programs.len(),
         blobs.len()
     );
-
-    let (_, _) = (announce_hash, block_hash); // to avoid unused variable warning if log is disabled
 
     let mut code_bytes = BTreeMap::<CodeId, Vec<u8>>::new();
     for blob in blobs {
@@ -321,5 +275,5 @@ async fn genesis_data_initialization(
 
     log::info!("Genesis data initialization completed");
 
-    Ok((program_states, schedule))
+    Ok((mb_hash, program_states, schedule))
 }

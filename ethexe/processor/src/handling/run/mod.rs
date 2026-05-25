@@ -103,9 +103,8 @@ use chunk_execution_processing::ChunkJournalsProcessingOutput;
 use chunks_splitting::ExecutionChunks;
 use core_processor::common::JournalNote;
 use ethexe_common::{
-    BlockHeader, CALL_REPLY_SOFT_LIMIT, OUTGOING_MESSAGES_BYTES_SOFT_LIMIT,
-    OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT, PromisePolicy,
-    StateHashWithQueueSize,
+    CALL_REPLY_SOFT_LIMIT, OUTGOING_MESSAGES_BYTES_SOFT_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT,
+    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PromisePolicy, StateHashWithQueueSize,
     db::{CodesStorageRO, CodesStorageRW},
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
 };
@@ -362,18 +361,21 @@ pub(crate) struct CommonRunContext {
     call_reply_limiter: u32,
     out_of_gas: bool,
     chunk_size: usize,
-    block_header: BlockHeader,
+    height: u32,
+    timestamp: u64,
     promise_sink: Option<BoundPromiseSink>,
 }
 
 impl CommonRunContext {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: Database,
         instance_creator: InstanceCreator,
         in_block_transitions: InBlockTransitions,
         gas_allowance: u64,
         chunk_size: usize,
-        block_header: BlockHeader,
+        height: u32,
+        timestamp: u64,
         promise_sink: Option<BoundPromiseSink>,
     ) -> Self {
         CommonRunContext {
@@ -386,7 +388,8 @@ impl CommonRunContext {
             call_reply_limiter: CALL_REPLY_SOFT_LIMIT,
             out_of_gas: false,
             chunk_size,
-            block_header,
+            height,
+            timestamp,
             promise_sink,
         }
     }
@@ -552,7 +555,8 @@ mod tests {
             transitions,
             1_000_000,
             CHUNK_PROCESSING_THREADS,
-            BlockHeader::dummy(3),
+            3,
+            3,
             None,
         );
 
@@ -710,7 +714,8 @@ mod tests {
             100,
             16,
             InstanceCreator::new(db.clone(), host::runtime()).unwrap(),
-            BlockHeader::dummy(3),
+            3,
+            3,
         );
         access_state(
             pid2,

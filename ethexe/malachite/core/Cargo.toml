@@ -1,0 +1,56 @@
+[package]
+name = "ethexe-malachite-core"
+description = "Application-agnostic Malachite BFT consensus service used by ethexe-malachite."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Malachite BFT engine
+malachitebft-app-channel.workspace = true
+malachitebft-app.workspace = true
+malachitebft-codec.workspace = true
+malachitebft-core-consensus.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-engine.workspace = true
+malachitebft-signing.workspace = true
+malachitebft-signing-ecdsa.workspace = true
+malachitebft-sync.workspace = true
+malachitebft-test.workspace = true
+
+# Async + utilities
+anyhow.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+derive-where.workspace = true
+futures.workspace = true
+hex.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive", "std"] }
+serde = { workspace = true, features = ["derive"] }
+sha3 = { workspace = true, features = ["std"] }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+tracing.workspace = true
+
+# Crypto + libp2p (kept ethexe-shaped per design: secp256k1 + 20-byte addresses).
+# Address type is reused from gsigner so the application side (ethexe today,
+# anything else tomorrow) gets the same address shape it already deals with.
+gear-core = { workspace = true, features = ["std"] }
+gprimitives = { workspace = true, features = ["std"] }
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "serde", "keyring"] }
+libp2p-identity.workspace = true
+
+# Persistent internal store. Version pinned to match ethexe-db's
+# librocksdb-sys (only one `links = "rocksdb"` crate is allowed in
+# the dependency graph).
+rocksdb.workspace = true
+
+gear-workspace-hack.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
