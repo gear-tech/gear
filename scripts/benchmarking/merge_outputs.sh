@@ -17,7 +17,12 @@ ADDITIONAL_FILES=(
 
 weights1=()
 weights2=()
-DEFINITIONS=""
+DEFINITIONS=()
+
+if [ ! -f "$MAIN_FILE" ]; then
+  echo "[-] Main weight file is missing: $MAIN_FILE"
+  exit 1
+fi
 
 # Loop through the list of pallet_gear files and merge their functions.
 for FILE in "${ADDITIONAL_FILES[@]}"; do
@@ -35,7 +40,9 @@ for FILE in "${ADDITIONAL_FILES[@]}"; do
     weights1+=("$match")
   done < <(echo "$ALL_WEIGHTS1" | perl -0777 -nle 'print "$1\n" while / +(\/\/\/ The range of component [`\[\]\w\s,.]*?(^\s+fn gr_[\w\s\(\)->]+{$(?:.*)}))/gms')
 
-  DEFINITIONS=$(perl -0777 -nle 'print "$&\n" while / *fn gr_[\w_]+[\(\w:, \)->]+$/gms' "$FILE")
+  while IFS= read -r match; do
+    DEFINITIONS+=("$match")
+  done < <(perl -0777 -nle 'print "$&\n" while / *fn gr_[\w_]+[\(\w:, \)->]+$/gms' "$FILE")
 
   ALL_WEIGHTS2=$(perl -0777 -nle 'print $1 if /(?:\G(?!^)|WeightInfo for \(\) {)\s(.*)}/gms' "$FILE")
 

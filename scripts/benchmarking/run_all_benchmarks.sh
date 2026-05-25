@@ -160,15 +160,16 @@ rm -f $ERR_FILE
 
 WEIGHTS_OUTPUT="scripts/benchmarking/weights-output"
 # Delete the weights output folders before each run.
-rm -rf ${WEIGHTS_OUTPUT}
+rm -rf "${WEIGHTS_OUTPUT}"
 # Create the weights output folders.
-mkdir -p ${WEIGHTS_OUTPUT}
+mkdir -p "${WEIGHTS_OUTPUT}"
 
 STORAGE_OUTPUT="scripts/benchmarking/rocksdb_weights.rs"
 rm -f ${STORAGE_OUTPUT}
 
 MACHINE_OUTPUT="scripts/benchmarking/machine_benchmark_result.txt"
 rm -f $MACHINE_OUTPUT
+PALLET_GEAR_ONETIME_BENCHMARKED=false
 
 # Benchmark each pallet.
 for PALLET in "${PALLETS[@]}"; do
@@ -284,6 +285,8 @@ for PALLET in "${PALLETS[@]}"; do
     if [ $? -ne 0 ]; then
       echo "$OUTPUT" >> "$ERR_FILE"
       echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
+    else
+      PALLET_GEAR_ONETIME_BENCHMARKED=true
     fi
   fi
 
@@ -324,8 +327,8 @@ else
   unset storage_folder
 fi
 
-# Merge pallet_gear weights if pallet_gear was benchmarked.
-if [[ " ${PALLETS[*]} " =~ " pallet_gear " ]]; then
+# Merge pallet_gear one-time weights if the one-time benchmark ran.
+if [ "$PALLET_GEAR_ONETIME_BENCHMARKED" = true ]; then
   ./scripts/benchmarking/merge_outputs.sh
 fi
 
