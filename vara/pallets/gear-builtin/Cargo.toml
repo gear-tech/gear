@@ -21,7 +21,7 @@ impl-trait-for-tuples.workspace = true
 ark-std = { workspace = true, optional = true }
 
 common.workspace = true
-core-processor.workspace = true
+gear-processor.workspace = true
 gbuiltin-staking.workspace = true
 gbuiltin-proxy.workspace = true
 builtins-common = { workspace = true, features = ["bls12-381"] }

@@ -25,7 +25,6 @@ use crate::{
         waitlist::WaitlistManager,
     },
 };
-use core_processor::{Ext, common::*, configs::BlockConfig};
 use gear_common::{
     LockId, Origin,
     event::{MessageWaitedReason, MessageWaitedRuntimeReason},
@@ -44,6 +43,7 @@ use gear_core::{
     tasks::ScheduledTask,
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;
+use gear_processor::{Ext, common::*, configs::BlockConfig};
 use hold_bound::HoldBoundBuilder;
 use std::{
     collections::{BTreeMap, BTreeSet},

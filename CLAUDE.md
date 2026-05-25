@@ -72,7 +72,7 @@ User extrinsic (upload_program / send_message / send_reply)
   → pallet-gear validates, reserves gas+value, queues StoredDispatch
     → run() inherent fires each block (mandatory, unsigned)
       → QueueRunner dequeues dispatches one by one
-        → core-processor loads program, creates Ext context
+        → gear-processor loads program, creates Ext context
           → core-backend instantiates WASM in sandbox (Wasmer/Wasmtime)
             → Program calls gstd/gcore syscalls → dispatched to host fns
             → lazy-pages intercepts SIGSEGV for on-demand memory paging
@@ -311,7 +311,7 @@ Integration tests in ethexe-service use Anvil (local Ethereum) with mock contrac
 ```
 WASM program (no_std): gstd → gcore → gsys, gprimitives, gear-core-errors
                             ↕ syscall FFI boundary
-Native runtime (std):   core-backend → core-processor → pallets → runtime/vara
+Native runtime (std):   core-backend → gear-processor → pallets → runtime/vara
 ```
 
 `no_std` crates use `extern crate alloc` for Vec/BTreeMap/Arc. `std` feature is excluded by `wasm-builder` during program compilation. `ethexe` feature flag in gstd/gcore disables certain syscalls unavailable in the Ethereum context.

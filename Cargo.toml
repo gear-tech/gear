@@ -255,7 +255,6 @@ dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
 authorship = { package = "gear-authorship", path = "vara/node/authorship" }
 builtins-common = { path = "vara/sdk/builtins/common", default-features = false }
 common = { package = "gear-common", path = "vara/common", default-features = false }
-core-processor = { package = "gear-core-processor", path = "protocol/processor", default-features = false }
 galloc = { path = "sdk/galloc" }
 gbuiltin-bls381 = { path = "vara/sdk/builtins/bls381", default-features = false }
 gbuiltin-eth-bridge = { path = "vara/sdk/builtins/eth-bridge", default-features = false }
@@ -279,12 +278,12 @@ gear-common = { path = "vara/common", default-features = false }
 gear-common-codegen = { path = "vara/common/codegen" }
 gear-core = { path = "protocol/core", default-features = false }
 gear-core-errors = { path = "protocol/errors" }
-gear-core-processor = { path = "protocol/processor", default-features = false }
 gear-lazy-pages = { path = "protocol/lazy-pages" }
 gear-lazy-pages-common = { path = "protocol/lazy-pages/common", default-features = false }
 gear-lazy-pages-interface = { path = "protocol/lazy-pages/interface", default-features = false }
 gear-lazy-pages-native-interface = { path = "protocol/lazy-pages/native-interface" }
 gear-node-testing = { path = "vara/node/testing" }
+gear-processor = { path = "protocol/processor", default-features = false }
 gear-runtime-common = { path = "vara/runtime/common", default-features = false }
 gear-runtime-interface = { path = "vara/runtime/interface", default-features = false }
 gear-sandbox-interface = { path = "vara/runtime/interface/sandbox", default-features = false }

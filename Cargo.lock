@@ -5592,8 +5592,8 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-core-errors",
- "gear-core-processor",
  "gear-lazy-pages",
+ "gear-processor",
  "gear-runtime-interface",
  "gear-sandbox-host",
  "gear-wasm-instrument",
@@ -5687,8 +5687,8 @@ dependencies = [
  "gear-core",
  "gear-core-backend",
  "gear-core-errors",
- "gear-core-processor",
  "gear-lazy-pages-common",
+ "gear-processor",
  "gear-workspace-hack",
  "gprimitives",
  "gsys",
@@ -6987,24 +6987,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-core-processor"
-version = "1.10.0"
-dependencies = [
- "actor-system-error",
- "derive_more 2.1.1",
- "enum-iterator 1.5.0",
- "gear-core",
- "gear-core-backend",
- "gear-core-errors",
- "gear-lazy-pages-common",
- "gear-wasm-instrument",
- "gear-workspace-hack",
- "gsys",
- "log",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "gear-dlmalloc"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7139,6 +7121,24 @@ dependencies = [
  "rand 0.8.5",
  "smallvec",
  "which",
+]
+
+[[package]]
+name = "gear-processor"
+version = "1.10.0"
+dependencies = [
+ "actor-system-error",
+ "derive_more 2.1.1",
+ "enum-iterator 1.5.0",
+ "gear-core",
+ "gear-core-backend",
+ "gear-core-errors",
+ "gear-lazy-pages-common",
+ "gear-wasm-instrument",
+ "gear-workspace-hack",
+ "gsys",
+ "log",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -7436,10 +7436,10 @@ dependencies = [
  "arbitrary",
  "gear-core",
  "gear-core-backend",
- "gear-core-processor",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-lazy-pages-native-interface",
+ "gear-processor",
  "gear-utils",
  "gear-wasm-instrument",
  "gear-workspace-hack",
@@ -8301,10 +8301,10 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-errors",
- "gear-core-processor",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-lazy-pages-native-interface",
+ "gear-processor",
  "gear-utils",
  "gear-workspace-hack",
  "gprimitives",
@@ -12430,9 +12430,9 @@ dependencies = [
  "gear-core",
  "gear-core-backend",
  "gear-core-errors",
- "gear-core-processor",
  "gear-lazy-pages-common",
  "gear-lazy-pages-interface",
+ "gear-processor",
  "gear-runtime-interface",
  "gear-sandbox",
  "gear-wasm-instrument",
@@ -12507,7 +12507,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-errors",
- "gear-core-processor",
+ "gear-processor",
  "gear-runtime-interface",
  "gear-workspace-hack",
  "gprimitives",

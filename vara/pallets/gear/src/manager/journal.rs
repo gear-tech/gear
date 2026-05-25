@@ -13,7 +13,6 @@ use common::{
     scheduler::{SchedulingCostsPerBlock, StorageType, TaskPool},
     storage::*,
 };
-use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
     sp_runtime::Saturating,
     traits::{Currency, ExistenceRequirement, LockableCurrency, WithdrawReasons},
@@ -30,6 +29,7 @@ use gear_core::{
     tasks::{ScheduledTask, TaskHandler},
 };
 use gear_core_errors::SignalCode;
+use gear_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 

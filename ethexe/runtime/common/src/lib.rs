@@ -9,11 +9,6 @@ extern crate alloc;
 
 use crate::journal::{Limiter, LimitsStatus};
 use alloc::vec::Vec;
-use core_processor::{
-    ContextCharged, ProcessExecutionContext,
-    common::{ExecutableActorData, JournalNote},
-    configs::{BlockConfig, SyscallName},
-};
 use ethexe_common::{
     HashOf, PromisePolicy,
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
@@ -32,13 +27,18 @@ use gear_core::{
     rpc::ReplyInfo,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
+use gear_processor::{
+    ContextCharged, ProcessExecutionContext,
+    common::{ExecutableActorData, JournalNote},
+    configs::{BlockConfig, SyscallName},
+};
 use gprimitives::{H256, MessageId};
 use gsys::{GasMultiplier, Percent};
 use journal::RuntimeJournalHandler;
 use parity_scale_codec::{Decode, Encode};
 use state::{Dispatch, ProgramState, Storage};
 
-pub use core_processor::configs::BlockInfo;
+pub use gear_processor::configs::BlockInfo;
 pub use journal::{
     NativeJournalHandler as JournalHandler, RuntimeDispatchReport, RuntimeGasBurnReport,
     RuntimeQueueReport, WAIT_UP_TO_SAFE_DURATION,
@@ -391,11 +391,11 @@ where
         state::Program::Active(state) => state,
         state::Program::Terminated(program_id) => {
             log::trace!("Program {program_id} has failed init");
-            return core_processor::process_failed_init(context);
+            return gear_processor::process_failed_init(context);
         }
         state::Program::Exited(program_id) => {
             log::trace!("Program {program_id} has exited");
-            return core_processor::process_program_exited(context, *program_id);
+            return gear_processor::process_program_exited(context, *program_id);
         }
     };
 
@@ -414,7 +414,7 @@ where
         log::trace!(
             "Program {program_id} is not yet finished initialization, so cannot process handle message"
         );
-        return core_processor::process_uninitialized(context);
+        return gear_processor::process_uninitialized(context);
     }
 
     let context = match context.charge_for_code_metadata(block_config) {
@@ -465,7 +465,7 @@ where
 
     let random_data = ri.random_data();
 
-    core_processor::process::<Ext<RI>>(block_config, execution_context, random_data)
+    gear_processor::process::<Ext<RI>>(block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))
 }
 

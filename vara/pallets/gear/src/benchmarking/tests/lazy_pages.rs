@@ -15,13 +15,13 @@ use crate::{
 use ::alloc::{collections::BTreeSet, format, vec};
 use common::{Origin, ProgramStorage};
 use core::fmt::{Debug, Formatter};
-use core_processor::common::{DispatchOutcome, JournalNote};
 use gear_core::{
     costs::LazyPagesCosts,
     memory::{MemoryInterval, PageBuf},
     pages::{GearPage, GearPagesAmount, numerated::iterators::IntervalIterator},
 };
 use gear_lazy_pages_common::Status;
+use gear_processor::common::{DispatchOutcome, JournalNote};
 use gear_wasm_instrument::{Instruction, MemArg, SyscallName};
 use rand::{Rng, SeedableRng};
 use sp_runtime::codec::MaxEncodedLen;
@@ -297,8 +297,8 @@ where
             let charged_for_pages = page_sets.charged_for_pages(costs);
 
             let notes =
-                core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
-                    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+                gear_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+                    .unwrap_or_else(|e| unreachable!("gear-processor logic invalidated: {}", e));
 
             let mut gas_burned = 0;
             for note in notes.into_iter() {
@@ -369,8 +369,8 @@ where
                 (write_after_read_cost * i).into();
 
             let notes =
-                core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
-                    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+                gear_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+                    .unwrap_or_else(|e| unreachable!("gear-processor logic invalidated: {}", e));
 
             let mut gas_burned = 0;
             for note in notes.into_iter() {
@@ -525,8 +525,8 @@ where
         exec.block_config.costs.lazy_pages = Default::default();
 
         let notes =
-            core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
-                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+            gear_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+                .unwrap_or_else(|e| unreachable!("gear-processor logic invalidated: {}", e));
 
         let mut gas_burned = None;
         for note in notes.into_iter() {
@@ -565,8 +565,8 @@ where
         };
 
         let notes =
-            core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
-                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+            gear_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+                .unwrap_or_else(|e| unreachable!("gear-processor logic invalidated: {}", e));
 
         for note in notes.into_iter() {
             match note {
@@ -603,8 +603,8 @@ where
         };
 
         let notes =
-            core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
-                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+            gear_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+                .unwrap_or_else(|e| unreachable!("gear-processor logic invalidated: {}", e));
 
         for note in notes.into_iter() {
             match note {

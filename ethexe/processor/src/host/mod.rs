@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::BoundPromiseSink;
-use core_processor::common::JournalNote;
 use ethexe_common::gear::MessageType;
 use ethexe_db::Database;
 use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, unpack_i64_to_u32};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
+use gear_processor::common::JournalNote;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::FreeingBumpHeapAllocator;
