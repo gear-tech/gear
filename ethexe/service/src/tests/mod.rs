@@ -71,10 +71,12 @@ async fn find_value_claim_proof(
                 return None;
             }
             let actions = db.outgoing_actions(state_hash)?.into_inner();
-            let idx = actions
-                .iter()
-                .position(|a| a.message_id() == message_id)?;
-            assert_eq!(actions.len(), 1, "expected single-action MB, got {actions:?}");
+            let idx = actions.iter().position(|a| a.message_id() == message_id)?;
+            assert_eq!(
+                actions.len(),
+                1,
+                "expected single-action MB, got {actions:?}"
+            );
             Some((
                 state_hash,
                 GpU256::from(1u64),
