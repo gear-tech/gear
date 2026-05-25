@@ -465,6 +465,7 @@ pub enum ProcessorTransaction {
 }
 
 #[derive(Debug, derive_more::Display)]
+#[cfg_attr(test, derive(Default))]
 #[display(
     "ExecutableData(height: {height}, timestamp: {timestamp}, programs: {}, \
     schedule len: {}, transactions: {})",
@@ -477,19 +478,6 @@ pub struct ExecutableData {
     pub schedule: Schedule,
     /// MB transactions in their original sequenced order.
     pub transactions: Vec<ProcessorTransaction>,
-}
-
-#[cfg(test)]
-impl Default for ExecutableData {
-    fn default() -> Self {
-        Self {
-            height: 0,
-            timestamp: 0,
-            program_states: ProgramStates::default(),
-            schedule: Schedule::default(),
-            transactions: vec![],
-        }
-    }
 }
 
 #[derive(Debug, derive_more::Display)]
