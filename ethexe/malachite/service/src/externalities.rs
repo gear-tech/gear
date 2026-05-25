@@ -2068,8 +2068,7 @@ mod tests {
         // MAX_TOUCHED_PROGRAMS_PER_MB.
         let dest_a = ActorId::from(1u64);
         let dest_b = ActorId::from(2u64);
-        let parent_mb =
-            setup_mb_with_destinations(&db, chain.mb_hash_at(9), &[dest_a, dest_b]);
+        let parent_mb = setup_mb_with_destinations(&db, chain.mb_hash_at(9), &[dest_a, dest_b]);
         db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
 
         let (ext, _rx) = make_externalities(db.clone());

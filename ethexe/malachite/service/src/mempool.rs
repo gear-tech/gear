@@ -782,7 +782,9 @@ mod tests {
             "tx with reference_block_height ({}) > chain_head_height ({}) \
              must be rejected at insert to match tx_validity.rs:184 \
              (`reference_block_height <= chain_head_height`); got {:?}",
-            100, 2, insert_result,
+            100,
+            2,
+            insert_result,
         );
     }
 
