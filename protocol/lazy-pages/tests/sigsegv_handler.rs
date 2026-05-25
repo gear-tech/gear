@@ -21,7 +21,7 @@
 //! The handler intercepts SIGSEGV only on Linux (on other unixes it is
 //! installed for SIGBUS), so the regression is reproducible on Linux only.
 
-#![cfg(unix)]
+#![cfg(target_os = "linux")]
 
 use gear_core::limited::LimitedStr;
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
