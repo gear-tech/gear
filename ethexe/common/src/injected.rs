@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
-use alloc::string::{String, ToString};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
