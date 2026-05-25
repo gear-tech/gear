@@ -112,7 +112,11 @@ impl context::SupervisorContextDispatcher for RuntimeInterfaceDispatchContext<'_
             .table
             .expect("Runtime doesn't have a table; sandbox is unavailable");
         let table_item: Val = table
-            .get(self.context.caller.as_context_mut(), self.dispatch_thunk_id)
+            .get(
+                self.context.caller.as_context_mut(),
+                self.dispatch_thunk_id.into(),
+            )
+            .map(Into::into)
             .expect("dispatch_thunk_id is out of bounds");
         let dispatch_thunk = *table_item
             .funcref()
