@@ -41,8 +41,8 @@ pub use dealer::deal;
 /// TPKE primitive types.
 mod primitives;
 pub use primitives::{
-    Blake2b256Hash, Ciphertext, DecryptionShare, Encrypted, MasterPublicKey, MasterSecretKey,
-    SecretKeyShare, SharePublicKey, DealerOutput
+    Blake2b256Hash, Ciphertext, DealerOutput, DecryptionShare, Encrypted, MasterPublicKey,
+    MasterSecretKey, SecretKeyShare, SharePublicKey,
 };
 
 mod utils;

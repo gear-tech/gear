@@ -24,7 +24,7 @@ use crate::*;
 use ark_std::{UniformRand, ops::Mul};
 use builtins_common::bls12_381::{
     ark_bls12_381::{self, Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2},
-    ark_ec::{Group, ScalarMul, pairing::Pairing, short_weierstrass::SWCurveConfig},
+    ark_ec::{PrimeGroup as Group, ScalarMul, pairing::Pairing, short_weierstrass::SWCurveConfig},
     ark_ff::biginteger::BigInt,
     ark_scale::{self, hazmat::ArkScaleProjective},
 };
