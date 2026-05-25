@@ -343,6 +343,7 @@ num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
+numerated = { version = "2", default-features = false, features = ["mock"] }
 once_cell = { version = "1" }
 pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
 pallet-staking-reward-fn = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
@@ -362,6 +363,7 @@ predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
+proptest = { version = "1", features = ["alloc", "no_std"] }
 prost = { version = "0.12", features = ["prost-derive"] }
 pulley-interpreter = { version = "44", default-features = false, features = ["disas", "interp", "std"] }
 quanta = { version = "0.12" }
@@ -623,6 +625,7 @@ num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
+numerated = { version = "2", default-features = false, features = ["mock"] }
 once_cell = { version = "1" }
 pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
 pallet-staking-reward-fn = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
@@ -643,6 +646,7 @@ predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
+proptest = { version = "1", features = ["alloc", "no_std"] }
 prost = { version = "0.12", features = ["prost-derive"] }
 pulley-interpreter = { version = "44", default-features = false, features = ["disas", "interp", "std"] }
 quanta = { version = "0.12" }
