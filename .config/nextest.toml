@@ -18,7 +18,7 @@ slow-timeout = { period = "1m", terminate-after = 5 }
 filter = 'package(ethexe-service)'
 leak-timeout = { period = "10s", result = "pass" }
 
-# gear-lazy-pages pulls in wasmer-vm + mach exception ports on
+# gear-lazy-pages pulls in wasm execution vm + mach exception ports on
 # Apple Silicon; their teardown at process exit occasionally exceeds
 # the default 5s leak window on busy macos-aarch64 runners and trips
 # trivial tests like pages::tests::end_offset as LEAK-FAIL. Same fix
