@@ -222,7 +222,7 @@ impl ProtocolTimelines {
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u8)]
 pub enum OutgoingAction {
-    ValueClaim(ValueClaim),
+    ValueClaim(ValueClaim) = ValueClaim::VALUE_CLAIM_DISCRIMINANT,
 }
 
 impl OutgoingAction {

@@ -417,7 +417,7 @@ pub struct ValueClaim {
 }
 
 impl ValueClaim {
-    const VALUE_CLAIM_DISCRIMINANT: u8 = 0x02;
+    pub const VALUE_CLAIM_DISCRIMINANT: u8 = 0x02;
 
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut payload = Vec::with_capacity(
