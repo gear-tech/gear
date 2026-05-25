@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
@@ -78,15 +75,16 @@ pub struct InjectedTransaction {
 }
 
 // Destination + payload_hash + value + ref_block + salt_hash
-const INJECTED_TX_HASH_SIZE: usize =
-    size_of::<ActorId>() + 32 + size_of::<u128>() + size_of::<H256>() + 32;
+const INJECTED_TX_HASHABLE_SIZE: usize = size_of::<ActorId>()
+    + size_of::<H256>()
+    + size_of::<u128>()
+    + size_of::<H256>()
+    + size_of::<H256>();
 
 impl InjectedTransaction {
     /// Helper function that returns bytes of [InjectedTransaction]
     /// that will be hashed by blake2b256 or keccak256.
-    fn to_hashable_bytes(&self) -> Vec<u8> {
-        let mut hashable_buffer = Vec::with_capacity(INJECTED_TX_HASH_SIZE);
-
+    fn to_hashable_bytes(&self) -> [u8; INJECTED_TX_HASHABLE_SIZE] {
         let Self {
             destination,
             payload,
@@ -95,13 +93,22 @@ impl InjectedTransaction {
             salt,
         } = self;
 
-        hashable_buffer.extend_from_slice(destination.as_ref());
-        hashable_buffer.extend_from_slice(gear_core::utils::hash(payload).as_ref());
-        hashable_buffer.extend_from_slice(value.to_be_bytes().as_ref());
-        hashable_buffer.extend_from_slice(reference_block.0.as_ref());
-        hashable_buffer.extend_from_slice(gear_core::utils::hash(salt).as_ref());
+        let mut hashable_bytes = [0u8; INJECTED_TX_HASHABLE_SIZE];
+        let mut offset = 0;
 
-        hashable_buffer
+        let mut append = |slice: &[u8]| {
+            let next_offset = offset + slice.len();
+            hashable_bytes[offset..next_offset].copy_from_slice(slice);
+            offset = next_offset;
+        };
+
+        append(destination.as_ref());
+        append(gear_core::utils::hash(payload).as_ref());
+        append(value.to_be_bytes().as_ref());
+        append(reference_block.0.as_ref());
+        append(gear_core::utils::hash(salt).as_ref());
+
+        hashable_bytes
     }
 
     /// Returns the hash of [`InjectedTransaction`].
@@ -122,6 +129,7 @@ impl ToDigest for InjectedTransaction {
         hasher.update(hashable_bytes);
     }
 }
+
 /// [`Promise`] represents the guaranteed reply for [`InjectedTransaction`].
 ///
 /// Note: Validator must ensure the validity of the promise, because of it can be slashed for
@@ -291,6 +299,64 @@ mod tests {
         let promise = Promise::mock(());
 
         assert_eq!(promise.to_digest(), promise.to_compact().to_digest());
+    }
+
+    #[test]
+    fn shifted_bytes_change_injected_tx_hash() {
+        let initial_tx = InjectedTransaction {
+            destination: ActorId::zero(),
+            payload: vec![1u8, 2u8, 3u8, 4u8].try_into().unwrap(),
+            value: 100,
+            reference_block: H256::random(),
+            salt: vec![1u8, 2u8].try_into().unwrap(),
+        };
+
+        let malicious_tx = {
+            let mut shifted_tx = initial_tx.clone();
+
+            let mut payload = shifted_tx.payload.into_vec();
+            let payload_last_byte = payload.pop().unwrap();
+            shifted_tx.payload = payload.try_into().unwrap();
+
+            let mut value_be = shifted_tx.value.to_be_bytes();
+            let value_last_byte = value_be[15];
+            value_be.copy_within(0..15, 1);
+            value_be[0] = payload_last_byte;
+            shifted_tx.value = u128::from_be_bytes(value_be);
+
+            let mut ref_block_data = shifted_tx.reference_block.0;
+            let last_ref_block = ref_block_data[31];
+
+            ref_block_data.copy_within(0..31, 1);
+            ref_block_data[0] = value_last_byte;
+
+            shifted_tx.reference_block = H256(ref_block_data);
+
+            let mut salt = shifted_tx.salt.clone().into_vec();
+            salt.insert(0, last_ref_block);
+            shifted_tx.salt = salt.try_into().unwrap();
+
+            shifted_tx
+        };
+
+        let tx_concat_bytes = |tx: &InjectedTransaction| -> Vec<u8> {
+            [
+                tx.destination.as_ref(),
+                tx.payload.as_ref(),
+                tx.value.to_be_bytes().as_ref(),
+                tx.reference_block.0.as_ref(),
+                tx.salt.as_ref(),
+            ]
+            .concat()
+        };
+
+        // Assert that transactions have the same concatenated bytes.
+        // In earlier hash implementation it will lead to the same tx hashes.
+        assert_eq!(tx_concat_bytes(&initial_tx), tx_concat_bytes(&malicious_tx));
+
+        // Assert that current hash implementation return different hashes for transactions
+        // that have equal concatenated bytes.
+        assert_ne!(initial_tx.to_hash(), malicious_tx.to_hash());
     }
 
     #[test]
