@@ -95,14 +95,17 @@ pub(super) mod chunks_splitting;
 
 pub(crate) use chunks_splitting::ActorStateHashWithQueueSize;
 
-use crate::{BoundPromiseSink, ProcessorError, Result, host::InstanceCreator};
+use crate::{
+    BoundPromiseSink, ProcessorError, Result,
+    host::{InstanceCreator, InstanceWrapper},
+};
 use chunk_execution_processing::ChunkJournalsProcessingOutput;
 use chunks_splitting::ExecutionChunks;
 use core_processor::common::JournalNote;
 use ethexe_common::{
     CALL_REPLY_SOFT_LIMIT, OUTGOING_MESSAGES_BYTES_SOFT_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT,
     PROGRAM_MODIFICATIONS_SOFT_LIMIT, PromisePolicy, StateHashWithQueueSize,
-    db::CodesStorageRO,
+    db::{CodesStorageRO, CodesStorageRW},
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
 };
 use ethexe_db::{CASDatabase, Database};
@@ -141,6 +144,8 @@ pub(super) async fn run_for_queue_type(
                 break 'main_loop;
             };
 
+            let chunk = lazy_instrument_chunk(ctx, chunk)?;
+
             // Spawn on a separate thread an execution of each program (it's queue) in the chunk.
             let chunk_outputs =
                 chunk_execution_spawn::spawn_chunk_execution(ctx, chunk, queue_type).await?;
@@ -177,6 +182,28 @@ pub(super) async fn run_for_queue_type(
     Ok(())
 }
 
+fn lazy_instrument_chunk(
+    ctx: &mut impl RunContext,
+    chunk: Vec<(ActorId, H256)>,
+) -> Result<Vec<chunk_execution_spawn::ChunkItemInput>> {
+    let mut instrumentation_instance = None;
+
+    chunk
+        .into_iter()
+        .map(|(program_id, state_hash)| {
+            let (instrumented_code, code_metadata) =
+                ctx.program_code(program_id, &mut instrumentation_instance)?;
+
+            Ok(chunk_execution_spawn::ChunkItemInput {
+                program_id,
+                state_hash,
+                instrumented_code,
+                code_metadata,
+            })
+        })
+        .collect()
+}
+
 #[derive(Debug)]
 pub(super) enum LimitsStatus {
     WithinLimits,
@@ -193,7 +220,11 @@ pub(super) enum LimitsStatus {
 /// between common and overlaid execution contexts. It's not meant
 /// to emphasize any particular trait/feature/abstraction.
 pub(super) trait RunContext {
-    fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)>;
+    fn program_code(
+        &self,
+        program_id: ActorId,
+        instrumentation_instance: &mut Option<InstanceWrapper>,
+    ) -> Result<(InstrumentedCode, CodeMetadata)>;
 
     /// Get reference to inner.
     fn inner(&self) -> &CommonRunContext;
@@ -323,7 +354,7 @@ pub(super) trait RunContext {
 pub(crate) struct CommonRunContext {
     pub(super) db: Database,
     pub(super) transitions: InBlockTransitions,
-    instance_creator: InstanceCreator,
+    pub(super) instance_creator: InstanceCreator,
     gas_allowance_counter: GasAllowanceCounter,
     outgoing_messages_limiter: u32,
     outgoing_messages_bytes_limiter: u32,
@@ -383,7 +414,11 @@ impl CommonRunContext {
 }
 
 impl RunContext for CommonRunContext {
-    fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
+    fn program_code(
+        &self,
+        program_id: ActorId,
+        instrumentation_instance: &mut Option<InstanceWrapper>,
+    ) -> Result<(InstrumentedCode, CodeMetadata)> {
         let code_id = self
             .transitions
             .registered_programs()
@@ -395,7 +430,12 @@ impl RunContext for CommonRunContext {
                     .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))
             })?;
 
-        instrumented_code_and_metadata(&self.db, code_id)
+        instrumented_code_and_metadata(
+            &self.db,
+            &self.instance_creator,
+            instrumentation_instance,
+            code_id,
+        )
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
@@ -413,14 +453,38 @@ impl RunContext for CommonRunContext {
 
 pub(super) fn instrumented_code_and_metadata(
     db: &Database,
+    instance_creator: &InstanceCreator,
+    instrumentation_instance: &mut Option<InstanceWrapper>,
     code_id: CodeId,
 ) -> Result<(InstrumentedCode, CodeMetadata)> {
-    db.instrumented_code(ethexe_runtime_common::VERSION, code_id)
-        .and_then(|instrumented_code| {
-            db.code_metadata(code_id)
-                .map(|metadata| (instrumented_code, metadata))
-        })
-        .ok_or_else(|| ProcessorError::MissingInstrumentedCodeForProgram(code_id))
+    if let Some(instrumented_code) = db.instrumented_code(ethexe_runtime_common::VERSION, code_id)
+        && let Some(metadata) = db.code_metadata(code_id)
+    {
+        return Ok((instrumented_code, metadata));
+    }
+
+    let original_code = db
+        .original_code(code_id)
+        .ok_or(ProcessorError::MissingOriginalCodeForProgram(code_id))?;
+
+    if instrumentation_instance.is_none() {
+        *instrumentation_instance = Some(instance_creator.instantiate()?);
+    }
+    let instance = instrumentation_instance
+        .as_mut()
+        .expect("instrumentation instance was just initialized");
+    let (instrumented_code, code_metadata) = instance
+        .instrument(&original_code)?
+        .ok_or(ProcessorError::MissingInstrumentedCodeForProgram(code_id))?;
+
+    db.set_instrumented_code(
+        ethexe_runtime_common::VERSION,
+        code_id,
+        instrumented_code.clone(),
+    );
+    db.set_code_metadata(code_id, code_metadata.clone());
+
+    Ok((instrumented_code, code_metadata))
 }
 
 pub(super) fn states(

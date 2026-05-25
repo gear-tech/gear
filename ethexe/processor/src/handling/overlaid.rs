@@ -7,7 +7,7 @@ use crate::{
         self, CommonRunContext, RunContext,
         chunks_splitting::{ActorStateHashWithQueueSize, ExecutionChunks},
     },
-    host::InstanceCreator,
+    host::{InstanceCreator, InstanceWrapper},
 };
 use core_processor::common::JournalNote;
 use ethexe_common::{db::CodesStorageRO, gear::MessageType};
@@ -166,14 +166,23 @@ impl RunContext for OverlaidRunContext {
         &mut self.inner
     }
 
-    fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
+    fn program_code(
+        &self,
+        program_id: ActorId,
+        instrumentation_instance: &mut Option<InstanceWrapper>,
+    ) -> Result<(InstrumentedCode, CodeMetadata)> {
         let code_id = self
             .inner
             .db
             .program_code_id(program_id)
             .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))?;
 
-        run::instrumented_code_and_metadata(&self.inner.db, code_id)
+        run::instrumented_code_and_metadata(
+            &self.inner.db,
+            &self.inner.instance_creator,
+            instrumentation_instance,
+            code_id,
+        )
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
