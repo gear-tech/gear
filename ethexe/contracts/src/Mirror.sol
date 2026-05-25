@@ -529,7 +529,7 @@ contract Mirror is IMirror {
             /**
              * @dev Store the message hash in memory at messagesHashes[offset : offset+32].
              */
-            Memory.writeWordAsBytes32(messagesHashesMemPtr, offset, messageHash);
+            Memory.writeWord(messagesHashesMemPtr, offset, uint256(messageHash));
             unchecked {
                 offset += 32;
             }
@@ -544,7 +544,7 @@ contract Mirror is IMirror {
             }
         }
 
-        return Hashes.efficientKeccak256AsBytes32(messagesHashesMemPtr, 0, messagesHashesSize);
+        return bytes32(Hashes.efficientKeccak256(messagesHashesMemPtr, 0, messagesHashesSize));
     }
 
     /**
@@ -939,7 +939,7 @@ contract Mirror is IMirror {
         for (uint256 i = 0; i < claimsLen; i++) {
             Gear.ValueClaim calldata claim = _claims[i];
             bytes32 claimHash = Gear.valueClaimHash(claim.messageId, claim.destination, claim.value);
-            Memory.writeWordAsBytes32(claimsHashesMemPtr, offset, claimHash);
+            Memory.writeWord(claimsHashesMemPtr, offset, uint256(claimHash));
             unchecked {
                 offset += 32;
             }
@@ -952,7 +952,7 @@ contract Mirror is IMirror {
             }
         }
 
-        return Hashes.efficientKeccak256AsBytes32(claimsHashesMemPtr, 0, claimsHashesSize);
+        return bytes32(Hashes.efficientKeccak256(claimsHashesMemPtr, 0, claimsHashesSize));
     }
 
     // TODO (breathx): allow zero inheritor in `Router`.

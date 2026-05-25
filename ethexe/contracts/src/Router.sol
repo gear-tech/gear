@@ -874,7 +874,7 @@ contract Router is
 
         // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
         // reverts execution in case of address is already taken.
-        bytes32 salt = Hashes.efficientKeccak256AsBytes32(_codeId, _salt);
+        bytes32 salt = bytes32(Hashes.efficientKeccak256(uint256(_codeId), uint256(_salt)));
         address actorId = _isSmall
             ? ClonesSmall.cloneDeterministic(address(this), salt)
             : Clones.cloneDeterministic(address(this), salt);
@@ -933,13 +933,13 @@ contract Router is
             emit CodeGotValidated(_commitment.id, _commitment.valid);
 
             bytes32 codeCommitmentHash = Gear.codeCommitmentHash(_commitment.id, _commitment.valid);
-            Memory.writeWordAsBytes32(codeCommitmentsPtr, offset, codeCommitmentHash);
+            Memory.writeWord(codeCommitmentsPtr, offset, uint256(codeCommitmentHash));
             unchecked {
                 offset += 32;
             }
         }
 
-        return Hashes.efficientKeccak256AsBytes32(codeCommitmentsPtr, 0, codeCommitmentsHashSize);
+        return bytes32(Hashes.efficientKeccak256(codeCommitmentsPtr, 0, codeCommitmentsHashSize));
     }
 
     // TODO #4609
@@ -1045,13 +1045,13 @@ contract Router is
             }
 
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition{value: value}(transition);
-            Memory.writeWordAsBytes32(transitionsHashesMemPtr, offset, transitionHash);
+            Memory.writeWord(transitionsHashesMemPtr, offset, uint256(transitionHash));
             unchecked {
                 offset += 32;
             }
         }
 
-        return Hashes.efficientKeccak256AsBytes32(transitionsHashesMemPtr, 0, transitionsHashSize);
+        return bytes32(Hashes.efficientKeccak256(transitionsHashesMemPtr, 0, transitionsHashSize));
     }
 
     function _resetValidators(
