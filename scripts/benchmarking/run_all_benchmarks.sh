@@ -42,7 +42,17 @@ ISOLATED_CORE=$(get_isolated_cores | cut -d " " -f1)
 # List of one-time extrinsics to benchmark.
 # They are retrieved automatically from the pallet_gear benchmarks file by their `r` component range 0..1,
 # which defines them as one-time extrinsics.
-mapfile -t ONE_TIME_EXTRINSICS < <(cat "pallets/gear/src/benchmarking/mod.rs" | grep "0 .. 1;" -B 1 | grep -E "{$" | awk '{print $1}')
+PALLET_GEAR_BENCHMARKS_FILE="vara/pallets/gear/src/benchmarking/mod.rs"
+if [ ! -f "$PALLET_GEAR_BENCHMARKS_FILE" ]; then
+  echo "[-] Cannot find pallet_gear benchmarks file: $PALLET_GEAR_BENCHMARKS_FILE"
+  exit 1
+fi
+
+mapfile -t ONE_TIME_EXTRINSICS < <(grep "0 .. 1;" -B 1 "$PALLET_GEAR_BENCHMARKS_FILE" | grep -E "{$" | awk '{print $1}')
+if [ "${#ONE_TIME_EXTRINSICS[@]}" -eq 0 ]; then
+  echo "[-] Failed to discover one-time pallet_gear extrinsics from $PALLET_GEAR_BENCHMARKS_FILE"
+  exit 1
+fi
 
 while getopts 'bmfps:c:v' flag; do
   case "${flag}" in
@@ -148,9 +158,9 @@ rm -f $ERR_FILE
 
 WEIGHTS_OUTPUT="scripts/benchmarking/weights-output"
 # Delete the weights output folders before each run.
-rm -R ${WEIGHTS_OUTPUT}
+rm -rf ${WEIGHTS_OUTPUT}
 # Create the weights output folders.
-mkdir ${WEIGHTS_OUTPUT}
+mkdir -p ${WEIGHTS_OUTPUT}
 
 STORAGE_OUTPUT="scripts/benchmarking/rocksdb_weights.rs"
 rm -f ${STORAGE_OUTPUT}
@@ -250,7 +260,7 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 
   # If the pallet is pallet_gear, benchmark the one-time extrinsics.
-  if [ "$PALLET" == "pallet_gear" ] && [ -n "$ONE_TIME_EXTRINSICS" ]
+  if [ "$PALLET" == "pallet_gear" ] && [ "${#ONE_TIME_EXTRINSICS[@]}" -gt 0 ]
   then
     echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
     echo "[+] Running one-time extrinsics: $(IFS=', ' ; echo "${ONE_TIME_EXTRINSICS[*]}")"
@@ -312,8 +322,10 @@ else
   unset storage_folder
 fi
 
-# Merge pallet_gear weights.
-./scripts/benchmarking/merge_outputs.sh
+# Merge pallet_gear weights if pallet_gear was benchmarked.
+if [[ " ${PALLETS[*]} " =~ " pallet_gear " ]]; then
+  ./scripts/benchmarking/merge_outputs.sh
+fi
 
 # Check if the error file exists.
 if [ -f "$ERR_FILE" ]; then
