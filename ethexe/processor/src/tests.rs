@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
 use anyhow::{Result, anyhow};
@@ -316,6 +301,60 @@ async fn handle_new_code_invalid() {
             .valid
             .is_none()
     );
+}
+
+#[tokio::test]
+async fn process_programs_instruments_valid_code_missing_current_runtime_instrumentation() {
+    init_logger();
+
+    let db = Database::memory();
+    let mut processor = Processor::new(db.clone()).expect("failed to create processor");
+    let chain = BlockChain::mock(2).setup(&db);
+    let block1 = chain.blocks[1].to_simple();
+
+    let (code_id, code) = utils::wat_to_wasm(utils::VALID_PROGRAM);
+    assert_eq!(db.set_original_code(&code), code_id);
+    db.set_code_valid(code_id, true);
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_none());
+
+    let actor_id = ActorId::from(0x10000);
+    let mut handler = setup_handler(db.clone(), block1);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: ActorId::from(10),
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue message");
+
+    processor
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .await
+        .expect("failed to process queues");
+
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_some());
+    assert!(db.code_metadata(code_id).is_some());
 }
 
 #[tokio::test]

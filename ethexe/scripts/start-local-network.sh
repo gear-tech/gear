@@ -471,6 +471,11 @@ if ! docker info >/dev/null 2>&1; then
 	exit 1
 fi
 
+declare -a CONTAINER_USERNS_ARGS=()
+if docker --version | grep -qi podman; then
+	CONTAINER_USERNS_ARGS=(--userns=keep-id)
+fi
+
 if [[ ! -x "$WORKSPACE_ROOT/$ETHEXE_CLI" ]]; then
 	log_error "ethexe binary '$WORKSPACE_ROOT/$ETHEXE_CLI' is not executable"
 	exit 1
@@ -687,6 +692,7 @@ start_nodes() {
 		docker run -d \
 			--name "$container_name" \
 			--network "$DOCKER_NETWORK_NAME" \
+			"${CONTAINER_USERNS_ARGS[@]}" \
 			--user "$(id -u):$(id -g)" \
 			-p "$network_port:$CONTAINER_NETWORK_PORT/udp" \
 			-p "$rpc_port:$CONTAINER_RPC_PORT" \
@@ -730,6 +736,7 @@ start_node_loader() {
 	cmd+=" --router-address $ROUTER_ADDRESS"
 	cmd+=" --workers $NODE_LOADER_WORKERS"
 	cmd+=" --batch-size $NODE_LOADER_BATCH_SIZE"
+	cmd+=" --program-creation-ratio 30"
 
 	if [[ -n "$NODE_LOADER_SEED" ]]; then
 		cmd+=" --loader-seed $NODE_LOADER_SEED"
