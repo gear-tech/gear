@@ -214,7 +214,8 @@ branch = "gear-polkadot-stable2409-wasm32v1-none"
 features = ["test-helpers"]
 
 ### BEGIN HAKARI SECTION
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[dependencies]
+aead = { version = "0.5", default-features = false, features = ["getrandom", "std"] }
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -231,14 +232,20 @@ alloy-sol-type-parser = { version = "1", default-features = false, features = ["
 alloy-sol-types = { version = "1", features = ["json"] }
 anyhow = { version = "1" }
 arbitrary = { version = "1", default-features = false, features = ["derive"] }
-ark-bls12-381 = { version = "0.4", default-features = false, features = ["curve", "std"] }
+ark-bls12-381-9fbad63c4bcf4a8f = { package = "ark-bls12-381", version = "0.4", default-features = false, features = ["curve", "std"] }
+ark-bls12-381-d8f496e17d97b5cb = { package = "ark-bls12-381", version = "0.5", default-features = false, features = ["curve", "std"] }
 ark-bls12-381-ext = { version = "0.4", default-features = false, features = ["std"] }
-ark-ec = { version = "0.4", features = ["parallel"] }
-ark-ff = { version = "0.4", default-features = false, features = ["std"] }
+ark-ec-9fbad63c4bcf4a8f = { package = "ark-ec", version = "0.4", features = ["parallel"] }
+ark-ec-d8f496e17d97b5cb = { package = "ark-ec", version = "0.5", default-features = false, features = ["std"] }
+ark-ff-9fbad63c4bcf4a8f = { package = "ark-ff", version = "0.4", default-features = false, features = ["std"] }
+ark-ff-d8f496e17d97b5cb = { package = "ark-ff", version = "0.5", default-features = false, features = ["std"] }
 ark-models-ext = { version = "0.4", default-features = false, features = ["std"] }
-ark-scale = { version = "0.0.12", default-features = false, features = ["hazmat", "std"] }
-ark-serialize = { version = "0.4", default-features = false, features = ["derive", "std"] }
-ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
+ark-scale-c7d3f9b296863baf = { package = "ark-scale", version = "0.0.13", default-features = false, features = ["hazmat", "std"] }
+ark-scale-e9ecf5c1847bd87 = { package = "ark-scale", version = "0.0.12", default-features = false, features = ["hazmat", "std"] }
+ark-serialize-9fbad63c4bcf4a8f = { package = "ark-serialize", version = "0.4", default-features = false, features = ["derive", "std"] }
+ark-serialize-d8f496e17d97b5cb = { package = "ark-serialize", version = "0.5", default-features = false, features = ["derive", "std"] }
+ark-std-9fbad63c4bcf4a8f = { package = "ark-std", version = "0.4", default-features = false, features = ["parallel"] }
+ark-std-d8f496e17d97b5cb = { package = "ark-std", version = "0.5", default-features = false, features = ["std"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 base64 = { version = "0.22" }
 binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
@@ -256,6 +263,7 @@ byte-slice-cast = { version = "1", default-features = false, features = ["std"] 
 bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive", "min_const_generics", "must_cast"] }
 byteorder = { version = "1" }
 bytes = { version = "1", features = ["serde"] }
+cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
 clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
@@ -306,6 +314,7 @@ getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-f
 getrandom_or_panic = { version = "0.0.3", default-features = false, features = ["std"] }
 hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
+hashbrown-3575ec1268b04181 = { package = "hashbrown", version = "0.15" }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
 hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["default-hasher"] }
@@ -323,6 +332,7 @@ indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-featu
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
 ipnet = { version = "2" }
 itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
@@ -494,7 +504,8 @@ wasmtime-runtime = { version = "8", default-features = false, features = ["pooli
 winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
-[target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
+[build-dependencies]
+aead = { version = "0.5", default-features = false, features = ["getrandom", "std"] }
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -514,14 +525,20 @@ alloy-sol-type-parser = { version = "1", default-features = false, features = ["
 alloy-sol-types = { version = "1", features = ["json"] }
 anyhow = { version = "1" }
 arbitrary = { version = "1", default-features = false, features = ["derive"] }
-ark-bls12-381 = { version = "0.4", default-features = false, features = ["curve", "std"] }
+ark-bls12-381-9fbad63c4bcf4a8f = { package = "ark-bls12-381", version = "0.4", default-features = false, features = ["curve", "std"] }
+ark-bls12-381-d8f496e17d97b5cb = { package = "ark-bls12-381", version = "0.5", default-features = false, features = ["curve", "std"] }
 ark-bls12-381-ext = { version = "0.4", default-features = false, features = ["std"] }
-ark-ec = { version = "0.4", features = ["parallel"] }
-ark-ff = { version = "0.4", default-features = false, features = ["std"] }
+ark-ec-9fbad63c4bcf4a8f = { package = "ark-ec", version = "0.4", features = ["parallel"] }
+ark-ec-d8f496e17d97b5cb = { package = "ark-ec", version = "0.5", default-features = false, features = ["std"] }
+ark-ff-9fbad63c4bcf4a8f = { package = "ark-ff", version = "0.4", default-features = false, features = ["std"] }
+ark-ff-d8f496e17d97b5cb = { package = "ark-ff", version = "0.5", default-features = false, features = ["std"] }
 ark-models-ext = { version = "0.4", default-features = false, features = ["std"] }
-ark-scale = { version = "0.0.12", default-features = false, features = ["hazmat", "std"] }
-ark-serialize = { version = "0.4", default-features = false, features = ["derive", "std"] }
-ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
+ark-scale-c7d3f9b296863baf = { package = "ark-scale", version = "0.0.13", default-features = false, features = ["hazmat", "std"] }
+ark-scale-e9ecf5c1847bd87 = { package = "ark-scale", version = "0.0.12", default-features = false, features = ["hazmat", "std"] }
+ark-serialize-9fbad63c4bcf4a8f = { package = "ark-serialize", version = "0.4", default-features = false, features = ["derive", "std"] }
+ark-serialize-d8f496e17d97b5cb = { package = "ark-serialize", version = "0.5", default-features = false, features = ["derive", "std"] }
+ark-std-9fbad63c4bcf4a8f = { package = "ark-std", version = "0.4", default-features = false, features = ["parallel"] }
+ark-std-d8f496e17d97b5cb = { package = "ark-std", version = "0.5", default-features = false, features = ["std"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 base64 = { version = "0.22" }
 binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
@@ -540,6 +557,7 @@ bytemuck = { version = "1", default-features = false, features = ["const_zeroed"
 byteorder = { version = "1" }
 bytes = { version = "1", features = ["serde"] }
 cc = { version = "1", default-features = false, features = ["parallel"] }
+cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
 clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
@@ -596,6 +614,7 @@ getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-f
 getrandom_or_panic = { version = "0.0.3", default-features = false, features = ["std"] }
 hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
+hashbrown-3575ec1268b04181 = { package = "hashbrown", version = "0.15" }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
 hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["default-hasher"] }
@@ -613,6 +632,7 @@ indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-featu
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
 ipnet = { version = "2" }
 itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
@@ -795,7 +815,6 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
@@ -819,7 +838,6 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
@@ -844,7 +862,6 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
@@ -868,7 +885,6 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
@@ -893,7 +909,6 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }
@@ -915,7 +930,6 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }

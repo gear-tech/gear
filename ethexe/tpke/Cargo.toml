@@ -9,12 +9,12 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-# arkworks dependencies
+# arkworks ecosystem dependencies
 ark-bls12-381 = { workspace = true, features = ["curve"] }
 ark-ec = { workspace = true }
 ark-ff = { workspace = true }
 ark-std = { workspace = true }
-ark-poly = { workspace = true }
+ark-poly = { workspace = true } 
 ark-serialize = { workspace = true }
 
 blake2 = { workspace = true }
@@ -25,8 +25,8 @@ scale-info = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 zeroize = { workspace = true, features = ["derive"] }
-gear-workspace-hack.workspace = true
 derive_more = { workspace = true, features = ["as_ref"] }
+gear-workspace-hack.workspace = true
 
 # Optional dependencies
 serde = { workspace = true, optional = true, features = ["derive"]}

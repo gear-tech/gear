@@ -11,7 +11,7 @@ use ark_ec::{
     AffineRepr, CurveGroup,
     pairing::{Pairing, PairingOutput},
 };
-use ark_ff::Zero;
+use ark_ff::{Field, Zero};
 use ark_std::{
     UniformRand,
     rand::{CryptoRng, RngCore},
@@ -26,7 +26,7 @@ use sha2::Sha256;
 
 use crate::{
     Blake2b256Hash, Ciphertext, DecryptionShare, Encrypted, MasterPublicKey, Result, TpkeError,
-    shamir::lagrange_coefficient, utils,
+    utils,
 };
 
 /// HKDF info prefix for the KEM-derived DEM key/nonce.
@@ -151,15 +151,16 @@ fn encrypt_payload<P: Encode>(
     let encoded_payload = payload.encode();
     let aad = build_aad(hash, u_bytes);
 
-    let encrypted_bytes = ChaCha20Poly1305::new(Key::from_slice(&key_bytes)).encrypt(
-        Nonce::from_slice(&nonce_bytes),
-        Payload {
-            msg: encoded_payload.as_ref(),
-            aad: &aad,
-        },
-    )?;
-
-    Ok(Ciphertext::new(encrypted_bytes))
+    ChaCha20Poly1305::new(Key::from_slice(&key_bytes))
+        .encrypt(
+            Nonce::from_slice(&nonce_bytes),
+            Payload {
+                msg: encoded_payload.as_ref(),
+                aad: &aad,
+            },
+        )
+        .map(Ciphertext::new)
+        .map_err(|_| TpkeError::Aead)
 }
 
 fn decrypt_payload<P: Decode>(
@@ -172,13 +173,15 @@ fn decrypt_payload<P: Decode>(
     let (key_bytes, nonce_bytes) = derive_dem_key_nonce(z, hash, u_bytes)?;
     let aad = build_aad(hash, u_bytes);
 
-    let decrypted_bytes = ChaCha20Poly1305::new(Key::from_slice(&key_bytes)).decrypt(
-        Nonce::from_slice(&nonce_bytes),
-        Payload {
-            msg: ciphertext.as_ref(),
-            aad: &aad,
-        },
-    )?;
+    let decrypted_bytes = ChaCha20Poly1305::new(Key::from_slice(&key_bytes))
+        .decrypt(
+            Nonce::from_slice(&nonce_bytes),
+            Payload {
+                msg: ciphertext.as_ref(),
+                aad: &aad,
+            },
+        )
+        .map_err(|_| TpkeError::Aead)?;
 
     let decoded_payload =
         P::decode(&mut decrypted_bytes.as_slice()).map_err(TpkeError::PayloadDecode)?;
@@ -188,4 +191,27 @@ fn decrypt_payload<P: Decode>(
     // }
 
     Ok(decoded_payload)
+}
+
+/// Calculates Lagrange Polynomial coefficient at x = 0.
+///
+/// Lagrange Polynomial `L_i(x) {i != j} = ((x - x0) / (xi - x0)) * ((x - x1) / (xi - x1)) * ... * ((x - xn)/(xi - xn)).
+/// At `x = 0` can be rewritten to: `L_i(x) {i != j} = (x0 / (x0 - xi)) * (x1 / (x1 - xi)) * ... * (xn / (xn - xi));
+pub(crate) fn lagrange_coefficient(i: u32, indices: &[u32]) -> Option<Fr> {
+    let xi = Fr::from(i as u64);
+    let mut numerator = Fr::from(1u64);
+    let mut denominator = Fr::from(1u64);
+
+    for j in indices.iter().copied() {
+        if j == i {
+            continue;
+        }
+
+        let xj = Fr::from(j as u64);
+        numerator *= xj;
+        denominator *= xj - xi;
+    }
+
+    // numerator * denominator^-1 = numerator / denominato
+    Some(numerator * denominator.inverse()?)
 }

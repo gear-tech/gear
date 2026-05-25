@@ -66,7 +66,7 @@ fn mutated_ciphertext_fails_aead() {
 
     let shares = decryption_shares(&d, &enc, 2);
     let err = decrypt(&enc, &shares).unwrap_err();
-    assert!(matches!(err, TpkeError::Aead(_)));
+    assert!(matches!(err, TpkeError::Aead));
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn wrong_hash_fails_aead() {
 
     let shares = decryption_shares(&d, &enc, 2);
     let err = decrypt(&enc, &shares).unwrap_err();
-    assert!(matches!(err, TpkeError::Aead(_)));
+    assert!(matches!(err, TpkeError::Aead));
 }
 
 #[test]

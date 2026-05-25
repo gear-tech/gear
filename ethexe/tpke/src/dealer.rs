@@ -6,12 +6,11 @@
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
+use crate::{DealerOutput, MasterSecretKey, Result, SecretKeyShare, TpkeError};
+
 use ark_bls12_381::Fr;
-use ark_ff::Field;
 use ark_poly::{DenseUVPolynomial, Polynomial, univariate::DensePolynomial};
 use ark_std::rand::{CryptoRng, RngCore};
-
-use crate::{DealerOutput, MasterSecretKey, Result, SecretKeyShare, TpkeError};
 
 /// Run the dealer ceremony locally: sample a fresh master secret, split
 /// it into `n` Shamir shares with threshold `t`, and return shares + pubs.
@@ -40,27 +39,4 @@ pub fn deal<R: RngCore + CryptoRng>(t: u32, n: u32, rng: &mut R) -> Result<Deale
         secret_shares,
         public_shares,
     })
-}
-
-/// Calculates Lagrange Polynomial coefficient at x = 0.
-///
-/// Lagrange Polynomial `L_i(x) {i != j} = ((x - x0) / (xi - x0)) * ((x - x1) / (xi - x1)) * ... * ((x - xn)/(xi - xn)).
-/// At `x = 0` can be rewritten to: `L_i(x) {i != j} = (x0 / (x0 - xi)) * (x1 / (x1 - xi)) * ... * (xn / (xn - xi));
-pub fn lagrange_coefficient(i: u32, indices: &[u32]) -> Option<Fr> {
-    let xi = Fr::from(i as u64);
-    let mut numerator = Fr::from(1u64);
-    let mut denominator = Fr::from(1u64);
-
-    for j in indices.iter().copied() {
-        if j == i {
-            continue;
-        }
-
-        let xj = Fr::from(j as u64);
-        numerator *= xj;
-        denominator *= xj - xi;
-    }
-
-    // numerator * denominator^-1 = numerator / denominato
-    Some(numerator * denominator.inverse()?)
 }

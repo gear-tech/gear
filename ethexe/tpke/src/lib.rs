@@ -35,14 +35,14 @@ mod tpke;
 pub use tpke::{HKDF_DEM_INFO, decrypt, encrypt};
 
 /// Shamir's Secret-Share-Splitting implementation.
-mod shamir;
-pub use shamir::{deal, lagrange_coefficient};
+mod dealer;
+pub use dealer::deal;
 
 /// TPKE primitive types.
 mod primitives;
 pub use primitives::{
-    Blake2b256Hash, Ciphertext, DealerOutput, DecryptionShare, Encrypted, MasterPublicKey,
-    MasterSecretKey, SecretKeyShare, SharePublicKey,
+    Blake2b256Hash, Ciphertext, DecryptionShare, Encrypted, MasterPublicKey, MasterSecretKey,
+    SecretKeyShare, SharePublicKey, DealerOutput
 };
 
 mod utils;
@@ -61,8 +61,8 @@ mod tests;
 pub enum TpkeError {
     #[error("malformed ciphertext envelope")]
     MalformedCiphertext,
-    #[error(transparent)]
-    Aead(#[from] chacha20poly1305::aead::Error),
+    #[error("aead error")]
+    Aead,
     #[error("decryption share did not verify against share public key")]
     ShareVerification,
     #[error("not enough shares to combine: got {got}, need {need}")]
