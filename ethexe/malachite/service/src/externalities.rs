@@ -1079,8 +1079,8 @@ mod tests {
         fn insert(
             &self,
             _tx: SignedInjectedTransaction,
-        ) -> Result<(), crate::mempool::MempoolInsertError> {
-            Ok(())
+        ) -> anyhow::Result<crate::mempool::TxInsertionStatus> {
+            Ok(crate::mempool::TxInsertionStatus::Inserted)
         }
         fn set_chain_head(&self, _head: SimpleBlockData) {}
         async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
@@ -1346,10 +1346,10 @@ mod tests {
         .unwrap();
 
         mempool.insert(valid.clone()).unwrap();
-        assert!(matches!(
-            mempool.insert(value_tx.clone()),
-            Err(crate::mempool::MempoolInsertError::NonZeroValue)
-        ));
+        assert_eq!(
+            mempool.insert(value_tx.clone()).unwrap(),
+            crate::mempool::TxInsertionStatus::NonZeroValue,
+        );
         assert_eq!(mempool.len(), 1);
 
         let (ext, _rx) = make_externalities_with_pool(db, mempool);

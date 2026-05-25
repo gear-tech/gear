@@ -39,37 +39,114 @@ use async_trait::async_trait;
 use ethexe_common::{
     HashOf, SimpleBlockData,
     db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{
+        InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
+        VALIDITY_WINDOW,
+    },
 };
 use ethexe_db::Database;
 use gprimitives::H256;
+use std::fmt;
 use tokio::sync::Notify;
 use tracing::{info, trace};
 
-/// Reasons a tx can be rejected at insert time. Duplicate / already-committed
-/// inserts are not represented here — they are idempotent successes and
-/// surface as `Ok(())` from [`Mempool::insert`].
-#[derive(Debug, thiserror::Error)]
-pub enum MempoolInsertError {
-    #[error("reference_block past validity window")]
+/// Outcome of [`Mempool::insert`]. Splits into two groups:
+///
+/// - **Accept** — the tx is (now or already) tracked by this validator, so
+///   the caller's promise subscription remains valid.
+/// - **Reject** — the tx will never be processed by this validator and
+///   the caller should treat it as terminal.
+///
+/// Group membership is queried via [`Self::is_accepted`]; the
+/// `From<TxInsertionStatus> for InjectedTransactionAcceptance` impl uses
+/// that to project into the RPC-facing acceptance type.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TxInsertionStatus {
+    // ---- Accept ----
+    /// Fresh insert — the tx just entered the pool.
+    Inserted,
+    /// Same tx hash already lives in the pool — idempotent no-op.
+    AlreadyInPool,
+    /// Same tx hash was committed within the validity window and is in
+    /// the seen-hash table — idempotent no-op.
+    AlreadyIncluded,
+    // ---- Reject ----
+    /// `reference_block` is past the validity window relative to the
+    /// latest observed head.
     ExpiredRefBlock,
-    #[error("mempool at capacity")]
+    /// Pool is at capacity.
     PoolFull,
     /// Per #5083, non-zero-value injected transactions are not yet
     /// supported. Reject at insert so the pool never holds one — the
     /// proposer cannot accidentally select it and the runtime won't
     /// charge a panicking program for an out-of-budget transfer.
-    #[error("non-zero value injected txs are not yet supported (#5083)")]
     NonZeroValue,
+}
+
+impl TxInsertionStatus {
+    /// True for variants where the tx is (or was already) tracked by
+    /// this validator — callers' promise subscriptions stay valid.
+    pub fn is_accepted(&self) -> bool {
+        matches!(
+            self,
+            Self::Inserted | Self::AlreadyInPool | Self::AlreadyIncluded,
+        )
+    }
+}
+
+impl fmt::Display for TxInsertionStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let msg = match self {
+            Self::Inserted => "inserted",
+            Self::AlreadyInPool => "already in pool",
+            Self::AlreadyIncluded => "already included within validity window",
+            Self::ExpiredRefBlock => "reference_block past validity window",
+            Self::PoolFull => "mempool at capacity",
+            Self::NonZeroValue => "non-zero value injected txs are not yet supported (#5083)",
+        };
+        f.write_str(msg)
+    }
+}
+
+impl From<TxInsertionStatus> for InjectedTransactionAcceptance {
+    fn from(status: TxInsertionStatus) -> Self {
+        if status.is_accepted() {
+            Self::Accept
+        } else {
+            Self::Reject {
+                reason: status.to_string(),
+            }
+        }
+    }
+}
+
+/// Mirrors [`From<TxInsertionStatus>`] across the `Result` boundary so
+/// callers can lift `anyhow::Result<TxInsertionStatus>` directly into an
+/// acceptance: unrecoverable errors collapse into `Reject` with the error
+/// text as the reason. A free function rather than a `From` impl because
+/// the orphan rule rejects `impl From<Result<TxInsertionStatus, E>> for
+/// InjectedTransactionAcceptance` — both `Result` and the target type are
+/// non-local and the local `TxInsertionStatus` sits behind a foreign
+/// generic.
+pub fn classify_insert_outcome<E: fmt::Display>(
+    outcome: Result<TxInsertionStatus, E>,
+) -> InjectedTransactionAcceptance {
+    match outcome {
+        Ok(status) => status.into(),
+        Err(err) => InjectedTransactionAcceptance::Reject {
+            reason: err.to_string(),
+        },
+    }
 }
 
 /// Producer-side source of injected transactions. Fetch is non-destructive;
 /// `forget` runs after MB finalization and dedups within `VALIDITY_WINDOW`.
 #[async_trait]
 pub trait Mempool: Send + Sync + 'static {
-    /// Returns `Err` for the reasons in [`MempoolInsertError`]; callers map
-    /// the result to an `InjectedTransactionAcceptance`.
-    fn insert(&self, tx: SignedInjectedTransaction) -> Result<(), MempoolInsertError>;
+    /// Pool-policy outcomes flow through [`TxInsertionStatus`]. `Err` is
+    /// reserved for unrecoverable failures (e.g. unexpected I/O); callers
+    /// can treat `Err` as a terminal reject when forwarding to the RPC layer.
+    fn insert(&self, tx: SignedInjectedTransaction) -> anyhow::Result<TxInsertionStatus>;
 
     /// Drives validity-window GC.
     fn set_chain_head(&self, head: SimpleBlockData);
@@ -90,8 +167,8 @@ pub struct EmptyMempool;
 
 #[async_trait]
 impl Mempool for EmptyMempool {
-    fn insert(&self, _tx: SignedInjectedTransaction) -> Result<(), MempoolInsertError> {
-        Ok(())
+    fn insert(&self, _tx: SignedInjectedTransaction) -> anyhow::Result<TxInsertionStatus> {
+        Ok(TxInsertionStatus::Inserted)
     }
 
     fn set_chain_head(&self, _head: SimpleBlockData) {}
@@ -236,7 +313,7 @@ impl InjectedTxMempool {
 
 #[async_trait]
 impl Mempool for InjectedTxMempool {
-    fn insert(&self, tx: SignedInjectedTransaction) -> Result<(), MempoolInsertError> {
+    fn insert(&self, tx: SignedInjectedTransaction) -> anyhow::Result<TxInsertionStatus> {
         let tx_data = tx.data();
         let tx_hash = tx_data.to_hash();
         let ref_block = tx_data.reference_block;
@@ -251,19 +328,19 @@ impl Mempool for InjectedTxMempool {
                 value = tx_data.value,
                 "mempool: rejecting tx — non-zero value (#5083 not supported)",
             );
-            return Err(MempoolInsertError::NonZeroValue);
+            return Ok(TxInsertionStatus::NonZeroValue);
         }
 
         let inner = self.inner.lock().expect("poisoned mempool");
 
         if inner.seen.contains_key(&tx_hash) {
             info!(%tx_hash, "mempool: idempotent no-op — hash already committed within validity window");
-            return Ok(());
+            return Ok(TxInsertionStatus::AlreadyIncluded);
         }
 
         if inner.pool.contains_key(&tx_hash) {
             info!(%tx_hash, pool_len = inner.pool.len(), "mempool: idempotent no-op — duplicate insert");
-            return Ok(());
+            return Ok(TxInsertionStatus::AlreadyInPool);
         }
 
         // ref_block resolution is best-effort: a recipient that hasn't yet
@@ -279,12 +356,12 @@ impl Mempool for InjectedTxMempool {
                 %tx_hash, %ref_block, ref_height, head_height,
                 "mempool: rejecting tx — reference_block past VALIDITY_WINDOW"
             );
-            return Err(MempoolInsertError::ExpiredRefBlock);
+            return Ok(TxInsertionStatus::ExpiredRefBlock);
         }
 
         if inner.pool.len() >= self.capacity {
             info!(%tx_hash, capacity = self.capacity, "mempool: rejecting tx — pool at capacity");
-            return Err(MempoolInsertError::PoolFull);
+            return Ok(TxInsertionStatus::PoolFull);
         }
 
         // Drop the lock around the DB write so concurrent inserts /
@@ -306,11 +383,14 @@ impl Mempool for InjectedTxMempool {
         let mut inner = self.inner.lock().expect("poisoned mempool");
 
         // Recheck dedup / capacity after the lock-free window.
-        if inner.seen.contains_key(&tx_hash) || inner.pool.contains_key(&tx_hash) {
-            return Ok(());
+        if inner.seen.contains_key(&tx_hash) {
+            return Ok(TxInsertionStatus::AlreadyIncluded);
+        }
+        if inner.pool.contains_key(&tx_hash) {
+            return Ok(TxInsertionStatus::AlreadyInPool);
         }
         if inner.pool.len() >= self.capacity {
-            return Err(MempoolInsertError::PoolFull);
+            return Ok(TxInsertionStatus::PoolFull);
         }
 
         let pool_len_after = inner.pool.len() + 1;
@@ -327,7 +407,7 @@ impl Mempool for InjectedTxMempool {
         // immediately doesn't have to bounce on the mutex.
         drop(inner);
         self.new_tx_notify.notify_one();
-        Ok(())
+        Ok(TxInsertionStatus::Inserted)
     }
 
     fn set_chain_head(&self, head: SimpleBlockData) {
@@ -397,28 +477,59 @@ mod tests {
     use gprimitives::ActorId;
     use std::time::Duration;
 
-    /// Pins the `Result -> Acceptance` mapping for fatal variants — duplicate /
-    /// already-committed inserts return `Ok(())`, so the generic `From` impl
-    /// translates them to `Accept` automatically.
+    /// Pins the `TxInsertionStatus -> InjectedTransactionAcceptance` split.
+    /// Adding a variant without updating [`TxInsertionStatus::is_accepted`]
+    /// will be caught here.
     #[test]
-    fn fatal_variants_map_to_reject() {
-        assert!(matches!(
-            InjectedTransactionAcceptance::from(Ok::<_, MempoolInsertError>(())),
-            InjectedTransactionAcceptance::Accept
-        ));
-        for err in [
-            MempoolInsertError::ExpiredRefBlock,
-            MempoolInsertError::PoolFull,
-            MempoolInsertError::NonZeroValue,
+    fn status_to_acceptance_mapping() {
+        for status in [
+            TxInsertionStatus::Inserted,
+            TxInsertionStatus::AlreadyInPool,
+            TxInsertionStatus::AlreadyIncluded,
         ] {
-            assert!(
-                matches!(
-                    InjectedTransactionAcceptance::from(Err::<(), _>(err)),
-                    InjectedTransactionAcceptance::Reject { .. }
-                ),
-                "fatal variant must surface as Reject",
+            assert!(status.is_accepted(), "{status:?} must classify as accepted");
+            assert_eq!(
+                InjectedTransactionAcceptance::from(status),
+                InjectedTransactionAcceptance::Accept,
             );
         }
+        for status in [
+            TxInsertionStatus::NonZeroValue,
+            TxInsertionStatus::PoolFull,
+            TxInsertionStatus::ExpiredRefBlock,
+        ] {
+            assert!(
+                !status.is_accepted(),
+                "{status:?} must classify as rejected",
+            );
+            let reason = status.to_string();
+            assert_eq!(
+                InjectedTransactionAcceptance::from(status),
+                InjectedTransactionAcceptance::Reject { reason },
+            );
+        }
+    }
+
+    /// `classify_insert_outcome` mirrors the `From<TxInsertionStatus>` impl
+    /// on the `Ok` side and converts unrecoverable `Err` into `Reject`.
+    #[test]
+    fn classify_insert_outcome_maps_error_to_reject() {
+        assert_eq!(
+            classify_insert_outcome(Ok::<_, anyhow::Error>(TxInsertionStatus::Inserted)),
+            InjectedTransactionAcceptance::Accept,
+        );
+        assert_eq!(
+            classify_insert_outcome(Ok::<_, anyhow::Error>(TxInsertionStatus::PoolFull)),
+            InjectedTransactionAcceptance::Reject {
+                reason: TxInsertionStatus::PoolFull.to_string(),
+            },
+        );
+        assert_eq!(
+            classify_insert_outcome(Err::<TxInsertionStatus, _>(anyhow::anyhow!("disk on fire"))),
+            InjectedTransactionAcceptance::Reject {
+                reason: "disk on fire".to_string(),
+            },
+        );
     }
 
     #[test]
@@ -448,11 +559,78 @@ mod tests {
         )
         .unwrap();
 
-        assert!(matches!(
-            pool.insert(value_tx),
-            Err(MempoolInsertError::NonZeroValue),
-        ));
+        assert_eq!(
+            pool.insert(value_tx).unwrap(),
+            TxInsertionStatus::NonZeroValue,
+        );
         assert_eq!(pool.len(), 1, "non-zero-value tx must not enter the pool");
+    }
+
+    /// Fresh insert that passes every gate must return `Inserted`.
+    #[test]
+    fn insert_returns_inserted_for_fresh_tx() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, 2);
+        let pool = InjectedTxMempool::new(db);
+        let pk = PrivateKey::random();
+        let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
+
+        assert_eq!(pool.insert(tx).unwrap(), TxInsertionStatus::Inserted);
+        assert_eq!(pool.len(), 1);
+    }
+
+    /// Same tx inserted twice — second insert hits the pool table and
+    /// returns `AlreadyInPool` without bumping the size.
+    #[test]
+    fn insert_returns_already_in_pool_for_duplicate() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, 2);
+        let pool = InjectedTxMempool::new(db);
+        let pk = PrivateKey::random();
+        let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 5);
+
+        assert_eq!(
+            pool.insert(tx.clone()).unwrap(),
+            TxInsertionStatus::Inserted
+        );
+        assert_eq!(pool.insert(tx).unwrap(), TxInsertionStatus::AlreadyInPool,);
+        assert_eq!(pool.len(), 1);
+    }
+
+    /// After `forget`, re-inserting the same tx hits the seen-hash table
+    /// and returns `AlreadyIncluded`.
+    #[test]
+    fn insert_returns_already_included_for_committed_tx() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, 2);
+        let pool = InjectedTxMempool::new(db);
+        let pk = PrivateKey::random();
+        let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 11);
+
+        pool.insert(tx.clone()).unwrap();
+        futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
+        assert_eq!(pool.len(), 0);
+
+        assert_eq!(pool.insert(tx).unwrap(), TxInsertionStatus::AlreadyIncluded,);
+        assert_eq!(pool.len(), 0);
+    }
+
+    /// `ExpiredRefBlock` fires once `set_chain_head` has advanced past
+    /// `ref_block_height + VALIDITY_WINDOW` and the tx is brand new.
+    #[test]
+    fn insert_returns_expired_ref_block() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, (VALIDITY_WINDOW as usize) + 5);
+        let pool = InjectedTxMempool::new(db);
+        let pk = PrivateKey::random();
+
+        // Advance head so block 1 is past the validity window.
+        let head_idx = (VALIDITY_WINDOW as usize) + 1;
+        pool.set_chain_head(chain[head_idx]);
+
+        let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
+        assert_eq!(pool.insert(tx).unwrap(), TxInsertionStatus::ExpiredRefBlock,);
+        assert_eq!(pool.len(), 0);
     }
 
     /// Persist a synthetic linear chain of length `len` into the DB.
@@ -531,20 +709,6 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_insert_is_no_op() {
-        let db = Database::memory();
-        let chain = linear_chain(&db, 2);
-        let pool = InjectedTxMempool::new(db);
-
-        let pk = PrivateKey::random();
-        let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 7);
-        pool.insert(tx.clone()).unwrap();
-        assert_eq!(pool.len(), 1);
-        pool.insert(tx).unwrap();
-        assert_eq!(pool.len(), 1, "duplicate by hash should be a no-op");
-    }
-
-    #[test]
     fn capacity_limit_blocks_further_inserts() {
         let db = Database::memory();
         let chain = linear_chain(&db, 2);
@@ -555,10 +719,11 @@ mod tests {
             .unwrap();
         pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 1))
             .unwrap();
-        assert!(matches!(
-            pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 2)),
-            Err(MempoolInsertError::PoolFull),
-        ));
+        assert_eq!(
+            pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 2))
+                .unwrap(),
+            TxInsertionStatus::PoolFull,
+        );
         assert_eq!(pool.len(), 2, "third insert must hit the capacity cap");
     }
 
@@ -635,7 +800,7 @@ mod tests {
         assert_eq!(pool.len(), 0);
 
         // Re-inserting the same tx is a seen-hash no-op.
-        pool.insert(tx).unwrap();
+        assert_eq!(pool.insert(tx).unwrap(), TxInsertionStatus::AlreadyIncluded);
         assert_eq!(pool.len(), 0, "forgotten tx must not return to the pool");
     }
 
@@ -830,7 +995,11 @@ mod tests {
                 match action {
                     Action::Insert { ref_idx, salt } => {
                         let tx = signed_tx(&pk, ActorId::zero(), chain[ref_idx].hash, salt);
-                        if pool.insert(tx.clone()).is_ok() {
+                        // Only track txs that actually entered the pool —
+                        // `AlreadyInPool` / `AlreadyIncluded` / capacity
+                        // rejects must not feed `live`, otherwise Forget
+                        // would target a different occurrence.
+                        if pool.insert(tx.clone()).unwrap() == TxInsertionStatus::Inserted {
                             live.push(tx);
                         }
                     }

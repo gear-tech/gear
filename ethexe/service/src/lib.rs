@@ -837,8 +837,9 @@ impl Service {
                                 channel,
                             } => {
                                 let acceptance = if let Some(m) = malachite.as_mut() {
-                                    m.receive_injected_transaction((*transaction).clone())
-                                        .into()
+                                    ethexe_malachite::classify_insert_outcome(
+                                        m.receive_injected_transaction((*transaction).clone()),
+                                    )
                                 } else {
                                     ethexe_common::injected::InjectedTransactionAcceptance::Accept
                                 };
@@ -883,8 +884,9 @@ impl Service {
 
                             if is_zero_address || is_our_address {
                                 let acceptance = if let Some(m) = malachite.as_mut() {
-                                    m.receive_injected_transaction(transaction.tx.clone())
-                                        .into()
+                                    ethexe_malachite::classify_insert_outcome(
+                                        m.receive_injected_transaction(transaction.tx.clone()),
+                                    )
                                 } else {
                                     ethexe_common::injected::InjectedTransactionAcceptance::Accept
                                 };
