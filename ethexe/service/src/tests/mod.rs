@@ -6,8 +6,9 @@
 pub(crate) mod utils;
 
 use crate::tests::utils::{
-    EnvNetworkConfig, InfiniteStreamExt, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
-    TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, init_logger, stop_nodes, test_info,
+    EnvNetworkConfig, InfiniteStreamExt, NodeConfig, ObserverEventReceiver, TestEnv, TestEnvConfig,
+    TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, init_logger, stop_nodes,
+    test_info,
 };
 use alloy::{
     primitives::U256,
@@ -15,11 +16,14 @@ use alloy::{
 };
 use ethexe_common::{
     OutgoingAction,
-    db::{CodesStorageRO, GlobalsStorageRO, InjectedStorageRO, MbStorageRO, OnChainStorageRO},
+    db::{
+        CodesStorageRO, GlobalsStorageRO, InjectedStorageRO, MbStorageRO, OnChainStorageRO,
+        OutgoingActionStorageRO,
+    },
     ecdsa::ContractSignature,
     events::{
         BlockEvent, MirrorEvent,
-        mirror::{MessageEvent, ReplyEvent, ValueClaimedEvent},
+        mirror::{MessageEvent, ReplyEvent, StateChangedEvent, ValueClaimedEvent},
     },
     gear::{BatchCommitment, ValueClaim},
     injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
@@ -34,13 +38,52 @@ use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
-use gprimitives::{ActorId, H160, H256, MessageId};
+use gprimitives::{ActorId, H160, H256, MessageId, U256 as GpU256};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
+
+/// Walks StateChanged events for `actor_id` and returns the
+/// `(state_hash, total_leaves, leaf_index, proof)` of the MB transition that
+/// committed a value claim for `message_id`. The tests trigger exactly one
+/// claim per MB, so the merkle proof is always empty.
+async fn find_value_claim_proof(
+    receiver: ObserverEventReceiver,
+    db: &ethexe_db::Database,
+    actor_id: ActorId,
+    message_id: MessageId,
+) -> (H256, GpU256, GpU256, Vec<H256>) {
+    let db = db.clone();
+    receiver
+        .filter_map_block_synced()
+        .find_map(|event| {
+            let BlockEvent::Mirror {
+                actor_id: ev_actor,
+                event: MirrorEvent::StateChanged(StateChangedEvent { state_hash }),
+            } = event
+            else {
+                return None;
+            };
+            if ev_actor != actor_id {
+                return None;
+            }
+            let actions = db.outgoing_actions(state_hash)?.into_inner();
+            let idx = actions
+                .iter()
+                .position(|a| a.message_id() == message_id)?;
+            assert_eq!(actions.len(), 1, "expected single-action MB, got {actions:?}");
+            Some((
+                state_hash,
+                GpU256::from(1u64),
+                GpU256::from(idx as u64),
+                Vec::<H256>::new(),
+            ))
+        })
+        .await
+}
 
 #[derive(Clone)]
 struct RecordingCommitter {
@@ -667,10 +710,12 @@ async fn mailbox() {
 
     assert_eq!(mailbox.into_values(&node.db), expected_mailbox);
 
+    // Receiver MUST be created BEFORE the trigger so it captures every
+    // MBCommitted/StateChanged event emitted from this point on.
+    let receiver = env.new_observer_events();
+
     test_info!("📗 Claiming value for message {mid_expected_message_id}");
     mirror.claim_value(mid_expected_message_id).await.unwrap();
-
-    let receiver = env.new_observer_events();
 
     // Force-process the claim by sending a follow-up no-op message
     // through the program. Once its reply lands, the claim has been
@@ -683,30 +728,49 @@ async fn mailbox() {
         .await
         .unwrap();
 
+    // `mirror.state_hash()` is the LATEST stateHash on chain — it may belong
+    // to a follow-up MB without claims, in which case `_merkleRoots[stateHash]`
+    // is bytes32(0) and `processOutgoingAction` reverts with
+    // `OutgoingActionMerkleRootNotFound`. Walk StateChanged events for this
+    // actor and pick the stateHash whose outgoing_actions in the local DB
+    // contain our message_id.
+    let db = node.db.clone();
+    let (claim_state_hash, total_leaves, leaf_index, proof) =
+        find_value_claim_proof(receiver.clone(), &db, async_pid, mid_expected_message_id).await;
+    // The MB containing this transition is the one whose outcome lists
+    // `claim_state_hash` as a new state hash. Router.MBCommitted is emitted
+    // after the Mirror.StateChanged in the same eth block, so we scan a fresh
+    // receiver clone for any MBCommitted whose outcome matches.
     let mb_hash = receiver
         .clone()
         .filter_map_block_synced()
-        .find_map(|e| match e {
-            BlockEvent::Router(ethexe_common::events::RouterEvent::MBCommitted(
-                ethexe_common::events::router::MBCommittedEvent(mb_hash),
-            )) => Some(mb_hash),
-            _ => None,
+        .find_map(|event| {
+            let BlockEvent::Router(ethexe_common::events::RouterEvent::MBCommitted(
+                ethexe_common::events::router::MBCommittedEvent(hash),
+            )) = event
+            else {
+                return None;
+            };
+            let outcome = db.mb_outcome(hash)?;
+            outcome
+                .iter()
+                .any(|t| t.new_state_hash == claim_state_hash)
+                .then_some(hash)
         })
         .await;
 
-    let state_hash = mirror.query().state_hash().await.unwrap();
     let sender_address = env.ethereum.provider().default_signer_address();
     mirror
         .process_outgoing_action(
-            state_hash,
-            1.into(),
-            0.into(),
+            claim_state_hash,
+            total_leaves,
+            leaf_index,
             OutgoingAction::ValueClaim(ValueClaim {
                 message_id: mid_expected_message_id,
                 destination: sender_address.into(),
                 value: 0,
             }),
-            vec![],
+            proof,
         )
         .await
         .unwrap();
@@ -959,6 +1023,8 @@ async fn value_send_program_to_user_and_claimed() {
     let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
     let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
 
+    let receiver = env.new_observer_events();
+
     piggy_bank.claim_value(mailboxed_msg_id).await.unwrap();
 
     // Force-process the claim by sending a follow-up no-op message
@@ -972,18 +1038,22 @@ async fn value_send_program_to_user_and_claimed() {
         .await
         .unwrap();
 
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    // See the `mailbox` test for the rationale — `mirror.state_hash()` is
+    // the LATEST stateHash and may have an empty merkleRoot.
+    let db = node.db.clone();
+    let (claim_state_hash, total_leaves, leaf_index, proof) =
+        find_value_claim_proof(receiver, &db, piggy_bank_id, mailboxed_msg_id).await;
     piggy_bank
         .process_outgoing_action(
-            state_hash,
-            1.into(),
-            0.into(),
+            claim_state_hash,
+            total_leaves,
+            leaf_index,
             OutgoingAction::ValueClaim(ValueClaim {
                 message_id: mailboxed_msg_id,
                 destination: sender_address.into(),
                 value: VALUE_SENT,
             }),
-            vec![],
+            proof,
         )
         .await
         .unwrap();
@@ -1114,6 +1184,8 @@ async fn value_send_program_to_user_and_replied() {
     let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
     let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
 
+    let receiver = env.new_observer_events();
+
     piggy_bank
         .send_reply(mailboxed_msg_id, "", 0)
         .await
@@ -1128,18 +1200,21 @@ async fn value_send_program_to_user_and_replied() {
         .await
         .unwrap();
 
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    // See the `mailbox` test for the rationale.
+    let db = node.db.clone();
+    let (claim_state_hash, total_leaves, leaf_index, proof) =
+        find_value_claim_proof(receiver, &db, piggy_bank_id, mailboxed_msg_id).await;
     piggy_bank
         .process_outgoing_action(
-            state_hash,
-            1.into(),
-            0.into(),
+            claim_state_hash,
+            total_leaves,
+            leaf_index,
             OutgoingAction::ValueClaim(ValueClaim {
                 message_id: mailboxed_msg_id,
                 destination: sender_address.into(),
                 value: VALUE_SENT,
             }),
-            vec![],
+            proof,
         )
         .await
         .unwrap();
