@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use super::report::{MailboxReport, Report};
 use gear_core::ids::{ActorId, CodeId, MessageId};
 use std::collections::BTreeSet;

@@ -1,27 +1,11 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer,
     RpcService,
 };
 use ethexe_common::{
-    db::InjectedStorageRW,
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
     injected::{AddressedInjectedTransaction, Promise, SignedCompactPromise},
@@ -29,7 +13,10 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use futures::StreamExt;
-use gear_core::message::{ReplyCode, SuccessReplyReason};
+use gear_core::{
+    message::{ReplyCode, SuccessReplyReason},
+    rpc::ReplyInfo,
+};
 use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
@@ -39,15 +26,13 @@ use tokio::task::{JoinHandle, JoinSet};
 struct MockService {
     rpc: RpcService,
     handle: ServerHandle,
-    db: Database,
 }
 
 impl MockService {
     /// Creates a new mock service which runs an RPC server listening on the given address.
     pub async fn new(listen_addr: SocketAddr) -> Self {
-        let db = Database::memory();
-        let (handle, rpc) = start_new_server(listen_addr, db.clone()).await;
-        Self { rpc, handle, db }
+        let (handle, rpc) = start_new_server(listen_addr).await;
+        Self { rpc, handle }
     }
 
     pub fn injected_api(&self) -> InjectedApi {
@@ -66,10 +51,11 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let promises = self.promises_bundle(tx_batch.drain(..));
-                        promises.into_iter().for_each(|promise| {
-                            self.rpc.receive_compact_promise(promise);
-                        });
+                        for tx in tx_batch.drain(..) {
+                            let (promise, compact) = Self::create_promise_for(tx);
+                            self.rpc.receive_computed_promise(promise);
+                            self.rpc.receive_compact_promise(compact);
+                        }
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -85,23 +71,23 @@ impl MockService {
         })
     }
 
-    fn promises_bundle(
-        &self,
-        txs: impl IntoIterator<Item = AddressedInjectedTransaction>,
-    ) -> Vec<SignedCompactPromise> {
-        let pk = PrivateKey::random();
-        txs.into_iter()
-            .map(|tx| {
-                let promise = Promise::mock(tx.tx.data().to_hash());
-                self.db.set_promise(&promise);
-                SignedCompactPromise::create_from_promise(pk.clone(), &promise).unwrap()
-            })
-            .collect()
+    fn create_promise_for(tx: AddressedInjectedTransaction) -> (Promise, SignedCompactPromise) {
+        let promise = Promise {
+            tx_hash: tx.tx.data().to_hash(),
+            reply: ReplyInfo {
+                payload: vec![],
+                value: 0,
+                code: ReplyCode::Success(SuccessReplyReason::Manual),
+            },
+        };
+        let compact = SignedCompactPromise::create_from_promise(PrivateKey::random(), &promise)
+            .expect("Signing compact promise will succeed");
+        (promise, compact)
     }
 }
 
 /// Starts a new RPC server listening on the given address.
-async fn start_new_server(listen_addr: SocketAddr, db: Database) -> (ServerHandle, RpcService) {
+async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService) {
     let rpc_config = RpcConfig {
         listen_addr,
         cors: None,
@@ -109,7 +95,7 @@ async fn start_new_server(listen_addr: SocketAddr, db: Database) -> (ServerHandl
         chunk_size: 2,
         with_dev_api: false,
     };
-    RpcServer::new(rpc_config, db)
+    RpcServer::new(rpc_config, Database::memory())
         .run_server()
         .await
         .expect("RPC Server will start successfully")

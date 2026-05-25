@@ -1,23 +1,8 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{IRouter, utils::*};
-use ethexe_common::{Digest, HashOf, events::router::*};
+use ethexe_common::{Digest, events::router::*};
 
 impl From<IRouter::BatchCommitted> for BatchCommittedEvent {
     fn from(value: IRouter::BatchCommitted) -> Self {
@@ -27,10 +12,15 @@ impl From<IRouter::BatchCommitted> for BatchCommittedEvent {
     }
 }
 
-impl From<IRouter::AnnouncesCommitted> for AnnouncesCommittedEvent {
-    fn from(value: IRouter::AnnouncesCommitted) -> Self {
-        // # Safety because of implementation
-        Self(unsafe { HashOf::new(value.head.0.into()) })
+impl From<IRouter::MBCommitted> for MBCommittedEvent {
+    fn from(value: IRouter::MBCommitted) -> Self {
+        Self(bytes32_to_h256(value.head))
+    }
+}
+
+impl From<IRouter::EBCommitted> for EBCommittedEvent {
+    fn from(value: IRouter::EBCommitted) -> Self {
+        Self(bytes32_to_h256(value.ethBlockHash))
     }
 }
 

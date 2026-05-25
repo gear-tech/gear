@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Wasmi specific impls for sandbox
 
@@ -32,22 +17,21 @@ use wasmi::{
 
 use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
 
+use super::SupervisorFuncIndex;
 use crate::{
+    context::{SupervisorContext, SupervisorContextDispatcher},
     error::{self, Error},
     sandbox::{
         BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
-        SupervisorContext,
     },
     store_refcell,
     util::MemoryTransfer,
 };
 
-use super::SupervisorFuncIndex;
-
 type Store = wasmi::Store<Option<FuncEnv>>;
 pub type StoreRefCell = store_refcell::StoreRefCell<Store>;
 
-environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
+environmental::environmental!(SupervisorContextStore: trait SupervisorContextDispatcher);
 
 pub struct FuncEnv {
     store: Weak<StoreRefCell>,
@@ -274,7 +258,7 @@ pub fn instantiate(
     context: &Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
 ) -> Result<SandboxInstance, InstantiationError> {
     let mut store = context.store().borrow_mut();
 
@@ -465,7 +449,7 @@ fn dispatch_function_v2(
 
 fn dispatch_common(
     supervisor_func_index: SupervisorFuncIndex,
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
     invoke_args_data: Vec<u8>,
 ) -> Result<Vec<u8>, wasmi::Error> {
     // Move serialized arguments inside the memory, invoke dispatch thunk and
@@ -535,7 +519,7 @@ pub fn invoke(
     store: &Rc<StoreRefCell>,
     export_name: &str,
     args: &[Value],
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
 ) -> Result<Option<Value>, Error> {
     let function = instance
         .get_func(&*store.borrow(), export_name)

@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Networking stack for `ethexe`.
 //!
@@ -55,11 +40,11 @@ use crate::{
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
-    Address, Announce, BlockHeader, HashOf, ValidatorsVec,
+    Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
     injected::{AddressedInjectedTransaction, SignedCompactPromise},
-    network::{BitswapAnnouncesHandle, SignedValidatorMessage, VerifiedValidatorMessage},
+    network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
@@ -95,12 +80,6 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 500;
 const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
 const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
 const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
-
-impl BitswapAnnouncesHandle for bitswap::Handle {
-    async fn request(&self, hash: HashOf<Announce>) -> Announce {
-        bitswap::Handle::request(self, hash).await.unwrap_announce()
-    }
-}
 
 /// High-level events produced by [`NetworkService`].
 #[derive(derive_more::Debug)]

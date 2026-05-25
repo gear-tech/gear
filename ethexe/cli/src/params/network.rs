@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Parameters controlling the optional libp2p networking service.
 
@@ -28,7 +13,7 @@ use ethexe_network::{
 };
 use gsigner::secp256k1::Signer;
 use serde::Deserialize;
-use std::{num::NonZeroU32, path::PathBuf};
+use std::path::PathBuf;
 
 /// Parameters for the networking service to start.
 #[derive(Clone, Debug, Deserialize, Parser)]
@@ -63,11 +48,6 @@ pub struct NetworkParams {
     #[arg(long, alias = "no-net")]
     #[serde(default, rename = "no-network", alias = "no-net")]
     pub no_network: bool,
-
-    /// Maximum chain length allowed in announces responses.
-    #[arg(long, alias = "net-max-chain-len-for-announces-response")]
-    #[serde(rename = "max-chain-len-for-announces-response")]
-    pub max_chain_len_for_announces_response: Option<NonZeroU32>,
 }
 
 impl NetworkParams {
@@ -159,9 +139,6 @@ impl MergeParams for NetworkParams {
             network_listen_addr: self.network_listen_addr.or(with.network_listen_addr),
             network_port: self.network_port.or(with.network_port),
             no_network: self.no_network || with.no_network,
-            max_chain_len_for_announces_response: self
-                .max_chain_len_for_announces_response
-                .or(with.max_chain_len_for_announces_response),
         }
     }
 }

@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 //! Load generator and fuzzing harness for local `ethexe` nodes.
 //!
 //! `ethexe-node-loader` is a binary crate used during local development to put

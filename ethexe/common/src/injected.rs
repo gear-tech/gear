@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
@@ -31,18 +16,41 @@ pub const VALIDITY_WINDOW: u8 = 32;
 
 /// Maximum size of single injected transaction payload.
 ///
-/// Limited by the maximum injected transactions size per announce.
+/// Limited by the maximum injected transactions size per MB.
 /// Currently is 126 KiB.
 pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 126 * 1024;
 
 /// Maximum size of injected transaction salt.
 pub const MAX_INJECTED_TX_SALT_SIZE: usize = 32;
 
+/// Maximum cumulative SCALE-encoded size of [`SignedInjectedTransaction`]s
+/// that a single MB may carry. 127 KiB leaves ~1 KiB of headroom over the
+/// per-tx [`MAX_INJECTED_TX_PAYLOAD_SIZE`] for signature and other
+/// envelope bytes, so at least one tx of the maximum payload size is
+/// always admissible.
+pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB: usize = 127 * 1024;
+
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 pub enum InjectedTransactionAcceptance {
     Accept,
-    Reject { reason: String },
+    /// Mempool already holds (or has recently committed) this tx. The promise
+    /// will still fire — the subscription should stay open and fan-out should
+    /// prefer this over a `Reject`.
+    AlreadyPooled {
+        reason: String,
+    },
+    Reject {
+        reason: String,
+    },
+}
+
+impl InjectedTransactionAcceptance {
+    /// Either fresh acceptance or duplicate of a pooled tx — the caller's
+    /// promise subscription will receive the reply in both cases.
+    pub fn is_promise_bound(&self) -> bool {
+        matches!(self, Self::Accept | Self::AlreadyPooled { .. })
+    }
 }
 
 impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
@@ -289,6 +297,17 @@ mod tests {
                 .expect("failed to recover message")
                 .to_address(),
             signed_tx.address()
+        );
+    }
+
+    /// Ported from master's `tx_pool::tests::validate_max_tx_size`.
+    /// One full-size [`SignedInjectedTransaction`] must always fit within
+    /// the per-MB cumulative size cap; otherwise the largest legal tx
+    /// could never be admitted.
+    #[test]
+    fn max_signed_injected_tx_fits_per_mb_cap() {
+        assert!(
+            SignedInjectedTransaction::max_encoded_len() <= MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB
         );
     }
 

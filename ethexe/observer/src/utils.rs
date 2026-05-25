@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // TODO #4552: add tests for observer utils
 
@@ -204,10 +189,8 @@ impl BlockLoader for EthereumBlockLoader {
 
     async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
         let filter = Self::log_filter().at_block_hash(block.0);
-        let logs_request = self
-            .provider
-            .get_logs(&filter)
-            .map_err(|err| anyhow::anyhow!("failed to get logs: {err}"));
+        // Preserve concrete error type so SyncError's classifier can downcast.
+        let logs_request = self.provider.get_logs(&filter).map_err(anyhow::Error::from);
 
         let (block_hash, header, logs) = if let Some(header) = header {
             (block, header, logs_request.await?)

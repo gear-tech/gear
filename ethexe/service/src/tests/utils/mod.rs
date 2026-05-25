@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 pub use env::*;
 use ethexe_db::{GenesisInitializer, dump::StateDump};
@@ -34,6 +19,28 @@ pub fn init_logger() {
         .try_init();
 }
 
+/// Helper for visually separating important info messages in test logs. Example:
+/// ```text
+///    12.345s  INFO
+///    -----------------------------------
+///           centralized info message
+///    -----------------------------------
+/// ```
+#[allow(unused_macros)]
+macro_rules! test_info {
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        let bar_width = (msg.len() + 8).max(40);
+        let bar = "-".repeat(bar_width);
+        let lpad = " ".repeat(bar_width.saturating_sub(msg.len()) / 2);
+        log::info!("\n{bar}\n{lpad}{msg}\n{bar}");
+    }};
+}
+
+#[allow(unused_imports)]
+pub(crate) use test_info;
+
+#[allow(dead_code)]
 pub struct GenesisInitializerFromDump {
     pub dump: Option<StateDump>,
     pub processor: Processor,

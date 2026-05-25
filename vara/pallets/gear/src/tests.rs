@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
@@ -46,8 +31,8 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     buffer::Payload,
     code::{
-        self, Code, CodeError, ExportError, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT,
-        SyscallKind,
+        self, Code, CodeError, ExportError, InstrumentedCode, InstrumentedCodeAndMetadata,
+        MAX_WASM_PAGES_AMOUNT, SyscallKind,
     },
     gas_metering::CustomConstantCostRules,
     ids::{ActorId, CodeId, MessageId, prelude::*},
@@ -4971,6 +4956,163 @@ fn test_code_submission_pass() {
                 change: CodeChangeKind::Active { expiration: None },
             }
             .into(),
+        );
+    })
+}
+
+#[test]
+fn stripping_reduces_instrumented_code_len() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let base = ProgramCodeKind::Default.to_bytes();
+        let base_len = base.len();
+
+        let idl_payload: Vec<u8> = (0..4096).map(|i| (i & 0xff) as u8).collect();
+        let idl_len = idl_payload.len();
+        let code_with_idl = code_with_sails_idl(&base, idl_payload);
+        let code_id = CodeId::generate(&code_with_idl);
+
+        // Sanity: the constructed original carries sails:idl.
+        assert!(
+            has_sails_idl(&code_with_idl),
+            "fixture must contain sails:idl before upload"
+        );
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            code_with_idl.clone(),
+        ));
+
+        // OriginalCode keeps the IDL (RPC readers depend on this).
+        let original = <Test as Config>::CodeStorage::get_original_code(code_id)
+            .expect("original code must be stored");
+        assert!(
+            has_sails_idl(&original),
+            "OriginalCode must retain the sails:idl custom section"
+        );
+
+        // InstrumentedCode must not contain any non-name custom sections.
+        let instrumented = <Test as Config>::CodeStorage::get_instrumented_code(code_id)
+            .expect("instrumented code must be stored");
+        let parsed =
+            Module::new(instrumented.bytes()).expect("instrumented bytes must be a valid module");
+        assert!(
+            parsed
+                .custom_sections
+                .as_ref()
+                .is_none_or(|cs| cs.is_empty()),
+            "InstrumentedCode must have no non-name custom sections after strip"
+        );
+
+        // Guard the stated contract of this test: stripping must shave at
+        // least (idl_len / 2) bytes off the instrumented artifact relative
+        // to the raw upload. Instrumentation itself adds some bytes, so we
+        // can't assert an exact equality; the half-payload floor catches
+        // any regression that re-embeds the section under a different name.
+        let custom_section_growth = code_with_idl.len().saturating_sub(base_len);
+        assert!(
+            custom_section_growth >= idl_len,
+            "fixture sanity: injecting {idl_len} bytes grew upload by only {custom_section_growth}"
+        );
+        assert!(
+            instrumented.bytes().len() + idl_len / 2 < code_with_idl.len(),
+            "stripping must remove at least idl_len/2 = {} bytes; instrumented={}, original={}",
+            idl_len / 2,
+            instrumented.bytes().len(),
+            code_with_idl.len()
+        );
+    })
+}
+
+fn has_sails_idl(wasm: &[u8]) -> bool {
+    let Ok(module) = Module::new(wasm) else {
+        return false;
+    };
+    module
+        .custom_sections
+        .as_ref()
+        .is_some_and(|cs| cs.iter().any(|(n, _)| n == "sails:idl"))
+}
+
+fn code_with_sails_idl(base: &[u8], payload: impl Into<Vec<u8>>) -> Vec<u8> {
+    let module = Module::new(base).expect("wasm fixture must parse");
+    let mut builder = gear_wasm_instrument::ModuleBuilder::from_module(module);
+    builder.push_custom_section("sails:idl", payload);
+    builder.build().serialize().expect("must serialize")
+}
+
+#[test]
+fn reinstrumentation_strips_custom_sections() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let base = ProgramCodeKind::Default.to_bytes();
+        let code_with_idl = code_with_sails_idl(&base, [0xAA, 0xBB, 0xCC]);
+        let code_id = CodeId::generate(&code_with_idl);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code_with_idl,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        let stored = <Test as Config>::CodeStorage::get_instrumented_code(code_id)
+            .expect("instrumented code must be stored");
+        assert!(
+            !has_sails_idl(stored.bytes()),
+            "freshly uploaded InstrumentedCode must already be stripped"
+        );
+
+        let stale_bytes = code_with_sails_idl(stored.bytes(), [0xDD, 0xEE, 0xFF]);
+        assert!(
+            has_sails_idl(&stale_bytes),
+            "test fixture must inject stale sails:idl into InstrumentedCode"
+        );
+
+        <<Test as Config>::CodeStorage as CodeStorage>::InstrumentedCodeMap::insert(
+            code_id,
+            InstrumentedCode::new(stale_bytes, stored.instantiated_section_sizes().clone()),
+        );
+
+        let new_weights_version = <Test as Config>::Schedule::get()
+            .instruction_weights
+            .version
+            .wrapping_add(1);
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            schedule.instruction_weights.version = new_weights_version;
+        });
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        let metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id)
+            .expect("code metadata must be stored");
+        assert_eq!(
+            metadata
+                .instruction_weights_version()
+                .expect("instrumented metadata must carry version"),
+            new_weights_version
+        );
+
+        let reinstrumented = <Test as Config>::CodeStorage::get_instrumented_code(code_id)
+            .expect("instrumented code must be stored");
+        assert!(
+            !has_sails_idl(reinstrumented.bytes()),
+            "re-instrumentation must strip sails:idl from InstrumentedCode"
         );
     })
 }

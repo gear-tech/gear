@@ -1,37 +1,58 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Application config in one place.
 
 use anyhow::Result;
+use ethexe_malachite::Multiaddr;
 use ethexe_network::NetworkConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use gsigner::secp256k1::{Address, PublicKey};
-use std::{path::PathBuf, str::FromStr, time::Duration};
+use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 
 #[derive(Debug)]
 pub struct Config {
     pub node: NodeConfig,
     pub ethereum: EthereumConfig,
     pub network: Option<NetworkConfig>,
+    pub malachite: MalachiteCliConfig,
     pub rpc: Option<RpcConfig>,
     pub prometheus: Option<PrometheusConfig>,
+}
+
+/// User-facing subset of [`ethexe_malachite::MalachiteConfig`],
+/// resolved at CLI/TOML parse time. The rest of the runtime fields
+/// (home directory, mempool) are filled in by the service itself.
+#[derive(Clone, Debug)]
+pub struct MalachiteCliConfig {
+    /// Listen address for the Malachite libp2p TCP swarm.
+    pub listen_addr: SocketAddr,
+    /// Persistent peers the local Malachite swarm should always
+    /// connect to. Each entry must include a `/p2p/<peer_id>` suffix.
+    /// Discovery is currently disabled, so for a multi-validator
+    /// deployment every peer must be listed (or transitively
+    /// reachable through the listed ones).
+    pub persistent_peers: Vec<Multiaddr>,
+    /// Map from validator Ethereum [`Address`] to its Malachite
+    /// secp256k1 [`PublicKey`]. The on-chain Router contract stores
+    /// the validator set as Ethereum addresses; Malachite needs the
+    /// matching public keys to verify votes/proposals. The service
+    /// resolves the final validator set by walking the on-chain
+    /// validator list (in router order) and looking each address up
+    /// in this table, so the table must contain every active
+    /// validator's address.
+    pub validator_pub_keys: BTreeMap<Address, PublicKey>,
+}
+
+impl Default for MalachiteCliConfig {
+    fn default() -> Self {
+        Self {
+            listen_addr: ethexe_malachite::MalachiteConfig::DEFAULT_LISTEN_ADDR,
+            persistent_peers: Vec::new(),
+            validator_pub_keys: BTreeMap::new(),
+        }
+    }
 }
 
 impl Config {
@@ -62,10 +83,26 @@ pub struct NodeConfig {
     pub block_gas_limit: u64,
     pub batch_size_limit: u64,
     pub canonical_quarantine: u8,
+    /// Extra anchor-depth slack the proposer adds on top of
+    /// `canonical_quarantine`. See
+    /// [`ethexe_malachite::MalachiteConfig::post_quarantine_delay`].
+    pub post_quarantine_delay: u32,
     pub dev: bool,
     pub pre_funded_accounts: u32,
     pub fast_sync: bool,
-    pub chain_deepness_threshold: u32,
+    /// How long the coordinator should wait between observing a new
+    /// Ethereum chain head and starting batch aggregation. Buys time for
+    /// participants to receive the same chain head and lets the previous
+    /// MB finish executing.
+    pub coordinator_aggregation_delay: Duration,
+    /// Coordinator-local: how many Ethereum blocks the resulting
+    /// `BatchCommitment` stays valid past its target block. Encoded into
+    /// `BatchCommitment::expiry`.
+    pub commitment_delay_limit: std::num::NonZero<u8>,
+    /// Force a checkpoint chain commitment when the producer's
+    /// `last_advanced_eth_block` runs ahead of `last_committed_eb`
+    /// by more than this many Eth blocks.
+    pub uncommitted_chain_len_threshold: std::num::NonZero<u32>,
     pub genesis_state_dump: Option<PathBuf>,
 }
 

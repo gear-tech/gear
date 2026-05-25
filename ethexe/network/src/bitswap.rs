@@ -19,10 +19,7 @@
 use beetswap::multihasher::{Multihasher, MultihasherError};
 use blockstore::{block::CidError, cond_send::CondSend};
 use cid::{Cid, CidGeneric};
-use ethexe_common::{
-    Announce, HashOf,
-    db::{AnnounceStorageRO, HashStorageRO},
-};
+use ethexe_common::db::HashStorageRO;
 use futures::FutureExt;
 use gprimitives::H256;
 use libp2p::{
@@ -34,7 +31,6 @@ use libp2p::{
     },
 };
 use multihash::Multihash;
-use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::HashMap,
     mem,
@@ -49,12 +45,10 @@ use tokio::{
 
 const BLAKE2B_CODE: u64 = 0xb220; // standard BLAKE2b multihash code
 const RAW_CODEC: u64 = 0x55; // standard CID raw codec
-const ANNOUNCES_CODEC: u64 = 0x300000; // user-defined CID codec
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Request {
     Hash(H256),
-    Announce(HashOf<Announce>),
 }
 
 impl Request {
@@ -64,20 +58,12 @@ impl Request {
                 RAW_CODEC,
                 Multihash::wrap(BLAKE2B_CODE, hash.as_bytes()).expect("size is always correct"),
             ),
-            Request::Announce(hash) => Cid::new_v1(
-                ANNOUNCES_CODEC,
-                Multihash::wrap(BLAKE2B_CODE, hash.inner().as_bytes())
-                    .expect("size is always correct"),
-            ),
         }
     }
 
     fn into_response(self, data: Vec<u8>) -> Response {
         match self {
             Request::Hash(_) => Response::Hash(data),
-            Request::Announce(_) => {
-                Response::Announce(Announce::decode(&mut data.as_slice()).expect("valid announce"))
-            }
         }
     }
 }
@@ -85,7 +71,6 @@ impl Request {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
 pub enum Response {
     Hash(Vec<u8>),
-    Announce(Announce),
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -145,7 +130,7 @@ impl Handle {
 }
 
 pub(crate) trait BlockstoreDatabase:
-    Send + Sync + HashStorageRO + AnnounceStorageRO
+    Send + Sync + HashStorageRO
 {
     fn clone_boxed(&self) -> Box<dyn BlockstoreDatabase>;
 }
@@ -203,19 +188,6 @@ impl blockstore::Blockstore for Blockstore {
                     }
 
                     Ok(data)
-                }
-                ANNOUNCES_CODEC => {
-                    let hash = unsafe { HashOf::new(hash) };
-                    let announce = db.announce(hash);
-
-                    if let Some(announce) = &announce
-                        && announce.encoded_size() as u64 > Self::MAX_BLOCK_SIZE
-                    {
-                        log::warn!("{hash} is too large: {} bytes", announce.encoded_size());
-                        return Err(blockstore::Error::ValueTooLarge);
-                    }
-
-                    Ok(announce.map(|announce| announce.encode()))
                 }
                 codec => Err(blockstore::Error::CidError(CidError::InvalidCidCodec(
                     codec,
@@ -428,15 +400,8 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::arb_value;
     use assert_matches::assert_matches;
     use blockstore::Blockstore as _;
-    use ethexe_common::{
-        ProgramStates, Schedule,
-        db::{AnnounceMeta, AnnounceStorageRW},
-        gear::StateTransition,
-    };
-    use std::collections::BTreeSet;
 
     #[derive(Clone)]
     struct PanickingDatabase;
@@ -444,38 +409,6 @@ mod tests {
     impl HashStorageRO for PanickingDatabase {
         fn read_by_hash(&self, _hash: H256) -> Option<Vec<u8>> {
             panic!("database read panic");
-        }
-    }
-
-    impl AnnounceStorageRO for PanickingDatabase {
-        fn announce(&self, _hash: HashOf<Announce>) -> Option<Announce> {
-            panic!("database announce panic");
-        }
-
-        fn announce_program_states(
-            &self,
-            _announce_hash: HashOf<Announce>,
-        ) -> Option<ProgramStates> {
-            unreachable!("not used in this test")
-        }
-
-        fn announce_outcome(
-            &self,
-            _announce_hash: HashOf<Announce>,
-        ) -> Option<Vec<StateTransition>> {
-            unreachable!("not used in this test")
-        }
-
-        fn announce_schedule(&self, _announce_hash: HashOf<Announce>) -> Option<Schedule> {
-            unreachable!("not used in this test")
-        }
-
-        fn announce_meta(&self, _announce_hash: HashOf<Announce>) -> AnnounceMeta {
-            unreachable!("not used in this test")
-        }
-
-        fn block_announces(&self, _block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>> {
-            unreachable!("not used in this test")
         }
     }
 
@@ -492,20 +425,6 @@ mod tests {
         assert_eq!(cid.codec(), RAW_CODEC);
         assert_eq!(cid.hash().code(), BLAKE2B_CODE);
         assert_eq!(cid.hash().digest(), hash.as_bytes());
-
-        let announce_hash = unsafe { HashOf::new(H256::from([2; 32])) };
-        let cid = Request::Announce(announce_hash).into_cid();
-        assert_eq!(cid.codec(), ANNOUNCES_CODEC);
-        assert_eq!(cid.hash().code(), BLAKE2B_CODE);
-        assert_eq!(cid.hash().digest(), announce_hash.inner().as_bytes());
-    }
-
-    #[test]
-    fn announce_request_decodes_response() {
-        let announce = arb_value::<Announce>(());
-        let response = Request::Announce(announce.to_hash()).into_response(announce.encode());
-
-        assert_eq!(response, Response::Announce(announce));
     }
 
     #[tokio::test]
@@ -518,19 +437,6 @@ mod tests {
         let data = blockstore.get(&cid).await.unwrap();
 
         assert_eq!(data, Some(b"hello".to_vec()));
-    }
-
-    #[tokio::test]
-    async fn blockstore_reads_announces() {
-        let db = ethexe_db::Database::memory();
-        let announce = arb_value::<Announce>(());
-        let announce_hash = db.set_announce(announce.clone());
-        let blockstore = Blockstore { db: Box::new(db) };
-        let cid = Request::Announce(announce_hash).into_cid();
-
-        let data = blockstore.get(&cid).await.unwrap();
-
-        assert_eq!(data, Some(announce.encode()));
     }
 
     #[tokio::test]
