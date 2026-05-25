@@ -145,6 +145,8 @@ else
   echo "[+] Benchmarking ${#PALLETS[@]} Gear pallets by excluding ${#EXCLUDED_PALLETS[@]} from ${#ALL_PALLETS[@]}."
 fi
 
+TASKSET_CMD=""
+
 # Populate TASKSET_CMD with taskset command if isolated core is set.
 if [ -n "$ISOLATED_CORE" ]; then
   echo "[+] Running benches on isolated core: $ISOLATED_CORE"
@@ -180,7 +182,7 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 
   # Run multithreaded benchmarks (pallet_gear_builtin) on fixed 4 cores.
-  if [ -n "$INSTANCE_TYPE" ] && [ "$PALLET" == "pallet_gear_builtin" ]
+  if [ "$PALLET" == "pallet_gear_builtin" ]
   then
     PREV_TASKSET_CMD=$TASKSET_CMD
     TASKSET_CMD="taskset -c 2,3,4,5"
