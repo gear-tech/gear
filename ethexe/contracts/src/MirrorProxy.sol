@@ -52,6 +52,9 @@ contract MirrorProxy {
     bool public exited;
     address public inheritor;
     address public initializer;
+    bool isSmall;
+    mapping(bytes32 stateHash => bytes32 merkleRoot) public _merkleRoots;
+    mapping(bytes32 messageId => bool isProcessed) public _processedMessages;
 
     constructor() payable {}
 
@@ -73,16 +76,27 @@ contract MirrorProxy {
         _delegate();
     }
 
-    // TODO: We also need to regenerate `Clones.sol` file so that all new Sails framework programs include this new method.
-    //       Unfortunately, old `MirrorProxy` contracts won't have this method.
+    // TODO #5380: We also need to regenerate `Clones.sol` file so that all new Sails framework programs include this new method.
+    //               Unfortunately, old `MirrorProxy` contracts won't have this method.
     //
-    //       We might also need to update `ERC1967Utils.IMPLEMENTATION_SLOT` in all `Mirror`-s that are set to
-    //      `isSmall = true` to the new `Mirror` address so that this method is visible on Etherscan.
+    //               We might also need to update `ERC1967Utils.IMPLEMENTATION_SLOT` in all `Mirror`-s that are set to
+    //               `isSmall = true` to the new `Mirror` address so that this method is visible on Etherscan.
     function executableBalanceTopUpWithPermit(uint128 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
         _delegate();
     }
 
     function transferLockedValueToInheritor() external {
+        _delegate();
+    }
+
+    // TODO #5380: We also need to regenerate `Clones.sol` file.
+    function processOutgoingAction(
+        bytes32 stateHash,
+        uint256 totalLeaves,
+        uint256 leafIndex,
+        bytes calldata payload,
+        bytes32[] calldata proof
+    ) external {
         _delegate();
     }
 
