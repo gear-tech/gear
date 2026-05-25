@@ -25,6 +25,7 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_consensus::BatchCommitter;
+use ethexe_db::verifier::IntegrityVerifier;
 use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
 use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::state::Storage;
@@ -3075,8 +3076,119 @@ async fn reply_callback() {
 }
 
 #[tokio::test]
-#[ignore = "TODO: #5487 port to MB-driven test harness"]
-async fn fast_sync() {}
+#[ntest::timeout(180_000)]
+async fn fast_sync() {
+    init_logger();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(3),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    test_info!("Starting validators");
+    let mut validators = Vec::new();
+    for (i, validator) in env.validators.clone().into_iter().enumerate() {
+        let mut node = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(validator))
+            .await;
+        node.start_service().await;
+        validators.push(node);
+    }
+
+    let observer_events = env.new_observer_events();
+
+    test_info!("Creating ping program and finalizing it in MB");
+    let code_id = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .code_id;
+    let ping_id = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .program_id;
+    let reply = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(reply.payload, b"PONG");
+
+    let alice_mb = tokio::time::timeout(Duration::from_secs(45), async {
+        observer_events
+            .filter_map_block_synced()
+            .find_map(|event| match event {
+                BlockEvent::Router(ethexe_common::events::RouterEvent::MBCommitted(
+                    ethexe_common::events::router::MBCommittedEvent(mb_hash),
+                )) => {
+                    let meta = validators[0].db.mb_meta(mb_hash);
+                    (meta.computed
+                        && !meta.last_advanced_eb.is_zero()
+                        && validators[0].db.mb_program_states(mb_hash).is_some()
+                        && validators[0].db.mb_outcome(mb_hash).is_some()
+                        && validators[0].db.mb_schedule(mb_hash).is_some())
+                    .then_some(mb_hash)
+                }
+                _ => None,
+            })
+            .await
+    })
+    .await
+    .expect("Alice did not commit an MB that advanced an Ethereum block");
+    let fast_sync_target = validators[0].db.mb_meta(alice_mb).last_advanced_eb;
+    assert!(!fast_sync_target.is_zero());
+    test_info!("Fast-sync source MB {alice_mb}, target EB {fast_sync_target}");
+
+    let source_bootstrap_address = validators[0].multiaddr.clone().unwrap();
+
+    test_info!("Starting Bob with fast sync");
+    let mut bob = env
+        .new_node(
+            NodeConfig::named("Bob")
+                .fast_sync()
+                .network_bootstrap_address(source_bootstrap_address),
+        )
+        .await;
+    tokio::time::timeout(Duration::from_secs(45), bob.start_service())
+        .await
+        .expect("Bob did not finish fast sync");
+
+    let fast_synced_block = bob.latest_fast_synced_block.take().unwrap();
+    assert_eq!(fast_synced_block, fast_sync_target);
+
+    let bob_globals = bob.db.globals();
+    assert_eq!(bob_globals.latest_computed_mb_hash, alice_mb);
+    assert_eq!(bob_globals.latest_finalized_mb_hash, alice_mb);
+    assert_eq!(bob_globals.latest_prepared_eb_hash, fast_sync_target);
+    drop(bob_globals);
+
+    assert_eq!(
+        bob.db.mb_program_states(alice_mb),
+        validators[0].db.mb_program_states(alice_mb)
+    );
+    assert_eq!(
+        bob.db.mb_schedule(alice_mb),
+        validators[0].db.mb_schedule(alice_mb)
+    );
+
+    IntegrityVerifier::new(bob.db.clone())
+        .verify_chain(fast_sync_target, fast_synced_block)
+        .expect("failed to verify Bob database after fast sync");
+
+    validators.push(bob);
+    stop_nodes(validators).await;
+}
 
 #[tokio::test]
 #[ignore = "TODO: #5488 port to MB-driven test harness"]

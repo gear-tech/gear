@@ -33,6 +33,7 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use alloy::{
+    eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::Metadata,
@@ -55,16 +56,13 @@ use ethexe_malachite::{
     InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService, ValidatorEntry,
 };
 use ethexe_network::{NetworkEvent, NetworkRuntimeConfig, NetworkService};
-use ethexe_observer::{
-    ObserverConfig, ObserverEvent, ObserverService,
-    utils::{BlockId, BlockLoader},
-};
+use ethexe_observer::{ObserverConfig, ObserverEvent, ObserverService, utils::BlockLoader};
 use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeInfo};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{FutureExt, StreamExt};
-use gprimitives::{CodeId, H256};
+use gprimitives::CodeId;
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -327,7 +325,7 @@ impl Service {
 
         let latest_block = observer
             .block_loader()
-            .load_simple(BlockId::Latest)
+            .load_simple(BlockId::latest())
             .await
             .context("failed to get latest block")?;
 
@@ -424,7 +422,7 @@ impl Service {
 
             let latest_block_data = observer
                 .block_loader()
-                .load_simple(BlockId::Latest)
+                .load_simple(BlockId::latest())
                 .await
                 .context("failed to get latest block")?;
 

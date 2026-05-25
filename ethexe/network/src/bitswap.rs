@@ -46,19 +46,27 @@ use tokio::{
 const BLAKE2B_CODE: u64 = 0xb220; // standard BLAKE2b multihash code
 const RAW_CODEC: u64 = 0x55; // standard CID raw codec
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::From)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Request {
     Hash(H256),
 }
 
+impl From<H256> for Request {
+    fn from(hash: H256) -> Self {
+        Self::Hash(hash)
+    }
+}
+
 impl Request {
     fn into_cid(self) -> Cid {
-        match self {
-            Request::Hash(hash) => Cid::new_v1(
-                RAW_CODEC,
-                Multihash::wrap(BLAKE2B_CODE, hash.as_bytes()).expect("size is always correct"),
-            ),
-        }
+        let (codec, hash) = match self {
+            Request::Hash(hash) => (RAW_CODEC, hash),
+        };
+
+        Cid::new_v1(
+            codec,
+            Multihash::wrap(BLAKE2B_CODE, hash.as_bytes()).expect("size is always correct"),
+        )
     }
 
     fn into_response(self, data: Vec<u8>) -> Response {
@@ -129,9 +137,7 @@ impl Handle {
     }
 }
 
-pub(crate) trait BlockstoreDatabase:
-    Send + Sync + HashStorageRO
-{
+pub(crate) trait BlockstoreDatabase: Send + Sync + HashStorageRO {
     fn clone_boxed(&self) -> Box<dyn BlockstoreDatabase>;
 }
 
@@ -176,7 +182,7 @@ impl blockstore::Blockstore for Blockstore {
         let codec = cid.codec();
         task::spawn_blocking(move || {
             let hash = Self::convert_multihash(&hash)?;
-            match codec {
+            let data = match codec {
                 RAW_CODEC => {
                     let data = db.read_by_hash(hash);
 
@@ -187,12 +193,21 @@ impl blockstore::Blockstore for Blockstore {
                         return Err(blockstore::Error::ValueTooLarge);
                     }
 
-                    Ok(data)
+                    data
                 }
                 codec => Err(blockstore::Error::CidError(CidError::InvalidCidCodec(
                     codec,
-                ))),
+                )))?,
+            };
+
+            if let Some(data) = &data
+                && data.len() as u64 > Self::MAX_BLOCK_SIZE
+            {
+                log::warn!("{hash} is too large: {} bytes", data.len());
+                return Err(blockstore::Error::ValueTooLarge);
             }
+
+            Ok(data)
         })
         .map(|res| {
             res.map_err(|err| blockstore::Error::FatalDatabaseError(err.to_string()))
