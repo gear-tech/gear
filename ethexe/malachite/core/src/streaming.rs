@@ -26,6 +26,10 @@ use crate::{
     types::Address,
 };
 
+const MAX_STREAM_MESSAGES: u64 = 16;
+const MAX_STREAMS_PER_PEER: usize = 64;
+const MAX_STREAMS_TOTAL: usize = 1024;
+
 /// Min-heap wrapper that orders `StreamMessage`s by ascending sequence.
 struct MinSeq<T>(StreamMessage<T>);
 
@@ -172,13 +176,10 @@ impl ProposalParts {
     }
 }
 
-// TODO: #5473 `PartStreamsMap` has no per-peer cap, no total cap, and no
-// eviction for streams that never receive a valid `Fin`. Pinned by the
-// (ignored) regression test
-// `streaming::tests::part_streams_map_grows_unbounded_under_fin_sequence_attack`.
 #[derive(Default)]
 pub struct PartStreamsMap {
     streams: BTreeMap<(PeerId, StreamId), StreamState>,
+    peer_streams: BTreeMap<PeerId, usize>,
 }
 
 impl PartStreamsMap {
@@ -196,20 +197,47 @@ impl PartStreamsMap {
         msg: StreamMessage<ProposalPart>,
     ) -> Option<ProposalParts> {
         let stream_id = msg.stream_id.clone();
+        let key = (peer_id, stream_id.clone());
+        if msg.sequence >= MAX_STREAM_MESSAGES {
+            self.remove_stream(&key);
+            return None;
+        }
+        if !self.streams.contains_key(&key) && !self.can_open_stream(peer_id) {
+            return None;
+        }
+
         let result = {
-            let state = self
-                .streams
-                .entry((peer_id, stream_id.clone()))
-                .or_default();
+            let state = self.streams.entry(key.clone()).or_insert_with(|| {
+                *self.peer_streams.entry(peer_id).or_default() += 1;
+                StreamState::default()
+            });
             if !state.seen_sequences.insert(msg.sequence) {
                 return None;
             }
             state.insert(msg)
         };
         if result.is_some() {
-            self.streams.remove(&(peer_id, stream_id));
+            self.remove_stream(&key);
         }
         result
+    }
+
+    fn can_open_stream(&self, peer_id: PeerId) -> bool {
+        self.streams.len() < MAX_STREAMS_TOTAL
+            && self.peer_streams.get(&peer_id).copied().unwrap_or_default() < MAX_STREAMS_PER_PEER
+    }
+
+    fn remove_stream(&mut self, key: &(PeerId, StreamId)) {
+        if self.streams.remove(key).is_none() {
+            return;
+        }
+
+        if let Some(count) = self.peer_streams.get_mut(&key.0) {
+            *count -= 1;
+            if *count == 0 {
+                self.peer_streams.remove(&key.0);
+            }
+        }
     }
 }
 
@@ -335,43 +363,71 @@ mod tests {
         assert!(map.insert(p, fin_msg(s2.clone(), 2)).is_none());
     }
 
-    /// REPRODUCES: a single peer can grow `PartStreamsMap` without
-    /// bound by either (a) opening fresh `stream_id`s and never sending
-    /// `Fin`, or (b) sending a `Fin` with a `sequence` far above any
-    /// part it actually delivers so the `total_messages == buffer.len()`
-    /// gate is unreachable.
     #[test]
-    #[ignore = "tracks issue #5473 in streaming.rs: unbounded PartStreamsMap"]
-    fn part_streams_map_grows_unbounded_under_fin_sequence_attack() {
+    fn part_streams_map_bounds_single_peer_flood() {
         let mut map = PartStreamsMap::new();
         let p = peer_id(1);
 
-        // Attack A: a peer opens many streams and never finalises.
-        // 100 distinct stream_ids, each with Init + Data but no Fin.
         for stream_idx in 0..100u64 {
             let s = sid(0xA000_0000 + stream_idx);
             assert!(map.insert(p, msg(s.clone(), 0, init_part(1))).is_none());
             assert!(map.insert(p, msg(s, 1, data_part(b"x"))).is_none());
         }
 
-        // Attack B: cheaper still — one message per stream, Fin with a
-        // far-future sequence. `total_messages` becomes
-        // `u64::MAX as usize + 1` (wraps to 0 in release, panics in
-        // debug), but the `is_done` gate `buffer.len() == total_messages`
-        // is unreachable for any sane traffic. 100 more streams.
         for stream_idx in 0..100u64 {
             let s = sid(0xB000_0000 + stream_idx);
             assert!(map.insert(p, fin_msg(s, u64::MAX / 2)).is_none());
         }
 
-        // Desired behaviour: a single peer cannot hold > a bounded
-        // number of in-flight stream slots. The exact cap is up to the
-        // fix, but it must be much smaller than the 200 we just pushed.
+        assert_eq!(map.streams.len(), MAX_STREAMS_PER_PEER);
+        assert_eq!(map.peer_streams.get(&p), Some(&MAX_STREAMS_PER_PEER));
+    }
+
+    #[test]
+    fn malformed_far_future_fin_evicts_stream() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(1);
+        let s = sid(30);
+
+        assert!(map.insert(p, msg(s.clone(), 0, init_part(30))).is_none());
+        assert!(map.streams.contains_key(&(p, s.clone())));
         assert!(
-            map.streams.len() < 200,
-            "PartStreamsMap grew to {} entries under a single-peer flood — \
-             needs per-peer cap + GC for never-finalised / bogus-Fin streams",
-            map.streams.len(),
+            map.insert(p, fin_msg(s.clone(), MAX_STREAM_MESSAGES))
+                .is_none()
         );
+
+        assert!(!map.streams.contains_key(&(p, s)));
+        assert!(!map.peer_streams.contains_key(&p));
+    }
+
+    #[test]
+    fn cap_does_not_block_existing_stream_completion() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(1);
+        let first = sid(40);
+
+        assert!(
+            map.insert(p, msg(first.clone(), 0, init_part(40)))
+                .is_none()
+        );
+        for stream_idx in 1..MAX_STREAMS_PER_PEER as u64 {
+            let s = sid(40 + stream_idx);
+            assert!(map.insert(p, msg(s, 0, init_part(40))).is_none());
+        }
+        assert_eq!(map.streams.len(), MAX_STREAMS_PER_PEER);
+
+        let over_cap = sid(10_000);
+        assert!(
+            map.insert(p, msg(over_cap.clone(), 0, init_part(40)))
+                .is_none()
+        );
+        assert!(!map.streams.contains_key(&(p, over_cap)));
+
+        assert!(
+            map.insert(p, msg(first.clone(), 1, data_part(b"ok")))
+                .is_none()
+        );
+        assert!(map.insert(p, fin_msg(first.clone(), 2)).is_some());
+        assert!(!map.streams.contains_key(&(p, first)));
     }
 }
