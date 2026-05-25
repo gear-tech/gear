@@ -134,6 +134,9 @@
 //!   deployed ethexe networks, so be careful when modifying the
 //!   processing pipeline, and always check backwards compatibility with
 //!   deployed networks.
+//! - If queue processing, chunking, gas accounting, or journal handling
+//!   semantics change here, open an issue to check whether `gtest`'s
+//!   ethexe execution mode must be updated to match.
 //! - Processor is designed to write only in CAS, it must NEVER modify
 //!   key-value storage from Database.
 
@@ -182,6 +185,9 @@ pub enum ProcessorError {
 
     #[error("missing instrumented code for code id {0}")]
     MissingInstrumentedCodeForProgram(CodeId),
+
+    #[error("missing original code for code id {0}")]
+    MissingOriginalCodeForProgram(CodeId),
 
     #[error("injected message {0:?} was sent to uninitialized program")]
     InjectedToUninitializedProgram(Box<InjectedTransaction>),
