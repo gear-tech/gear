@@ -2,7 +2,7 @@ name: PR & Merge queue
 
 on:
   pull_request:
-    branches: [master]
+    # branches: [master]
     types: [labeled, synchronize]
 
   merge_group:
