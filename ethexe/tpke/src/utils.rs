@@ -1,3 +1,8 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2026 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use crate::{Result, TpkeError};
 use ark_bls12_381::{Bls12_381, G1Affine, G1Projective, G2Affine};
 use ark_ec::{

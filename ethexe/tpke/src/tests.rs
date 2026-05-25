@@ -1,3 +1,8 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2026 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use crate::{
     DealerOutput, DecryptionShare, Encrypted, MasterPublicKey, SharePublicKey, TpkeError, deal,
     decrypt, encrypt,
