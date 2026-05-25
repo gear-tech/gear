@@ -186,6 +186,9 @@ pub enum ProcessorError {
     #[error("missing instrumented code for code id {0}")]
     MissingInstrumentedCodeForProgram(CodeId),
 
+    #[error("missing original code for code id {0}")]
+    MissingOriginalCodeForProgram(CodeId),
+
     #[error("injected message {0:?} was sent to uninitialized program")]
     InjectedToUninitializedProgram(Box<InjectedTransaction>),
 

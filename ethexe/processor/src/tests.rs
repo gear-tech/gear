@@ -315,6 +315,66 @@ async fn handle_new_code_invalid() {
 }
 
 #[tokio::test]
+async fn process_programs_instruments_valid_code_missing_current_runtime_instrumentation() {
+    init_logger();
+
+    let db = Database::memory();
+    let mut processor = Processor::new(db.clone()).expect("failed to create processor");
+    let chain = BlockChain::mock(2).setup(&db);
+    let block1 = chain.blocks[1].to_simple();
+
+    let (code_id, code) = utils::wat_to_wasm(utils::VALID_PROGRAM);
+    assert_eq!(db.set_original_code(&code), code_id);
+    db.set_code_valid(code_id, true);
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_none());
+
+    let actor_id = ActorId::from(0x10000);
+    let mut handler = setup_handler(db.clone(), block1.header.height);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: ActorId::from(10),
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue message");
+
+    processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .expect("failed to process queues");
+
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_some());
+    assert!(db.code_metadata(code_id).is_some());
+}
+
+#[tokio::test]
 async fn ping_pong() {
     init_logger();
 
