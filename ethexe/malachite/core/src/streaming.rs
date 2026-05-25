@@ -196,15 +196,17 @@ impl PartStreamsMap {
         msg: StreamMessage<ProposalPart>,
     ) -> Option<ProposalParts> {
         let stream_id = msg.stream_id.clone();
-        let state = self
-            .streams
-            .entry((peer_id, stream_id.clone()))
-            .or_default();
-        if !state.seen_sequences.insert(msg.sequence) {
-            return None;
-        }
-        let result = state.insert(msg);
-        if state.is_done() {
+        let result = {
+            let state = self
+                .streams
+                .entry((peer_id, stream_id.clone()))
+                .or_default();
+            if !state.seen_sequences.insert(msg.sequence) {
+                return None;
+            }
+            state.insert(msg)
+        };
+        if result.is_some() {
             self.streams.remove(&(peer_id, stream_id));
         }
         result
@@ -271,6 +273,26 @@ mod tests {
         assert_eq!(done.height, Height::new(1));
         assert_eq!(done.parts.len(), 2);
         assert_eq!(done.data_block_bytes(), Some(&b"hello"[..]));
+    }
+
+    #[test]
+    fn completed_stream_releases_slot() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(1);
+        let s = sid(11);
+
+        assert!(map.insert(p, msg(s.clone(), 0, init_part(11))).is_none());
+        assert!(
+            map.insert(p, msg(s.clone(), 1, data_part(b"done")))
+                .is_none()
+        );
+        assert!(map.insert(p, fin_msg(s.clone(), 2)).is_some());
+
+        assert!(
+            !map.streams.contains_key(&(p, s)),
+            "completed stream must be removed from PartStreamsMap"
+        );
+        assert_eq!(map.streams.len(), 0);
     }
 
     #[test]

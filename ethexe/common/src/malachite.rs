@@ -42,7 +42,7 @@ pub enum Transaction {
     Injected(SignedInjectedTransaction),
 }
 
-/// Placeholder; shape firms up once executor plumbing lands.
+/// Reserved per-MB limits for scheduled task progress.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ProgressTasksLimits {}
