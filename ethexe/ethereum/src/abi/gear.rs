@@ -23,7 +23,8 @@ impl From<ChainCommitment> for Gear::ChainCommitment {
     fn from(value: ChainCommitment) -> Self {
         Self {
             transitions: value.transitions.into_iter().map(Into::into).collect(),
-            head: value.head_announce.inner().0.into(),
+            head: value.head.0.into(),
+            lastAdvancedEthBlock: value.last_advanced_eth_block.0.into(),
         }
     }
 }
