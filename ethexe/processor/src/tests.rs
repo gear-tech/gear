@@ -1200,7 +1200,7 @@ async fn overlay_execution_returns_messages_sent_to_users() {
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
             actor_id,
@@ -1231,7 +1231,13 @@ async fn overlay_execution_returns_messages_sent_to_users() {
         .expect("failed to queue init");
 
     let transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .expect("failed to initialize program");
     processor.db.set_program_code_id(actor_id, code_id);
@@ -1241,7 +1247,8 @@ async fn overlay_execution_returns_messages_sent_to_users() {
     let mut overlaid_processor = processor.clone().overlaid();
     let reply_result = overlaid_processor
         .execute_for_reply(ExecutableDataForReply {
-            block: block2,
+            height: block2.header.height,
+            timestamp: block2.header.timestamp,
             program_states: states,
             source: user_id,
             program_id: actor_id,
