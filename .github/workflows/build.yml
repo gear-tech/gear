@@ -495,8 +495,8 @@ jobs:
         run: |
           FUZZER_LOGS_PATH=/mnt/fuzzer_logs
           sudo mkdir -p $FUZZER_LOGS_PATH
-          sudo ln -s $FUZZER_LOGS_PATH/artifacts $PWD/utils/runtime-fuzzer/fuzz/artifacts
-          sudo ln -s $FUZZER_LOGS_PATH/proptest-regressions $PWD/utils/runtime-fuzzer/proptest-regressions
+          sudo ln -s $FUZZER_LOGS_PATH/artifacts $PWD/vara/tools/runtime-fuzzer/fuzz/artifacts
+          sudo ln -s $FUZZER_LOGS_PATH/proptest-regressions $PWD/vara/tools/runtime-fuzzer/proptest-regressions
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust

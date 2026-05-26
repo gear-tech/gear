@@ -374,9 +374,9 @@ jobs:
 
       - name: "Check: Changes in vara_runtime.scale file"
         run: |
-          SCALE_FILE="gsdk/vara_runtime.scale"
+          SCALE_FILE="vara/sdk/gsdk/vara_runtime.scale"
           ./scripts/update-gsdk-metadata.sh
           if [[ $(git diff --stat $SCALE_FILE) != '' ]]; then
-            echo "Changes found in the SCALE metadata ($SCALE_FILE). Please update it following the instructions in \`gsdk/HOW-TO-UPDATE.md\`."
+            echo "Changes found in the SCALE metadata ($SCALE_FILE). Please update it following the instructions in \`vara/sdk/gsdk/HOW-TO-UPDATE.md\`."
             exit 1
           fi

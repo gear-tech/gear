@@ -331,7 +331,7 @@ kill-rust:
 
 .PHONY: install
 install:
-	@ cargo install --path ./node/cli --force --locked
+	@ cargo install --path ./vara/node/cli --force --locked
 
 .PHONY: typos
 typos:

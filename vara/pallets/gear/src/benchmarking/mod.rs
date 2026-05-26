@@ -4,7 +4,7 @@
 //! Benchmarks for the gear pallet
 //!
 //! ## i32const benchmarking
-//! Wasmer has many optimizations, that optimize i32const usage,
+//! Wasmtime has many optimizations, that optimize i32const usage,
 //! so calculate this instruction constant weight is not easy.
 //! Because of this we suppose that i32const instruction has weight = 0,
 //! in cases we subtract its weight from benchmark weight to calculate
@@ -13,8 +13,8 @@
 //! but also more expensive.
 //!
 //! ## Drop, Block, End
-//! This is virtual instruction for wasmer, they aren't really generated in target code,
-//! the only thing they do - wasmer take them in account, when compiles wasm code.
+//! This is virtual instruction for wasmtime, they aren't really generated in target code,
+//! the only thing they do - wasmtime take them in account, when compiles wasm code.
 //! So, we suppose this instruction have weight 0.
 
 #[allow(dead_code)]
@@ -2139,7 +2139,9 @@ benchmarks! {
     }
 
     // Binary numeric instructions.
-    // All use w = w_bench - 2 * w_i64const
+    // Most use w = w_bench - 2 * w_i64const. Wasmtime Winch's x86-64 backend
+    // embeds the second const as an immediate for selected operations, so
+    // the schedule subtracts only the first materialized const for those cases.
 
     instr_i64eq {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
