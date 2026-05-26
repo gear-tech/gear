@@ -192,18 +192,18 @@ jobs:
         with:
           commit_message: "chore(runtime): update weights"
           file_pattern: >-
-            core/src/gas_metering/schedule.rs
-            pallets/*/src/weights.rs
-            runtime/vara/src/weights/
+            protocol/core/src/gas_metering/schedule.rs
+            vara/pallets/*/src/weights.rs
+            vara/runtime/vara/src/weights/
 
       - name: Create pull request
         if: ${{ inputs.change-type == 'pull_request' }}
         uses: peter-evans/create-pull-request@v8
         with:
           add-paths: |
-            core/src/gas_metering/schedule.rs
-            pallets/*/src/weights.rs
-            runtime/vara/src/weights/
+            protocol/core/src/gas_metering/schedule.rs
+            vara/pallets/*/src/weights.rs
+            vara/runtime/vara/src/weights/
           commit-message: update weights
           branch: weights/patch
           branch-suffix: short-commit-hash
