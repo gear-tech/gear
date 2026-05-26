@@ -87,13 +87,15 @@ struct StreamState {
     buffer: MinHeap<ProposalPart>,
     init_info: Option<ProposalInit>,
     seen_sequences: HashSet<Sequence>,
-    total_messages: usize,
-    fin_received: bool,
+    total_messages: Option<usize>,
 }
 
 impl StreamState {
     fn is_done(&self) -> bool {
-        self.init_info.is_some() && self.fin_received && self.buffer.len() == self.total_messages
+        self.init_info.is_some()
+            && self
+                .total_messages
+                .is_some_and(|total| self.buffer.len() == total)
     }
 
     fn insert(&mut self, msg: StreamMessage<ProposalPart>) -> Option<ProposalParts> {
@@ -101,8 +103,7 @@ impl StreamState {
             self.init_info = msg.content.as_data().and_then(|p| p.as_init()).cloned();
         }
         if msg.is_fin() {
-            self.fin_received = true;
-            self.total_messages = msg.sequence as usize + 1;
+            self.total_messages = Some(msg.sequence as usize + 1);
         }
         self.buffer.push(msg);
         if self.is_done() {
@@ -196,8 +197,7 @@ impl PartStreamsMap {
         peer_id: PeerId,
         msg: StreamMessage<ProposalPart>,
     ) -> Option<ProposalParts> {
-        let stream_id = msg.stream_id.clone();
-        let key = (peer_id, stream_id.clone());
+        let key = (peer_id, msg.stream_id.clone());
         if msg.sequence >= MAX_STREAM_MESSAGES {
             self.remove_stream(&key);
             return None;

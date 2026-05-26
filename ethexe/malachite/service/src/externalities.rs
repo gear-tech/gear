@@ -113,12 +113,6 @@ pub(crate) struct PendingEvent {
     pub prerequisite: H256,
 }
 
-struct ValidatedMbShape<'a> {
-    advance: Option<H256>,
-    injected: Vec<&'a SignedInjectedTransaction>,
-    process_queues_limits: &'a ProcessQueuesLimits,
-}
-
 #[async_trait]
 impl Externalities<Transactions> for EthexeExternalities {
     async fn process_mb_proposal(&self, mb_hash: H256, mb: Block<Transactions>) -> Result<()> {
@@ -128,11 +122,7 @@ impl Externalities<Transactions> for EthexeExternalities {
         // Propagate `last_advanced_eb` forward — the latest
         // `AdvanceTillEthereumBlock` in this MB wins; otherwise we
         // inherit the parent's value (zero if pre-genesis).
-        let parent_advanced = if parent.is_zero() {
-            H256::zero()
-        } else {
-            self.db.mb_meta(parent).last_advanced_eb
-        };
+        let parent_advanced = self.parent_last_advanced_eb(parent);
         let last_advanced = payload
             .iter()
             .rev()
@@ -145,7 +135,7 @@ impl Externalities<Transactions> for EthexeExternalities {
         // CAS-store transactions first so the contract — "if
         // CompactMb exists, transactions are reachable" — holds
         // unconditionally.
-        let transactions_hash = self.db.set_transactions(payload.clone());
+        let transactions_hash = self.db.set_transactions(payload);
         self.db.set_mb_compact_block(
             mb_hash,
             CompactMb {
@@ -233,11 +223,7 @@ impl Externalities<Transactions> for EthexeExternalities {
         // `parent_hash` is the consensus envelope hash of the parent
         // (zero for genesis). Use it directly to seed the producer's
         // `last_advanced_eb` lookup.
-        let parent_advanced = if parent_mb_hash.is_zero() {
-            H256::zero()
-        } else {
-            self.db.mb_meta(parent_mb_hash).last_advanced_eb
-        };
+        let parent_advanced = self.parent_last_advanced_eb(parent_mb_hash);
 
         let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await;
 
@@ -414,15 +400,9 @@ impl Externalities<Transactions> for EthexeExternalities {
             return Ok(false);
         };
 
-        let mb = ValidatedMbShape {
-            advance,
-            injected,
-            process_queues_limits,
-        };
-
-        if mb.process_queues_limits.gas_allowance > crate::MalachiteConfig::DEFAULT_GAS_ALLOWANCE {
+        if process_queues_limits.gas_allowance > crate::MalachiteConfig::DEFAULT_GAS_ALLOWANCE {
             warn!(
-                allowance = mb.process_queues_limits.gas_allowance,
+                allowance = process_queues_limits.gas_allowance,
                 cap = crate::MalachiteConfig::DEFAULT_GAS_ALLOWANCE,
                 "validate: ProcessQueues.gas_allowance exceeds protocol cap"
             );
@@ -435,8 +415,8 @@ impl Externalities<Transactions> for EthexeExternalities {
         }
 
         let mut encoded_size = 0usize;
-        let mut seen_injected_hashes = HashSet::with_capacity(mb.injected.len());
-        for signed in &mb.injected {
+        let mut seen_injected_hashes = HashSet::with_capacity(injected.len());
+        for signed in &injected {
             let tx_size = signed.encoded_size();
             let Some(next_size) = encoded_size.checked_add(tx_size) else {
                 warn!(
@@ -482,12 +462,8 @@ impl Externalities<Transactions> for EthexeExternalities {
         // TODO: #5479 emit `malachite_validate_abstain_total{reason=...}` at
         //       each early-return below so operators can tune
         //       `post_quarantine_delay` from observability rather than logs.
-        if let Some(advance) = mb.advance {
-            let parent_advanced = if parent_hash.is_zero() {
-                H256::zero()
-            } else {
-                self.db.mb_meta(parent_hash).last_advanced_eb
-            };
+        if let Some(advance) = advance {
+            let parent_advanced = self.parent_last_advanced_eb(parent_hash);
             let start_block_hash = self.db.globals().start_block_hash;
 
             let Some(chain_head) = *self.chain_head.read().expect("chain_head poisoned") else {
@@ -551,7 +527,7 @@ impl Externalities<Transactions> for EthexeExternalities {
             // No local chain head yet. If the MB carries no injected
             // txs we can still accept it; otherwise we must abstain
             // since the checker has no anchor to walk from.
-            if !mb.injected.is_empty() {
+            if !injected.is_empty() {
                 warn!("validate: MB carries injected txs but no local chain head — abstaining");
                 return Ok(false);
             }
@@ -566,7 +542,7 @@ impl Externalities<Transactions> for EthexeExternalities {
         // Propagating the error upward is the right call: it indicates
         // local DB corruption, not a peer-side issue.
         let checker = TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_hash)?;
-        for signed in &mb.injected {
+        for signed in &injected {
             // `?` inside `check_tx_validity` only fires on local DB
             // inconsistency (a `latest_states` entry whose `state_hash`
             // is absent from CAS). Every malicious-tx-data path returns
@@ -585,27 +561,17 @@ impl Externalities<Transactions> for EthexeExternalities {
             }
         }
 
-        // (4) Touched-programs cap (master's #6). Only enforced on
-        // the validator side — the proposer in `build_block_above`
-        // already shapes the MB to stay within the cap; this check
-        // is the participant's guard against a malicious proposer.
-        //
-        // Per master: `limit = max(initial_touched.len(), MAX_*)` —
-        // the proposer can't *avoid* programs already touched by EB
-        // events, so those set the floor for the cap. We add every
-        // `Transaction::Injected` destination on top of the EB-touched
-        // seed and reject if the union exceeds `limit`.
+        // (4) Touched-programs cap. The EB-touched set is the durable
+        // floor: the proposer can't avoid programs already touched by
+        // EB events, and injected destinations must not grow the union
+        // beyond max(floor, MAX_TOUCHED_PROGRAMS_PER_MB).
         //
         // The encoded-size and within-MB duplicate guards above match
         // producer-side selection. This participant-side cap keeps a
         // malicious proposer from forcing oversized injected batches
         // through the executor even when the outer proposal fits
         // Malachite's larger block payload limit.
-        let parent_advanced = if parent_hash.is_zero() {
-            H256::zero()
-        } else {
-            self.db.mb_meta(parent_hash).last_advanced_eb
-        };
+        let parent_advanced = self.parent_last_advanced_eb(parent_hash);
         // `?` here only fires on local DB issues: missing
         // `mb_program_states` for `latest_computed_mb_hash`, missing
         // `block_header` on a canonical ancestor of `advance`, or
@@ -614,12 +580,12 @@ impl Externalities<Transactions> for EthexeExternalities {
         // `advance` and its ancestors, so any failure here is a local
         // DB / sync race — not a proposer-controlled condition. Same
         // reasoning as the other two `?`s in this function.
-        let mut touched = match mb.advance {
+        let mut touched = match advance {
             Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
             None => HashSet::new(),
         };
         let limit = touched.len().max(MAX_TOUCHED_PROGRAMS_PER_MB as usize);
-        for signed in &mb.injected {
+        for signed in &injected {
             touched.insert(signed.data().destination);
         }
         if touched.len() > limit {
@@ -635,6 +601,14 @@ impl Externalities<Transactions> for EthexeExternalities {
 }
 
 impl EthexeExternalities {
+    fn parent_last_advanced_eb(&self, parent_hash: H256) -> H256 {
+        if parent_hash.is_zero() {
+            H256::zero()
+        } else {
+            self.db.mb_meta(parent_hash).last_advanced_eb
+        }
+    }
+
     /// True iff `prerequisite.is_zero()` (no prerequisite — genesis
     /// or pre-advance) or the prerequisite Eth block has been fully
     /// **prepared** locally.
@@ -1600,7 +1574,7 @@ mod tests {
         let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
         let _ = mempool.set_chain_head(head);
         let pk = ethexe_common::PrivateKey::random();
-        // Each tx carries the maximum-size payload; the pool is loaded
+        // Each tx carries a half-max payload; the pool is loaded
         // with enough of them that two fit but three don't.
         for (i, dest) in dests.iter().enumerate().take(3) {
             let tx = ethexe_common::SignedMessage::create(
