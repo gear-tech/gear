@@ -951,11 +951,102 @@ async fn overlay_execution() {
         value: 0,
         gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
     };
-    let reply_info = overlaid_processor
+    let reply_result = overlaid_processor
         .execute_for_reply(executable)
         .await
         .unwrap();
-    assert_eq!(reply_info.payload, MessageId::zero().encode());
+    assert_eq!(reply_result.reply.payload, MessageId::zero().encode());
+    assert!(reply_result.messages.is_empty());
+}
+
+#[tokio::test]
+async fn overlay_execution_returns_messages_sent_to_users() {
+    init_logger();
+
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_source" (func $gr_source (param i32)))
+            (import "env" "gr_send" (func $gr_send (param i32 i32 i32 i32 i32)))
+            (import "env" "gr_reply" (func $gr_reply (param i32 i32 i32 i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (data (i32.const 48) "USER")
+            (data (i32.const 64) "OK")
+            (func $init)
+            (func $handle
+                (call $gr_source (i32.const 0))
+                (call $gr_send (i32.const 0) (i32.const 48) (i32.const 4) (i32.const 0) (i32.const 96))
+                (call $gr_reply (i32.const 64) (i32.const 2) (i32.const 32) (i32.const 96))
+            )
+        )
+    "#;
+    let wasm = wat::parse_str(wat).expect("failed to parse WAT module");
+
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([wasm.as_slice()]).await;
+    let block1 = chain.blocks[1].to_simple();
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    let mut handler = setup_handler(processor.db.clone(), block1);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: user_id,
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue init");
+
+    let transitions = processor
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .await
+        .expect("failed to initialize program");
+    processor.db.set_program_code_id(actor_id, code_id);
+    let FinalizedBlockTransitions { states, .. } = transitions.finalize();
+
+    let block2 = chain.blocks[2].to_simple();
+    let mut overlaid_processor = processor.clone().overlaid();
+    let reply_result = overlaid_processor
+        .execute_for_reply(ExecutableDataForReply {
+            block: block2,
+            program_states: states,
+            source: user_id,
+            program_id: actor_id,
+            payload: b"PING".to_vec(),
+            value: 0,
+            gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(reply_result.reply.payload, b"OK");
+    assert_eq!(reply_result.messages.len(), 1);
+
+    let message = &reply_result.messages[0];
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"USER");
+    assert!(message.reply_details.is_none());
 }
 
 #[tokio::test]

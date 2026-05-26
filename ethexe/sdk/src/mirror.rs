@@ -18,7 +18,7 @@ use ethexe_ethereum::{
         MirrorQuery as EthereumMirrorQuery,
     },
 };
-use ethexe_rpc::{FullProgramState, InjectedClient, ProgramClient};
+use ethexe_rpc::{CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramClient};
 use ethexe_runtime_common::state::ProgramState;
 use futures::TryFutureExt;
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
@@ -106,7 +106,7 @@ impl<'a> Mirror<'a> {
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<ReplyInfo> {
+    ) -> Result<CalculateReplyForHandleResult> {
         self.calculate_reply_for_handle_at(payload, value, None)
             .await
     }
@@ -116,7 +116,7 @@ impl<'a> Mirror<'a> {
         payload: impl AsRef<[u8]>,
         value: u128,
         at: Option<H256>,
-    ) -> Result<ReplyInfo> {
+    ) -> Result<CalculateReplyForHandleResult> {
         let sender_address = self.api.ethereum_client.sender_address();
         let source: ActorId = sender_address.into();
         let destination = self.actor_id();
