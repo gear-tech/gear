@@ -1076,11 +1076,8 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Mempool for ForgetTracker {
-        fn insert(
-            &self,
-            _tx: SignedInjectedTransaction,
-        ) -> anyhow::Result<crate::mempool::TxInsertionStatus> {
-            Ok(crate::mempool::TxInsertionStatus::Inserted)
+        fn insert(&self, _tx: SignedInjectedTransaction) -> crate::mempool::TxInsertionStatus {
+            crate::mempool::TxInsertionStatus::Inserted
         }
         fn set_chain_head(&self, _head: SimpleBlockData) {}
         async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
@@ -1345,9 +1342,9 @@ mod tests {
         )
         .unwrap();
 
-        mempool.insert(valid.clone()).unwrap();
+        mempool.insert(valid.clone());
         assert_eq!(
-            mempool.insert(value_tx.clone()).unwrap(),
+            mempool.insert(value_tx.clone()),
             crate::mempool::TxInsertionStatus::NonZeroValue,
         );
         assert_eq!(mempool.len(), 1);
@@ -1416,14 +1413,12 @@ mod tests {
         let push_start = MAX_TOUCHED_PROGRAMS_PER_MB / 2 + 1;
         let push_end = MAX_TOUCHED_PROGRAMS_PER_MB + 1;
         for i in push_start..push_end {
-            mempool
-                .insert(signed_injected_tx(
-                    &pk,
-                    ActorId::from(i as u64),
-                    chain.blocks[9].hash,
-                    i as u8,
-                ))
-                .unwrap();
+            mempool.insert(signed_injected_tx(
+                &pk,
+                ActorId::from(i as u64),
+                chain.blocks[9].hash,
+                i as u8,
+            ));
         }
 
         let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
@@ -1570,7 +1565,7 @@ mod tests {
                 },
             )
             .unwrap();
-            mempool.insert(tx).unwrap();
+            mempool.insert(tx);
         }
         assert_eq!(mempool.len(), 3);
 

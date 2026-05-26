@@ -120,33 +120,15 @@ impl From<TxInsertionStatus> for InjectedTransactionAcceptance {
     }
 }
 
-/// Mirrors [`From<TxInsertionStatus>`] across the `Result` boundary so
-/// callers can lift `anyhow::Result<TxInsertionStatus>` directly into an
-/// acceptance: unrecoverable errors collapse into `Reject` with the error
-/// text as the reason. A free function rather than a `From` impl because
-/// the orphan rule rejects `impl From<Result<TxInsertionStatus, E>> for
-/// InjectedTransactionAcceptance` — both `Result` and the target type are
-/// non-local and the local `TxInsertionStatus` sits behind a foreign
-/// generic.
-pub fn classify_insert_outcome<E: fmt::Display>(
-    outcome: Result<TxInsertionStatus, E>,
-) -> InjectedTransactionAcceptance {
-    match outcome {
-        Ok(status) => status.into(),
-        Err(err) => InjectedTransactionAcceptance::Reject {
-            reason: err.to_string(),
-        },
-    }
-}
-
 /// Producer-side source of injected transactions. Fetch is non-destructive;
 /// `forget` runs after MB finalization and dedups within `VALIDITY_WINDOW`.
 #[async_trait]
 pub trait Mempool: Send + Sync + 'static {
-    /// Pool-policy outcomes flow through [`TxInsertionStatus`]. `Err` is
-    /// reserved for unrecoverable failures (e.g. unexpected I/O); callers
-    /// can treat `Err` as a terminal reject when forwarding to the RPC layer.
-    fn insert(&self, tx: SignedInjectedTransaction) -> anyhow::Result<TxInsertionStatus>;
+    /// Every pool-policy outcome — including the rejecting ones — is a
+    /// [`TxInsertionStatus`] value. The method is infallible: invariant
+    /// violations inside the implementation panic (e.g. a poisoned mutex)
+    /// rather than surface as an error variant.
+    fn insert(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus;
 
     /// Drives validity-window GC.
     fn set_chain_head(&self, head: SimpleBlockData);
@@ -167,8 +149,8 @@ pub struct EmptyMempool;
 
 #[async_trait]
 impl Mempool for EmptyMempool {
-    fn insert(&self, _tx: SignedInjectedTransaction) -> anyhow::Result<TxInsertionStatus> {
-        Ok(TxInsertionStatus::Inserted)
+    fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
+        TxInsertionStatus::Inserted
     }
 
     fn set_chain_head(&self, _head: SimpleBlockData) {}
@@ -313,7 +295,7 @@ impl InjectedTxMempool {
 
 #[async_trait]
 impl Mempool for InjectedTxMempool {
-    fn insert(&self, tx: SignedInjectedTransaction) -> anyhow::Result<TxInsertionStatus> {
+    fn insert(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus {
         let tx_data = tx.data();
         let tx_hash = tx_data.to_hash();
         let ref_block = tx_data.reference_block;
@@ -328,19 +310,19 @@ impl Mempool for InjectedTxMempool {
                 value = tx_data.value,
                 "mempool: rejecting tx — non-zero value (#5083 not supported)",
             );
-            return Ok(TxInsertionStatus::NonZeroValue);
+            return TxInsertionStatus::NonZeroValue;
         }
 
         let inner = self.inner.lock().expect("poisoned mempool");
 
         if inner.seen.contains_key(&tx_hash) {
             info!(%tx_hash, "mempool: idempotent no-op — hash already committed within validity window");
-            return Ok(TxInsertionStatus::AlreadyIncluded);
+            return TxInsertionStatus::AlreadyIncluded;
         }
 
         if inner.pool.contains_key(&tx_hash) {
             info!(%tx_hash, pool_len = inner.pool.len(), "mempool: idempotent no-op — duplicate insert");
-            return Ok(TxInsertionStatus::AlreadyInPool);
+            return TxInsertionStatus::AlreadyInPool;
         }
 
         // ref_block resolution is best-effort: a recipient that hasn't yet
@@ -356,12 +338,12 @@ impl Mempool for InjectedTxMempool {
                 %tx_hash, %ref_block, ref_height, head_height,
                 "mempool: rejecting tx — reference_block past VALIDITY_WINDOW"
             );
-            return Ok(TxInsertionStatus::ExpiredRefBlock);
+            return TxInsertionStatus::ExpiredRefBlock;
         }
 
         if inner.pool.len() >= self.capacity {
             info!(%tx_hash, capacity = self.capacity, "mempool: rejecting tx — pool at capacity");
-            return Ok(TxInsertionStatus::PoolFull);
+            return TxInsertionStatus::PoolFull;
         }
 
         // Drop the lock around the DB write so concurrent inserts /
@@ -384,13 +366,13 @@ impl Mempool for InjectedTxMempool {
 
         // Recheck dedup / capacity after the lock-free window.
         if inner.seen.contains_key(&tx_hash) {
-            return Ok(TxInsertionStatus::AlreadyIncluded);
+            return TxInsertionStatus::AlreadyIncluded;
         }
         if inner.pool.contains_key(&tx_hash) {
-            return Ok(TxInsertionStatus::AlreadyInPool);
+            return TxInsertionStatus::AlreadyInPool;
         }
         if inner.pool.len() >= self.capacity {
-            return Ok(TxInsertionStatus::PoolFull);
+            return TxInsertionStatus::PoolFull;
         }
 
         let pool_len_after = inner.pool.len() + 1;
@@ -407,7 +389,7 @@ impl Mempool for InjectedTxMempool {
         // immediately doesn't have to bounce on the mutex.
         drop(inner);
         self.new_tx_notify.notify_one();
-        Ok(TxInsertionStatus::Inserted)
+        TxInsertionStatus::Inserted
     }
 
     fn set_chain_head(&self, head: SimpleBlockData) {
@@ -510,28 +492,6 @@ mod tests {
         }
     }
 
-    /// `classify_insert_outcome` mirrors the `From<TxInsertionStatus>` impl
-    /// on the `Ok` side and converts unrecoverable `Err` into `Reject`.
-    #[test]
-    fn classify_insert_outcome_maps_error_to_reject() {
-        assert_eq!(
-            classify_insert_outcome(Ok::<_, anyhow::Error>(TxInsertionStatus::Inserted)),
-            InjectedTransactionAcceptance::Accept,
-        );
-        assert_eq!(
-            classify_insert_outcome(Ok::<_, anyhow::Error>(TxInsertionStatus::PoolFull)),
-            InjectedTransactionAcceptance::Reject {
-                reason: TxInsertionStatus::PoolFull.to_string(),
-            },
-        );
-        assert_eq!(
-            classify_insert_outcome(Err::<TxInsertionStatus, _>(anyhow::anyhow!("disk on fire"))),
-            InjectedTransactionAcceptance::Reject {
-                reason: "disk on fire".to_string(),
-            },
-        );
-    }
-
     #[test]
     fn insert_rejects_non_zero_value_before_pool_state_checks() {
         // Verifies NonZeroValue fires *before* the pool is consulted —
@@ -544,8 +504,7 @@ mod tests {
         let pk = PrivateKey::random();
 
         // Fill to capacity with a valid tx so PoolFull would normally fire.
-        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0))
-            .unwrap();
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0));
 
         let value_tx = SignedMessage::create(
             pk.clone(),
@@ -559,10 +518,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(
-            pool.insert(value_tx).unwrap(),
-            TxInsertionStatus::NonZeroValue,
-        );
+        assert_eq!(pool.insert(value_tx), TxInsertionStatus::NonZeroValue,);
         assert_eq!(pool.len(), 1, "non-zero-value tx must not enter the pool");
     }
 
@@ -575,7 +531,7 @@ mod tests {
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
 
-        assert_eq!(pool.insert(tx).unwrap(), TxInsertionStatus::Inserted);
+        assert_eq!(pool.insert(tx), TxInsertionStatus::Inserted);
         assert_eq!(pool.len(), 1);
     }
 
@@ -589,11 +545,8 @@ mod tests {
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 5);
 
-        assert_eq!(
-            pool.insert(tx.clone()).unwrap(),
-            TxInsertionStatus::Inserted
-        );
-        assert_eq!(pool.insert(tx).unwrap(), TxInsertionStatus::AlreadyInPool,);
+        assert_eq!(pool.insert(tx.clone()), TxInsertionStatus::Inserted);
+        assert_eq!(pool.insert(tx), TxInsertionStatus::AlreadyInPool,);
         assert_eq!(pool.len(), 1);
     }
 
@@ -607,11 +560,11 @@ mod tests {
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 11);
 
-        pool.insert(tx.clone()).unwrap();
+        pool.insert(tx.clone());
         futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
         assert_eq!(pool.len(), 0);
 
-        assert_eq!(pool.insert(tx).unwrap(), TxInsertionStatus::AlreadyIncluded,);
+        assert_eq!(pool.insert(tx), TxInsertionStatus::AlreadyIncluded,);
         assert_eq!(pool.len(), 0);
     }
 
@@ -629,7 +582,7 @@ mod tests {
         pool.set_chain_head(chain[head_idx]);
 
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
-        assert_eq!(pool.insert(tx).unwrap(), TxInsertionStatus::ExpiredRefBlock,);
+        assert_eq!(pool.insert(tx), TxInsertionStatus::ExpiredRefBlock,);
         assert_eq!(pool.len(), 0);
     }
 
@@ -683,7 +636,7 @@ mod tests {
         let pool = InjectedTxMempool::new(db);
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), H256::random(), 1);
-        pool.insert(tx).unwrap();
+        pool.insert(tx);
         assert_eq!(pool.len(), 1);
     }
 
@@ -697,7 +650,7 @@ mod tests {
         let tx = signed_tx(&pk, ActorId::zero(), chain[2].hash, 1);
         let tx_hash = tx.data().to_hash();
 
-        pool.insert(tx.clone()).unwrap();
+        pool.insert(tx.clone());
         assert_eq!(pool.len(), 1);
 
         // The pool fetches when ref_block is on the canonical chain
@@ -715,13 +668,10 @@ mod tests {
         let pool = InjectedTxMempool::with_capacity(db, 2);
 
         let pk = PrivateKey::random();
-        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0))
-            .unwrap();
-        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 1))
-            .unwrap();
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0));
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 1));
         assert_eq!(
-            pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 2))
-                .unwrap(),
+            pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 2)),
             TxInsertionStatus::PoolFull,
         );
         assert_eq!(pool.len(), 2, "third insert must hit the capacity cap");
@@ -739,8 +689,7 @@ mod tests {
         // 100 txs each anchored at a random ref_block NOT in our DB.
         for salt in 0..100u8 {
             let bogus_ref_block = H256::random();
-            pool.insert(signed_tx(&pk, ActorId::zero(), bogus_ref_block, salt))
-                .unwrap();
+            pool.insert(signed_tx(&pk, ActorId::zero(), bogus_ref_block, salt));
         }
         assert_eq!(pool.len(), 100);
 
@@ -771,7 +720,7 @@ mod tests {
         let pk = PrivateKey::random();
         // tx anchored at block 1 — height 1
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
-        pool.insert(tx).unwrap();
+        pool.insert(tx);
         assert_eq!(pool.len(), 1);
 
         // Advance head far enough that block 1's height is past the
@@ -793,14 +742,14 @@ mod tests {
 
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 99);
-        pool.insert(tx.clone()).unwrap();
+        pool.insert(tx.clone());
         assert_eq!(pool.len(), 1);
 
         futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
         assert_eq!(pool.len(), 0);
 
         // Re-inserting the same tx is a seen-hash no-op.
-        assert_eq!(pool.insert(tx).unwrap(), TxInsertionStatus::AlreadyIncluded);
+        assert_eq!(pool.insert(tx), TxInsertionStatus::AlreadyIncluded);
         assert_eq!(pool.len(), 0, "forgotten tx must not return to the pool");
     }
 
@@ -831,7 +780,7 @@ mod tests {
 
         // tx anchored to the ALT branch
         let tx_alt = signed_tx(&pk, ActorId::zero(), alt_hash, 1);
-        pool.insert(tx_alt).unwrap();
+        pool.insert(tx_alt);
         assert_eq!(pool.len(), 1);
 
         // Fetching for canonical branch (chain[1]) — alt tx must NOT
@@ -863,8 +812,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         let pk = PrivateKey::random();
-        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0))
-            .unwrap();
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0));
 
         // Waiter should now wake up promptly.
         tokio::time::timeout(Duration::from_secs(1), waiter)
@@ -886,7 +834,7 @@ mod tests {
 
         // Seed one accepted insert and consume the resulting permit so
         // the next `.notified()` re-blocks until the next signal.
-        pool.insert(tx.clone()).unwrap();
+        pool.insert(tx.clone());
         pool.wait_for_new_tx().await;
 
         let waiter = {
@@ -899,7 +847,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         // Same tx hash — idempotent no-op, no signal sent.
-        pool.insert(tx).unwrap();
+        pool.insert(tx);
 
         // Waiter must still be pending.
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -999,7 +947,7 @@ mod tests {
                         // `AlreadyInPool` / `AlreadyIncluded` / capacity
                         // rejects must not feed `live`, otherwise Forget
                         // would target a different occurrence.
-                        if pool.insert(tx.clone()).unwrap() == TxInsertionStatus::Inserted {
+                        if pool.insert(tx.clone()) == TxInsertionStatus::Inserted {
                             live.push(tx);
                         }
                     }
@@ -1053,7 +1001,7 @@ mod tests {
             // Inserts: alternating canonical-tail and alt anchors.
             for i in 0..n_txs {
                 let anchor = if i % 2 == 0 { chain[3].hash } else { alt_hash };
-                pool.insert(signed_tx(&pk, ActorId::zero(), anchor, i as u8)).unwrap();
+                pool.insert(signed_tx(&pk, ActorId::zero(), anchor, i as u8));
             }
 
             let head = chain[3];
@@ -1079,13 +1027,13 @@ mod tests {
             let pool = InjectedTxMempool::new(db);
             let pk = PrivateKey::random();
             let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, salt);
-            pool.insert(tx.clone()).unwrap();
+            pool.insert(tx.clone());
             prop_assert_eq!(pool.len(), 1);
             futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
             prop_assert_eq!(pool.len(), 0);
             // Re-insert: idempotent no-op because the hash sits in
             // the seen-set and `reference_block` hasn't aged out.
-            pool.insert(tx).unwrap();
+            pool.insert(tx);
             prop_assert_eq!(pool.len(), 0);
         }
     }

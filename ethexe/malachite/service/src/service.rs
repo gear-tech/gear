@@ -194,14 +194,13 @@ impl MalachiteService {
     /// Hand an injected transaction to the mempool. The local
     /// producer pulls from the same pool when assembling the next MB.
     ///
-    /// `Ok(TxInsertionStatus)` covers both accepted and policy-rejected
-    /// inserts (group membership via
-    /// [`crate::mempool::TxInsertionStatus::is_accepted`]); `Err` is
-    /// reserved for unrecoverable failures (e.g. unexpected I/O).
+    /// Every outcome — including rejecting ones — is a
+    /// [`crate::mempool::TxInsertionStatus`] value; group membership is
+    /// queried via [`crate::mempool::TxInsertionStatus::is_accepted`].
     pub fn receive_injected_transaction(
         &self,
         tx: SignedInjectedTransaction,
-    ) -> anyhow::Result<crate::mempool::TxInsertionStatus> {
+    ) -> crate::mempool::TxInsertionStatus {
         self.mempool.insert(tx)
     }
 

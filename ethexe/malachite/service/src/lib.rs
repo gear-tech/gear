@@ -24,10 +24,7 @@ mod tx_validity;
 
 pub use crate::{
     config::{MalachiteConfig, ValidatorEntry},
-    mempool::{
-        DEFAULT_POOL_CAPACITY, EmptyMempool, InjectedTxMempool, Mempool, TxInsertionStatus,
-        classify_insert_outcome,
-    },
+    mempool::{DEFAULT_POOL_CAPACITY, EmptyMempool, InjectedTxMempool, Mempool, TxInsertionStatus},
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
