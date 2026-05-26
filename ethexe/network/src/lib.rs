@@ -23,7 +23,6 @@ mod bitswap;
 mod gossipsub;
 mod injected;
 mod kad;
-mod mb_sync;
 mod peer_score;
 mod slots;
 mod utils;
@@ -42,10 +41,9 @@ use crate::{
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
-    Address, BlockHeader, ProgramStates, Schedule, ValidatorsVec,
+    Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    gear::StateTransition,
     injected::{AddressedInjectedTransaction, SignedCompactPromise},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
@@ -275,7 +273,6 @@ impl NetworkService {
             router_address,
             keypair: keypair.clone(),
             db: bitswap::BlockstoreDatabase::clone_boxed(&db),
-            mb_sync_db: mb_sync::MbSyncDatabase::clone_boxed(&db),
             transport_type,
             validator_key,
             general_signer,
@@ -443,7 +440,6 @@ impl NetworkService {
             BehaviourEvent::Kad(event) => self.handle_kad_event(event),
             BehaviourEvent::Gossipsub(event) => return self.handle_gossipsub_event(event),
             BehaviourEvent::Bitswap(_event) => {}
-            BehaviourEvent::MbSync(_event) => {}
             BehaviourEvent::Injected(event) => return self.handle_injected_event(event),
             BehaviourEvent::ValidatorDiscovery(event) => {
                 return self.handle_validator_discovery_event(event);
@@ -627,27 +623,9 @@ impl NetworkService {
         self.swarm.behaviour().bitswap.handle()
     }
 
-    /// Handle used by external services to start MB row requests.
-    pub fn mb_sync_handle(&self) -> mb_sync::Handle {
-        self.swarm.behaviour().mb_sync.handle()
-    }
-
     async fn bitswap_request(&mut self, request: bitswap::Request) -> bitswap::Response {
         let bitswap = self.bitswap_handle();
         let fut = bitswap.request(request);
-        tokio::pin!(fut);
-
-        loop {
-            tokio::select! {
-                _ = self.select_next_some() => {},
-                response = &mut fut => break response,
-            }
-        }
-    }
-
-    async fn mb_sync_request(&mut self, request: mb_sync::Request) -> mb_sync::Response {
-        let mb_sync = self.mb_sync_handle();
-        let fut = mb_sync.request(request);
         tokio::pin!(fut);
 
         loop {
@@ -662,56 +640,6 @@ impl NetworkService {
         let bitswap::Response::Hash(data) =
             self.bitswap_request(bitswap::Request::Hash(hash)).await;
         data
-    }
-
-    pub async fn fetch_compact_mb(
-        &mut self,
-        mb_hash: H256,
-    ) -> Option<ethexe_common::db::CompactMb> {
-        match self
-            .mb_sync_request(mb_sync::Request::CompactMb(mb_hash))
-            .await
-        {
-            mb_sync::Response::CompactMb(compact) => compact,
-            _ => unreachable!("CompactMb request must return CompactMb response"),
-        }
-    }
-
-    pub async fn fetch_mb_program_states(&mut self, mb_hash: H256) -> Option<ProgramStates> {
-        match self
-            .mb_sync_request(mb_sync::Request::ProgramStates(mb_hash))
-            .await
-        {
-            mb_sync::Response::ProgramStates(program_states) => program_states,
-            _ => unreachable!("MB program states request must return MB program states response"),
-        }
-    }
-
-    pub async fn fetch_mb_outcome(&mut self, mb_hash: H256) -> Option<Vec<StateTransition>> {
-        match self
-            .mb_sync_request(mb_sync::Request::Outcome(mb_hash))
-            .await
-        {
-            mb_sync::Response::Outcome(outcome) => outcome,
-            _ => unreachable!("MB outcome request must return MB outcome response"),
-        }
-    }
-
-    pub async fn fetch_mb_schedule(&mut self, mb_hash: H256) -> Option<Schedule> {
-        match self
-            .mb_sync_request(mb_sync::Request::Schedule(mb_hash))
-            .await
-        {
-            mb_sync::Response::Schedule(schedule) => schedule,
-            _ => unreachable!("MB schedule request must return MB schedule response"),
-        }
-    }
-
-    pub async fn fetch_mb_meta(&mut self, mb_hash: H256) -> ethexe_common::db::MbMeta {
-        match self.mb_sync_request(mb_sync::Request::Meta(mb_hash)).await {
-            mb_sync::Response::Meta(meta) => meta,
-            _ => unreachable!("MB meta request must return MB meta response"),
-        }
     }
 
     /// Refresh validator-era state after the chain head changes.
@@ -782,7 +710,6 @@ struct BehaviourConfig<'a> {
     router_address: Address,
     keypair: identity::Keypair,
     db: Box<dyn bitswap::BlockstoreDatabase>,
-    mb_sync_db: Box<dyn mb_sync::MbSyncDatabase>,
     transport_type: TransportType,
     validator_key: Option<PublicKey>,
     general_signer: Signer,
@@ -814,8 +741,6 @@ pub(crate) struct Behaviour {
     pub gossipsub: gossipsub::Behaviour,
     // data request protocol
     pub bitswap: bitswap::Behaviour,
-    // MB row request protocol
-    pub mb_sync: mb_sync::Behaviour,
     // injected transaction shenanigans
     pub injected: injected::Behaviour,
     // validator discovery
@@ -828,7 +753,6 @@ impl Behaviour {
             router_address,
             keypair,
             db,
-            mb_sync_db,
             transport_type,
             validator_key,
             general_signer,
@@ -894,8 +818,6 @@ impl Behaviour {
             .with_auto_retry(matches!(transport_type, TransportType::Test));
         let bitswap = bitswap::Behaviour::new(db, bitswap);
 
-        let mb_sync = mb_sync::Behaviour::new(mb_sync_db);
-
         let injected = injected::Behaviour::new();
 
         let validator_discovery = validator::discovery::Config {
@@ -918,7 +840,6 @@ impl Behaviour {
             kad,
             gossipsub,
             bitswap,
-            mb_sync,
             injected,
             validator_discovery,
         })
@@ -1081,39 +1002,6 @@ mod tests {
             .await
             .expect("time has elapsed");
         assert_eq!(response, bitswap::Response::Hash(b"hello".to_vec()));
-    }
-
-    #[tokio::test]
-    async fn request_compact_mb_from_bootstrap_peer() {
-        init_logger();
-
-        let service2 = NetworkServiceBuilder::new();
-        let mb_hash = H256::random();
-        let compact = CompactMb {
-            parent: H256::random(),
-            height: 42,
-            transactions_hash: H256::random(),
-        };
-        service2.db.set_mb_compact_block(mb_hash, compact);
-        let mut service2 = service2.build();
-        let service2_peer_id = service2.local_peer_id();
-        let (service2_addr, _) = service2.swarm.listen().with_memory_addr_external().await;
-        let service2_addr = service2_addr.with_p2p(service2_peer_id).unwrap();
-
-        let service1 = NetworkServiceBuilder::new().bootstrap_address(service2_addr);
-        let service1 = service1.build();
-        let service1_handle = service1.mb_sync_handle();
-
-        tokio::spawn(service1.loop_on_next());
-        tokio::spawn(service2.loop_on_next());
-
-        let response = timeout(
-            Duration::from_secs(5),
-            service1_handle.request(mb_sync::Request::CompactMb(mb_hash)),
-        )
-        .await
-        .expect("time has elapsed");
-        assert_eq!(response, mb_sync::Response::CompactMb(Some(compact)));
     }
 
     #[tokio::test]

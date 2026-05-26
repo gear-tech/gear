@@ -3167,11 +3167,12 @@ async fn fast_sync() {
     let fast_synced_block = bob.latest_fast_synced_block.take().unwrap();
     assert_eq!(fast_synced_block, fast_sync_target);
 
-    let bob_globals = bob.db.globals();
-    assert_eq!(bob_globals.latest_computed_mb_hash, alice_mb);
-    assert_eq!(bob_globals.latest_finalized_mb_hash, alice_mb);
-    assert_eq!(bob_globals.latest_prepared_eb_hash, fast_sync_target);
-    drop(bob_globals);
+    {
+        let bob_globals = bob.db.globals();
+        assert_eq!(bob_globals.latest_computed_mb_hash, alice_mb);
+        assert_eq!(bob_globals.latest_finalized_mb_hash, alice_mb);
+        assert_eq!(bob_globals.latest_prepared_eb_hash, fast_sync_target);
+    }
 
     assert_eq!(
         bob.db.mb_program_states(alice_mb),
@@ -3181,6 +3182,7 @@ async fn fast_sync() {
         bob.db.mb_schedule(alice_mb),
         validators[0].db.mb_schedule(alice_mb)
     );
+    assert_eq!(bob.db.mb_outcome(alice_mb), Some(Default::default()));
 
     IntegrityVerifier::new(bob.db.clone())
         .verify_chain(fast_sync_target, fast_synced_block)

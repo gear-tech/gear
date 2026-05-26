@@ -5,35 +5,40 @@
 
 use crate::Service;
 use alloy::eips::BlockId;
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 use ethexe_common::{
-    BlockData, CodeAndIdUnchecked, Digest, ProgramStates, SimpleBlockData,
+    Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, SimpleBlockData,
+    StateHashWithQueueSize,
     db::{
         BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, CompactMb, ConfigStorageRO,
-        GlobalsStorageRW, MbMeta, MbStorageRO, MbStorageRW, OnChainStorageRW, PreparedBlockData,
+        GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRW, PreparedBlockData,
     },
     events::{
         BlockEvent, RouterEvent,
         router::{BatchCommittedEvent, EBCommittedEvent, MBCommittedEvent},
     },
     injected,
+    malachite::Transactions,
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::{
     Database,
     iterator::{
         DatabaseIteratorError, DatabaseIteratorStorage, DispatchStashNode, MailboxNode,
-        MbOutcomeNode, MbProgramStatesNode, MbScheduleNode, MemoryPagesNode, MemoryPagesRegionNode,
-        MessageQueueNode, ProgramStateNode, UserMailboxNode, WaitlistNode,
+        MemoryPagesNode, MemoryPagesRegionNode, MessageQueueNode, ProgramStateNode,
+        UserMailboxNode, WaitlistNode,
     },
     visitor::DatabaseVisitor,
 };
-use ethexe_ethereum::router::RouterQuery;
+use ethexe_ethereum::{mirror::MirrorQuery, router::RouterQuery};
 use ethexe_network::NetworkService;
 use ethexe_observer::{ObserverService, utils::BlockLoader};
-use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue, ProgramState,
-    UserMailbox, Waitlist,
+use ethexe_runtime_common::{
+    ScheduleRestorer,
+    state::{
+        DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue, ProgramState,
+        UserMailbox, Waitlist,
+    },
 };
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
@@ -42,7 +47,6 @@ use std::{
     cmp::max,
     collections::{BTreeMap, BTreeSet, HashMap},
 };
-use tokio::time::{Duration, timeout};
 
 struct EventData {
     latest_committed_batch: Digest,
@@ -118,6 +122,33 @@ async fn collect_program_code_ids(
         .into_iter()
         .map(|(event, _log)| (event.actor_id, event.code_id))
         .collect())
+}
+
+async fn collect_program_state_hashes(
+    observer: &mut ObserverService,
+    block_hash: H256,
+    program_code_ids: &BTreeMap<ActorId, CodeId>,
+) -> Result<BTreeMap<ActorId, H256>> {
+    let mut program_states = BTreeMap::new();
+    let provider = observer.provider();
+
+    for &actor_id in program_code_ids.keys() {
+        let mirror = Address::try_from(actor_id).expect("invalid actor id");
+        let mirror = MirrorQuery::new(provider.clone(), mirror);
+
+        let state_hash = mirror.state_hash_at(block_hash).await.with_context(|| {
+            format!("failed to get state hash for actor {actor_id} at block {block_hash}")
+        })?;
+
+        ensure!(
+            !state_hash.is_zero(),
+            "state hash is zero for actor {actor_id} at block {block_hash}"
+        );
+
+        program_states.insert(actor_id, state_hash);
+    }
+
+    Ok(program_states)
 }
 
 async fn collect_code_ids(
@@ -333,93 +364,22 @@ impl Drop for RequestManager {
     }
 }
 
-async fn sync_hash(network: &mut NetworkService, db: &Database, hash: H256) -> Result<()> {
-    if db.cas().contains(hash) {
-        return Ok(());
+fn restore_compact_mb(db: &Database, mb_hash: H256) {
+    if db.mb_compact_block(mb_hash).is_some() {
+        return;
     }
 
-    let data = network.bitswap_fetch_hash(hash).await;
-    let db_hash = db.cas().write(&data);
-    ensure!(
-        hash == db_hash,
-        "bitswap returned data with unexpected hash"
-    );
-    Ok(())
-}
-
-async fn sync_compact_mb(
-    network: &mut NetworkService,
-    db: &Database,
-    mb_hash: H256,
-) -> Result<CompactMb> {
-    if let Some(compact) = db.mb_compact_block(mb_hash) {
-        return Ok(compact);
-    }
-
-    let compact = network
-        .fetch_compact_mb(mb_hash)
-        .await
-        .with_context(|| format!("compact MB {mb_hash} is unavailable from network peers"))?;
+    let transactions_hash = db.set_transactions(Transactions::default());
+    // The committed MB is a fast-sync boundary: chain data gives us the head
+    // hash, but not the Malachite envelope `(parent, height, payload_hash)`.
+    // Store a synthetic compact row so DB walks have an anchor without
+    // pretending to restore the pre-boundary MB chain.
+    let compact = CompactMb {
+        parent: H256::zero(),
+        height: 0,
+        transactions_hash,
+    };
     db.set_mb_compact_block(mb_hash, compact);
-    sync_hash(network, db, compact.transactions_hash).await?;
-    Ok(compact)
-}
-
-async fn find_latest_computed_mb(
-    network: &mut NetworkService,
-    db: &Database,
-    mut mb_hash: H256,
-) -> Result<(H256, MbMeta)> {
-    loop {
-        let compact = sync_compact_mb(network, db, mb_hash).await?;
-        let meta = network.fetch_mb_meta(mb_hash).await;
-        db.mutate_mb_meta(mb_hash, |stored| *stored = meta.clone());
-
-        if meta.computed {
-            return Ok((mb_hash, meta));
-        }
-
-        log::warn!(
-            "Committed MB {mb_hash} is not computed on the serving peer, trying its parent {}",
-            compact.parent
-        );
-        ensure!(
-            !compact.parent.is_zero(),
-            "no computed committed MB is available from the serving peer"
-        );
-        mb_hash = compact.parent;
-    }
-}
-
-async fn find_syncable_committed_mb(
-    network: &mut NetworkService,
-    db: &Database,
-    committed_mbs: Vec<H256>,
-) -> Result<Option<(H256, MbMeta)>> {
-    let mut last_error = None;
-    for mb_hash in committed_mbs {
-        match timeout(
-            Duration::from_secs(6),
-            find_latest_computed_mb(network, db, mb_hash),
-        )
-        .await
-        {
-            Ok(Ok(found)) => return Ok(Some(found)),
-            Ok(Err(error)) => {
-                log::warn!("Committed MB {mb_hash} is not syncable: {error:?}");
-                last_error = Some(error);
-            }
-            Err(_) => {
-                log::warn!("Timed out while checking whether committed MB {mb_hash} is syncable");
-            }
-        }
-    }
-
-    if let Some(error) = last_error {
-        return Err(error).context("failed to find a syncable committed MB");
-    }
-
-    Ok(None)
 }
 
 async fn sync_latest_mb(
@@ -427,79 +387,19 @@ async fn sync_latest_mb(
     db: &Database,
     mb_hash: H256,
     code_ids: &BTreeSet<CodeId>,
-) -> Result<(MbMeta, ProgramStates)> {
-    let compact = sync_compact_mb(network, db, mb_hash).await?;
-    sync_hash(network, db, compact.transactions_hash).await?;
+    program_state_hashes: BTreeMap<ActorId, H256>,
+    block_height: u32,
+) -> Result<ProgramStates> {
+    restore_compact_mb(db, mb_hash);
 
-    let meta = network.fetch_mb_meta(mb_hash).await;
-    ensure!(
-        meta.computed,
-        "latest committed MB {mb_hash} is not computed on the serving peer"
-    );
-    db.mutate_mb_meta(mb_hash, |stored| *stored = meta.clone());
-
-    let program_states = match db.mb_program_states(mb_hash) {
-        Some(program_states) => program_states,
-        None => {
-            let program_states = network
-                .fetch_mb_program_states(mb_hash)
-                .await
-                .with_context(|| {
-                    format!("program states for MB {mb_hash} are unavailable from network peers")
-                })?;
-            db.set_mb_program_states(mb_hash, program_states.clone());
-            program_states
-        }
-    };
-
-    let outcome = match db.mb_outcome(mb_hash) {
-        Some(outcome) => outcome,
-        None => {
-            let outcome = network.fetch_mb_outcome(mb_hash).await.with_context(|| {
-                format!("outcome for MB {mb_hash} is unavailable from network peers")
-            })?;
-            db.set_mb_outcome(mb_hash, outcome.clone());
-            outcome
-        }
-    };
-
-    let schedule = match db.mb_schedule(mb_hash) {
-        Some(schedule) => schedule,
-        None => {
-            let schedule = network.fetch_mb_schedule(mb_hash).await.with_context(|| {
-                format!("schedule for MB {mb_hash} is unavailable from network peers")
-            })?;
-            db.set_mb_schedule(mb_hash, schedule.clone());
-            schedule
-        }
-    };
-
+    let mut restored_cached_queue_sizes = BTreeMap::new();
     let mut manager = RequestManager::new(db.clone());
+    for &state_hash in program_state_hashes.values() {
+        manager.add(state_hash, RequestMetadata::ProgramState);
+    }
     for &code_id in code_ids {
         manager.add(code_id.into(), RequestMetadata::Data);
     }
-
-    ethexe_db::visitor::walk(
-        &mut manager,
-        MbProgramStatesNode {
-            mb_hash,
-            mb_program_states: program_states.clone(),
-        },
-    );
-    ethexe_db::visitor::walk(
-        &mut manager,
-        MbOutcomeNode {
-            mb_hash,
-            mb_outcome: outcome,
-        },
-    );
-    ethexe_db::visitor::walk(
-        &mut manager,
-        MbScheduleNode {
-            mb_hash,
-            mb_schedule: schedule,
-        },
-    );
 
     while let Some(responses) = manager.request(network).await? {
         let (completed, pending) = manager.stats();
@@ -510,6 +410,14 @@ async fn sync_latest_mb(
                 RequestMetadata::ProgramState => {
                     let state: ProgramState =
                         Decode::decode(&mut &data[..]).expect("bitswap must validate data");
+                    let state_hash = ethexe_db::hash(&data);
+                    restored_cached_queue_sizes.insert(
+                        state_hash,
+                        (
+                            state.canonical_queue.cached_queue_size,
+                            state.injected_queue.cached_queue_size,
+                        ),
+                    );
                     ethexe_db::visitor::walk(
                         &mut manager,
                         ProgramStateNode {
@@ -563,7 +471,33 @@ async fn sync_latest_mb(
     }
 
     log::info!("Network data getting is done");
-    Ok((meta, program_states))
+
+    let program_states = program_state_hashes
+        .into_iter()
+        .map(|(program_id, hash)| {
+            let (canonical_queue_size, injected_queue_size) = *restored_cached_queue_sizes
+                .get(&hash)
+                .expect("program state cached queue size must be restored");
+            (
+                program_id,
+                StateHashWithQueueSize {
+                    hash,
+                    canonical_queue_size,
+                    injected_queue_size,
+                },
+            )
+        })
+        .collect();
+
+    let schedule = ScheduleRestorer::from_storage(db, &program_states, block_height)?.restore();
+    db.set_mb_program_states(mb_hash, program_states.clone());
+    db.set_mb_schedule(mb_hash, schedule);
+    // The committed fast-sync anchor is never replayed for batch creation, so
+    // keep queue-derived outcome invariants out of restoration and persist an
+    // empty row only to satisfy database walks over committed MB metadata.
+    db.set_mb_outcome(mb_hash, Default::default());
+
+    Ok(program_states)
 }
 
 async fn instrument_codes(
@@ -685,43 +619,38 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         .context("failed to get latest block")?
         .hash;
 
-    let Some(EventData {
-        latest_committed_batch,
-        committed_mbs,
-        latest_committed_eb,
-    }) = EventData::collect(&block_loader, db, finalized_block)
-        .await?
-        .or(if latest_block == finalized_block {
-            None
-        } else {
-            let latest_event_data = EventData::collect(&block_loader, db, latest_block).await?;
-            if latest_event_data.is_some() {
-                log::warn!("No finalized committed MB found; trying latest block candidates");
-            }
+    let mut state_query_block = finalized_block;
+    let event_data = match EventData::collect(&block_loader, db, finalized_block).await? {
+        Some(event_data) => event_data,
+        None if latest_block != finalized_block => {
+            let Some(latest_event_data) =
+                EventData::collect(&block_loader, db, latest_block).await?
+            else {
+                log::warn!("No committed MB found. Skipping fast synchronization...");
+                return Ok(());
+            };
+            log::warn!("No finalized committed MB found; trying latest block candidates");
+            state_query_block = latest_block;
             latest_event_data
-        })
-    else {
-        log::warn!("No committed MB found. Skipping fast synchronization...");
-        return Ok(());
+        }
+        None => {
+            log::warn!("No committed MB found. Skipping fast synchronization...");
+            return Ok(());
+        }
     };
 
-    let mut latest_syncable_mb = find_syncable_committed_mb(network, db, committed_mbs).await?;
-    if latest_syncable_mb.is_none()
-        && latest_block != finalized_block
-        && let Some(EventData { committed_mbs, .. }) =
-            EventData::collect(&block_loader, db, latest_block).await?
-    {
-        log::warn!("No finalized committed MB is syncable; trying latest block candidates");
-        latest_syncable_mb = find_syncable_committed_mb(network, db, committed_mbs).await?;
-    }
-    let Some((latest_committed_mb, mb_meta)) = latest_syncable_mb else {
-        bail!("failed to find a syncable committed MB");
-    };
+    let latest_committed_mb = event_data
+        .committed_mbs
+        .first()
+        .copied()
+        .expect("EventData always contains at least one committed MB");
+    let EventData {
+        latest_committed_batch,
+        latest_committed_eb,
+        ..
+    } = event_data;
 
-    let latest_committed_eb = (!mb_meta.last_advanced_eb.is_zero())
-        .then_some(mb_meta.last_advanced_eb)
-        .or(latest_committed_eb)
-        .unwrap_or(genesis_block_hash);
+    let latest_committed_eb = latest_committed_eb.unwrap_or(genesis_block_hash);
     let BlockData {
         hash: block_hash,
         header,
@@ -731,12 +660,26 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let code_ids = collect_code_ids(observer, genesis_block.header.height, header.height).await?;
     let program_code_ids =
         collect_program_code_ids(observer, genesis_block.header.height, header.height).await?;
+    let program_state_hashes =
+        collect_program_state_hashes(observer, state_query_block, &program_code_ids).await?;
 
-    for (program_id, code_id) in program_code_ids {
+    for (&program_id, &code_id) in &program_code_ids {
         db.set_program_code_id(program_id, code_id);
     }
 
-    sync_latest_mb(network, db, latest_committed_mb, &code_ids).await?;
+    sync_latest_mb(
+        network,
+        db,
+        latest_committed_mb,
+        &code_ids,
+        program_state_hashes,
+        header.height,
+    )
+    .await?;
+    db.mutate_mb_meta(latest_committed_mb, |meta| {
+        meta.computed = true;
+        meta.last_advanced_eb = latest_committed_eb;
+    });
 
     instrument_codes(compute, db, code_ids).await?;
 
