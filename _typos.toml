@@ -27,6 +27,7 @@ extend-exclude = [
 inherents = "inherents" # plural of `inherent`
 hel = "hel" # `LimiteStr` test
 excpt = "excpt" # winapi
+SEH = "SEH" # Windows Structured Exception Handling
 overlayed = "overlayed" # typo in sp-state-machine, won't fix.
 ws = "ws"
 dur = "dur"
