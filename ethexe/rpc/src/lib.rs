@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Vara.eth RPC client and server APIs.
 //!
@@ -44,7 +29,7 @@
 //! The RPC server is configured from [`RpcConfig`]. It provides the following configuration:
 //! - [`RpcConfig::listen_addr`] - the address of RPC server running on
 //! - [`RpcConfig::cors`] - the list of allowed CORS origins
-//! - [`RpcConfig::gas_allowance`] - the gas allowace for program reply calculation
+//! - [`RpcConfig::gas_allowance`] - the gas allowance for program reply calculation
 //! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
 //! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
 

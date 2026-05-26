@@ -1,28 +1,7 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    Announce, HashOf,
-    db::{
-        AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, ComputedAnnounceData, OnChainStorageRW,
-        PreparedBlockData,
-    },
-};
+use crate::db::{BlockMeta, BlockMetaStorageRW, OnChainStorageRW, PreparedBlockData};
 use gprimitives::H256;
 
 /// Decodes hexed string to a byte array.
@@ -44,7 +23,7 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     [b1, b2, b3, b4, b5, b6]
 }
 
-pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceStorageRW>(
+pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db: &DB,
     block_hash: H256,
     block_data: PreparedBlockData,
@@ -53,29 +32,14 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceSto
     db.set_block_events(block_hash, &block_data.events);
     db.set_block_synced(block_hash);
 
-    db.set_block_announces(block_hash, block_data.announces);
-
     db.mutate_block_meta(block_hash, |meta| {
         *meta = BlockMeta {
             prepared: true,
             codes_queue: Some(block_data.codes_queue),
             last_committed_batch: Some(block_data.last_committed_batch),
-            last_committed_announce: Some(block_data.last_committed_announce),
+            last_committed_mb: Some(block_data.last_committed_mb),
+            last_committed_eb: Some(block_data.last_committed_eb),
             latest_era_validators_committed: Some(block_data.latest_era_with_committed_validators),
         }
     });
-}
-
-pub fn setup_announce_in_db<DB: AnnounceStorageRW>(
-    db: &DB,
-    announce_data: ComputedAnnounceData,
-) -> HashOf<Announce> {
-    let announce_hash = announce_data.announce.to_hash();
-    db.set_announce(announce_data.announce);
-    db.set_announce_program_states(announce_hash, announce_data.program_states);
-    db.set_announce_outcome(announce_hash, announce_data.outcome);
-    db.set_announce_schedule(announce_hash, announce_data.schedule);
-    db.mutate_announce_meta(announce_hash, |meta| meta.computed = true);
-
-    announce_hash
 }

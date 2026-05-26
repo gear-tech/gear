@@ -1,27 +1,12 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #[cfg(feature = "server")]
 use crate::{errors, utils};
 #[cfg(feature = "server")]
 use ethexe_common::{
-    HashOf, SimpleBlockData,
-    db::{AnnounceStorageRO, CodesStorageRO, OnChainStorageRO},
+    HashOf,
+    db::{CodesStorageRO, MbStorageRO},
 };
 #[cfg(feature = "server")]
 use ethexe_db::Database;
@@ -138,31 +123,21 @@ impl ProgramApi {
 impl ProgramServer for ProgramApi {
     async fn calculate_reply_for_handle(
         &self,
-        at: Option<H256>,
+        _at: Option<H256>,
         source: H160,
         program_id: H160,
         payload: Bytes,
         value: u128,
     ) -> jsonrpsee::core::RpcResult<ReplyInfo> {
-        let announce_hash = utils::announce_at_or_latest_computed(&self.db, at)?;
-
-        let announce = self
-            .db
-            .announce(announce_hash)
-            .ok_or_else(|| errors::db("Failed to get announce"))?;
-        let block_hash = announce.block_hash;
+        let mb_hash = utils::latest_computed_mb(&self.db)?;
+        let block = utils::block_at_or_latest_synced(&self.db, None)?;
 
         let executable = ExecutableDataForReply {
-            block: SimpleBlockData {
-                hash: block_hash,
-                header: self
-                    .db
-                    .block_header(block_hash)
-                    .ok_or_else(|| errors::db("Failed to get block header"))?,
-            },
+            height: block.header.height,
+            timestamp: block.header.timestamp,
             program_states: self
                 .db
-                .announce_program_states(announce_hash)
+                .mb_program_states(mb_hash)
                 .ok_or_else(|| errors::db("Failed to get program states"))?,
             source: source.into(),
             program_id: program_id.into(),
@@ -182,11 +157,11 @@ impl ProgramServer for ProgramApi {
     }
 
     async fn ids(&self) -> jsonrpsee::core::RpcResult<Vec<H160>> {
-        let announce_hash = utils::announce_at_or_latest_computed(&self.db, None)?;
+        let mb_hash = utils::latest_computed_mb(&self.db)?;
 
         Ok(self
             .db
-            .announce_program_states(announce_hash)
+            .mb_program_states(mb_hash)
             .ok_or_else(|| errors::db("Failed to get program states"))?
             .into_keys()
             .map(|id| id.try_into().unwrap())

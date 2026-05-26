@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! # Testing with `gtest`
 //!
@@ -40,6 +25,24 @@
 //!   information about program and allows sending messages to other programs.
 //! - [`Log`] — a structure that represents a message log. It allows checking
 //!   the result of the program execution.
+//!
+//! ## Ethexe execution mode
+//!
+//! This mode is available with the `ethexe` feature.
+//!
+//! The top-level [`System`] and [`Program`] APIs always use Vara execution
+//! semantics. Ethexe tests use the separate `gtest::ethexe` namespace:
+//!
+//! ```ignore
+//! use gtest::ethexe::{Program, System};
+//! ```
+//!
+//! `gtest::ethexe::System::new()` creates a test system that uses ethexe
+//! execution semantics. Program sends are queued as canonical ethexe messages,
+//! injected messages are queued with `System::inject_message`, and gas is
+//! charged from a program executable balance funded by
+//! `System::top_up_executable_balance`. Explicit user gas limits and gas
+//! reservations are not supported in this mode.
 //!
 //! Let's take a closer look at how to write tests using `gtest`.
 //!
@@ -496,6 +499,9 @@
 
 mod builtins;
 mod error;
+#[cfg(feature = "ethexe")]
+/// Ethexe execution-mode testing APIs.
+pub mod ethexe;
 mod log;
 mod manager;
 mod program;

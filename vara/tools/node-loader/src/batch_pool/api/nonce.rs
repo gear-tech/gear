@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use crate::utils;
 use anyhow::{Result, anyhow};
 use parking_lot::{Mutex, MutexGuard};

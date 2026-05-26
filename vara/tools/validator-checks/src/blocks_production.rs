@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 //! Utils for checking blocks production.
 use gsdk::{config::GearConfig, ext::sp_runtime::AccountId32};
 use parity_scale_codec::Decode;

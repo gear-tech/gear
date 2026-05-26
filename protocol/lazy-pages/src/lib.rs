@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Lazy-pages support.
 //! In runtime data for program Wasm memory pages can be loaded in lazy manner.
@@ -63,7 +48,11 @@ use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInitContext, Status};
 use mprotect::MprotectError;
 use numerated::iterators::IntervalIterator;
 use pages::GearPage;
-use std::{cell::RefCell, convert::TryInto, num::NonZero};
+use std::{
+    cell::{Cell, RefCell},
+    convert::TryInto,
+    num::NonZero,
+};
 
 /// Initialize lazy-pages once for process.
 static LAZY_PAGES_INITIALIZED: InitializationFlag = InitializationFlag::new();
@@ -73,6 +62,43 @@ thread_local! {
     // Or may be in one thread but consequentially.
 
     static LAZY_PAGES_CONTEXT: RefCell<LazyPagesContext> = RefCell::new(Default::default());
+}
+
+thread_local! {
+    /// WASM linear memory range `[start, end)` that lazy-pages currently
+    /// protects on this thread, or `(0, 0)` when no execution is active.
+    ///
+    /// `const`-initialized on purpose: this form is a plain static TLS slot
+    /// with no lazy initialization, no allocation and no destructor, so it can
+    /// be read from the fault handler — which must be async-signal-safe — even
+    /// on threads that never entered lazy-pages.
+    ///
+    /// This holds only because lazy-pages is statically linked into the node
+    /// binary, giving the local-exec / initial-exec TLS model — the read is a
+    /// bare thread-pointer-relative load. If lazy-pages were ever moved into a
+    /// `dlopen`ed shared object, the slot would use dynamic TLS and the read
+    /// would route through `__tls_get_addr`, which is not async-signal-safe.
+    static ACTIVE_WASM_REGION: Cell<(usize, usize)> = const { Cell::new((0, 0)) };
+}
+
+/// Records the WASM memory lazy-pages currently protects on this thread.
+fn set_active_wasm_region(start: usize, size: usize) {
+    ACTIVE_WASM_REGION.set((start, start.saturating_add(size)));
+}
+
+/// Clears this thread's managed-region record.
+fn clear_active_wasm_region() {
+    ACTIVE_WASM_REGION.set((0, 0));
+}
+
+/// Async-signal-safe check for the fault handler: is `addr` inside the WASM
+/// memory lazy-pages currently protects on this thread?
+///
+/// A fault outside this range is not a lazy-pages page fault, so the handler
+/// must not run its non-async-signal-safe processing for it.
+fn active_wasm_region_contains(addr: usize) -> bool {
+    let (start, end) = ACTIVE_WASM_REGION.get();
+    (start..end).contains(&addr)
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -184,6 +210,11 @@ pub fn initialize_for_program(
 
         ctx.set_execution_context(execution_ctx);
 
+        match wasm_mem_addr {
+            Some(addr) => set_active_wasm_region(addr, wasm_mem_size_in_bytes),
+            None => clear_active_wasm_region(),
+        }
+
         log::trace!("Initialize lazy-pages for current program: {ctx:?}");
 
         Ok(())
@@ -224,6 +255,8 @@ pub fn set_lazy_pages_protection() -> Result<(), Error> {
         // 3) Read and execution protection for accessed, but not write accessed pages.
         // 4) r/w/e protections for all other WASM memory.
 
+        set_active_wasm_region(mem_addr, exec_ctx.wasm_mem_size.offset(rt_ctx));
+
         Ok(())
     })
 }
@@ -236,6 +269,7 @@ pub fn unset_lazy_pages_protection() -> Result<(), Error> {
         let addr = exec_ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
         let size = exec_ctx.wasm_mem_size.offset(rt_ctx);
         mprotect::mprotect_interval(addr, size, true, true)?;
+        clear_active_wasm_region();
         Ok(())
     })
 }
@@ -271,6 +305,13 @@ pub fn change_wasm_mem_addr_and_size(addr: Option<usize>, size: Option<u32>) -> 
 
         exec_ctx.wasm_mem_addr = Some(addr);
         exec_ctx.wasm_mem_size = size;
+
+        // Keep the signal-safe region in sync if the memory moved while
+        // protection is active (a `set_lazy_pages_protection` call usually
+        // follows and would refresh it anyway).
+        if ACTIVE_WASM_REGION.get() != (0, 0) {
+            set_active_wasm_region(addr, size.offset(rt_ctx));
+        }
 
         Ok(())
     })

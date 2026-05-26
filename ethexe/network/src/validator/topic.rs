@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Validator-specific networking logic that verifies signed messages
 //! against on-chain state.
@@ -327,18 +312,20 @@ impl ValidatorTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::arb_value;
     use assert_matches::assert_matches;
     use ethexe_common::{
-        Announce, HashOf,
+        HashOf,
+        consensus::BatchCommitmentValidationRequest,
         ecdsa::{PublicKey, SignedData},
         injected::{Promise, Receipt, SignedPromise},
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
-    use gsigner::secp256k1::{PrivateKey, Secp256k1SignerExt, Signer};
+    use gsigner::{
+        PrivateKey, SignedMessage,
+        secp256k1::{Secp256k1SignerExt, Signer},
+    };
     use nonempty::{NonEmpty, nonempty};
-    use proptest::{prelude::*, test_runner::Config as ProptestConfig};
 
     const CHAIN_HEAD_ERA: u64 = 10;
 
@@ -360,23 +347,22 @@ mod tests {
         )
     }
 
-    fn validator_message_from_private_key(
-        private_key: PrivateKey,
-        era_index: u64,
-        payload: Announce,
-    ) -> VerifiedValidatorMessage {
-        SignedData::create(&private_key, ValidatorMessage { era_index, payload })
+    fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
+        let signer = Signer::memory();
+        let pub_key = signer.generate().unwrap();
+
+        signer
+            .signed_data(
+                pub_key,
+                ValidatorMessage {
+                    era_index,
+                    payload: BatchCommitmentValidationRequest::mock(()),
+                },
+                None,
+            )
             .map(SignedValidatorMessage::from)
             .unwrap()
             .into_verified()
-    }
-
-    fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
-        validator_message_from_private_key(
-            PrivateKey::random(),
-            era_index,
-            arb_value::<Announce>(()),
-        )
     }
 
     fn signer_with_pubkey() -> (PublicKey, Signer) {
@@ -384,9 +370,10 @@ mod tests {
         (signer.generate().unwrap(), signer)
     }
 
-    fn signed_promise(signer: Signer, public_key: PublicKey) -> SignedPromise {
-        let promise = Promise::mock(());
-        signer.signed_message(public_key, promise, None).unwrap()
+    fn signed_promise(signer: Signer, pubkey: PublicKey) -> SignedPromise {
+        signer
+            .signed_message(pubkey, Promise::mock(()), None)
+            .unwrap()
     }
 
     fn signed_promise_receipt(
@@ -400,15 +387,7 @@ mod tests {
             .into()
     }
 
-    fn test_announce() -> Announce {
-        Announce {
-            block_hash: Default::default(),
-            parent: HashOf::zero(),
-            gas_allowance: Some(100),
-            injected_transactions: Vec::new(),
-        }
-    }
-
+    /// Buckets a message era can fall into relative to the snapshot era.
     #[derive(Debug, Clone, Copy)]
     enum EraRelation {
         TooOld(u64),
@@ -458,7 +437,8 @@ mod tests {
         }
     }
 
-    fn era_relation_strategy() -> impl Strategy<Value = (u64, EraRelation)> {
+    fn era_relation_strategy() -> impl proptest::strategy::Strategy<Value = (u64, EraRelation)> {
+        use proptest::prelude::*;
         (
             128u64..(u64::MAX - 128),
             prop_oneof![
@@ -471,17 +451,20 @@ mod tests {
         )
     }
 
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(64))]
+    proptest::proptest! {
+        #![proptest_config(proptest::test_runner::Config::with_cases(64))]
 
+        // Random eras × five relative buckets — the only systematic
+        // coverage of `inner_verify_validator_message`'s era-acceptance
+        // matrix (Accept / Cache / Ignore / Reject). era-gating is the
+        // sole defense between healthy validator gossip and spam from
+        // adjacent eras, so a fast proptest is worth keeping around.
         #[test]
         fn proptest_message_era_is_checked_against_snapshot_era(
             (snapshot_era, relation) in era_relation_strategy(),
         ) {
-            let private_key = PrivateKey::from_seed([1; 32]).expect("seed is valid");
             let message_era = relation.message_era(snapshot_era);
-            let message =
-                validator_message_from_private_key(private_key, message_era, test_announce());
+            let message = new_validator_message(message_era);
             let validator = message.address();
             let snapshot = ValidatorListSnapshot {
                 current_era_index: snapshot_era,
@@ -490,7 +473,7 @@ mod tests {
             };
             let alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
 
-            prop_assert_eq!(
+            proptest::prop_assert_eq!(
                 alice.inner_verify_validator_message(&message),
                 relation.expected_verification(snapshot_era)
             );
@@ -784,7 +767,7 @@ mod tests {
     #[tokio::test]
     async fn verify_promise_ok() {
         let (pubkey, signer) = signer_with_pubkey();
-        let promise = signed_promise(signer.clone(), pubkey);
+        let promise = signed_promise(signer.clone(), pubkey.clone());
         let receipt = signed_promise_receipt(&signer, pubkey, promise.clone().into_data());
 
         let topic = new_topic(nonempty![receipt.address()]);

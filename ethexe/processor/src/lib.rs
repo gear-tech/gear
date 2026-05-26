@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! # Ethexe Processor
 //!
@@ -149,6 +134,9 @@
 //!   deployed ethexe networks, so be careful when modifying the
 //!   processing pipeline, and always check backwards compatibility with
 //!   deployed networks.
+//! - If queue processing, chunking, gas accounting, or journal handling
+//!   semantics change here, open an issue to check whether `gtest`'s
+//!   ethexe execution mode must be updated to match.
 //! - Processor is designed to write only in CAS, it must NEVER modify
 //!   key-value storage from Database.
 
@@ -157,7 +145,7 @@ pub use promise::BoundPromiseSink;
 
 use core::num::NonZero;
 use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
+    CodeAndIdUnchecked, ProgramStates, Schedule,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
     injected::InjectedTransaction,
@@ -197,6 +185,9 @@ pub enum ProcessorError {
 
     #[error("missing instrumented code for code id {0}")]
     MissingInstrumentedCodeForProgram(CodeId),
+
+    #[error("missing original code for code id {0}")]
+    MissingOriginalCodeForProgram(CodeId),
 
     #[error("injected message {0:?} was sent to uninitialized program")]
     InjectedToUninitializedProgram(Box<InjectedTransaction>),
@@ -320,7 +311,8 @@ impl Processor {
         log::debug!("{executable}");
 
         let ExecutableData {
-            block,
+            height,
+            timestamp,
             program_states,
             schedule,
             injected_transactions,
@@ -328,8 +320,7 @@ impl Processor {
             events,
         } = executable;
 
-        let mut transitions =
-            InBlockTransitions::new(block.header.height, program_states, schedule);
+        let mut transitions = InBlockTransitions::new(height, program_states, schedule);
 
         // First step: push injected to queues and handle block events.
         transitions =
@@ -341,7 +332,7 @@ impl Processor {
         // Third step: process queues until limits are exhausted or all queues are empty.
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, block, gas_allowance, promise_sink)
+                .process_queues(transitions, height, timestamp, gas_allowance, promise_sink)
                 .await?;
         }
 
@@ -379,7 +370,8 @@ impl Processor {
     async fn process_queues(
         &mut self,
         transitions: InBlockTransitions,
-        block: SimpleBlockData,
+        height: u32,
+        timestamp: u64,
         gas_allowance: u64,
         promise_sink: Option<BoundPromiseSink>,
     ) -> Result<InBlockTransitions> {
@@ -389,7 +381,8 @@ impl Processor {
             transitions,
             gas_allowance,
             self.config.chunk_size,
-            block.header,
+            height,
+            timestamp,
             promise_sink,
         )
         .run()
@@ -432,13 +425,13 @@ pub struct ValidCodeInfo {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "{block}, programs amount: {}, schedule len: {}, gas_allowance: {gas_allowance:?},
-    injected: {injected_transactions:?},
-    events: {events:?}",
-    program_states.len(), schedule.len(),
+    "ExecutableData(height: {height}, timestamp: {timestamp}, programs: {}, \
+    schedule len: {}, gas_allowance: {gas_allowance:?}, injected: {}, events: {})",
+    program_states.len(), schedule.len(), injected_transactions.len(), events.len(),
 )]
 pub struct ExecutableData {
-    pub block: SimpleBlockData,
+    pub height: u32,
+    pub timestamp: u64,
     pub program_states: ProgramStates,
     pub schedule: Schedule,
     pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
@@ -450,7 +443,8 @@ pub struct ExecutableData {
 impl Default for ExecutableData {
     fn default() -> Self {
         Self {
-            block: SimpleBlockData::default(),
+            height: 0,
+            timestamp: 0,
             program_states: ProgramStates::default(),
             schedule: Schedule::default(),
             injected_transactions: vec![],
@@ -462,12 +456,13 @@ impl Default for ExecutableData {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "Execution for reply at {block:?}: block: {block:?}, \
+    "Execution for reply at height {height} timestamp {timestamp}: \
     program_id: {program_id}, source: {source}, payload len: {}, \
     value: {value}, gas_allowance: {gas_allowance}", payload.len()
 )]
 pub struct ExecutableDataForReply {
-    pub block: SimpleBlockData,
+    pub height: u32,
+    pub timestamp: u64,
     pub program_states: ProgramStates,
     pub source: ActorId,
     pub program_id: ActorId,
@@ -487,7 +482,8 @@ impl OverlaidProcessor {
         log::debug!("{executable}");
 
         let ExecutableDataForReply {
-            block,
+            height,
+            timestamp,
             program_states,
             source,
             program_id,
@@ -511,8 +507,7 @@ impl OverlaidProcessor {
             return Err(ExecuteForReplyError::ProgramNotInitialized(program_id));
         }
 
-        let transitions =
-            InBlockTransitions::new(block.header.height, program_states, Schedule::default());
+        let transitions = InBlockTransitions::new(height, program_states, Schedule::default());
 
         let transitions = self.0.handle_injected_and_events(
             transitions,
@@ -538,7 +533,8 @@ impl OverlaidProcessor {
             gas_allowance,
             self.0.config.chunk_size,
             self.0.creator.clone(),
-            block.header,
+            height,
+            timestamp,
         )
         .run()
         .await?;

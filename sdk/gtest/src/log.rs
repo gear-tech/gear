@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{GAS_MULTIPLIER, Gas, Value, error::usage_panic, program::ProgramIdWrapper};
 use core_processor::configs::BlockInfo;
@@ -44,6 +29,35 @@ pub struct CoreLog {
 }
 
 impl CoreLog {
+    #[cfg(feature = "ethexe")]
+    pub(crate) fn from_ethexe_message(
+        source: ActorId,
+        message: ethexe_common::gear::Message,
+    ) -> Self {
+        let ethexe_common::gear::Message {
+            id,
+            destination,
+            payload,
+            reply_details,
+            ..
+        } = message;
+        let (reply_to, reply_code) = reply_details
+            .map(|details| {
+                let (reply_to, reply_code) = details.into_parts();
+                (Some(reply_to), Some(reply_code))
+            })
+            .unwrap_or((None, None));
+
+        Self {
+            id,
+            source,
+            destination,
+            payload: payload.try_into().unwrap(),
+            reply_code,
+            reply_to,
+        }
+    }
+
     /// Get the id of the message that emitted this log.
     pub fn id(&self) -> MessageId {
         self.id
