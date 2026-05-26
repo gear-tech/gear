@@ -1,0 +1,42 @@
+[package]
+description = "Ethexe-side wrapper around ethexe-malachite-core (the Malachite BFT consensus service)."
+name = "ethexe-malachite"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+alloy = { workspace = true, features = ["eips"] }
+anyhow.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+parity-scale-codec.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+tracing.workspace = true
+
+# Generic Malachite-backed consensus service. Carries the engine,
+# libp2p swarm, store, and codec; ethexe-malachite only ships the
+# application glue (Mempool, Externalities, event translation).
+ethexe-malachite-core.workspace = true
+
+# ethexe
+ethexe-common = { workspace = true, features = ["std"] }
+ethexe-db = { workspace = true, default-features = false }
+ethexe-runtime-common = { workspace = true, features = ["std"] }
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
+gprimitives = { workspace = true, features = ["std"] }
+
+gear-workspace-hack.workspace = true
+
+[dev-dependencies]
+# Enable the `mock` feature on the in-mem database so tests can call
+# `Database::memory()` without `unsafe`.
+ethexe-db = { workspace = true, features = ["mock"] }
+proptest.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "test-util", "time"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

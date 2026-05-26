@@ -32,8 +32,8 @@ use ethexe_common::{
     },
 };
 use events::{
-    AnnouncesCommittedEventBuilder, BatchCommittedEventBuilder, CodeGotValidatedEventBuilder,
-    CodeValidationRequestedEventBuilder, ComputationSettingsChangedEventBuilder,
+    BatchCommittedEventBuilder, CodeGotValidatedEventBuilder, CodeValidationRequestedEventBuilder,
+    ComputationSettingsChangedEventBuilder, EBCommittedEventBuilder, MBCommittedEventBuilder,
     ProgramCreatedEventBuilder, StorageSlotChangedEventBuilder,
     ValidatorsCommittedForEraEventBuilder, signatures,
 };
@@ -931,8 +931,12 @@ impl<'a> RouterEvents<'a> {
         BatchCommittedEventBuilder::new(self.query)
     }
 
-    pub fn announces_committed(&self) -> AnnouncesCommittedEventBuilder<'a> {
-        AnnouncesCommittedEventBuilder::new(self.query)
+    pub fn mb_committed(&self) -> MBCommittedEventBuilder<'a> {
+        MBCommittedEventBuilder::new(self.query)
+    }
+
+    pub fn eb_committed(&self) -> EBCommittedEventBuilder<'a> {
+        EBCommittedEventBuilder::new(self.query)
     }
 
     pub fn code_got_validated(&self) -> CodeGotValidatedEventBuilder<'a> {
