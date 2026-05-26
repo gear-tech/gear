@@ -234,6 +234,12 @@ impl MalachiteService {
         self.chain_head_notify.notify_one();
         if advanced {
             self.mempool.set_chain_head(head);
+            // self.externalities
+            //     .event_tx
+            //     .send(Ok(MalachiteEvent::PurgedTransactions {
+            //         mb_hash: todo!(),
+            //         transactions: purged_txs,
+            //     }));
         }
         self.externalities.drain_pending_events();
     }

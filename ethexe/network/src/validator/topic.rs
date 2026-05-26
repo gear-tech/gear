@@ -314,17 +314,13 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use ethexe_common::{
-        HashOf,
         consensus::BatchCommitmentValidationRequest,
-        ecdsa::{PublicKey, SignedData},
+        ecdsa::PublicKey,
         injected::{Promise, Receipt, SignedPromise},
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
-    use gsigner::{
-        PrivateKey, SignedMessage,
-        secp256k1::{Secp256k1SignerExt, Signer},
-    };
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use nonempty::{NonEmpty, nonempty};
 
     const CHAIN_HEAD_ERA: u64 = 10;
@@ -767,7 +763,7 @@ mod tests {
     #[tokio::test]
     async fn verify_promise_ok() {
         let (pubkey, signer) = signer_with_pubkey();
-        let promise = signed_promise(signer.clone(), pubkey.clone());
+        let promise = signed_promise(signer.clone(), pubkey);
         let receipt = signed_promise_receipt(&signer, pubkey, promise.clone().into_data());
 
         let topic = new_topic(nonempty![receipt.address()]);

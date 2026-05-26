@@ -194,7 +194,7 @@ mod utils {
 //     fn make_promise() -> (Promise, PrivateKey) {
 //         let private_key = PrivateKey::random();
 //         let tx = InjectedTransaction::mock(());
-//         let promise = Promise::mock(tx.to_hash()); 
+//         let promise = Promise::mock(tx.to_hash());
 //         (promise, private_key)
 //     }
 

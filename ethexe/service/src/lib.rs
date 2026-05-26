@@ -44,6 +44,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     gear::CodeState,
+    injected::Receipt,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -68,7 +69,7 @@ use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{FutureExt, StreamExt};
 use gprimitives::{ActorId, CodeId, H256};
-use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
+use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     num::NonZero,
@@ -791,21 +792,22 @@ impl Service {
                         // reconstruct the full SignedPromise once they
                         // compute the matching body locally.
                         if let Some(pub_key) = validator_pub_key {
-                            let private_key = signer.private_key(pub_key)?;
-                            // let receipt = TxReceipt
-                            // match SignedCompactPromise::create_from_promise(private_key, &promise) {
-                            //     Ok(compact) => {
-                            //         if let Some(rpc) = &rpc {
-                            //             rpc.receive_compact_promise(compact.clone());
-                            //         }
-                            //         if let Some(net) = network.as_mut() {
-                            //             net.publish_promise(compact);
-                            //         }
-                            //     }
-                            //     Err(err) => {
-                            //         log::warn!("failed to sign compact promise: {err}");
-                            //     }
-                            // }
+                            let receipt = Receipt::Promise(promise.to_compact());
+
+                            match signer.signed_message(pub_key, receipt, None) {
+                                Ok(compact_receipt) => {
+                                    if let Some(rpc) = rpc.as_ref() {
+                                        rpc.receive_tx_receipt(compact_receipt.clone().into());
+                                    }
+
+                                    if let Some(net) = network.as_mut() {
+                                        net.publish_tx_receipt(compact_receipt.into());
+                                    }
+                                }
+                                Err(err) => {
+                                    log::warn!("failed to sign compact promise: {err}");
+                                }
+                            }
                         }
                     }
                 },
@@ -964,10 +966,7 @@ impl Service {
                         // `mb_meta.computed`.
                         compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
-                    MalachiteEvent::PurgedTransactions {
-                        mb_hash,
-                        transactions,
-                    } => {
+                    MalachiteEvent::PurgedTransactions { .. } => {
                         todo!("handle me")
                     }
                 },
