@@ -967,7 +967,7 @@ impl Service {
                         compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                     MalachiteEvent::PurgedTransactions { .. } => {
-                        todo!("handle me")
+                        // todo!("handle me")
                     }
                 },
                 Event::Prometheus(event) => match event {

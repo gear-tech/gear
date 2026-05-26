@@ -63,7 +63,7 @@ pub enum MalachiteEvent {
 
     /// Transactions that was purged from mempool.
     PurgedTransactions {
-        mb_hash: H256,
+        eb_hash: H256,
         transactions: Vec<SignedInjectedTransaction>,
     },
 }
@@ -86,12 +86,12 @@ impl std::fmt::Display for MalachiteEvent {
                 cert.signatures.len()
             ),
             Self::PurgedTransactions {
-                mb_hash,
+                eb_hash,
                 transactions,
             } => {
                 write!(
                     f,
-                    "PurgedTransactions(mb_hash: {mb_hash}, transactions_len: {})",
+                    "PurgedTransactions(eb_hash: {eb_hash}, transactions_len: {})",
                     transactions.len()
                 )
             }

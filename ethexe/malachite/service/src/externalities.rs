@@ -1082,7 +1082,11 @@ mod tests {
         ) -> Result<(), crate::mempool::MempoolInsertError> {
             Ok(())
         }
-        fn set_chain_head(&self, _head: SimpleBlockData) {}
+
+        fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+            Vec::new()
+        }
+
         async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
             Vec::new()
         }
@@ -1329,7 +1333,7 @@ mod tests {
 
         let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
         // Drive validity-window GC.
-        mempool.set_chain_head(head);
+        let _ = mempool.set_chain_head(head);
 
         let pk = ethexe_common::PrivateKey::random();
         let valid = signed_injected_tx(&pk, dest, chain.blocks[9].hash, 0);
@@ -1409,7 +1413,7 @@ mod tests {
 
         let head = chain.blocks[10].to_simple();
         let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
-        mempool.set_chain_head(head);
+        let _ = mempool.set_chain_head(head);
         let pk = ethexe_common::PrivateKey::random();
         // Push 50 txs targeting the upper half of destinations (the ones
         // NOT pre-touched by EB events).
@@ -1552,7 +1556,7 @@ mod tests {
         db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
 
         let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
-        mempool.set_chain_head(head);
+        let _ = mempool.set_chain_head(head);
         let pk = ethexe_common::PrivateKey::random();
         // Each tx carries the maximum-size payload; the pool is loaded
         // with enough of them that two fit but three don't.
