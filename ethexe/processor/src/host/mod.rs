@@ -83,8 +83,12 @@ impl InstanceCreator {
     /// which calls linked host functions.
     pub fn new(db: Database, runtime: Vec<u8>) -> Result<Self> {
         let mut config = wasmtime::Config::new();
-        let cache = wasmtime::Cache::new(Default::default())?;
-        config.cache(Some(cache));
+        let cache = wasmtime::Cache::new(wasmtime::CacheConfig::default())?;
+        config
+            .cache(Some(cache))
+            // Lazy-pages requires Wasmtime to use Unix signal handlers on
+            // macOS, because Gear installs and chains SIGSEGV handlers.
+            .macos_use_mach_ports(false);
         let engine = wasmtime::Engine::new(&config)?;
 
         let module = wasmtime::Module::new(&engine, runtime)?;

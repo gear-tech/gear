@@ -17,15 +17,15 @@ cfg-if.workspace = true
 region.workspace = true
 derive_more.workspace = true
 numerated.workspace = true
-wasmer-vm.workspace = true
+wasmtime.workspace = true
 
 gear-sandbox-host.workspace = true
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-workspace-hack.workspace = true
 
-[target."cfg(target_vendor = \"apple\")".dependencies.mach]
-version = "0.3.2"
+[target."cfg(target_vendor = \"apple\")".dependencies.mach2]
+version = "0.6.0"
 
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true
