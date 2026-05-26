@@ -37,10 +37,10 @@ fi
 # extract artifacts to the correct directories
 unzip -o $VARA_RUNTIME && rm $VARA_RUNTIME
 
-# apply some patches for `pallets/gear/src/weights.rs`
-cp runtime/vara/src/weights/pallet_gear.rs pallets/gear/src/weights.rs
-sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
+# apply some patches for `vara/pallets/gear/src/weights.rs`
+cp vara/runtime/vara/src/weights/pallet_gear.rs vara/pallets/gear/src/weights.rs
+sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' vara/pallets/gear/src/weights.rs
 
-# apply some patches for `pallets/gear-builtin/src/weights.rs`
-cp runtime/vara/src/weights/pallet_gear_builtin.rs pallets/gear-builtin/src/weights.rs
-sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear-builtin/src/weights.rs
+# apply some patches for `vara/pallets/gear-builtin/src/weights.rs`
+cp vara/runtime/vara/src/weights/pallet_gear_builtin.rs vara/pallets/gear-builtin/src/weights.rs
+sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' vara/pallets/gear-builtin/src/weights.rs

@@ -8487,7 +8487,7 @@ fn test_create_program_with_value_lt_ed() {
 // then it has on it's balance. Such message send will end up without any error/trap. So all in all execution will end
 // up successfully with messages sent from program with total value more than was provided to the program.
 //
-// Again init message won't be added to the queue, because of the check here (https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364).
+// Again init message won't be added to the queue, because of the check here (https://github.com/gear-tech/gear/blob/master/vara/pallets/gear/src/manager.rs#L351-L364).
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_exceeding_value() {
