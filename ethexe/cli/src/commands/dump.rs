@@ -76,7 +76,7 @@ impl DumpCommand {
         let db = Database::try_from_raw(raw_db)?;
 
         let block_hash = block_hash.unwrap_or_else(|| {
-            let latest_prepared_block = db.globals().latest_prepared_block_hash;
+            let latest_prepared_block = db.globals().latest_prepared_eb_hash;
             log::info!(
                 "No block hash provided, using latest committed block: {latest_prepared_block:?}"
             );

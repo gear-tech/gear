@@ -39,7 +39,6 @@ itertools = { workspace = true, features = ["use_std"] }
 nonempty.workspace = true
 auto_impl.workspace = true
 lru.workspace = true
-thiserror.workspace = true
 indexmap.workspace = true
 ip_network.workspace = true
 prometheus-client = "0.23.1" # specific version that lip2p uses
