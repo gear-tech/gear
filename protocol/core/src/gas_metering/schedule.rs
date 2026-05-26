@@ -3,7 +3,7 @@
 
 #![allow(rustdoc::broken_intra_doc_links, missing_docs)]
 #![doc = r" This is auto-generated module that contains cost schedule from"]
-#![doc = r" `pallets/gear/src/schedule.rs`."]
+#![doc = r" `vara/pallets/gear/src/schedule.rs`."]
 #![doc = r""]
 #![doc = r" See `./scripts/weight-dump.sh` if you want to update it."]
 

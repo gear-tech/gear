@@ -62,7 +62,7 @@ run_fuzzer() {
   ROOT_DIR="$1"
   CORPUS_DIR="$2"
   # Navigate to fuzzer dir
-  cd $ROOT_DIR/utils/runtime-fuzzer
+  cd $ROOT_DIR/vara/tools/runtime-fuzzer
 
   if [ "$3" = "wlogs" ]; then
     LOG_TARGETS="debug,syscalls,runtime::sandbox=trace,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_core_backend=trace"
