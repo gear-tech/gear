@@ -3,12 +3,9 @@
 
 #[cfg(feature = "server")]
 use crate::{errors, utils};
-use ethexe_common::{BlockHeader, events::BlockRequestEvent, gear::StateTransition};
+use ethexe_common::{BlockHeader, events::BlockRequestEvent};
 #[cfg(feature = "server")]
-use ethexe_common::{
-    SimpleBlockData,
-    db::{AnnounceStorageRO, OnChainStorageRO},
-};
+use ethexe_common::{SimpleBlockData, db::OnChainStorageRO};
 #[cfg(feature = "server")]
 use ethexe_db::Database;
 use gprimitives::H256;
@@ -31,12 +28,6 @@ pub trait Block {
         &self,
         block_hash: Option<H256>,
     ) -> jsonrpsee::core::RpcResult<Vec<BlockRequestEvent>>;
-
-    #[method(name = "block_outcome")]
-    async fn block_outcome(
-        &self,
-        block_hash: Option<H256>,
-    ) -> jsonrpsee::core::RpcResult<Vec<StateTransition>>;
 }
 
 #[cfg(feature = "server")]
@@ -78,16 +69,5 @@ impl BlockServer for BlockApi {
                     .collect()
             })
             .ok_or_else(|| errors::db("Block events weren't found"))
-    }
-
-    async fn block_outcome(
-        &self,
-        hash: Option<H256>,
-    ) -> jsonrpsee::core::RpcResult<Vec<StateTransition>> {
-        let announce_hash = utils::announce_at_or_latest_computed(&self.db, hash)?;
-
-        self.db
-            .announce_outcome(announce_hash)
-            .ok_or_else(|| errors::db("Block outcome wasn't found"))
     }
 }

@@ -806,7 +806,7 @@ contract Router is
     /**
      * @dev Commits new batch of changes to `Router` state.
      *      `CodeGotValidated` event is emitted for each code in commitment.
-     *      `AnnouncesCommitted` event is emitted on success. Triggers multiple events for each corresponding `Mirror` instances.
+     *      `MBCommitted` event is emitted on success. Triggers multiple events for each corresponding `Mirror` instances.
      * @param _batch The batch commitment data.
      * @param _signatureType The type of signature to validate.
      * @param _signatures The signatures for the batch commitment.
@@ -901,9 +901,12 @@ contract Router is
 
         bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
 
-        emit AnnouncesCommitted(_commitment.head);
+        emit MBCommitted(_commitment.head);
+        if (_commitment.lastAdvancedEthBlock != bytes32(0)) {
+            emit EBCommitted(_commitment.lastAdvancedEthBlock);
+        }
 
-        return Gear.chainCommitmentHash(_transitionsHash, _commitment.head);
+        return Gear.chainCommitmentHash(_transitionsHash, _commitment.head, _commitment.lastAdvancedEthBlock);
     }
 
     function _commitCodes(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {

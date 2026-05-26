@@ -161,3 +161,137 @@ mod utils {
         std::time::Duration::from_secs(slot_duration_secs * MAX_PROMISE_WAITING_SLOTS)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{
+        ecdsa::PrivateKey,
+        gear_core::{message::ReplyCode, rpc::ReplyInfo},
+        injected::InjectedTransaction,
+        mock::Mock,
+    };
+
+    fn make_promise() -> (Promise, PrivateKey) {
+        let private_key = PrivateKey::random();
+        let tx = InjectedTransaction::mock(());
+        let tx_hash = tx.to_hash();
+        let promise = Promise {
+            tx_hash,
+            reply: ReplyInfo {
+                payload: vec![],
+                value: 0,
+                code: ReplyCode::Unsupported,
+            },
+        };
+        (promise, private_key)
+    }
+
+    fn register(
+        manager: &PromiseSubscriptionManager,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> std::pin::Pin<Box<oneshot::Receiver<SignedPromise>>> {
+        let pending = match manager.try_register_subscriber(tx_hash) {
+            Ok(pending) => pending,
+            Err(err) => panic!("first registration must succeed: {err}"),
+        };
+        let (_, receiver) = pending.into_parts();
+        // Inner oneshot::Receiver is Unpin; the outer Timeout is not,
+        // hence we discard the timeout wrapper (tests drive their own
+        // timing via tokio::time::timeout below).
+        Box::pin(receiver.into_inner())
+    }
+
+    /// Producer signature lands after the local node has already
+    /// computed the matching body — manager joins the two and delivers
+    /// the full [`SignedPromise`] to the subscriber.
+    #[tokio::test]
+    async fn body_first_then_compact_dispatches() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+
+        let mut receiver = register(&manager, tx_hash);
+
+        manager.on_computed_promise(promise.clone());
+        assert_eq!(manager.subscribers_count(), 1);
+
+        let compact = SignedCompactPromise::create_from_promise(private_key, &promise).unwrap();
+        manager.on_compact_promise(compact.clone());
+        let delivered = receiver.as_mut().await.unwrap();
+        assert_eq!(delivered.data(), &promise);
+        assert_eq!(manager.subscribers_count(), 0);
+        assert_eq!(db.promise(tx_hash), Some(promise));
+        assert_eq!(db.compact_promise(tx_hash), Some(compact));
+    }
+
+    /// Producer signature lands first via gossip; the manager parks it
+    /// in `waiting_for_compute` and dispatches as soon as the local
+    /// body lands.
+    #[tokio::test]
+    async fn compact_first_then_body_dispatches() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+
+        let mut receiver = register(&manager, tx_hash);
+
+        let compact = SignedCompactPromise::create_from_promise(private_key, &promise).unwrap();
+        manager.on_compact_promise(compact.clone());
+        assert_eq!(manager.subscribers_count(), 1);
+
+        manager.on_computed_promise(promise.clone());
+        let delivered = receiver.as_mut().await.unwrap();
+        assert_eq!(delivered.data(), &promise);
+        assert_eq!(manager.subscribers_count(), 0);
+        assert_eq!(db.promise(tx_hash), Some(promise));
+        assert_eq!(db.compact_promise(tx_hash), Some(compact));
+    }
+
+    /// A duplicate registration for the same tx hash is rejected.
+    #[tokio::test]
+    async fn duplicate_subscriber_rejected() {
+        let manager = PromiseSubscriptionManager::new(Database::memory());
+        let (promise, _) = make_promise();
+        let _first = manager.try_register_subscriber(promise.tx_hash).ok();
+        let err = manager
+            .try_register_subscriber(promise.tx_hash)
+            .err()
+            .expect("second registration must fail");
+        assert!(matches!(err, RegisterSubscriberError::AlreadyRegistered(_)));
+    }
+
+    /// A compact promise whose signature does not match the body that
+    /// arrives later is parked rather than delivering a malformed
+    /// [`SignedPromise`].
+    #[tokio::test]
+    async fn compact_with_wrong_signature_is_parked() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+
+        let mut receiver = register(&manager, tx_hash);
+
+        let other_promise = Promise {
+            tx_hash,
+            reply: ReplyInfo {
+                payload: vec![1, 2, 3],
+                value: 0,
+                code: ReplyCode::Unsupported,
+            },
+        };
+        let bad_compact =
+            SignedCompactPromise::create_from_promise(private_key, &other_promise).unwrap();
+        manager.on_compact_promise(bad_compact);
+        manager.on_computed_promise(promise.clone());
+
+        let elapsed =
+            tokio::time::timeout(std::time::Duration::from_millis(50), receiver.as_mut()).await;
+        assert!(elapsed.is_err(), "no signed promise should be delivered");
+        assert_eq!(db.promise(tx_hash), Some(promise));
+        assert_eq!(db.compact_promise(tx_hash), None);
+    }
+}

@@ -100,6 +100,10 @@ fn read_write_flag_works() {
     let page_size = region::page::size();
     let addr = region::alloc(page_size, Protection::NONE).unwrap();
 
+    // This test protects memory directly, without `initialize_for_program`,
+    // so register the region the signal handler classifies as managed.
+    crate::set_active_wasm_region(addr.as_ptr::<u8>() as usize, page_size);
+
     unsafe {
         MEM_ADDR = addr.as_ptr();
 
@@ -142,6 +146,9 @@ fn test_mprotect_pages() {
     let mut v = vec![0u8; 3 * WASM_PAGE_SIZE];
     let buff = v.as_mut_ptr() as usize;
     let page_begin = ((buff + WASM_PAGE_SIZE) / WASM_PAGE_SIZE) * WASM_PAGE_SIZE;
+    // This test protects memory directly, without `initialize_for_program`,
+    // so register the region the signal handler classifies as managed.
+    crate::set_active_wasm_region(page_begin, 2 * WASM_PAGE_SIZE);
 
     let pages: IntervalsTree<_> = (0..(2 * WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32)
         .map(new_page)

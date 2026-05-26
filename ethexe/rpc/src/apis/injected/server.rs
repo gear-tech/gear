@@ -119,6 +119,14 @@ impl InjectedApi {
                     self.manager.cancel_registration(tx_hash);
                 })?
             }
+            InjectedTransactionAcceptance::AlreadyPooled { reason } => {
+                // Promise will fire normally; keep the subscription so a
+                // retry / duplicate submit doesn't lose the reply.
+                tracing::debug!(%tx_hash, reason, "watch: retaining subscription on duplicate");
+                pending.accept().await.inspect_err(|_err| {
+                    self.manager.cancel_registration(tx_hash);
+                })?
+            }
             InjectedTransactionAcceptance::Reject { reason } => {
                 self.manager.cancel_registration(tx_hash);
                 return Err(reason.into());

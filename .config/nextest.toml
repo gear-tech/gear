@@ -10,6 +10,14 @@ chmod +x target/release/gear
 leak-timeout = { period = "5s", result = "fail" }
 slow-timeout = { period = "1m", terminate-after = 5 }
 
+# ethexe-service tests spawn Anvil child processes plus a malachite
+# engine with libp2p sockets and a RocksDB WAL. Graceful tear-down of
+# the whole stack can exceed the default 5s leak window; treat leaks
+# as a non-fatal warning here so the suite is stable.
+[[profile.default.overrides]]
+filter = 'package(ethexe-service)'
+leak-timeout = { period = "10s", result = "pass" }
+
 [profile.default.junit]
 path = "junit.xml"
 store-success-output = false

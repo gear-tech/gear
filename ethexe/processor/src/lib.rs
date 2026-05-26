@@ -145,7 +145,7 @@ pub use promise::BoundPromiseSink;
 
 use core::num::NonZero;
 use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
+    CodeAndIdUnchecked, ProgramStates, Schedule,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
     gear::Message,
@@ -312,7 +312,8 @@ impl Processor {
         log::debug!("{executable}");
 
         let ExecutableData {
-            block,
+            height,
+            timestamp,
             program_states,
             schedule,
             injected_transactions,
@@ -320,8 +321,7 @@ impl Processor {
             events,
         } = executable;
 
-        let mut transitions =
-            InBlockTransitions::new(block.header.height, program_states, schedule);
+        let mut transitions = InBlockTransitions::new(height, program_states, schedule);
 
         // First step: push injected to queues and handle block events.
         transitions =
@@ -333,7 +333,7 @@ impl Processor {
         // Third step: process queues until limits are exhausted or all queues are empty.
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, block, gas_allowance, promise_sink)
+                .process_queues(transitions, height, timestamp, gas_allowance, promise_sink)
                 .await?;
         }
 
@@ -371,7 +371,8 @@ impl Processor {
     async fn process_queues(
         &mut self,
         transitions: InBlockTransitions,
-        block: SimpleBlockData,
+        height: u32,
+        timestamp: u64,
         gas_allowance: u64,
         promise_sink: Option<BoundPromiseSink>,
     ) -> Result<InBlockTransitions> {
@@ -381,7 +382,8 @@ impl Processor {
             transitions,
             gas_allowance,
             self.config.chunk_size,
-            block.header,
+            height,
+            timestamp,
             promise_sink,
         )
         .run()
@@ -424,13 +426,13 @@ pub struct ValidCodeInfo {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "{block}, programs amount: {}, schedule len: {}, gas_allowance: {gas_allowance:?},
-    injected: {injected_transactions:?},
-    events: {events:?}",
-    program_states.len(), schedule.len(),
+    "ExecutableData(height: {height}, timestamp: {timestamp}, programs: {}, \
+    schedule len: {}, gas_allowance: {gas_allowance:?}, injected: {}, events: {})",
+    program_states.len(), schedule.len(), injected_transactions.len(), events.len(),
 )]
 pub struct ExecutableData {
-    pub block: SimpleBlockData,
+    pub height: u32,
+    pub timestamp: u64,
     pub program_states: ProgramStates,
     pub schedule: Schedule,
     pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
@@ -442,7 +444,8 @@ pub struct ExecutableData {
 impl Default for ExecutableData {
     fn default() -> Self {
         Self {
-            block: SimpleBlockData::default(),
+            height: 0,
+            timestamp: 0,
             program_states: ProgramStates::default(),
             schedule: Schedule::default(),
             injected_transactions: vec![],
@@ -454,12 +457,13 @@ impl Default for ExecutableData {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "Execution for reply at {block:?}: block: {block:?}, \
+    "Execution for reply at height {height} timestamp {timestamp}: \
     program_id: {program_id}, source: {source}, payload len: {}, \
     value: {value}, gas_allowance: {gas_allowance}", payload.len()
 )]
 pub struct ExecutableDataForReply {
-    pub block: SimpleBlockData,
+    pub height: u32,
+    pub timestamp: u64,
     pub program_states: ProgramStates,
     pub source: ActorId,
     pub program_id: ActorId,
@@ -485,7 +489,8 @@ impl OverlaidProcessor {
         log::debug!("{executable}");
 
         let ExecutableDataForReply {
-            block,
+            height,
+            timestamp,
             program_states,
             source,
             program_id,
@@ -511,8 +516,7 @@ impl OverlaidProcessor {
             return Err(ExecuteForReplyError::ProgramNotInitialized(program_id));
         }
 
-        let transitions =
-            InBlockTransitions::new(block.header.height, program_states, Schedule::default());
+        let transitions = InBlockTransitions::new(height, program_states, Schedule::default());
 
         let transitions = self.0.handle_injected_and_events(
             transitions,
@@ -538,7 +542,8 @@ impl OverlaidProcessor {
             gas_allowance,
             self.0.config.chunk_size,
             self.0.creator.clone(),
-            block.header,
+            height,
+            timestamp,
         )
         .run()
         .await?;
