@@ -5,7 +5,6 @@
 
 mod collect;
 
-use ethexe_common::{Announce, HashOf};
 use flate2::{Compression, read::DeflateDecoder, write::DeflateEncoder};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
@@ -23,8 +22,8 @@ use std::{
 /// at a given block.
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize)]
 pub struct StateDump {
-    /// Hash of the announce for which this dump was created.
-    pub announce_hash: HashOf<Announce>,
+    /// Hash of the MB whose post-execution state was captured.
+    pub mb_hash: H256,
     /// Block hash for which this dump was created.
     pub block_hash: H256,
     /// Valid code ids. Code bytes are stored in `blobs` (keyed by CodeId in CAS).

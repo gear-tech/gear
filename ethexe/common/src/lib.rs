@@ -13,6 +13,7 @@ pub mod events;
 pub mod gear;
 mod hash;
 pub mod injected;
+pub mod malachite;
 pub mod network;
 mod primitives;
 mod utils;
@@ -43,17 +44,17 @@ pub use utils::*;
 /// Default block gas limit for the node.
 pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
 
-/// Commitment delay limit in blocks.
-/// This is the maximum number of blocks that can pass
-/// since some not-base announce was created until it can be committed,
-/// any not-base announce older than this limit must be discarded.
-pub const COMMITMENT_DELAY_LIMIT: u32 = 3;
+/// Default `commitment_delay_limit` (in Ethereum blocks). Coordinator-local
+/// knob: how many EBs a `BatchCommitment` stays valid past its target block.
+/// Not a protocol constant — every coordinator picks its own value.
+pub const DEFAULT_COMMITMENT_DELAY_LIMIT: core::num::NonZero<u8> =
+    core::num::NonZero::new(16).expect("16 != 0");
 
-/// Maximum number of touched programs per announce.
-pub const MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE: u32 = 128;
+/// Maximum number of touched programs per MB.
+pub const MAX_TOUCHED_PROGRAMS_PER_MB: u32 = 128;
 
-// Soft limits for one announce processing. Stops announce execution if any of them is exceeded.
+// Soft limits for one MB processing. Stops execution if any of them is exceeded.
 pub const OUTGOING_MESSAGES_SOFT_LIMIT: u32 = 128;
 pub const OUTGOING_MESSAGES_BYTES_SOFT_LIMIT: u32 = 32 * 1024;
 pub const CALL_REPLY_SOFT_LIMIT: u32 = 4;
-pub const PROGRAM_MODIFICATIONS_SOFT_LIMIT: u32 = MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2;
+pub const PROGRAM_MODIFICATIONS_SOFT_LIMIT: u32 = MAX_TOUCHED_PROGRAMS_PER_MB / 2;

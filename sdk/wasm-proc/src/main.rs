@@ -27,7 +27,7 @@ const RT_ALLOWED_IMPORTS: [&str; 78] = [
     "ext_crypto_sr25519_sign_version_1",
     "ext_crypto_sr25519_verify_version_2",
     "ext_crypto_start_batch_verify_version_1",
-    // From `GearRI` (runtime-interface/scr/lib.rs)
+    // From `GearRI` (vara/runtime/interface/src/lib.rs)
     "ext_gear_ri_pre_process_memory_accesses_version_1",
     "ext_gear_ri_pre_process_memory_accesses_version_2",
     "ext_gear_ri_lazy_pages_status_version_1",

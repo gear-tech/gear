@@ -3,7 +3,7 @@
 
 #![allow(rustdoc::broken_intra_doc_links, missing_docs)]
 #![doc = r" This is auto-generated module that contains cost schedule from"]
-#![doc = r" `pallets/gear/src/schedule.rs`."]
+#![doc = r" `vara/pallets/gear/src/schedule.rs`."]
 #![doc = r""]
 #![doc = r" See `./scripts/weight-dump.sh` if you want to update it."]
 
@@ -142,24 +142,21 @@ impl Default for Limits {
 #[derive(Debug, Clone)]
 #[doc = " Describes the weight for all categories of supported wasm instructions."]
 #[doc = ""]
-#[doc = " There there is one field for each wasm instruction that describes the weight to"]
+#[doc = " There is one field for each wasm instruction that describes the weight to"]
 #[doc = " execute one instruction of that name. There are a few exceptions:"]
 #[doc = ""]
-#[doc = " 1. If there is a i64 and a i32 variant of an instruction we use the weight"]
-#[doc = "    of the former for both."]
-#[doc = " 2. The following instructions are free of charge because they merely structure the"]
+#[doc = " 1. The following instructions are free of charge because they merely structure the"]
 #[doc = "    wasm module and cannot be spammed without making the module invalid (and rejected):"]
 #[doc = "    End, Unreachable, Return, Else"]
-#[doc = " 3. The following instructions cannot be benchmarked because they are removed by any"]
+#[doc = " 2. The following instructions cannot be benchmarked because they are removed by any"]
 #[doc = "    real world execution engine as a preprocessing step and therefore don't yield a"]
-#[doc = "    meaningful benchmark result. However, in contrast to the instructions mentioned"]
-#[doc = "    in 2. they can be spammed. We price them with the same weight as the \"default\""]
-#[doc = "    instruction (i64.const): Block, Loop, Nop"]
-#[doc = " 4. We price both i64.const and drop as InstructionWeights.i64const / 2. The reason"]
-#[doc = "    for that is that we cannot benchmark either of them on its own but we need their"]
-#[doc = "    individual values to derive (by subtraction) the weight of all other instructions"]
-#[doc = "    that use them as supporting instructions. Supporting means mainly pushing arguments"]
-#[doc = "    and dropping return values in order to maintain a valid module."]
+#[doc = "    meaningful benchmark result. However, in contrast to the instructions mentioned in"]
+#[doc = "    1 they can be spammed. We price them with the same weight as"]
+#[doc = "    the \"default\" instruction (i64.const): Block, Loop, Nop"]
+#[doc = " 3. We cannot benchmark i64.const or i32.const on their own, but we need a const"]
+#[doc = "    weight to derive other instruction weights by subtracting supporting instructions"]
+#[doc = "    used to push benchmark arguments. Drops are inserted only to keep benchmark"]
+#[doc = "    modules valid and are charged as free instructions during instrumentation."]
 pub struct InstructionWeights {
     #[doc = " Version of the instruction weights."]
     #[doc = ""]
@@ -302,8 +299,8 @@ impl Default for InstructionWeights {
             i64extend16s: 420,
             i64extend32s: 418,
             i64extendsi32: 217,
-            i64extendui32: 240,
-            i32wrapi64: 239,
+            i64extendui32: 49,
+            i32wrapi64: 48,
             i64eq: 1754,
             i32eq: 1095,
             i64ne: 1822,
@@ -329,7 +326,7 @@ impl Default for InstructionWeights {
             i64sub: 1099,
             i32sub: 538,
             i64mul: 1734,
-            i32mul: 880,
+            i32mul: 1071,
             i64divs: 3816,
             i32divs: 2610,
             i64divu: 3841,
@@ -344,16 +341,16 @@ impl Default for InstructionWeights {
             i32or: 636,
             i64xor: 1023,
             i32xor: 719,
-            i64shl: 825,
-            i32shl: 287,
-            i64shrs: 872,
-            i32shrs: 280,
-            i64shru: 811,
-            i32shru: 377,
-            i64rotl: 803,
-            i32rotl: 331,
-            i64rotr: 788,
-            i32rotr: 354,
+            i64shl: 1016,
+            i32shl: 478,
+            i64shrs: 1063,
+            i32shrs: 471,
+            i64shru: 1002,
+            i32shru: 568,
+            i64rotl: 994,
+            i32rotl: 522,
+            i64rotr: 979,
+            i32rotr: 545,
         }
     }
 }

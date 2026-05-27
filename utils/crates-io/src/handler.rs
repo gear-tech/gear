@@ -284,8 +284,9 @@ mod substrate {
     /// now, <https://crates.io/crates/frame-system/22.0.0/dependencies> for
     /// the details.
     ///
-    /// NOTE: The packages inside of this function are located at
+    /// NOTE: The `gp-*` packages below were published from
     /// <https://github.com/gear-tech/substrate/tree/cl/v1.1.x-crates-io>.
+    // TODO: https://github.com/gear-tech/gear/issues/5485
     pub fn patch_workspace(name: &str, table: &mut InlineTable) {
         match name {
             // stable2409 executor crates require the upstream 21.0.1 API.

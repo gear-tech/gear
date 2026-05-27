@@ -89,13 +89,38 @@ validator-session = "0x02ba5734d8f7091719471e7f7ed6b9df170dc70cc661ca05e688601ad
 # (optional, default: 16)
 canonical-quarantine = 0
 
+# Extra anchor-depth slack the proposer adds on top of `canonical-quarantine`
+# when choosing which Ethereum block to advance to. A positive value gives
+# lagging validators time to receive the EB before the proposer references it,
+# so they don't have to wait on local sync inside `validate_block_above`.
+# (optional, default: 1)
+post-quarantine-delay = 1
+
 # Do P2P database synchronization before the main loop.
 # (optional, default: false).
 # fast-sync = false
 
-# Threshold for producer to submit commitment despite of no transitions.
+# Coordinator-side delay (milliseconds) between observing a new Ethereum
+# chain head and starting batch aggregation. Buys participants time to
+# receive the same head and lets compute catch up on the latest MB.
+# (optional, default: 0).
+# coordinator-aggregation-delay-ms = 0
+
+# Force a checkpoint chain commitment when the producer's view of
+# `last_advanced_eth_block` runs ahead of the on-chain
+# `last_committed_eb` by more than this many Ethereum blocks.
 # (optional, must be non-zero u32, default: 500).
-# chain-deepness-threshold = 500
+# uncommitted-chain-len-threshold = 500
+
+# Coordinator-local: how many Ethereum blocks the resulting
+# BatchCommitment stays valid past its target block. Encoded into
+# `BatchCommitment::expiry` (u8).
+# (optional, must be non-zero u8, default: 16).
+# commitment-delay-limit = 16
+
+# Path to genesis state dump file (.blob or .json) for initial chain state.
+# (optional, default: None).
+# genesis-state-dump = "/path/to/genesis.blob"
 
 ##########################################################################################
 
@@ -219,3 +244,39 @@ block-time = 1
 # Flag to disable prometheus metrics.
 # (optional, default: false).
 # no-prometheus = false
+
+##########################################################################################
+
+### Malachite BFT consensus service parameters.
+### Required for validator nodes — Malachite drives MB ordering.
+[malachite]
+# Listen address for the Malachite consensus libp2p swarm.
+# This is a SEPARATE socket from `[network] listen-addr`: Malachite
+# uses TCP on its own port with a peer id derived deterministically
+# from the validator key, distinct from the ethexe-network peer id.
+# (optional, default: 0.0.0.0:20334).
+# listen-addr = "0.0.0.0:20334"
+
+# Persistent peer multiaddrs the Malachite swarm should always keep
+# connections to. Each entry must include a `/p2p/<peer_id>` suffix.
+# Example for a 3-node test on localhost:
+#   persistent-peers = [
+#     "/ip4/127.0.0.1/tcp/20335/p2p/12D3KooW...",
+#     "/ip4/127.0.0.1/tcp/20336/p2p/12D3KooW...",
+#   ]
+# (optional, default: empty list).
+# persistent-peers = []
+
+# Path to a JSON file mapping validator Ethereum addresses to their
+# Malachite secp256k1 public keys. The Router contract stores the
+# validator set as Ethereum addresses; Malachite needs the matching
+# public keys to verify votes and proposals.
+# File format (both fields are 0x-prefixed hex):
+# ```json
+# {
+#   "0xaaaa...": "0x02bbbb...",
+#   "0xcccc...": "0x03dddd..."
+# }
+# ```
+# (optional, default: None — required on validator nodes).
+# validator-pub-keys = "/path/to/validators.json"

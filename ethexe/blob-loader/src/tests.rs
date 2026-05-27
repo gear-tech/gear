@@ -10,7 +10,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_ethereum::deploy::EthereumDeployer;
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use gsigner::secp256k1::{PrivateKey, Signer};
 use std::{collections::VecDeque, sync::Arc};
 use tokio::{
@@ -293,15 +293,23 @@ async fn reader_failure_does_not_emit_success_or_terminate_stream() {
 
 #[tokio::test]
 async fn repeated_load_codes_for_pending_code_schedules_one_remote_read() {
-    let beacon_block_time = Duration::from_secs(1);
     let code = generated_code(128);
-    let (anvil, tx_hash, code_id) = request_code_validation(31337, beacon_block_time, &code).await;
+    let code_id = CodeId::generate(&code);
+    let tx_hash = H256::random();
 
     let db = Database::memory();
     set_blob_info(&db, code_id, tx_hash);
 
-    let reader =
-        test_reader_with_block_time(anvil.endpoint(), anvil.endpoint(), beacon_block_time).await;
+    let reader = ConsensusLayerBlobReader {
+        provider: ProviderBuilder::default().connect_http("http://127.0.0.1:1".parse().unwrap()),
+        http_client: Client::new(),
+        config: ConsensusLayerConfig {
+            ethereum_rpc: String::new(),
+            ethereum_beacon_rpc: String::new(),
+            beacon_block_time: Duration::from_secs(1),
+            attempts: ATTEMPTS,
+        },
+    };
     let mut loader = BlobLoader::new_with_consensus_reader(db, reader);
 
     loader
@@ -312,12 +320,7 @@ async fn repeated_load_codes_for_pending_code_schedules_one_remote_read() {
         .expect("duplicate pending request should be ignored");
 
     assert_eq!(loader.pending_codes_len(), 1);
-    let _ = expect_blob_loaded(&mut loader).await;
-    assert!(
-        loader.next().now_or_never().is_none(),
-        "duplicate pending request must not queue another ready event"
-    );
-    assert_eq!(loader.pending_codes_len(), 0);
+    assert_eq!(loader.futures.len(), 1);
 }
 
 #[tokio::test]

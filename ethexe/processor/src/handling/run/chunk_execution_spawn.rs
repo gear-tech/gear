@@ -13,6 +13,14 @@ use futures::stream::FuturesOrdered;
 /// An alias introduced for better readability of the chunks execution steps.
 pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
 
+/// Prepared input for executing one program queue in a chunk.
+pub struct ChunkItemInput {
+    pub program_id: ActorId,
+    pub state_hash: H256,
+    pub instrumented_code: InstrumentedCode,
+    pub code_metadata: CodeMetadata,
+}
+
 /// Spawns in the thread pool tasks for each program in the chunk remembering position of the program in the chunk.
 ///
 /// Each program receives one (same copy) value of gas allowance, because all programs in the chunk are executed in parallel.
@@ -21,7 +29,7 @@ pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
 /// and charge gas from it concurrently.
 pub async fn spawn_chunk_execution(
     ctx: &mut impl RunContext,
-    chunk: Vec<(ActorId, H256)>,
+    chunk: Vec<ChunkItemInput>,
     queue_type: MessageType,
 ) -> Result<Vec<ChunkItemOutput>> {
     let gas_allowance_for_chunk = ctx
@@ -32,16 +40,21 @@ pub async fn spawn_chunk_execution(
 
     let promise_policy = ctx.promise_policy();
 
-    let block_header = ctx.inner().block_header;
     let block_info = BlockInfo {
-        height: block_header.height,
-        timestamp: block_header.timestamp,
+        height: ctx.inner().height,
+        timestamp: ctx.inner().timestamp,
     };
 
     chunk
         .into_iter()
-        .map(|(program_id, state_hash)| {
-            let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
+        .map(|chunk_item| {
+            let ChunkItemInput {
+                program_id,
+                state_hash,
+                instrumented_code,
+                code_metadata,
+            } = chunk_item;
+
             let mut executor = ctx.inner().instance_creator.instantiate()?;
             let promise_sink = ctx.inner().promise_sink.clone();
             Ok(thread_pool::spawn(move || {

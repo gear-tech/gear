@@ -7,10 +7,10 @@ use crate::{
         self, CommonRunContext, RunContext,
         chunks_splitting::{ActorStateHashWithQueueSize, ExecutionChunks},
     },
-    host::InstanceCreator,
+    host::{InstanceCreator, InstanceWrapper},
 };
 use core_processor::common::JournalNote;
-use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType};
+use ethexe_common::{db::CodesStorageRO, gear::MessageType};
 use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
 use gear_core::{
@@ -33,6 +33,7 @@ pub(crate) struct OverlaidRunContext {
 }
 
 impl OverlaidRunContext {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: Database,
         base_program: ActorId,
@@ -40,7 +41,8 @@ impl OverlaidRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         instance_creator: InstanceCreator,
-        block_header: BlockHeader,
+        height: u32,
+        timestamp: u64,
     ) -> Self {
         let mut transition_controller = TransitionController {
             transitions: &mut transitions,
@@ -68,7 +70,8 @@ impl OverlaidRunContext {
                 transitions,
                 gas_allowance,
                 chunk_size,
-                block_header,
+                height,
+                timestamp,
                 None,
             ),
             base_program,
@@ -163,14 +166,23 @@ impl RunContext for OverlaidRunContext {
         &mut self.inner
     }
 
-    fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
+    fn program_code(
+        &self,
+        program_id: ActorId,
+        instrumentation_instance: &mut Option<InstanceWrapper>,
+    ) -> Result<(InstrumentedCode, CodeMetadata)> {
         let code_id = self
             .inner
             .db
             .program_code_id(program_id)
             .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))?;
 
-        run::instrumented_code_and_metadata(&self.inner.db, code_id)
+        run::instrumented_code_and_metadata(
+            &self.inner.db,
+            &self.inner.instance_creator,
+            instrumentation_instance,
+            code_id,
+        )
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {

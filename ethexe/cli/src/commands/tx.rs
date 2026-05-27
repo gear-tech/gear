@@ -22,7 +22,9 @@ use clap::{Parser, Subcommand};
 use ethexe_common::{
     Address, BlockHeader, SimpleBlockData,
     gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
-    injected::{AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE},
+    injected::{
+        AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE, Receipt,
+    },
 };
 use ethexe_ethereum::{Ethereum, EthereumBuilder, mirror::ClaimInfo, router::CodeValidationResult};
 use ethexe_rpc::{InjectedClient, ProgramClient};
@@ -1111,12 +1113,19 @@ impl TxCommand {
                                     || "failed to send injected transaction to Vara.eth RPC",
                                 )?;
 
-                            let promise = subscription
+                            let receipt = subscription
                                 .next()
                                 .await
                                 .ok_or_else(|| anyhow!("no promise received from subscription"))?
                                 .with_context(|| "failed to receive transaction promise")?
-                                .into_data();
+                                .data()
+                                .clone();
+                            let promise = match receipt {
+                                Receipt::Promise(promise) => promise,
+                                Receipt::Purged(err) => {
+                                    bail!("injected transaction was purged: {err}")
+                                }
+                            };
                             let ReplyInfo {
                                 payload,
                                 value,

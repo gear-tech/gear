@@ -42,7 +42,7 @@ ISOLATED_CORE=$(get_isolated_cores | cut -d " " -f1)
 # List of one-time extrinsics to benchmark.
 # They are retrieved automatically from the pallet_gear benchmarks file by their `r` component range 0..1,
 # which defines them as one-time extrinsics.
-mapfile -t ONE_TIME_EXTRINSICS < <(cat "pallets/gear/src/benchmarking/mod.rs" | grep "0 .. 1;" -B 1 | grep -E "{$" | awk '{print $1}')
+mapfile -t ONE_TIME_EXTRINSICS < <(cat "vara/pallets/gear/src/benchmarking/mod.rs" | grep "0 .. 1;" -B 1 | grep -E "{$" | awk '{print $1}')
 
 while getopts 'bmfps:c:v' flag; do
   case "${flag}" in

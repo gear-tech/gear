@@ -3,7 +3,7 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
-use crate::{Address, Announce, Digest, HashOf, ToDigest, ValidatorsVec};
+use crate::{Address, Digest, ToDigest, ValidatorsVec};
 use alloc::vec::Vec;
 use alloy_primitives::U256 as AlloyU256;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
@@ -47,22 +47,26 @@ pub struct AddressBook {
     pub wrapped_vara: ActorId,
 }
 
-/// Squashed chain commitment that contains all state transitions and gear blocks.
+/// Squashed chain commitment with state transitions, MB head, and the latest
+/// advanced Ethereum block hash, zero if no ethereum block has been advanced.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    pub head_announce: HashOf<Announce>,
+    pub head: H256,
+    pub last_advanced_eth_block: H256,
 }
 
 impl ToDigest for ChainCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let ChainCommitment {
             transitions,
-            head_announce,
+            head,
+            last_advanced_eth_block,
         } = self;
 
         hasher.update(transitions.to_digest());
-        hasher.update(head_announce.inner().0);
+        hasher.update(head.0);
+        hasher.update(last_advanced_eth_block.0);
     }
 }
 
