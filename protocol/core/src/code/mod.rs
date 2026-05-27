@@ -249,7 +249,7 @@ impl Code {
     ///   (import "env" "memory" (memory 1))
     ///   (export "init" (func $init_export))
     ///   (func $gas_charge
-    ///      <-- gas charge impl --> ;; see utils/wasm-instrument/src/lib.rs
+    ///      <-- gas charge impl --> ;; see protocol/wasm-instrument/src/lib.rs
     ///   )
     ///   (func $f1
     ///      i32.const 123

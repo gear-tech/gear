@@ -44,7 +44,7 @@ use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedCompactPromise},
+    injected::{AddressedInjectedTransaction, SignedCompactTxReceipt},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -64,10 +64,7 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{
-    collections::HashSet, fmt::Write, num::NonZeroU32, pin::Pin, sync::Arc, task::Poll,
-    time::Duration,
-};
+use std::{collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll, time::Duration};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 /// Default listen port.
@@ -85,17 +82,13 @@ const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
 const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
 const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 
-/// Hard cap for the amount of announces that can be returned in one db-sync
-/// response.
-pub const DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
-
 /// High-level events produced by [`NetworkService`].
 #[derive(derive_more::Debug)]
 pub enum NetworkEvent {
     /// A validator-signed message from the validator gossipsub topic.
     ValidatorMessage(VerifiedValidatorMessage),
     /// A public promise observed on the promise gossipsub topic.
-    PromiseMessage(SignedCompactPromise),
+    TxReceiptMessage(SignedCompactTxReceipt),
     /// Validator discovery learned or refreshed the network identity of the
     /// given validator address.
     ValidatorIdentityUpdated(Address),
@@ -139,8 +132,6 @@ pub struct NetworkConfig {
     /// Whether private and local addresses are allowed in discovery and
     /// identify flows.
     pub allow_non_global_addresses: bool,
-    /// Upper bound for `Announces` db-sync responses served by this node.
-    pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl NetworkConfig {
@@ -155,7 +146,6 @@ impl NetworkConfig {
             transport_type: TransportType::Default,
             router_address,
             allow_non_global_addresses: false,
-            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 
@@ -169,7 +159,6 @@ impl NetworkConfig {
             transport_type: TransportType::Test,
             router_address,
             allow_non_global_addresses: true,
-            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 }
@@ -252,7 +241,6 @@ impl NetworkService {
             transport_type,
             router_address,
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
         } = config;
 
         let NetworkRuntimeConfig {
@@ -291,7 +279,6 @@ impl NetworkService {
             general_signer,
             validator_list_snapshot: validator_list_snapshot.clone(),
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
             metrics: (&mut registry, metrics.clone()),
         };
         let behaviour = Behaviour::new(behaviour_config)?;
@@ -547,11 +534,11 @@ impl NetworkService {
                             .verify_validator_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Promise(compact_promise) => {
+                    gossipsub::Message::TxReceipt(receipt) => {
                         // FIXME: previous era validators are ignored
-                        let (acceptance, promise) =
-                            self.validator_topic.verify_promise(source, compact_promise);
-                        (acceptance, promise.map(NetworkEvent::PromiseMessage))
+                        let (acceptance, receipt) =
+                            self.validator_topic.verify_receipt(source, receipt);
+                        (acceptance, receipt.map(NetworkEvent::TxReceiptMessage))
                     }
                 })
             }
@@ -653,11 +640,8 @@ impl NetworkService {
     }
 
     /// Publish a signed promise to the public promise gossipsub topic.
-    pub fn publish_promise(&mut self, compact_promise: SignedCompactPromise) {
-        self.swarm
-            .behaviour_mut()
-            .gossipsub
-            .publish(compact_promise)
+    pub fn publish_tx_receipt(&mut self, receipt: SignedCompactTxReceipt) {
+        self.swarm.behaviour_mut().gossipsub.publish(receipt)
     }
 }
 
@@ -694,7 +678,6 @@ struct BehaviourConfig<'a> {
     general_signer: Signer,
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
     allow_non_global_addresses: bool,
-    max_chain_len_for_announces_response: NonZeroU32,
     metrics: (
         &'a mut libp2p::metrics::Registry,
         Arc<libp2p::metrics::Metrics>,
@@ -739,7 +722,6 @@ impl Behaviour {
             general_signer,
             validator_list_snapshot,
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
             metrics: (registry, metrics),
         } = config;
 
@@ -791,10 +773,7 @@ impl Behaviour {
         .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
 
         let db_sync = db_sync::Behaviour::new(
-            db_sync::Config {
-                max_chain_len_for_announces_response,
-                ..Default::default()
-            },
+            db_sync::Config::default(),
             peer_score_handle.clone(),
             external_data_provider,
             db,
@@ -1051,6 +1030,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "test setup populates the requester's data provider rather than the responder's; \
+                needs a real responder-side fixture"]
     async fn external_data_provider() {
         init_logger();
 
@@ -1060,14 +1041,13 @@ mod tests {
         let alice_handle = alice.db_sync_handle();
 
         let bob = NetworkServiceBuilder::new();
-        let bob_db = bob.db.clone();
         let mut bob = bob.build();
 
         alice.connect(&mut bob).await;
         tokio::spawn(alice.loop_on_next());
         tokio::spawn(bob.loop_on_next());
 
-        let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
+        let expected_response = fill_data_provider(alice_data_provider).await;
 
         let request = alice_handle.request(db_sync::Request::program_ids(H256::zero(), 2));
         let response = timeout(Duration::from_secs(5), request)

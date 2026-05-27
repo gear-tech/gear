@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{Announce, Digest, HashOf};
+use crate::Digest;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -13,8 +13,14 @@ pub struct BatchCommittedEvent {
     pub digest: Digest,
 }
 
+/// Emitted when an MB-driven chain commitment lands on-chain. The inner
+/// `H256` is the MB hash that became `last_committed_mb` for the block.
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AnnouncesCommittedEvent(pub HashOf<Announce>);
+pub struct MBCommittedEvent(pub H256);
+
+/// Carries the latest folded-in Ethereum block hash from a chain commitment.
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EBCommittedEvent(pub H256);
 
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeGotValidatedEvent {
@@ -59,7 +65,8 @@ pub struct ValidatorsCommittedForEraEvent {
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Event {
     BatchCommitted(BatchCommittedEvent),
-    AnnouncesCommitted(AnnouncesCommittedEvent),
+    MBCommitted(MBCommittedEvent),
+    EBCommitted(EBCommittedEvent),
     CodeGotValidated(CodeGotValidatedEvent),
     CodeValidationRequested(CodeValidationRequestedEvent),
     ComputationSettingsChanged(ComputationSettingsChangedEvent),
@@ -82,7 +89,8 @@ impl Event {
                 RequestEvent::ValidatorsCommittedForEra(event)
             }
             Self::CodeGotValidated { .. }
-            | Self::AnnouncesCommitted(_)
+            | Self::MBCommitted(_)
+            | Self::EBCommitted(_)
             | Self::BatchCommitted { .. } => return None,
         })
     }

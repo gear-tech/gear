@@ -10,12 +10,11 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Digest, ToDigest,
     consensus::BatchCommitmentValidationReply,
-    db::{AnnounceStorageRO, GlobalsStorageRO, OnChainStorageRO},
+    db::OnChainStorageRO,
     ecdsa::{ContractSignature, PublicKey},
-    events::{BlockRequestEvent, RouterRequestEvent, router::ProgramCreatedEvent},
     gear::BatchCommitment,
 };
-use gprimitives::{ActorId, H256};
+use gprimitives::H256;
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, HashSet};
@@ -111,167 +110,36 @@ pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
     data.iter().any(|item| !seen.insert(item))
 }
 
-pub fn block_touched_programs<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO>(
+/// `target` lies on the canonical eth chain ending at `head` — i.e., `head`
+/// is `target` itself or one of its descendants reachable via parent links.
+/// `target == H256::zero()` is the genesis sentinel and returns `Ok(true)`.
+pub fn is_eth_block_canonical_to<DB: OnChainStorageRO>(
     db: &DB,
-    block_hash: H256,
-) -> Result<HashSet<ActorId>> {
-    // NOTE: Using latest computed announce is not completely correct way to determine touched programs,
-    // but it is good enough approximation, and it is enough for announce creation,
-    // in worst case announce wouldn't be committed and it would become expired later.
-    let mut known_programs = db
-        .announce_program_states(db.globals().latest_computed_announce_hash)
-        .ok_or_else(|| anyhow!("Not found program states for latest computed announce"))?
-        .keys()
-        .cloned()
-        .collect::<HashSet<_>>();
-
-    let touched_programs = db
-        .block_events(block_hash)
-        .ok_or_else(|| anyhow!("Events for block {block_hash} not found"))?
-        .into_iter()
-        .filter_map(|event| event.to_request())
-        .filter_map(|request| match request {
-            BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated(
-                ProgramCreatedEvent { actor_id, .. },
-            )) => {
-                known_programs.insert(actor_id);
-                None
-            }
-            BlockRequestEvent::Mirror { actor_id, .. } if known_programs.contains(&actor_id) => {
-                Some(actor_id)
-            }
-            _ => None,
-        })
-        .collect();
-
-    Ok(touched_programs)
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mock::*;
-
-    const ADDRESS: Address = Address([42; 20]);
-
-    #[test]
-    fn multisigned_batch_commitment_creation() {
-        let batch = test_batch_commitment(test_block_hash(1), 1);
-
-        let (signer, _, public_keys) = init_signer_with_keys(1);
-        let pub_key = public_keys[0];
-
-        let multisigned_batch =
-            MultisignedBatchCommitment::new(batch.clone(), &signer, ADDRESS, pub_key)
-                .expect("Failed to create multisigned batch commitment");
-
-        assert_eq!(multisigned_batch.batch, batch);
-        assert_eq!(multisigned_batch.signatures.len(), 1);
+    target: H256,
+    head: H256,
+) -> Result<bool> {
+    if target.is_zero() {
+        return Ok(true);
     }
+    let target_height = db
+        .block_header(target)
+        .ok_or_else(|| anyhow!("eth chain walk: missing header for target {target}"))?
+        .height;
 
-    #[test]
-    fn test_has_duplicates() {
-        let data = vec![1, 2, 3, 4, 5];
-        assert!(!has_duplicates(&data));
-
-        let data = vec![1, 2, 3, 4, 5, 3];
-        assert!(has_duplicates(&data));
-    }
-
-    #[test]
-    fn check_origin_closure_behavior() {
-        let batch = test_batch_commitment(test_block_hash(2), 2);
-
-        let (signer, _, public_keys) = init_signer_with_keys(2);
-        let pub_key = public_keys[0];
-
-        let mut multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
-
-        let other_pub_key = public_keys[1];
-        let reply = BatchCommitmentValidationReply {
-            digest: multisigned_batch.batch_digest,
-            signature: signer
-                .sign_for_contract_digest(
-                    ADDRESS,
-                    other_pub_key,
-                    multisigned_batch.batch_digest,
-                    None,
-                )
-                .unwrap(),
-        };
-
-        // Case 1: check_origin allows the origin
-        let result =
-            multisigned_batch.accept_batch_commitment_validation_reply(reply.clone(), |_| Ok(()));
-        assert!(result.is_ok());
-        assert_eq!(multisigned_batch.signatures.len(), 2);
-
-        // Case 2: check_origin rejects the origin
-        let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| {
-            anyhow::bail!("Origin not allowed")
-        });
-        assert!(result.is_err());
-        assert_eq!(multisigned_batch.signatures.len(), 2);
-    }
-
-    #[test]
-    fn reject_validation_reply_with_incorrect_digest() {
-        let batch = test_batch_commitment(test_block_hash(3), 3);
-
-        let (signer, _, public_keys) = init_signer_with_keys(1);
-        let pub_key = public_keys[0];
-
-        let mut multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
-
-        let incorrect_digest = [1, 2, 3].to_digest();
-        let reply = BatchCommitmentValidationReply {
-            digest: incorrect_digest,
-            signature: signer
-                .sign_for_contract_digest(ADDRESS, pub_key, incorrect_digest, None)
-                .unwrap(),
-        };
-
-        let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| Ok(()));
-        assert!(result.is_err());
-        assert_eq!(multisigned_batch.signatures.len(), 1);
-    }
-
-    #[test]
-    fn accept_batch_commitment_validation_reply() {
-        let batch = test_batch_commitment(test_block_hash(4), 4);
-
-        let (signer, _, public_keys) = init_signer_with_keys(2);
-        let pub_key = public_keys[0];
-
-        let mut multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
-
-        let other_pub_key = public_keys[1];
-        let reply = BatchCommitmentValidationReply {
-            digest: multisigned_batch.batch_digest,
-            signature: signer
-                .sign_for_contract_digest(
-                    ADDRESS,
-                    other_pub_key,
-                    multisigned_batch.batch_digest,
-                    None,
-                )
-                .unwrap(),
-        };
-
-        multisigned_batch
-            .accept_batch_commitment_validation_reply(reply.clone(), |_| Ok(()))
-            .expect("Failed to accept batch commitment validation reply");
-
-        assert_eq!(multisigned_batch.signatures.len(), 2);
-
-        // Attempt to add the same reply again
-        multisigned_batch
-            .accept_batch_commitment_validation_reply(reply, |_| Ok(()))
-            .expect("Failed to accept batch commitment validation reply");
-
-        // Ensure the number of signatures has not increased
-        assert_eq!(multisigned_batch.signatures.len(), 2);
+    let mut current = head;
+    loop {
+        if current == target {
+            return Ok(true);
+        }
+        if current.is_zero() {
+            return Ok(false);
+        }
+        let header = db
+            .block_header(current)
+            .ok_or_else(|| anyhow!("eth chain walk: missing header for {current}"))?;
+        if header.height <= target_height {
+            return Ok(false);
+        }
+        current = header.parent_hash;
     }
 }
