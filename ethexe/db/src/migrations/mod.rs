@@ -16,11 +16,9 @@ pub use init::initialize_db;
 mod init;
 mod migration;
 
-mod v5;
+pub const LATEST_VERSION: u32 = 1;
 
-pub const OLDEST_SUPPORTED_VERSION: u32 = v5::VERSION;
-
-pub const LATEST_VERSION: u32 = v5::VERSION;
+pub const OLDEST_SUPPORTED_VERSION: u32 = LATEST_VERSION;
 
 pub const MIGRATIONS: &[&dyn Migration] = &[];
 
