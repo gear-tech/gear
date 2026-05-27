@@ -269,11 +269,11 @@ impl<P: ToDigest> ToDigest for Receipt<P> {
         match self {
             Self::Promise(promise) => {
                 hasher.update([0]);
-                hasher.update(promise.to_digest().0);
+                promise.update_hasher(hasher);
             }
             Self::Purged(err) => {
                 hasher.update([1]);
-                hasher.update(err.to_digest().0);
+                err.update_hasher(hasher);
             }
         }
     }
@@ -312,6 +312,8 @@ impl SignedCompactTxReceipt {
                 UpgradedReceipt::Pending(UnfilledPromiseReceipt(compact, signature, address))
             }
             Receipt::Purged(purged) => UpgradedReceipt::Ready(unsafe {
+                // SAFETY: Receipt::Purged has the same digest representation for both
+                // Promise and CompactPromise generics, so the signature remains valid.
                 SignedMessage::from_parts_unchecked(Receipt::Purged(purged), signature, address)
                     .into()
             }),
@@ -385,8 +387,7 @@ pub enum TransactionPurgedReason {
 
 impl TransactionPurgedReason {
     pub fn variant_index(&self) -> u8 {
-        // Safe, because of #[repr(u8)] attribute
-        unsafe { (self as *const Self as *const u8).read() }
+        *self as u8
     }
 }
 
