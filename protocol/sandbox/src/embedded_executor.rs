@@ -11,8 +11,8 @@ use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_wasm_interface_common::HostPointer;
 use std::{collections::btree_map::BTreeMap, marker::PhantomData};
 use wasmtime::{
-    Cache, CacheConfig, Config, Engine, ExternType, Global, Linker, MemoryType, Module,
-    StoreContext, StoreContextMut, error::Context,
+    Cache, CacheConfig, Config, Engine, ExternType, Global, Linker, MemoryType, StoreContext,
+    StoreContextMut, error::Context,
 };
 
 /// The target used for logging.
@@ -268,7 +268,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         code: &[u8],
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Instance<State>, Error> {
-        let module = Module::new(store.engine(), code)
+        let module = gear_wasmtime_cache::get(store.engine(), code)
             .inspect_err(|e| log::trace!(target: TARGET, "Failed to create module: {e}"))
             .map_err(|_e| Error::Module)?;
 

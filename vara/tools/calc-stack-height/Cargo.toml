@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 gear-core.workspace = true
 gear-wasm-instrument.workspace = true
+gear-wasmtime-cache.workspace = true
 wasmtime.workspace = true
 wat.workspace = true
 log.workspace = true

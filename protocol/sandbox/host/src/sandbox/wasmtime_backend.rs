@@ -17,7 +17,7 @@ use gear_sandbox_env::{GLOBAL_NAME_GAS, HostError, Instantiate, WasmReturnValue}
 use parity_scale_codec::{Decode, Encode};
 use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
 use std::rc::{Rc, Weak};
-use wasmtime::{AsContextMut, Engine, ExternType, Linker, MemoryType, Module, Val};
+use wasmtime::{AsContextMut, Engine, ExternType, Linker, MemoryType, Val};
 
 type Store = wasmtime::Store<Option<FuncEnv>>;
 pub type StoreRefCell = store_refcell::StoreRefCell<Store>;
@@ -243,8 +243,8 @@ pub fn instantiate(
 ) -> Result<SandboxInstance, InstantiationError> {
     let mut store = context.store().borrow_mut();
 
-    let module =
-        Module::new(store.engine(), wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
+    let module = gear_wasmtime_cache::get(store.engine(), wasm)
+        .map_err(|_| InstantiationError::ModuleDecoding)?;
     let mut linker = Linker::new(store.engine());
 
     for import in module.imports() {

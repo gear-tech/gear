@@ -20,6 +20,7 @@ gprimitives = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, default-features = false, features = ["std"] }
 gear-sandbox-host.workspace = true
 gear-lazy-pages.workspace = true
+gear-wasmtime-cache.workspace = true
 gear-wasm-instrument = { workspace = true, features = ["std"] }
 core-processor.workspace = true
 

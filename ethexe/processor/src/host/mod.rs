@@ -91,7 +91,7 @@ impl InstanceCreator {
             .macos_use_mach_ports(false);
         let engine = wasmtime::Engine::new(&config)?;
 
-        let module = wasmtime::Module::new(&engine, runtime)?;
+        let module = gear_wasmtime_cache::get(&engine, &runtime)?;
         let mut linker = wasmtime::Linker::new(&engine);
 
         api::allocator::link(&mut linker)?;

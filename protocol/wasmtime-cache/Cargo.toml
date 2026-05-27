@@ -1,0 +1,27 @@
+[package]
+name = "gear-wasmtime-cache"
+description = "Wasmtime executor's in-memory module cache used by Gear nodes"
+documentation = "https://docs.rs/gear-wasmtime-cache"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+tracing.workspace = true
+lru.workspace = true
+wasmtime.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+tempfile.workspace = true
+
+[[bench]]
+name = "lru_cache"
+harness = false
