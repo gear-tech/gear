@@ -14,7 +14,7 @@ Pre-requirements:
 Running fuzzer on the local machine:
 
 ```bash
-cd utils/runtime-fuzzer
+cd vara/tools/runtime-fuzzer
 
 # Fuzzer expects a minimal input size of 350 KiB. Without providing a corpus of the same or larger
 # size fuzzer will stuck for a long time with trying to test the target using 0..100 bytes.

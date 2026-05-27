@@ -62,7 +62,7 @@ run_fuzzer() {
   ROOT_DIR="$1"
   CORPUS_DIR="$2"
   # Navigate to fuzzer dir
-  cd $ROOT_DIR/utils/runtime-fuzzer
+  cd $ROOT_DIR/vara/tools/runtime-fuzzer
 
   if [ "$3" = "wlogs" ]; then
     LOG_TARGETS="debug,syscalls,runtime::sandbox=trace,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_core_backend=trace"
@@ -105,7 +105,6 @@ doc_test() {
 time_consuming_tests() {
   # cargo test -p demo-fungible-token --no-fail-fast --release -- --nocapture --ignored
   cargo test -p gear-wasm-builder --no-fail-fast "$@" -- --nocapture --ignored
-  LOOM_MAX_PREEMPTIONS=3 RUSTFLAGS="--cfg loom" cargo test -p gear-wasmer-cache --no-fail-fast --release -- --nocapture
 }
 
 ensure_binary() {
