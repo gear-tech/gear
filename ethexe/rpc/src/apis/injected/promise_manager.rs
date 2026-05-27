@@ -216,7 +216,7 @@ mod tests {
 
     /// Producer signature lands after the local node has already
     /// computed the matching body — manager joins the two and delivers
-    /// the full [`SignedPromise`] to the subscriber.
+    /// the full [`SignedTxReceipt`] to the subscriber.
     #[tokio::test]
     async fn body_first_then_compact_dispatches() {
         let db = Database::memory();
@@ -289,7 +289,7 @@ mod tests {
 
     /// A compact promise whose signature does not match the body that
     /// arrives later is parked rather than delivering a malformed
-    /// [`SignedPromise`].
+    /// [`SignedTxReceipt`].
     #[tokio::test]
     async fn compact_with_wrong_signature_is_parked() {
         let db = Database::memory();

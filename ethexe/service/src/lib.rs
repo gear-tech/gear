@@ -782,14 +782,14 @@ impl Service {
                         // into the RPC subscription manager so the
                         // matching producer signature (which arrives via
                         // gossip or local self-signing below) can be
-                        // joined into a full SignedPromise.
+                        // joined into a full SignedTxReceipt.
                         if let Some(rpc) = &rpc {
                             rpc.receive_computed_promise(promise.clone());
                         }
 
                         // Producers additionally sign the promise hash
                         // and gossip the compact form so other nodes can
-                        // reconstruct the full SignedPromise once they
+                        // reconstruct the full SignedTxReceipt once they
                         // compute the matching body locally.
                         if let Some(pub_key) = validator_pub_key {
                             let receipt = Receipt::Promise(promise.to_compact());
@@ -959,7 +959,7 @@ impl Service {
                         // here. Trigger compute so the body — including any
                         // injected-tx `Promise` — is produced locally; the
                         // matching `SignedCompactPromise` arrives via the
-                        // network and is joined into a full `SignedPromise`
+                        // network and is joined into a full `SignedTxReceipt`
                         // by the RPC subscription manager. Calls are
                         // idempotent: a proposer that already computed via
                         // `BlockProposal` short-circuits on

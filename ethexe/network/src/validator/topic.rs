@@ -316,7 +316,7 @@ mod tests {
     use ethexe_common::{
         consensus::BatchCommitmentValidationRequest,
         ecdsa::PublicKey,
-        injected::{Promise, Receipt, SignedPromise},
+        injected::{Promise, Receipt},
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
@@ -364,12 +364,6 @@ mod tests {
     fn signer_with_pubkey() -> (PublicKey, Signer) {
         let signer = Signer::memory();
         (signer.generate().unwrap(), signer)
-    }
-
-    fn signed_promise(signer: Signer, pubkey: PublicKey) -> SignedPromise {
-        signer
-            .signed_message(pubkey, Promise::mock(()), None)
-            .unwrap()
     }
 
     fn signed_promise_receipt(
@@ -742,8 +736,8 @@ mod tests {
         let topic = new_topic(nonempty![Address::default()]);
 
         let (pubkey, signer) = signer_with_pubkey();
-        let promise = signed_promise(signer.clone(), pubkey);
-        let receipt = signed_promise_receipt(&signer, pubkey, promise.clone().into_data());
+        let promise = Promise::mock(());
+        let receipt = signed_promise_receipt(&signer, pubkey, promise.clone());
 
         let peer_id = PeerId::random();
 
@@ -763,8 +757,8 @@ mod tests {
     #[tokio::test]
     async fn verify_promise_ok() {
         let (pubkey, signer) = signer_with_pubkey();
-        let promise = signed_promise(signer.clone(), pubkey);
-        let receipt = signed_promise_receipt(&signer, pubkey, promise.clone().into_data());
+        let promise = Promise::mock(());
+        let receipt = signed_promise_receipt(&signer, pubkey, promise);
 
         let topic = new_topic(nonempty![receipt.address()]);
         let peer_id = PeerId::random();

@@ -166,10 +166,6 @@ pub struct Promise {
     pub reply: ReplyInfo,
 }
 
-/// Signed wrapper on top of [`Promise`].
-/// It will be shared among other validators as a proof of promise.
-pub type SignedPromise = SignedMessage<Promise>;
-
 impl Promise {
     /// Calculates the `blake2b` hash from promise's reply.
     pub fn reply_hash(&self) -> HashOf<ReplyInfo> {
