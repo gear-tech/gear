@@ -3,12 +3,13 @@
 
 use crate::VaraEthApi;
 use alloy::rpc::types::TransactionReceipt;
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use ethexe_common::{
     Address, SimpleBlockData,
     gear_core::rpc::ReplyInfo,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Promise,
+        Receipt,
     },
 };
 use ethexe_ethereum::{
@@ -247,12 +248,19 @@ impl<'a> Mirror<'a> {
             .await
             .with_context(|| "failed to send injected transaction and subscribe to it's promise")?;
 
-        let promise = subscription
+        let receipt = subscription
             .next()
             .await
             .ok_or_else(|| anyhow!("no promise received from subscription"))?
             .with_context(|| "failed to receive transaction promise")?
-            .into_data();
+            .data()
+            .clone();
+        let promise = match receipt {
+            Receipt::Promise(promise) => promise,
+            Receipt::Purged(err) => {
+                bail!("injected transaction was purged: {err}")
+            }
+        };
 
         Ok((message_id, promise))
     }

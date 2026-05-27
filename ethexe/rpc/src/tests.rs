@@ -6,17 +6,15 @@ use crate::{
     RpcService,
 };
 use ethexe_common::{
+    SignedMessage,
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, Promise, SignedCompactPromise},
+    injected::{AddressedInjectedTransaction, Promise, Receipt, SignedCompactTxReceipt},
     mock::Mock,
 };
 use ethexe_db::Database;
 use futures::StreamExt;
-use gear_core::{
-    message::{ReplyCode, SuccessReplyReason},
-    rpc::ReplyInfo,
-};
+use gear_core::message::{ReplyCode, SuccessReplyReason};
 use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
@@ -52,9 +50,9 @@ impl MockService {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
                         for tx in tx_batch.drain(..) {
-                            let (promise, compact) = Self::create_promise_for(tx);
+                            let (promise, receipt) = Self::create_promise_for(tx);
                             self.rpc.receive_computed_promise(promise);
-                            self.rpc.receive_compact_promise(compact);
+                            self.rpc.receive_tx_receipt(receipt);
                         }
                     },
                     _ = self.handle.clone().stopped() => {
@@ -71,18 +69,12 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: AddressedInjectedTransaction) -> (Promise, SignedCompactPromise) {
-        let promise = Promise {
-            tx_hash: tx.tx.data().to_hash(),
-            reply: ReplyInfo {
-                payload: vec![],
-                value: 0,
-                code: ReplyCode::Success(SuccessReplyReason::Manual),
-            },
-        };
-        let compact = SignedCompactPromise::create_from_promise(PrivateKey::random(), &promise)
-            .expect("Signing compact promise will succeed");
-        (promise, compact)
+    fn create_promise_for(tx: AddressedInjectedTransaction) -> (Promise, SignedCompactTxReceipt) {
+        let promise = Promise::mock(tx.tx.data().to_hash());
+        let receipt =
+            SignedMessage::create(PrivateKey::random(), Receipt::Promise(promise.to_compact()))
+                .unwrap();
+        (promise, receipt.into())
     }
 }
 
@@ -135,14 +127,15 @@ async fn test_cleanup_promise_subscribers() {
                 .expect("Subscription will be created");
 
             subscribers.spawn(async move {
-                let promise = sub
+                let receipt = sub
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
 
@@ -163,14 +156,15 @@ async fn test_cleanup_promise_subscribers() {
                 .expect("Subscription will be created");
 
             subscribers.spawn(async move {
-                let promise = subscription
+                let receipt = subscription
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
             });
@@ -226,14 +220,15 @@ async fn test_concurrent_multiple_clients() {
                     .await
                     .expect("Subscription will be created");
 
-                let promise = subscription
+                let receipt = subscription
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
 

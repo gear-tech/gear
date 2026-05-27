@@ -47,7 +47,7 @@ use apis::{
 };
 #[cfg(feature = "server")]
 use ethexe_common::injected::{
-    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactPromise,
+    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt,
 };
 #[cfg(feature = "server")]
 use ethexe_db::Database;
@@ -206,8 +206,8 @@ impl RpcService {
         self.injected_api.on_computed_promise(promise);
     }
 
-    pub fn receive_compact_promise(&self, compact_promise: SignedCompactPromise) {
-        self.injected_api.on_compact_promise(compact_promise);
+    pub fn receive_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
+        self.injected_api.on_tx_receipt(receipt);
     }
 }
 
