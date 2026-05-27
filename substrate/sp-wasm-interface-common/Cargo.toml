@@ -1,22 +1,23 @@
 [package]
 name = "sp-wasm-interface-common"
 version = "7.0.0"
-authors.workspace = true
+authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-rust-version.workspace = true
-license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
-homepage.workspace = true
-repository.workspace = true
-description = "Gear-local compatibility surface for wasm interface helpers."
-documentation = "https://docs.rs/sp-wasm-interface-common"
+license = "Apache-2.0"
+homepage = "https://substrate.io"
+repository = "https://github.com/paritytech/substrate/"
+description = "Types and traits for interfacing between the host and the wasm runtime."
+documentation = "https://docs.rs/sp-wasm-interface"
 readme = "README.md"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-sp-wasm-interface = { workspace = true, default-features = false }
+codec = { features = ["derive"], workspace = true }
+wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, optional = true }
+sp-std = { workspace = true, default-features = false }
 
 [features]
 default = [ "std" ]
-std = [ "sp-wasm-interface/std" ]
+std = [ "codec/std", "sp-std/std", "wasmi/std" ]

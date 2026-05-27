@@ -33,7 +33,10 @@ workspace-members = [
     "sc-executor-common",
     "sc-executor-polkavm",
     "sc-executor-wasmtime",
+    "sc-mixnet",
     "sp-allocator",
+    "sp-runtime-interface-proc-macro",
+    "sp-wasm-interface",
     "sp-wasm-interface-common",
     "substrate-wasm-builder",
 ]

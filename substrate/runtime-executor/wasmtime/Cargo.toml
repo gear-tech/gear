@@ -26,7 +26,6 @@ parking_lot = { workspace = true, default-features = true }
 wasmtime = { features = [
 	"cache",
 	"cranelift",
-	"jitdump",
 	"parallel-compilation",
 	"pooling-allocator",
 ], workspace = true }

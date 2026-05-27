@@ -1,0 +1,37 @@
+[package]
+name = "sp-wasm-interface"
+version = "21.0.1"
+authors.workspace = true
+edition.workspace = true
+license = "Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+description = "Types and traits for interfacing between the host and the wasm runtime."
+documentation = "https://docs.rs/sp-wasm-interface"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { features = ["derive"], workspace = true }
+impl-trait-for-tuples = { workspace = true }
+log = { optional = true, workspace = true, default-features = true }
+wasmtime = { optional = true, workspace = true }
+anyhow = { optional = true, workspace = true }
+sp-wasm-interface-common = { workspace = true, default-features = false }
+sp-allocator = { workspace = true, default-features = false }
+
+
+[features]
+default = ["std"]
+std = [
+	"anyhow?/std",
+	"codec/std",
+	"log/std",
+]
+wasmtime = ["anyhow", "dep:wasmtime"]
+wasmi = [ "sp-wasm-interface-common/wasmi" ]

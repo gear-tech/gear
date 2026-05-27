@@ -28,7 +28,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-use wasmtime::{AsContext, Engine};
+use wasmtime::{AsContext, Cache, Engine};
 
 const MAX_INSTANCE_COUNT: u32 = 64;
 
@@ -201,7 +201,6 @@ fn setup_wasmtime_caching(
     let config_content = format!(
         "\
 [cache]
-enabled = true
 directory = \"{cache_dir}\"
 ",
         cache_dir = wasmtime_cache_root.display()
@@ -209,22 +208,18 @@ directory = \"{cache_dir}\"
     fs::write(&cache_config_path, config_content)
         .map_err(|err| format!("cannot write the cache config: {}", err))?;
 
-    config
-        .cache_config_load(cache_config_path)
+    let cache = Cache::from_file(Some(&cache_config_path))
         .map_err(|err| format!("failed to parse the config: {:#}", err))?;
+    config.cache(Some(cache));
 
     Ok(())
 }
 
 fn common_config(semantics: &Semantics) -> std::result::Result<wasmtime::Config, WasmError> {
     let mut config = wasmtime::Config::new();
+    config.macos_use_mach_ports(false);
     config.cranelift_opt_level(wasmtime::OptLevel::SpeedAndSize);
     config.cranelift_nan_canonicalization(semantics.canonicalize_nans);
-
-    // Since wasmtime 6.0.0 the default for this is `true`, but that heavily regresses
-    // the contracts pallet's performance, so disable it for now.
-    #[allow(deprecated)]
-    config.cranelift_use_egraphs(false);
 
     let profiler = match std::env::var_os("WASMTIME_PROFILING_STRATEGY") {
         Some(os_string) if os_string == "jitdump" => wasmtime::ProfilingStrategy::JitDump,
@@ -259,12 +254,11 @@ fn common_config(semantics: &Semantics) -> std::result::Result<wasmtime::Config,
 
     // Be clear and specific about the extensions we support. If an update brings new features
     // they should be introduced here as well.
-    config.wasm_reference_types(semantics.wasm_reference_types);
     config.wasm_simd(semantics.wasm_simd);
+    config.wasm_relaxed_simd(false);
     config.wasm_bulk_memory(semantics.wasm_bulk_memory);
     config.wasm_multi_value(semantics.wasm_multi_value);
     config.wasm_multi_memory(false);
-    config.wasm_threads(false);
     config.wasm_memory64(false);
 
     let (use_pooling, use_cow) = match semantics.instantiation_strategy {
@@ -304,15 +298,15 @@ fn common_config(semantics: &Semantics) -> std::result::Result<wasmtime::Config,
             //   size: 32384
             //   table_elements: 1249
             //   memory_pages: 2070
-            .instance_size(128 * 1024)
-            .instance_table_elements(8192)
-            .instance_memory_pages(memory_pages)
+            .max_core_instance_size(128 * 1024)
+            .table_elements(8192)
+            .max_memory_size((memory_pages * WASM_PAGE_SIZE) as usize)
             // We can only have a single of those.
-            .instance_tables(1)
-            .instance_memories(1)
+            .max_tables_per_module(1)
+            .max_memories_per_module(1)
             // This determines how many instances of the module can be
             // instantiated in parallel from the same `Module`.
-            .instance_count(MAX_INSTANCE_COUNT);
+            .total_core_instances(MAX_INSTANCE_COUNT);
 
         config.allocation_strategy(wasmtime::InstanceAllocationStrategy::Pooling(
             pooling_config,

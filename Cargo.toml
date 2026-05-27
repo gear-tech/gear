@@ -20,7 +20,10 @@ members = [
   "substrate/runtime-executor/common",
   "substrate/runtime-executor/polkavm",
   "substrate/runtime-executor/wasmtime",
+  "substrate/sc-mixnet",
   "substrate/sp-allocator",
+  "substrate/sp-runtime-interface-proc-macro",
+  "substrate/sp-wasm-interface",
   "substrate/sp-wasm-interface-common",
   "substrate/substrate-wasm-builder",
   # protocol
@@ -166,6 +169,7 @@ dirs = "4.0.0"
 dyn-clonable = "0.9.0"
 enum-iterator = "1.5.0"
 environmental = "1.1.3"
+expander = "2.0.0"
 filetime = "0.2.16"
 flate2 = "1"
 futures = { version = "0.3", default-features = false }
@@ -177,12 +181,15 @@ hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 impl-trait-for-tuples = "0.2.2"
 impl-serde = "0.4.0"
+Inflector = "0.11.4"
 indoc = "2.0.7"
 jsonrpsee = { version = "^0.24" }
 jobserver = "0.1.26"
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.22", default-features = false }
 merkleized-metadata = "0.1.0"
+mixnet = "0.7.0"
+multiaddr = "0.18.1"
 num_enum = { version = "0.6.1", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.7.5", default-features = false }
 numerated = { version = "2.0.1", default-features = false }
@@ -191,6 +198,7 @@ parity-scale-codec = { version = "3.7.5", default-features = false }
 parking_lot = "0.12.3"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
+proc-macro-crate = "3.0.0"
 proc-macro2 = { version = "1", default-features = false }
 prometheus = { version = "0.14.0", default-features = false }
 proptest = "1.5.0"
@@ -229,7 +237,7 @@ wasmer-types = "6.1.0"
 wasmer-vm = "6.1.0"
 wasmer-compiler = "6.1.0"
 gear-wasmer-cache = { path = "protocol/wasmer-cache" }
-wasmtime = { version = "8.0.1", default-features = false }
+wasmtime = { version = "44.0.1", default-features = false }
 wasmparser = { version = "0.230", default-features = false, features = [
     "validate",
     "features",
@@ -249,7 +257,7 @@ sha3 = { version = "0.10.8", default-features = false }
 arrayvec = { version = "0.7.4", default-features = false }
 indexmap = { version = "2.2.6", default-features = false }
 polkavm = { version = "0.9.3", default-features = false }
-rustix = { version = "0.36.7", default-features = false }
+rustix = { version = "1.1.2", default-features = false }
 strum = { version = "0.26.2", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
@@ -443,10 +451,12 @@ sc-executor = { path = "substrate/runtime-executor" }
 sc-executor-common = { path = "substrate/runtime-executor/common" }
 sc-executor-polkavm = { path = "substrate/runtime-executor/polkavm" }
 sc-executor-wasmtime = { path = "substrate/runtime-executor/wasmtime" }
+sc-mixnet = { path = "substrate/sc-mixnet", default-features = false }
 sc-consensus-grandpa = { version = "0.30.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-consensus-grandpa-rpc = { version = "0.30.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-network = { version = "0.45.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-network-sync = { version = "0.44.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sc-network-types = { version = "0.12.1", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-offchain = { version = "40.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-proposer-metrics = { version = "0.18.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-service = { version = "0.46.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
@@ -477,6 +487,7 @@ sp-io = { version = "38.0.0", git = "https://github.com/paritytech/polkadot-sdk.
 sp-keyring = { version = "39.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-keystore = { version = "0.40.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-maybe-compressed-blob = { version = "11.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
+sp-mixnet = { version = "0.12.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-npos-elections = { version = "34.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-offchain = { version = "34.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-rpc = { version = "32.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
@@ -493,7 +504,7 @@ sp-transaction-pool = { version = "34.0.0", git = "https://github.com/paritytech
 sp-transaction-storage-proof = { version = "34.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-trie = { version = "37.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-version = { version = "37.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
-sp-wasm-interface = { version = "21.0.1", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
+sp-wasm-interface = { path = "substrate/sp-wasm-interface", default-features = false }
 sp-panic-handler = { version = "13.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-wasm-interface-common = { path = "substrate/sp-wasm-interface-common", default-features = false }
 substrate-build-script-utils = { version = "11.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
@@ -647,6 +658,9 @@ ignored = [
 [profile.dev.package.corosensei]
 opt-level = 3
 
+[profile.dev.package.wasmtime-internal-cranelift]
+opt-level = 3
+
 [profile.release]
 panic = "unwind"
 
@@ -695,4 +709,7 @@ sc-executor = { path = "substrate/runtime-executor" }
 sc-executor-common = { path = "substrate/runtime-executor/common" }
 sc-executor-polkavm = { path = "substrate/runtime-executor/polkavm" }
 sc-executor-wasmtime = { path = "substrate/runtime-executor/wasmtime" }
+sc-mixnet = { path = "substrate/sc-mixnet" }
+sp-runtime-interface-proc-macro = { path = "substrate/sp-runtime-interface-proc-macro" }
+sp-wasm-interface = { path = "substrate/sp-wasm-interface" }
 substrate-wasm-builder = { path = "substrate/substrate-wasm-builder" }

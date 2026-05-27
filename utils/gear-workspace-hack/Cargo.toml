@@ -273,6 +273,7 @@ der = { version = "0.7", default-features = false, features = ["oid", "std", "ze
 derive_more-f595c2ba2a3f28df = { package = "derive_more", version = "2", features = ["full"] }
 digest-274715c4dabd11b0 = { package = "digest", version = "0.9", default-features = false, features = ["std"] }
 digest-93f6ce9d446188ac = { package = "digest", version = "0.10", features = ["mac", "oid", "std"] }
+downcast-rs = { version = "1", default-features = false, features = ["std"] }
 ecdsa = { version = "0.16", default-features = false, features = ["pkcs8", "serde", "signing", "std", "verifying"] }
 ed25519 = { version = "2", default-features = false, features = ["alloc", "std"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
@@ -285,6 +286,7 @@ event-listener = { version = "5" }
 event-listener-strategy = { version = "0.5" }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
+fnv = { version = "1" }
 foldhash = { version = "0.2", default-features = false, features = ["std"] }
 form_urlencoded = { version = "1" }
 frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16" }
@@ -304,6 +306,7 @@ generic-array = { version = "0.14", default-features = false, features = ["more_
 getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["js", "std"] }
 getrandom_or_panic = { version = "0.0.3", default-features = false, features = ["std"] }
+gimli-f0a1752353b51542 = { package = "gimli", version = "0.33", default-features = false, features = ["read", "std", "write"] }
 hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
@@ -319,8 +322,7 @@ hyper-dff4ba8e3ae991db = { package = "hyper", version = "1", features = ["client
 hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "service"] }
 impl-codec = { version = "0.6", default-features = false, features = ["std"] }
 impl-serde = { version = "0.4" }
-indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-features = false, features = ["serde-1", "std"] }
-indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
+indexmap = { version = "2", features = ["serde"] }
 ipnet = { version = "2" }
 itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
@@ -343,9 +345,11 @@ merlin = { version = "3", default-features = false, features = ["std"] }
 names = { version = "0.14" }
 num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
-num-rational = { version = "0.4" }
+num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
-object = { version = "0.32", features = ["write"] }
+numerated = { version = "2", default-features = false, features = ["mock"] }
+object-51543b5218fc235c = { package = "object", version = "0.32", features = ["write"] }
+object-f645eb7eb1285ab4 = { package = "object", version = "0.39", default-features = false, features = ["read_core", "unaligned", "write"] }
 once_cell = { version = "1" }
 pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 pallet-staking-reward-fn = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
@@ -360,11 +364,13 @@ petgraph = { version = "0.6" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
+postcard = { version = "1", default-features = false, features = ["use-std"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
 predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
+proptest = { version = "1", features = ["alloc", "no_std"] }
 prost = { version = "0.12", features = ["prost-derive"] }
 pulley-interpreter = { version = "44", default-features = false, features = ["disas", "interp", "std"] }
 quanta = { version = "0.12" }
@@ -405,7 +411,6 @@ sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
 sha3 = { version = "0.10", features = ["asm"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
-slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["frame-metadata"] }
@@ -439,7 +444,6 @@ sp-tracing = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "29
 sp-transaction-pool = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-trie = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-version = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
-sp-wasm-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["wasmtime"] }
 sp-weights = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 spki = { version = "0.7", default-features = false, features = ["std"] }
 ss58-registry = { version = "1", default-features = false, features = ["std"] }
@@ -451,7 +455,6 @@ substrate-bip39 = { git = "https://github.com/paritytech/polkadot-sdk.git", rev 
 subtle = { version = "2" }
 subxt-metadata = { version = "0.44", default-features = false, features = ["std"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
-target-lexicon = { version = "0.12", default-features = false, features = ["std"] }
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tiny-keccak = { version = "2", features = ["keccak", "shake"] }
@@ -477,11 +480,18 @@ unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
-wasmi = { version = "0.38", features = ["extra-checks"] }
+wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
+wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
+wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
+wasmi-validation = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
+wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
 wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
 wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
+wasmtime = { version = "44" }
+wasmtime-environ = { version = "44", default-features = false, features = ["backtrace", "compile", "component-model", "demangle", "gc-drc", "gc-null", "stack-switching", "threads"] }
 wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
+wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
 winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
@@ -553,6 +563,7 @@ derive_more-impl = { version = "2", features = ["add", "add_assign", "as_ref", "
 digest-274715c4dabd11b0 = { package = "digest", version = "0.9", default-features = false, features = ["std"] }
 digest-93f6ce9d446188ac = { package = "digest", version = "0.10", features = ["mac", "oid", "std"] }
 displaydoc = { version = "0.2" }
+downcast-rs = { version = "1", default-features = false, features = ["std"] }
 ecdsa = { version = "0.16", default-features = false, features = ["pkcs8", "serde", "signing", "std", "verifying"] }
 ed25519 = { version = "2", default-features = false, features = ["alloc", "std"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
@@ -565,6 +576,7 @@ event-listener = { version = "5" }
 event-listener-strategy = { version = "0.5" }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
+fnv = { version = "1" }
 foldhash = { version = "0.2", default-features = false, features = ["std"] }
 form_urlencoded = { version = "1" }
 frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16" }
@@ -585,6 +597,7 @@ generic-array = { version = "0.14", default-features = false, features = ["more_
 getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["js", "std"] }
 getrandom_or_panic = { version = "0.0.3", default-features = false, features = ["std"] }
+gimli-f0a1752353b51542 = { package = "gimli", version = "0.33", default-features = false, features = ["read", "std", "write"] }
 hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
@@ -600,8 +613,7 @@ hyper-dff4ba8e3ae991db = { package = "hyper", version = "1", features = ["client
 hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "service"] }
 impl-codec = { version = "0.6", default-features = false, features = ["std"] }
 impl-serde = { version = "0.4" }
-indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-features = false, features = ["serde-1", "std"] }
-indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
+indexmap = { version = "2", features = ["serde"] }
 ipnet = { version = "2" }
 itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
@@ -624,9 +636,11 @@ merlin = { version = "3", default-features = false, features = ["std"] }
 names = { version = "0.14" }
 num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
-num-rational = { version = "0.4" }
+num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
-object = { version = "0.32", features = ["write"] }
+numerated = { version = "2", default-features = false, features = ["mock"] }
+object-51543b5218fc235c = { package = "object", version = "0.32", features = ["write"] }
+object-f645eb7eb1285ab4 = { package = "object", version = "0.39", default-features = false, features = ["read_core", "unaligned", "write"] }
 once_cell = { version = "1" }
 pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 pallet-staking-reward-fn = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
@@ -642,11 +656,13 @@ petgraph = { version = "0.6" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
+postcard = { version = "1", default-features = false, features = ["use-std"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
 predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
+proptest = { version = "1", features = ["alloc", "no_std"] }
 prost = { version = "0.12", features = ["prost-derive"] }
 pulley-interpreter = { version = "44", default-features = false, features = ["disas", "interp", "std"] }
 quanta = { version = "0.12" }
@@ -688,7 +704,6 @@ sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
 sha3 = { version = "0.10", features = ["asm"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
-slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["frame-metadata"] }
@@ -724,7 +739,6 @@ sp-tracing = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "29
 sp-transaction-pool = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-trie = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-version = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
-sp-wasm-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["wasmtime"] }
 sp-weights = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 spki = { version = "0.7", default-features = false, features = ["std"] }
 ss58-registry = { version = "1", default-features = false, features = ["std"] }
@@ -737,7 +751,6 @@ subtle = { version = "2" }
 subxt-metadata = { version = "0.44", default-features = false, features = ["std"] }
 syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "full", "visit"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
-target-lexicon = { version = "0.12", default-features = false, features = ["std"] }
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tiny-keccak = { version = "2", features = ["keccak", "shake"] }
@@ -763,18 +776,25 @@ unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
-wasmi = { version = "0.38", features = ["extra-checks"] }
+wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
+wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
+wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
+wasmi-validation = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
+wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
 wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
 wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
+wasmtime = { version = "44" }
+wasmtime-environ = { version = "44", default-features = false, features = ["backtrace", "compile", "component-model", "demangle", "gc-drc", "gc-null", "stack-switching", "threads"] }
 wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
+wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
 winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
-gimli = { version = "0.28" }
+gimli-1f5adca70f036a62 = { package = "gimli", version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
@@ -787,7 +807,7 @@ nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -797,7 +817,7 @@ unicode-normalization = { version = "0.1" }
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
-gimli = { version = "0.28" }
+gimli-1f5adca70f036a62 = { package = "gimli", version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
@@ -811,7 +831,7 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -821,7 +841,7 @@ unicode-normalization = { version = "0.1" }
 [target.aarch64-unknown-linux-gnu.dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
-gimli = { version = "0.28" }
+gimli-1f5adca70f036a62 = { package = "gimli", version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
@@ -834,7 +854,7 @@ nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -844,7 +864,7 @@ unicode-normalization = { version = "0.1" }
 [target.aarch64-unknown-linux-gnu.build-dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
-gimli = { version = "0.28" }
+gimli-1f5adca70f036a62 = { package = "gimli", version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
@@ -858,7 +878,7 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -868,7 +888,7 @@ unicode-normalization = { version = "0.1" }
 [target.aarch64-apple-darwin.dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
-gimli = { version = "0.28" }
+gimli-1f5adca70f036a62 = { package = "gimli", version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
@@ -877,7 +897,7 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 security-framework = { version = "3", features = ["OSX_10_14"] }
@@ -889,7 +909,7 @@ unicode-normalization = { version = "0.1" }
 [target.aarch64-apple-darwin.build-dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
-gimli = { version = "0.28" }
+gimli-1f5adca70f036a62 = { package = "gimli", version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
@@ -899,7 +919,7 @@ nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 security-framework = { version = "3", features = ["OSX_10_14"] }
