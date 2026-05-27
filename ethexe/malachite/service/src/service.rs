@@ -240,8 +240,11 @@ impl MalachiteService {
                     eb_hash: head.hash,
                     transactions: purged_txs,
                 };
-                if let Err(_err) = self.externalities.event_tx.send(Ok(event)) {
-                    todo!()
+                if let Err(err) = self.externalities.event_tx.send(Ok(event)) {
+                    tracing::error!(
+                        event = ?err.0,
+                        "malachite-service: event_tx channel closed, failed to send purged transactions event"
+                    );
                 };
             }
         }

@@ -11,7 +11,7 @@
 //! [`SignedTxReceipt`](ethexe_common::injected::SignedTxReceipt), but validators gossip the lighter
 //! [`SignedCompactTxReceipt`](ethexe_common::injected::SignedCompactTxReceipt): for a successful
 //! transaction it contains only [`CompactPromise`](ethexe_common::injected::CompactPromise), and for
-//! a rejected transaction it contains [`TransactionError`](ethexe_common::injected::TransactionError).
+//! purged transaction it contains [`PurgedTransaction`](ethexe_common::injected::PurgedTransaction).
 //!
 //! [`promise_manager::PromiseSubscriptionManager`] owns the RPC-side joining logic. It keeps:
 //! - one-shot subscribers keyed by transaction hash;
@@ -55,11 +55,11 @@
 //!
 //! ### Error Path
 //!
-//! Some transactions never execute and therefore have no promise body. When the producer removes
+//! Some transactions never execute and therefore have no promise body. When the producer purges
 //! such a transaction from the pool, it signs
-//! [`Receipt::Error`](ethexe_common::injected::Receipt::Error) with a
-//! [`TransactionErrorReason`](ethexe_common::injected::TransactionErrorReason), currently
-//! `Outdated` or `NonZeroValue`. `Receipt::Error` upgrades to a full
+//! [`Receipt::Purged`](ethexe_common::injected::Receipt::Purged) with a
+//! [`TransactionPurgedReason`](ethexe_common::injected::TransactionPurgedReason), currently
+//! `Outdated`, `UnknownReferenceBlock` or `NonZeroValue`. `Receipt::Purged` upgrades to a full
 //! [`SignedTxReceipt`](ethexe_common::injected::SignedTxReceipt) immediately because it does not
 //! depend on a full promise. RPC stores the receipt and sends it to the subscriber.
 //!
