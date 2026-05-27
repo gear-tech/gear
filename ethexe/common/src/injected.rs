@@ -235,14 +235,14 @@ impl PromiseKind for CompactPromise {
 pub enum Receipt<P> {
     Promise(P),
     /// No promise, transaction wasn't executed.
-    Error(TransactionError),
+    Purged(PurgedTransaction),
 }
 
 impl<P: PromiseKind> Receipt<P> {
     pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
         match self {
             Self::Promise(promise) => promise.tx_hash(),
-            Self::Error(err) => err.tx_hash,
+            Self::Purged(purged) => purged.tx_hash,
         }
     }
 }
@@ -254,7 +254,7 @@ impl<P: ToDigest> ToDigest for Receipt<P> {
                 hasher.update([0]);
                 hasher.update(promise.to_digest().0);
             }
-            Self::Error(err) => {
+            Self::Purged(err) => {
                 hasher.update([1]);
                 hasher.update(err.to_digest().0);
             }
@@ -294,8 +294,8 @@ impl SignedCompactTxReceipt {
             Receipt::Promise(compact) => {
                 UpgradedReceipt::Pending(UnfilledPromiseReceipt(compact, signature, address))
             }
-            Receipt::Error(error) => UpgradedReceipt::Ready(unsafe {
-                SignedMessage::from_parts_unchecked(Receipt::Error(error), signature, address)
+            Receipt::Purged(purged) => UpgradedReceipt::Ready(unsafe {
+                SignedMessage::from_parts_unchecked(Receipt::Purged(purged), signature, address)
                     .into()
             }),
         }
@@ -332,12 +332,12 @@ impl UnfilledPromiseReceipt {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[display("Injected transaction wasn't executed: tx_hash={tx_hash}, reason={reason}")]
-pub struct TransactionError {
+pub struct PurgedTransaction {
     pub tx_hash: HashOf<InjectedTransaction>,
-    pub reason: TransactionErrorReason,
+    pub reason: TransactionPurgedReason,
 }
 
-impl ToDigest for TransactionError {
+impl ToDigest for PurgedTransaction {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self { tx_hash, reason } = self;
         hasher.update(tx_hash.inner().0);
@@ -349,20 +349,27 @@ impl ToDigest for TransactionError {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-pub enum TransactionErrorReason {
-    /// Transaction is outdated and can not be included.
-    #[display("Transaction is outdated")]
+pub enum TransactionPurgedReason {
+    /// The transaction references an outdated block and cannot be included.
+    #[display("transaction reference block is outdated")]
     Outdated = 1,
+    /// The transaction references a block that is not known locally.
+    #[display("transaction reference block is unknown")]
+    UnknownReferenceBlock = 2,
 
-    // Important: Keep it in the end of enum.
-    //      In future we will support non zero value injected txs.
-    #[display("Transaction's value must be zero")]
-    NonZeroValue = 2,
+    /// The transaction has a non-zero value, which is not supported yet.
+    ///
+    /// Note: keep this variant at the end of the enum. The `u8::MAX`
+    /// discriminant intentionally leaves values `3..=254` available for
+    /// future purge reasons, including non-zero-value injected transactions.
+    #[display("transaction value must be zero")]
+    NonZeroValue = u8::MAX,
 }
 
-impl TransactionErrorReason {
+impl TransactionPurgedReason {
     pub fn variant_index(&self) -> u8 {
-        unsafe { (self as *const TransactionErrorReason as *const u8).read() }
+        // Safe, because of #[repr(u8)] attribute
+        unsafe { (self as *const Self as *const u8).read() }
     }
 }
 
@@ -479,12 +486,12 @@ mod tests {
 
     #[test]
     fn tx_receipt_has_the_same_hash_for_error() {
-        let error = TransactionError {
+        let purged = PurgedTransaction {
             tx_hash: unsafe { HashOf::new(H256::random()) },
-            reason: TransactionErrorReason::Outdated,
+            reason: TransactionPurgedReason::Outdated,
         };
-        let receipt1 = Receipt::<Promise>::Error(error.clone());
-        let receipt2 = Receipt::<CompactPromise>::Error(error);
+        let receipt1 = Receipt::<Promise>::Purged(purged.clone());
+        let receipt2 = Receipt::<CompactPromise>::Purged(purged);
 
         assert_eq!(receipt1.to_digest(), receipt2.to_digest());
     }

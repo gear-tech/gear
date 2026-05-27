@@ -235,13 +235,15 @@ impl MalachiteService {
         if advanced {
             // let eb_hash = head.hash;
             let purged_txs = self.mempool.set_chain_head(head);
-            let event = MalachiteEvent::PurgedTransactions {
-                eb_hash: head.hash,
-                transactions: purged_txs,
-            };
-            if let Err(_err) = self.externalities.event_tx.send(Ok(event)) {
-                todo!()
-            };
+            if !purged_txs.is_empty() {
+                let event = MalachiteEvent::PurgedTransactions {
+                    eb_hash: head.hash,
+                    transactions: purged_txs,
+                };
+                if let Err(_err) = self.externalities.event_tx.send(Ok(event)) {
+                    todo!()
+                };
+            }
         }
         self.externalities.drain_pending_events();
     }

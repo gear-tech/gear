@@ -3,7 +3,7 @@
 
 use crate::VaraEthApi;
 use alloy::rpc::types::TransactionReceipt;
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use ethexe_common::{
     Address, SimpleBlockData,
     gear_core::rpc::ReplyInfo,
@@ -257,8 +257,8 @@ impl<'a> Mirror<'a> {
             .clone();
         let promise = match receipt {
             Receipt::Promise(promise) => promise,
-            Receipt::Error(err) => {
-                return Err(anyhow!("injected transaction failed: {err}"));
+            Receipt::Purged(err) => {
+                bail!("injected transaction was purged: {err}")
             }
         };
 

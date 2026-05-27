@@ -31,6 +31,7 @@ pub use crate::{
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
+use ethexe_common::injected::PurgedTransaction;
 pub use ethexe_common::{
     injected::SignedInjectedTransaction,
     malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
@@ -64,7 +65,7 @@ pub enum MalachiteEvent {
     /// Transactions that was purged from mempool.
     PurgedTransactions {
         eb_hash: H256,
-        transactions: Vec<SignedInjectedTransaction>,
+        transactions: Vec<PurgedTransaction>,
     },
 }
 

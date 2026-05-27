@@ -723,6 +723,7 @@ mod tests {
     use ethexe_common::{
         BlockHeader,
         db::{BlockMetaStorageRW, OnChainStorageRW},
+        injected::PurgedTransaction,
         malachite::{ProcessQueuesLimits, ProgressTasksLimits},
     };
 
@@ -1083,7 +1084,7 @@ mod tests {
             Ok(())
         }
 
-        fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+        fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
             Vec::new()
         }
 

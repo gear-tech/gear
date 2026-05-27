@@ -39,7 +39,10 @@ use async_trait::async_trait;
 use ethexe_common::{
     HashOf, SimpleBlockData,
     db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{
+        InjectedTransaction, PurgedTransaction, SignedInjectedTransaction, TransactionPurgedReason,
+        VALIDITY_WINDOW,
+    },
 };
 use ethexe_db::Database;
 use gprimitives::H256;
@@ -103,7 +106,7 @@ pub trait Mempool: Send + Sync + 'static {
     /// Drives validity-window GC.
     /// Returns the purged injected transactions.
     #[must_use]
-    fn set_chain_head(&self, head: SimpleBlockData) -> Vec<SignedInjectedTransaction>;
+    fn set_chain_head(&self, head: SimpleBlockData) -> Vec<PurgedTransaction>;
 
     /// Txs whose `reference_block` is an ancestor of `head`.
     async fn fetch(&self, head: SimpleBlockData) -> Vec<SignedInjectedTransaction>;
@@ -125,7 +128,7 @@ impl Mempool for EmptyMempool {
         Ok(())
     }
 
-    fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+    fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
         Vec::new()
     }
 
@@ -233,11 +236,7 @@ impl InjectedTxMempool {
 
     /// Evict pool entries and seen-hashes whose `reference_block` has
     /// aged out relative to `head_height`.
-    fn purge_expired(
-        inner: &mut Inner,
-        head_height: u32,
-        db: &Database,
-    ) -> Vec<SignedInjectedTransaction> {
+    fn purge_expired(inner: &mut Inner, head_height: u32, db: &Database) -> Vec<PurgedTransaction> {
         inner.seen.retain(|tx_hash, ref_block| {
             match db.block_header(*ref_block).map(|h| h.height) {
                 Some(h) if !Self::is_expired(head_height, h) => true,
@@ -247,28 +246,36 @@ impl InjectedTxMempool {
                 }
             }
         });
-
-        let purged_txs = inner.pool.extract_if(|tx_hash, tx| {
+        let mut purged_txs = Vec::new();
+        inner.pool.retain(|tx_hash, tx| {
             let ref_block = tx.data().reference_block;
             match db.block_header(ref_block).map(|h| h.height) {
-                Some(h) if !Self::is_expired(head_height, h) => false,
+                Some(h) if !Self::is_expired(head_height, h) => true,
                 Some(h) => {
                     trace!(
                         %tx_hash, %ref_block, ref_height = h, head_height,
                         "dropping expired tx from pool",
                     );
-                    true
+                    purged_txs.push(PurgedTransaction {
+                        tx_hash: *tx_hash,
+                        reason: TransactionPurgedReason::Outdated,
+                    });
+                    false
                 }
                 None => {
                     trace!(
                         %tx_hash, %ref_block,
                         "dropping tx with unknown ref_block from pool",
                     );
-                    true
+                    purged_txs.push(PurgedTransaction {
+                        tx_hash: *tx_hash,
+                        reason: TransactionPurgedReason::UnknownReferenceBlock,
+                    });
+                    false
                 }
             }
         });
-        purged_txs.map(|(_tx_hash, tx)| tx).collect()
+        purged_txs
     }
 }
 
@@ -371,7 +378,7 @@ impl Mempool for InjectedTxMempool {
         Ok(())
     }
 
-    fn set_chain_head(&self, head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+    fn set_chain_head(&self, head: SimpleBlockData) -> Vec<PurgedTransaction> {
         let mut inner = self.inner.lock().expect("poisoned mempool");
         let h = head.header.height;
         if inner.latest_head_height == Some(h) {

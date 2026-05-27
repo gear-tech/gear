@@ -1122,8 +1122,8 @@ impl TxCommand {
                                 .clone();
                             let promise = match receipt {
                                 Receipt::Promise(promise) => promise,
-                                Receipt::Error(err) => {
-                                    return Err(anyhow!("injected transaction failed: {err}"));
+                                Receipt::Purged(err) => {
+                                    bail!("injected transaction was purged: {err}")
                                 }
                             };
                             let ReplyInfo {

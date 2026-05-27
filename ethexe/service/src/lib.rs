@@ -44,7 +44,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     gear::CodeState,
-    injected::Receipt,
+    injected::{CompactPromise, Receipt},
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -966,8 +966,39 @@ impl Service {
                         // `mb_meta.computed`.
                         compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
-                    MalachiteEvent::PurgedTransactions { .. } => {
-                        // todo!("handle me")
+                    MalachiteEvent::PurgedTransactions {
+                        eb_hash,
+                        transactions,
+                    } => {
+                        tracing::trace!(
+                            "purged {} transactions in ethereum block {eb_hash}",
+                            transactions.len()
+                        );
+                        let Some(pub_key) = validator_pub_key else {
+                            tracing::trace!(
+                                "validator public key not found, can not sign purged transactions"
+                            );
+                            continue;
+                        };
+
+                        let Some(rpc) = rpc.as_ref() else {
+                            tracing::trace!(
+                                "can not produce receipts for purged transactions without RPC service"
+                            );
+                            continue;
+                        };
+
+                        transactions.into_iter().for_each(|purged_tx| {
+                            let receipt = Receipt::<CompactPromise>::Purged(purged_tx);
+                            match signer.signed_message(pub_key, receipt, None) {
+                                Ok(signed_receipt) => rpc.receive_tx_receipt(signed_receipt.into()),
+                                Err(err) => {
+                                    tracing::error!(
+                                        "failed to sign purged transaction receipt: {err}"
+                                    );
+                                }
+                            }
+                        });
                     }
                 },
                 Event::Prometheus(event) => match event {
