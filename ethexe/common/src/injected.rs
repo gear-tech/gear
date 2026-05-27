@@ -4,15 +4,10 @@
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
 use core::hash::Hash;
-use ethexe_tpke::{
-    DecryptionShare, MasterPublicKey, TpkeError,
-    rand::{CryptoRng, RngCore},
-};
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
 use gsigner::{PrivateKey, secp256k1::signature::SignResult};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use proptest::prelude::Rng;
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
 
@@ -70,7 +65,7 @@ pub struct InjectedTransaction {
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
     pub value: u128,
-    /// Reference block hash.
+    /// Reference block number.
     pub reference_block: H256,
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
@@ -115,23 +110,6 @@ impl InjectedTransaction {
     /// Creates [`MessageId`] from [`InjectedTransaction`].
     pub fn to_message_id(&self) -> MessageId {
         MessageId::new(self.to_hash().inner().0)
-    }
-
-    /// Creates new [ShieldedTransaction], encrypted with provided validators [MasterPublicKey].
-    pub fn shield<R: CryptoRng + RngCore>(
-        self,
-        pk: &MasterPublicKey,
-        rng: &mut R,
-    ) -> Result<ShieldedTransaction, TpkeError> {
-        let original_tx_hash = self.to_hash();
-        let shielded_fields = (self.destination, self.value, self.payload);
-
-        Ok(ShieldedTransaction {
-            shielded_fields: ethexe_tpke::encrypt(&shielded_fields, pk, rng)?,
-            original_tx_hash,
-            reference_block: self.reference_block,
-            salt: self.salt,
-        })
     }
 }
 
@@ -229,53 +207,6 @@ impl SignedCompactPromise {
         SignedMessage::try_from_parts(promise, *self.0.signature(), self.0.address())
     }
 }
-
-/// Type alias for encrypted [InjectedTransaction]'s fields.
-type ShieldedFields = (ActorId, u128, LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>);
-
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct ShieldedTransaction {
-    /// Shadowed fields of base [InjectedTransaction]: destination, value, payload.
-    pub shielded_fields: ethexe_tpke::Encrypted<ShieldedFields>,
-    /// Hash of original [InjectedTransaction]. Used to verify transaction correctness after decoding.
-    pub original_tx_hash: HashOf<InjectedTransaction>,
-    /// Reference block hash.
-    pub reference_block: H256,
-    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
-    pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
-}
-
-/// Signed wrapper over [ShieldedTransaction].
-pub type SignedShieldedTransaction = SignedMessage<ShieldedTransaction>;
-
-impl ShieldedTransaction {
-    pub fn unshield(
-        self,
-        shares: &[DecryptionShare<ShadowedFields>],
-    ) -> Result<InjectedTransaction, TpkeError> {
-        let (destination, value, payload) = ethexe_tpke::decrypt(&self.shadowed_fields, shares)?;
-
-        Ok(InjectedTransaction {
-            destination,
-            payload,
-            value,
-            reference_block: self.reference_block,
-            salt: self.salt,
-        })
-    }
-}
-
-impl ToDigest for ShieldedTransaction {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        todo!()
-    }
-}
-
-pub enum AddressedShieldedTransaction {
-
-}
-
 /// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
 #[cfg(feature = "std")]
 mod serde_hex {
