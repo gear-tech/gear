@@ -51,7 +51,7 @@ pub fn spawn_pending_subscriber<F>(
                 error!(
                     ?receipt,
                     ?err,
-                    "serialization error: failed create `SubscriptionMessage` from promise; this must never happen"
+                    "serialization error: failed to create `SubscriptionMessage` from receipt; this must never happen"
                 );
             }
         }

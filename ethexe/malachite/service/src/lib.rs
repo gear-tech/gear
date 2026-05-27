@@ -62,7 +62,7 @@ pub enum MalachiteEvent {
         mb_hash: H256,
     },
 
-    /// Transactions that was purged from mempool.
+    /// Transactions that were purged from the mempool.
     PurgedTransactions {
         eb_hash: H256,
         transactions: Vec<PurgedTransaction>,
