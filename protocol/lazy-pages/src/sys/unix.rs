@@ -10,12 +10,15 @@ use nix::{
 use std::{io, sync::OnceLock};
 
 /// Signal handler which has been set before lazy-pages initialization.
-/// Currently use to support wasmer signal handler.
-/// Wasmer protects memory around wasm memory and for stack limits.
-/// It makes it only in `store` initialization when executor is created,
-/// see https://github.com/gear-tech/substrate/blob/gear-stable/client/executor/common/src/sandbox/wasmer_backend.rs
-/// and https://github.com/wasmerio/wasmer/blob/e6857d116134bdc9ab6a1dabc3544cf8e6aee22b/lib/vm/src/trap/traphandlers.rs#L548
-/// So, if we receive signal from unknown memory we should try to use old (wasmer) signal handler.
+/// Currently use to support wasmtime signal handler.
+/// Wasmtime protects memory around wasm memory and for stack limits.
+/// It initializes its Unix trap handler lazily when an engine/store first
+/// needs traps:
+/// https://docs.wasmtime.dev/api/src/wasmtime/runtime/vm/traphandlers/signals.rs.html
+/// Wasmtime's signal handler explicitly delegates unknown faults to the
+/// previously installed process handler:
+/// https://docs.wasmtime.dev/api/src/wasmtime/runtime/vm/sys/unix/signals.rs.html
+/// So, if we receive signal from unknown memory we should try to use old (wasmtime) signal handler.
 static OLD_SIG_HANDLER: OnceLock<SigHandler> = OnceLock::new();
 
 cfg_if! {
@@ -23,7 +26,8 @@ cfg_if! {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             let error_reg = nix::libc::REG_ERR as usize;
             let error_code = unsafe { *ucontext }.uc_mcontext.gregs[error_reg];
-            // Use second bit from err reg. See https://git.io/JEQn3
+            // Use the W/R bit from the page-fault error code.
+            // See https://wiki.osdev.org/Exceptions#Page_Fault.
             Some(error_code & 0b10 == 0b10)
         }
     } else if #[cfg(all(target_os = "linux", target_arch = "aarch64"))] {
@@ -208,17 +212,10 @@ where
     H: UserSignalHandler,
 {
     let handler = signal::SigHandler::SigAction(handle_sigsegv::<H>);
-    // Set additional SA_ONSTACK and SA_NODEFER to avoid problems with wasmer executor.
-    // See comment from shorturl.at/KMO68 :
-    // ```
-    //  SA_ONSTACK allows us to handle signals on an alternate stack,
-    //  so that the handler can run in response to running out of
-    //  stack space on the main stack. Rust installs an alternate
-    //  stack with sigaltstack, so we rely on that.
-    //  SA_NODEFER allows us to reenter the signal handler if we
-    //  crash while handling the signal, and fall through to the
-    //  Breakpad handler by testing handlingSegFault.
-    // ```
+    // SA_ONSTACK lets lazy-pages run on the alternate signal stack if the
+    // fault is caused by stack overflow. SA_NODEFER keeps nested faults from
+    // being masked, so an unhandled fault can still fall through to the
+    // previously installed handler.
     let sig_action = signal::SigAction::new(
         handler,
         signal::SaFlags::SA_SIGINFO | signal::SaFlags::SA_ONSTACK | signal::SaFlags::SA_NODEFER,

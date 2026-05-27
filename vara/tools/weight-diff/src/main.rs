@@ -510,7 +510,7 @@ fn main() -> Result<()> {
                 },
                 quote! {
                     //! This is auto-generated module that contains cost schedule from
-                    //! `pallets/gear/src/schedule.rs`.
+                    //! `vara/pallets/gear/src/schedule.rs`.
                     //!
                     //! See `./scripts/weight-dump.sh` if you want to update it.
                 },
