@@ -9,26 +9,18 @@ use gear_call_gen::{
     UploadProgramArgs,
 };
 use rand::{RngCore, SeedableRng, rngs::SmallRng};
-use std::fmt;
 
 pub(crate) const DEFAULT_TOP_UP_VALUE: u128 = 500_000_000_000_000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum, derive_more::Display)]
 #[value(rename_all = "lower")]
 pub enum ValueProfile {
+    #[display("dev")]
     Dev,
+    #[display("testnet")]
     Testnet,
+    #[display("mainnet")]
     Mainnet,
-}
-
-impl fmt::Display for ValueProfile {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Dev => "dev",
-            Self::Testnet => "testnet",
-            Self::Mainnet => "mainnet",
-        })
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

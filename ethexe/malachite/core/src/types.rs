@@ -7,7 +7,6 @@ use derive_where::derive_where;
 pub use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
 
 use crate::externalities::BlockPayload;
 
@@ -18,14 +17,21 @@ use crate::externalities::BlockPayload;
 /// arbitrary other consumers tomorrow) share a single address shape
 /// without each side reaching across crate boundaries for the inner
 /// representation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    derive_more::Display,
+)]
+#[display("0x{}", hex::encode(_0.0))]
 pub struct Address(pub gsigner::schemes::secp256k1::Address);
-
-impl Display for Address {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0.0))
-    }
-}
 
 impl Address {
     pub const fn from_inner(addr: gsigner::schemes::secp256k1::Address) -> Self {

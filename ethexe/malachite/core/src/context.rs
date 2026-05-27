@@ -15,10 +15,7 @@
 //! by the service / [`crate::Externalities`].
 
 use core::slice;
-use std::{
-    fmt::{self, Display, Formatter},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -86,7 +83,22 @@ impl malachitebft_core_types::Value for Value {
 }
 
 /// 32-byte content-addressed identifier for a [`Value`].
-#[derive(Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
+#[derive(
+    Copy,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Encode,
+    Decode,
+    derive_more::Display,
+    derive_more::Debug,
+)]
+#[display("0x{}", hex::encode(_0))]
+#[debug("ValueId(0x{})", hex::encode(_0))]
 pub struct ValueId(pub [u8; 32]);
 
 impl ValueId {
@@ -96,18 +108,6 @@ impl ValueId {
 
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
-    }
-}
-
-impl Display for ValueId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
-    }
-}
-
-impl fmt::Debug for ValueId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "ValueId({self})")
     }
 }
 

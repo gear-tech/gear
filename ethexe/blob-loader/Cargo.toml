@@ -19,6 +19,7 @@ alloy = { workspace = true, features = [
     "rpc-types",
     "rpc-types-beacon",
 ] }
+derive_more.workspace = true
 thiserror.workspace = true
 reqwest = { workspace = true, features = ["default-tls", "json"] }
 serde_json.workspace = true

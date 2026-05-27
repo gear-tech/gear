@@ -20,11 +20,12 @@ use futures::{
 };
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
-use std::{collections::HashSet, fmt, num::NonZero, pin::Pin, task::Poll};
+use std::{collections::HashSet, num::NonZero, pin::Pin, task::Poll};
 use tokio::{sync::OnceCell, time::Duration};
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 pub enum BlobLoaderEvent {
+    #[debug("{_0:?}")]
     BlobLoaded(CodeAndIdUnchecked),
 }
 
@@ -79,14 +80,6 @@ pub trait BlobLoaderService:
     fn into_box(self) -> Box<dyn BlobLoaderService>;
 
     fn pending_codes_len(&self) -> usize;
-}
-
-impl fmt::Debug for BlobLoaderEvent {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            BlobLoaderEvent::BlobLoaded(data) => data.fmt(f),
-        }
-    }
 }
 
 #[derive(Clone)]
