@@ -21,7 +21,10 @@ use ethexe_common::{
         mirror::{MessageEvent, ReplyEvent},
     },
     gear::BatchCommitment,
-    injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
+    injected::{
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Receipt,
+        TransactionPurgedReason,
+    },
     mock::*,
 };
 use ethexe_consensus::BatchCommitter;
@@ -1910,6 +1913,79 @@ async fn send_injected_tx() {
     assert_eq!(node1_db_tx, tx_for_node1.tx);
 
     stop_nodes([node0, node1]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn injected_tx_purged_receipt() {
+    init_logger();
+
+    let test_env_config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(test_env_config).await.unwrap();
+
+    let pubkey = env.validators[0].public_key;
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(9507)
+                .validator(env.validators[0]),
+        )
+        .await;
+    node.start_service().await;
+
+    let rpc_client = node
+        .rpc_ws_client()
+        .await
+        .expect("RPC client provide by node");
+
+    let tx = InjectedTransaction {
+        destination: ActorId::from(H160::random()),
+        payload: vec![].try_into().unwrap(),
+        value: 0,
+        reference_block: H256::zero(),
+        salt: vec![1].try_into().unwrap(),
+    };
+    let tx_hash = tx.to_hash();
+    let rpc_tx = AddressedInjectedTransaction {
+        recipient: pubkey.to_address(),
+        tx: env.signer.signed_message(pubkey, tx, None).unwrap(),
+    };
+
+    let mut subscription = rpc_client
+        .send_transaction_and_watch(rpc_tx)
+        .await
+        .expect("successfully subscribe for transaction receipt");
+
+    env.force_new_block().await;
+
+    let subscription_receipt = subscription
+        .next()
+        .await
+        .expect("subscription produces a receipt")
+        .expect("no RPC subscription error");
+    let Receipt::Purged(purged) = subscription_receipt.data() else {
+        panic!(
+            "expected purged receipt, got {:?}",
+            subscription_receipt.data()
+        );
+    };
+    assert_eq!(purged.tx_hash, tx_hash);
+    assert_eq!(
+        purged.reason,
+        TransactionPurgedReason::UnknownReferenceBlock
+    );
+
+    let stored_receipt = rpc_client
+        .get_transaction_receipt(tx_hash)
+        .await
+        .expect("receipt lookup succeeds")
+        .expect("receipt is stored");
+    assert_eq!(stored_receipt, subscription_receipt);
+
+    stop_nodes([node]).await;
 }
 
 /// 5+5 validator election handover: stage next validator set during the
