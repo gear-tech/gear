@@ -5,7 +5,7 @@ use ethexe_common::{
     HashOf,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedPromise,
+        SignedInjectedTransaction, SignedTxReceipt,
     },
 };
 use jsonrpsee::proc_macros::rpc;
@@ -34,18 +34,18 @@ pub trait Injected {
     #[subscription(
         name = "sendTransactionAndWatch",
         unsubscribe = "sendTransactionAndWatchUnsubscribe",
-        item = SignedPromise
+        item = SignedTxReceipt
     )]
     async fn send_transaction_and_watch(
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> jsonrpsee::core::SubscriptionResult;
 
-    #[method(name = "getTransactionPromise")]
-    async fn get_transaction_promise(
+    #[method(name = "getTransactionReceipt")]
+    async fn get_transaction_receipt(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> jsonrpsee::core::RpcResult<Option<SignedPromise>>;
+    ) -> jsonrpsee::core::RpcResult<Option<SignedTxReceipt>>;
 
     /// Retrieves injected transactions by the provided IDs
     #[method(name = "getTransactions")]

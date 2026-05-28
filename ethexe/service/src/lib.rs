@@ -44,7 +44,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     gear::CodeState,
-    injected::SignedCompactPromise,
+    injected::{CompactPromise, Receipt},
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -69,7 +69,7 @@ use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{FutureExt, StreamExt};
 use gprimitives::{ActorId, CodeId, H256};
-use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
+use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     num::NonZero,
@@ -782,24 +782,26 @@ impl Service {
                         // into the RPC subscription manager so the
                         // matching producer signature (which arrives via
                         // gossip or local self-signing below) can be
-                        // joined into a full SignedPromise.
+                        // joined into a full SignedTxReceipt.
                         if let Some(rpc) = &rpc {
                             rpc.receive_computed_promise(promise.clone());
                         }
 
                         // Producers additionally sign the promise hash
                         // and gossip the compact form so other nodes can
-                        // reconstruct the full SignedPromise once they
+                        // reconstruct the full SignedTxReceipt once they
                         // compute the matching body locally.
                         if let Some(pub_key) = validator_pub_key {
-                            let private_key = signer.private_key(pub_key)?;
-                            match SignedCompactPromise::create_from_promise(private_key, &promise) {
-                                Ok(compact) => {
-                                    if let Some(rpc) = &rpc {
-                                        rpc.receive_compact_promise(compact.clone());
+                            let receipt = Receipt::Promise(promise.to_compact());
+
+                            match signer.signed_message(pub_key, receipt, None) {
+                                Ok(compact_receipt) => {
+                                    if let Some(rpc) = rpc.as_ref() {
+                                        rpc.receive_tx_receipt(compact_receipt.clone().into());
                                     }
+
                                     if let Some(net) = network.as_mut() {
-                                        net.publish_promise(compact);
+                                        net.publish_tx_receipt(compact_receipt.into());
                                     }
                                 }
                                 Err(err) => {
@@ -860,9 +862,9 @@ impl Service {
                                 }
                             }
                         },
-                        NetworkEvent::PromiseMessage(compact_promise) => {
+                        NetworkEvent::TxReceiptMessage(receipt) => {
                             if let Some(rpc) = &rpc {
-                                rpc.receive_compact_promise(compact_promise);
+                                rpc.receive_tx_receipt(receipt);
                             }
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)
@@ -957,12 +959,46 @@ impl Service {
                         // here. Trigger compute so the body — including any
                         // injected-tx `Promise` — is produced locally; the
                         // matching `SignedCompactPromise` arrives via the
-                        // network and is joined into a full `SignedPromise`
+                        // network and is joined into a full `SignedTxReceipt`
                         // by the RPC subscription manager. Calls are
                         // idempotent: a proposer that already computed via
                         // `BlockProposal` short-circuits on
                         // `mb_meta.computed`.
                         compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
+                    }
+                    MalachiteEvent::PurgedTransactions {
+                        eb_hash,
+                        transactions,
+                    } => {
+                        tracing::trace!(
+                            "purged {} transactions in ethereum block {eb_hash}",
+                            transactions.len()
+                        );
+                        let Some(pub_key) = validator_pub_key else {
+                            tracing::trace!(
+                                "validator public key not found, can not sign purged transactions"
+                            );
+                            continue;
+                        };
+
+                        let Some(rpc) = rpc.as_ref() else {
+                            tracing::trace!(
+                                "can not produce receipts for purged transactions without RPC service"
+                            );
+                            continue;
+                        };
+
+                        transactions.into_iter().for_each(|purged_tx| {
+                            let receipt = Receipt::<CompactPromise>::Purged(purged_tx);
+                            match signer.signed_message(pub_key, receipt, None) {
+                                Ok(signed_receipt) => rpc.receive_tx_receipt(signed_receipt.into()),
+                                Err(err) => {
+                                    tracing::error!(
+                                        "failed to sign purged transaction receipt: {err}"
+                                    );
+                                }
+                            }
+                        });
                     }
                 },
                 Event::Prometheus(event) => match event {
