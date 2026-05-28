@@ -3,6 +3,7 @@ name = "sp-wasm-interface-common"
 version = "7.0.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+rust-version.workspace = true
 license = "Apache-2.0"
 homepage = "https://substrate.io"
 repository = "https://github.com/paritytech/substrate/"
@@ -15,7 +16,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { features = ["derive"], workspace = true }
-wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, optional = true }
+wasmi = { version = "0.13.2", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, optional = true }
 sp-std = { workspace = true, default-features = false }
 
 [features]
