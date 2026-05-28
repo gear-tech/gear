@@ -285,7 +285,7 @@ jobs:
 
       - name: Install dependencies
         run: forge soldeer install
-        working-directory: ./ethereum
+        working-directory: ./ethexe/contracts
 
       - name: "Show: Versioning"
         run: |

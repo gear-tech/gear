@@ -74,7 +74,7 @@ jobs:
 
       - name: Install dependencies
         run: forge soldeer install
-        working-directory: ./ethereum
+        working-directory: ./ethexe/contracts
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v6
