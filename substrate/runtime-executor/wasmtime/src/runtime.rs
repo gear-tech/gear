@@ -248,9 +248,7 @@ fn common_config(semantics: &Semantics) -> std::result::Result<wasmtime::Config,
         None => 1024 * 1024,
     };
 
-    let native_stack_max = native_stack_max as usize;
-    config.max_wasm_stack(native_stack_max);
-    config.async_stack_size(native_stack_max + 2 * 1024 * 1024);
+    config.max_wasm_stack(native_stack_max as usize);
 
     config.parallel_compilation(semantics.parallel_compilation);
 

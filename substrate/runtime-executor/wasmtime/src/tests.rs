@@ -203,14 +203,8 @@ fn deep_call_stack_wat(depth: usize) -> String {
 
 // We need two limits here since depending on whether the code is compiled in debug
 // or in release mode the maximum call depth is slightly different.
-// Linux CI enables Wasmtime async support through all-features, which leaves less native stack
-// headroom than the upstream non-async executor build.
-#[cfg(target_os = "linux")]
-const CALL_DEPTH_LOWER_LIMIT: usize = 64_000;
-
-#[cfg(not(target_os = "linux"))]
-const CALL_DEPTH_LOWER_LIMIT: usize = 65_451;
-const CALL_DEPTH_UPPER_LIMIT: usize = 65_506;
+const CALL_DEPTH_LOWER_LIMIT: usize = 65_455;
+const CALL_DEPTH_UPPER_LIMIT: usize = 65_509;
 
 test_wasm_execution!(test_consume_under_1mb_of_stack_does_not_trap);
 fn test_consume_under_1mb_of_stack_does_not_trap(instantiation_strategy: InstantiationStrategy) {
