@@ -525,7 +525,7 @@ fn test_rustix_version_matches_with_wasmtime() {
     let wasmtime_rustix = metadata
         .packages
         .iter()
-        .find(|pkg| pkg.name.as_ref() == "wasmtime-runtime")
+        .find(|pkg| pkg.name.as_ref() == "wasmtime")
         .unwrap()
         .dependencies
         .iter()
