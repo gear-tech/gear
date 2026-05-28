@@ -236,13 +236,14 @@ fn auto_reply_on_exit_exists() {
             .expect("Failed to query reply");
 
         assert_eq!(
-            res,
+            res.reply,
             ReplyInfo {
                 payload: vec![],
                 value: 0,
                 code: ReplyCode::Success(SuccessReplyReason::Auto)
             }
         );
+        assert!(res.messages.is_empty());
     });
 }
 
@@ -267,13 +268,14 @@ fn calculate_reply_for_handle_works() {
         .expect("Failed to query reply");
 
         assert_eq!(
-            res,
+            res.reply,
             ReplyInfo {
                 payload: b"PONG".to_vec(),
                 value: 0,
                 code: ReplyCode::Success(SuccessReplyReason::Manual)
             }
         );
+        assert!(res.messages.is_empty());
 
         // Out of gas panic case.
         let res =
@@ -281,7 +283,7 @@ fn calculate_reply_for_handle_works() {
                 .expect("Failed to query reply");
 
         assert_eq!(
-            res,
+            res.reply,
             ReplyInfo {
                 payload: vec![],
                 value: 0,
@@ -290,6 +292,7 @@ fn calculate_reply_for_handle_works() {
                 )),
             }
         );
+        assert!(res.messages.is_empty());
 
         // TODO: uncomment code below (issue #3804).
         // // Value returned in case of error.
@@ -302,6 +305,48 @@ fn calculate_reply_for_handle_works() {
         //     value,
         // ).expect("Failed to query reply");
         // assert_eq!(res.value, value);
+    })
+}
+
+#[test]
+fn calculate_reply_for_handle_returns_user_messages() {
+    use demo_constructor::{Arg, Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let handle = Calls::builder()
+            .source("source")
+            .send("source", Arg::bytes("USER"))
+            .reply(Arg::bytes("OK"));
+        let (_init_mid, program_id) = init_constructor(Scheme::with_handle(handle));
+
+        run_to_next_block(None);
+
+        let res = Gear::calculate_reply_for_handle(
+            USER_1,
+            program_id,
+            b"PING".to_vec(),
+            100_000_000_000,
+            0,
+        )
+        .expect("Failed to query reply");
+
+        assert_eq!(
+            res.reply,
+            ReplyInfo {
+                payload: b"OK".to_vec(),
+                value: 0,
+                code: ReplyCode::Success(SuccessReplyReason::Manual)
+            }
+        );
+
+        assert_eq!(res.messages.len(), 1);
+        let message = &res.messages[0];
+        assert_eq!(message.source(), program_id);
+        assert_eq!(message.destination(), USER_1.into_origin().into());
+        assert_eq!(message.payload_bytes(), b"USER");
+        assert_eq!(message.value(), 0);
+        assert!(message.details().is_none());
     })
 }
 

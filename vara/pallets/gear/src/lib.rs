@@ -43,7 +43,7 @@ pub use crate::{
         MemoryWeights, RentWeights, Schedule, SyscallWeights, TaskWeights,
     },
 };
-pub use gear_core::rpc::{GasInfo, ReplyInfo};
+pub use gear_core::rpc::{CalculateReplyForHandleResult, GasInfo, ReplyInfo};
 pub use weights::WeightInfo;
 
 use crate::internal::InheritorForError;
@@ -773,7 +773,7 @@ pub mod pallet {
             gas_limit: u64,
             value: u128,
             allowance_multiplier: u64,
-        ) -> Result<ReplyInfo, Vec<u8>> {
+        ) -> Result<CalculateReplyForHandleResult, Vec<u8>> {
             Self::calculate_reply_for_handle_impl(
                 origin,
                 destination.cast(),
@@ -792,7 +792,7 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_limit: u64,
             value: u128,
-        ) -> Result<ReplyInfo, String> {
+        ) -> Result<CalculateReplyForHandleResult, String> {
             Self::run_with_ext_copy(|| {
                 Self::calculate_reply_for_handle_impl(
                     origin.cast(),

@@ -20,7 +20,7 @@ use jsonrpsee::{
     types::{ErrorObjectOwned, error::ErrorObject},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
-use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
+use pallet_gear_rpc_runtime_api::{CalculateReplyForHandleResult, GasInfo, HandleKind, ReplyInfo};
 use sc_client_api::BlockchainEvents;
 use sc_rpc::SubscriptionTaskExecutor;
 use sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
@@ -57,6 +57,17 @@ pub trait GearApi<BlockHash, ResponseType> {
         value: RpcValue,
         at: Option<BlockHash>,
     ) -> RpcResult<ReplyInfo>;
+
+    #[method(name = "gear_calculateReplyForHandleResult")]
+    fn calculate_reply_for_handle_result(
+        &self,
+        origin: H256,
+        destination: H256,
+        payload: Bytes,
+        gas_limit: u64,
+        value: RpcValue,
+        at: Option<BlockHash>,
+    ) -> RpcResult<CalculateReplyForHandleResult>;
 
     #[method(name = "gear_calculateInitCreateGas", aliases = ["gear_calculateGasForCreate"])]
     fn get_init_create_gas_spent(
@@ -255,6 +266,49 @@ where
             }
         })
     }
+
+    fn calculate_reply_for_handle_result(
+        &self,
+        at_hash: <Block as BlockT>::Hash,
+        origin: H256,
+        destination: H256,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: RpcValue,
+    ) -> RpcResult<CalculateReplyForHandleResult> {
+        let api_version = self.get_api_version(at_hash)?;
+
+        self.run_with_api_copy(|api| {
+            if api_version < 3 {
+                #[allow(deprecated)]
+                api.calculate_reply_for_handle_before_version_3(
+                    at_hash,
+                    origin,
+                    destination,
+                    payload,
+                    gas_limit,
+                    value.0,
+                    self.allowance_multiplier,
+                )
+                .map(|result| {
+                    result.map(|reply| CalculateReplyForHandleResult {
+                        reply,
+                        messages: Vec::new(),
+                    })
+                })
+            } else {
+                api.calculate_reply_for_handle(
+                    at_hash,
+                    origin,
+                    destination,
+                    payload,
+                    gas_limit,
+                    value.0,
+                    self.allowance_multiplier,
+                )
+            }
+        })
+    }
 }
 
 /// Error type of this RPC api.
@@ -293,17 +347,36 @@ where
     ) -> RpcResult<ReplyInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.run_with_api_copy(|api| {
-            api.calculate_reply_for_handle(
-                at_hash,
-                origin,
-                destination,
-                payload.to_vec(),
-                gas_limit,
-                value.0,
-                self.allowance_multiplier,
-            )
-        })
+        self.calculate_reply_for_handle_result(
+            at_hash,
+            origin,
+            destination,
+            payload.to_vec(),
+            gas_limit,
+            value,
+        )
+        .map(|result| result.reply)
+    }
+
+    fn calculate_reply_for_handle_result(
+        &self,
+        origin: H256,
+        destination: H256,
+        payload: Bytes,
+        gas_limit: u64,
+        value: RpcValue,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<CalculateReplyForHandleResult> {
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        self.calculate_reply_for_handle_result(
+            at_hash,
+            origin,
+            destination,
+            payload.to_vec(),
+            gas_limit,
+            value,
+        )
     }
 
     fn get_init_create_gas_spent(

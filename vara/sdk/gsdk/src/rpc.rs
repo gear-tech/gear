@@ -6,7 +6,7 @@
 use crate::{Api, GasInfo, IntoAccountId32, result::Result, utils};
 use gear_core::{
     ids::{CodeId, MessageId},
-    rpc::ReplyInfo,
+    rpc::{CalculateReplyForHandleResult, ReplyInfo},
 };
 use gsdk_codegen::at_block;
 use parity_scale_codec::Decode;
@@ -263,6 +263,35 @@ impl Api {
         self.rpc()
             .request(
                 "gear_calculateReplyForHandle",
+                rpc_params![
+                    H256(origin.into_account_id().0),
+                    H256(destination.into_account_id().0),
+                    hex::encode(payload),
+                    gas_limit,
+                    value,
+                    block_hash
+                ],
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Calculates a reply and user messages for a given message at specified block.
+    ///
+    /// Actually calls `gear_calculateReplyForHandleResult` RPC method.
+    #[at_block]
+    pub async fn calculate_reply_for_handle_result_at(
+        &self,
+        origin: impl IntoAccountId32,
+        destination: impl IntoAccountId32,
+        payload: impl AsRef<[u8]>,
+        gas_limit: u64,
+        value: u128,
+        block_hash: Option<H256>,
+    ) -> Result<CalculateReplyForHandleResult> {
+        self.rpc()
+            .request(
+                "gear_calculateReplyForHandleResult",
                 rpc_params![
                     H256(origin.into_account_id().0),
                     H256(destination.into_account_id().0),

@@ -7,9 +7,10 @@ use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, SyscallKind, TryNewCodeConfig},
+    message::UserMessage,
     pages::{WasmPage, numerated::tree::IntervalsTree},
     program::{ActiveProgram, MemoryInfix},
-    rpc::ReplyInfo,
+    rpc::{CalculateReplyForHandleResult, ReplyInfo},
 };
 use gear_wasm_instrument::syscalls::SyscallName;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
@@ -41,7 +42,7 @@ where
         gas_limit: u64,
         value: u128,
         allowance_multiplier: u64,
-    ) -> Result<ReplyInfo, String> {
+    ) -> Result<CalculateReplyForHandleResult, String> {
         // Enabling lazy-pages for this thread.
         Self::enable_lazy_pages();
 
@@ -74,15 +75,21 @@ where
 
         // Creating new manager for queue processing.
         let mut ext_manager = ExtManager::<T>::new(builtin_dispatcher);
+        let mut messages = Vec::new();
 
         // Queue processing loop.
         //
         // Running queue head message if exists.
         while let Some((_, journal, _)) = Self::dequeue_head_and_run(&mut ext_manager, None)? {
+            let mut reply = None;
+
             // Looking through all notes in order to find required reply.
             for note in &journal {
                 // Only paying attention on dispatch sends.
-                let JournalNote::SendDispatch { dispatch, .. } = note else {
+                let JournalNote::SendDispatch {
+                    dispatch, delay, ..
+                } = note
+                else {
                     continue;
                 };
 
@@ -92,12 +99,24 @@ where
                     .map(ReplyDetails::into_parts)
                     .and_then(|(replied_to, code)| replied_to.eq(&message_id).then_some(code))
                 {
-                    return Ok(ReplyInfo {
+                    reply = Some(ReplyInfo {
                         payload: dispatch.payload_bytes().to_vec(),
                         value: dispatch.value(),
                         code,
                     });
+                    continue;
                 }
+
+                if delay.is_zero() && ext_manager.check_user_id(&dispatch.destination()) {
+                    messages.push(
+                        UserMessage::try_from(dispatch.message().clone().into_stored())
+                            .map_err(|_| "Failed to convert dispatch into user message")?,
+                    );
+                }
+            }
+
+            if let Some(reply) = reply {
+                return Ok(CalculateReplyForHandleResult { reply, messages });
             }
 
             // Processing notes since reply wasn't found.
