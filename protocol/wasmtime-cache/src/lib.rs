@@ -9,7 +9,7 @@ use std::{
     num::NonZeroUsize,
     sync::{Mutex, OnceLock},
 };
-use wasmtime::{Engine, Module};
+use wasmtime::{Engine, Module, error::Context};
 
 const MODULES_CACHE_CAPACITY: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
 
@@ -28,6 +28,7 @@ fn hash(code: &[u8]) -> u64 {
 
 enum ModuleFrom {
     Lru(Module),
+    EngineChanged(Module),
     New(Module),
 }
 
@@ -37,11 +38,23 @@ fn get_impl(engine: &Engine, code: &[u8]) -> wasmtime::Result<ModuleFrom> {
 
     if let Some(module) = modules.get(&hash) {
         tracing::trace!("load wasmtime module from LRU cache");
+
+        if !Engine::same(module.engine(), engine) {
+            tracing::trace!("reserialize module because of changed engine");
+            let module = module.serialize().context("failed to serialize module")?;
+            let module = unsafe {
+                Module::deserialize(engine, &module).context("failed to deserialize module")?
+            };
+            let old_module = modules.put(hash, module.clone());
+            debug_assert!(old_module.is_some());
+            return Ok(ModuleFrom::EngineChanged(module));
+        }
+
         return Ok(ModuleFrom::Lru(module.clone()));
     }
 
     tracing::trace!("create wasmtime module because of missed LRU cache");
-    let module = Module::new(engine, code)?;
+    let module = Module::new(engine, code).context("failed to create module")?;
     let old_module = modules.put(hash, module.clone());
     debug_assert!(old_module.is_none());
 
@@ -51,7 +64,9 @@ fn get_impl(engine: &Engine, code: &[u8]) -> wasmtime::Result<ModuleFrom> {
 /// Returns a compiled Wasmtime module, using an in-memory LRU cache on hits.
 pub fn get(engine: &Engine, code: &[u8]) -> wasmtime::Result<Module> {
     match get_impl(engine, code)? {
-        ModuleFrom::Lru(module) | ModuleFrom::New(module) => Ok(module),
+        ModuleFrom::Lru(module) | ModuleFrom::EngineChanged(module) | ModuleFrom::New(module) => {
+            Ok(module)
+        }
     }
 }
 
@@ -70,5 +85,8 @@ mod tests {
 
         let module = get_impl(&engine, EMPTY_WASM).expect("module loads from cache");
         assert!(matches!(module, ModuleFrom::Lru(_)));
+
+        let module = get_impl(&Engine::default(), EMPTY_WASM).expect("module loads from cache");
+        assert!(matches!(module, ModuleFrom::EngineChanged(_)));
     }
 }
