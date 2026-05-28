@@ -6,13 +6,13 @@
 use crate::{
     app,
     codec::ScaleCodec,
-    config::{MalachiteConfig, NodeRole},
+    config::{MalachiteConfig, NodeRole, ValidatorEntry},
     context::{MalachiteCtx, Validator, ValidatorSet},
     externalities::{BlockPayload, Externalities},
     signing::{
         MalachiteSigner, libp2p_keypair_from, private_key_from_gsigner, public_key_from_gsigner,
     },
-    state::{SharedValidatorSet, State},
+    state::{SharedValidatorPeers, SharedValidatorSet, State},
     store::Store,
     types::Address,
 };
@@ -28,10 +28,12 @@ use malachitebft_app_channel::{
             PubSubProtocol, RuntimeConfig, TransportProtocol, ValuePayload, ValueSyncConfig,
         },
         metrics::SharedRegistry,
+        types::PeerId,
     },
 };
 use malachitebft_core_types::ValidatorProof;
 use std::{
+    collections::BTreeSet,
     marker::PhantomData,
     pin::Pin,
     sync::Arc,
@@ -52,6 +54,7 @@ pub struct MalachiteService<P: BlockPayload, EXT: Externalities<P>> {
     /// Shared with the inner app loop; [`Self::update_validators`]
     /// writes here, the next `Finalized` / `ConsensusReady` reply reads.
     validator_set: SharedValidatorSet,
+    validator_peers: SharedValidatorPeers,
     _externalities: Arc<EXT>,
     _phantom: PhantomData<fn() -> P>,
 }
@@ -119,19 +122,15 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
 
         let libp2p_keypair = libp2p_keypair_from(&validator_secret_bytes);
 
-        // ---- validator set from config ----
+        // ---- validator identities from config ----
         if config.validators.is_empty() {
             return Err(anyhow::anyhow!("MalachiteConfig::validators is empty"));
         }
-        let mut validators = Vec::with_capacity(config.validators.len());
-        for entry in &config.validators {
-            let pk = public_key_from_gsigner(&entry.public_key)
-                .context("converting validator public key")?;
-            validators.push(Validator::new(pk, entry.voting_power));
-        }
-        let initial_validator_set = ValidatorSet::new(validators);
+        let (initial_validator_set, initial_validator_peers) =
+            build_validator_state(&config.validators)?;
         let in_set = initial_validator_set.get_by_address(&address).is_some();
         let validator_set = SharedValidatorSet::new(initial_validator_set);
+        let validator_peers = SharedValidatorPeers::new(initial_validator_peers);
 
         // ---- network identity, role-dependent ----
         let identity = match config.role {
@@ -139,6 +138,25 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
                 if !in_set {
                     return Err(anyhow::anyhow!(
                         "NodeRole::Validator: local address {address} not present in MalachiteConfig::validators"
+                    ));
+                }
+                let local_peer_id = libp2p_keypair.public().to_peer_id();
+                let configured_peer_id = config
+                    .validators
+                    .iter()
+                    .find_map(|entry| {
+                        let pk = public_key_from_gsigner(&entry.public_key).ok()?;
+                        (Address::from_public_key(&pk) == address).then_some(entry.peer_id)
+                    })
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "NodeRole::Validator: local address {address} not present in MalachiteConfig::validators"
+                        )
+                    })?;
+                if configured_peer_id != local_peer_id {
+                    return Err(anyhow::anyhow!(
+                        "NodeRole::Validator: local validator {address} peer id mismatch: \
+                         configured {configured_peer_id}, derived {local_peer_id}"
                     ));
                 }
                 let peer_id_bytes = libp2p_keypair.public().to_peer_id().to_bytes();
@@ -194,6 +212,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
         let state = State::<P>::new(
             signer,
             validator_set.clone(),
+            validator_peers.clone(),
             address,
             store,
             config.propose_timeout,
@@ -214,6 +233,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
             engine,
             app_handle,
             validator_set,
+            validator_peers,
             _externalities: externalities,
             _phantom: PhantomData,
         })
@@ -234,16 +254,37 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
                 "MalachiteService::update_validators: empty validators list"
             ));
         }
-        let mut converted = Vec::with_capacity(validators.len());
-        for entry in &validators {
-            let pk = public_key_from_gsigner(&entry.public_key)
-                .context("converting validator public key")?;
-            converted.push(Validator::new(pk, entry.voting_power));
-        }
-        let new_set = ValidatorSet::new(converted);
+        let (new_set, new_peers) = build_validator_state(&validators)?;
         self.validator_set.update(new_set);
+        self.validator_peers.update(new_peers);
         Ok(())
     }
+}
+
+fn build_validator_state(
+    validators: &[ValidatorEntry],
+) -> Result<(ValidatorSet, BTreeSet<PeerId>)> {
+    let mut converted = Vec::with_capacity(validators.len());
+    let mut peers = BTreeSet::new();
+    for entry in validators {
+        let pk = public_key_from_gsigner(&entry.public_key)
+            .with_context(|| format!("converting validator public key {}", entry.public_key))?;
+        let address = Address::from_public_key(&pk);
+        let peer = PeerId::from_bytes(&entry.peer_id.to_bytes()).map_err(|e| {
+            anyhow::anyhow!(
+                "validator {address} has malformed peer_id {}: {e}",
+                entry.peer_id
+            )
+        })?;
+        if !peers.insert(peer) {
+            return Err(anyhow::anyhow!(
+                "duplicate Malachite validator peer_id {} for validator {address}",
+                entry.peer_id
+            ));
+        }
+        converted.push(Validator::new(pk, entry.voting_power));
+    }
+    Ok((ValidatorSet::new(converted), peers))
 }
 
 impl<P: BlockPayload, EXT: Externalities<P>> Stream for MalachiteService<P, EXT> {
@@ -261,6 +302,99 @@ impl<P: BlockPayload, EXT: Externalities<P>> FusedStream for MalachiteService<P,
 }
 
 impl<P: BlockPayload, EXT: Externalities<P>> MService for MalachiteService<P, EXT> {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        signing::libp2p_peer_id,
+        types::{Block, CommitCertificate, H256},
+    };
+    use async_trait::async_trait;
+    use gsigner::schemes::secp256k1::PrivateKey;
+    use parity_scale_codec::{Decode, Encode};
+    use std::{sync::Arc, time::Duration};
+
+    #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+    struct TestPayload;
+
+    struct NoopExt;
+
+    #[async_trait]
+    impl Externalities<TestPayload> for NoopExt {
+        async fn process_mb_proposal(&self, _: H256, _: Block<TestPayload>) -> Result<()> {
+            Ok(())
+        }
+
+        async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
+            Ok(())
+        }
+
+        async fn build_block_above(&self, _: H256) -> Result<TestPayload> {
+            Ok(TestPayload)
+        }
+
+        async fn validate_block_above(&self, _: H256, _: TestPayload) -> Result<bool> {
+            Ok(true)
+        }
+    }
+
+    fn secret(seed: u8) -> [u8; 32] {
+        let mut bytes = [0u8; 32];
+        bytes[31] = seed;
+        bytes
+    }
+
+    fn validator_entry(seed: u8) -> ValidatorEntry {
+        let secret = secret(seed);
+        let private_key = PrivateKey::from_seed(secret).expect("private key");
+        ValidatorEntry {
+            public_key: private_key.public_key(),
+            peer_id: libp2p_peer_id(&secret),
+            voting_power: 1,
+        }
+    }
+
+    #[test]
+    fn validator_state_rejects_duplicate_peer_ids() {
+        let one = validator_entry(1);
+        let mut two = validator_entry(2);
+        two.peer_id = one.peer_id;
+
+        let error = build_validator_state(&[one, two]).unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("duplicate Malachite validator peer_id")
+        );
+    }
+
+    #[tokio::test]
+    async fn validator_start_rejects_local_peer_id_mismatch() {
+        let local_secret = secret(1);
+        let local_private_key = PrivateKey::from_seed(local_secret).expect("private key");
+        let mut entry = validator_entry(1);
+        entry.peer_id = libp2p_peer_id(&secret(2));
+        let base = tempfile::tempdir().expect("malachite base");
+        let config = MalachiteConfig {
+            listen_addr: "127.0.0.1:0".parse().expect("listen addr"),
+            base: base.path().to_path_buf(),
+            persistent_peers: Vec::new(),
+            validator_secret: local_private_key,
+            validators: vec![entry],
+            role: NodeRole::Validator,
+            propose_timeout: Duration::from_secs(1),
+        };
+
+        let error = match MalachiteService::new(config, Arc::new(NoopExt)).await {
+            Ok(_) => panic!("startup with mismatched peer id must fail"),
+            Err(error) => error,
+        };
+
+        assert!(error.to_string().contains("peer id mismatch"));
+    }
+}
 
 fn build_inner_config(cfg: &MalachiteConfig, moniker: &str) -> InnerNodeConfig {
     let transport = TransportProtocol::Tcp;

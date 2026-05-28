@@ -186,6 +186,11 @@ impl PartStreamsMap {
         Self::default()
     }
 
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.streams.len()
+    }
+
     /// Insert a part. Returns `Some(parts)` once the stream is
     /// complete (all parts seen + Fin received). Subsequent calls for
     /// the same `(peer, stream)` after completion return `None` — the

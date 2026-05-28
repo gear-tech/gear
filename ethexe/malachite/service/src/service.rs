@@ -51,8 +51,8 @@ pub struct MalachiteService {
     /// by the observer.
     externalities: Arc<EthexeExternalities>,
     /// On-chain validator addresses only — we keep operator-supplied
-    /// pub keys here so era rotations can resolve them back.
-    validator_pool: HashMap<Address, gsigner::schemes::secp256k1::PublicKey>,
+    /// identities here so era rotations can resolve them back.
+    validator_pool: HashMap<Address, ValidatorEntry>,
     /// Era of the set currently in the engine; gates rotation no-ops.
     active_era: Option<u64>,
     /// Inner ethexe-malachite-core service. Held in an `Option` so
@@ -167,11 +167,11 @@ impl MalachiteService {
             post_quarantine_delay: config.post_quarantine_delay,
         });
 
-        // On-chain addresses → pub keys, so era rotations resolve back without an out-of-band lookup.
-        let validator_pool: HashMap<Address, gsigner::schemes::secp256k1::PublicKey> = config
+        // On-chain addresses → full identities, so era rotations resolve back without an out-of-band lookup.
+        let validator_pool: HashMap<Address, ValidatorEntry> = config
             .validators
             .iter()
-            .map(|v| (v.public_key.to_address(), v.public_key))
+            .map(|v| (v.public_key.to_address(), v.clone()))
             .collect();
 
         let inner =
@@ -266,7 +266,7 @@ impl MalachiteService {
     }
 
     /// Push the on-chain validators for `head`'s era into the engine,
-    /// if the era moved. Skips on missing DB data or unknown pub keys
+    /// if the era moved. Skips on missing DB data or unknown identities
     /// (wait-and-retry: the next `BlockSynced` re-evaluates).
     fn maybe_rotate_validators_for_era(&mut self, head: &SimpleBlockData) {
         let db = &self.externalities.db;
@@ -286,10 +286,7 @@ impl MalachiteService {
         let mut missing: Vec<Address> = Vec::new();
         for addr in addrs.iter() {
             match self.validator_pool.get(addr) {
-                Some(pk) => new_set.push(ValidatorEntry {
-                    public_key: *pk,
-                    voting_power: 1,
-                }),
+                Some(identity) => new_set.push(identity.clone()),
                 None => missing.push(*addr),
             }
         }
@@ -298,7 +295,7 @@ impl MalachiteService {
             tracing::warn!(
                 era,
                 missing = ?missing,
-                "validator pool missing pub keys for some on-chain era validators; \
+                "validator pool missing identities for some on-chain era validators; \
                  keeping the previous active set",
             );
             return;

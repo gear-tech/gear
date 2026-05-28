@@ -7,19 +7,17 @@ use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
 pub use malachitebft_app_channel::app::net::Multiaddr;
 
-/// One entry of the validator set. The set is fixed for the lifetime
-/// of the deployment — to rotate validators every node must be
-/// re-bootstrapped from a fresh [`MalachiteConfig`].
-//
-// TODO: #5480 add `libp2p_peer_id: PeerId` so receivers can gate
-//       `ReceivedProposalPart` against a validator-peer-id allowlist
-//       (libp2p peer-id is not derivable from `public_key` alone — operators
-//       must compute it offline via `libp2p_peer_id(&secret)` and embed it).
+/// One entry of the active validator set.
 #[derive(Clone, Debug)]
 pub struct ValidatorEntry {
     /// secp256k1 public key for this validator. The on-chain address
     /// is derived from it (`keccak256(uncompressed_pubkey[1..])[12..]`).
     pub public_key: gsigner::schemes::secp256k1::PublicKey,
+    /// Libp2p peer ID of this validator's Malachite swarm identity.
+    /// This is not derivable from [`Self::public_key`] alone because
+    /// Malachite uses a domain-separated libp2p key. Operators can
+    /// materialize it offline with [`crate::libp2p_peer_id`].
+    pub peer_id: libp2p_identity::PeerId,
     /// Voting power. Must be > 0; the BFT quorum threshold is
     /// `> 2/3` of the total voting power across the set.
     pub voting_power: u64,

@@ -25,6 +25,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_malachite::{
     EmptyMempool, MalachiteConfig, MalachiteEvent, MalachiteService, ValidatorEntry,
+    malachite_libp2p_peer_id,
 };
 use futures::StreamExt as _;
 use gprimitives::H256;
@@ -90,6 +91,7 @@ fn build_config(
     home: &Path,
     listen_port: u16,
     pub_key: gsigner::schemes::secp256k1::PublicKey,
+    peer_id: ethexe_malachite::PeerId,
 ) -> MalachiteConfig {
     MalachiteConfig {
         gas_allowance: MalachiteConfig::DEFAULT_GAS_ALLOWANCE,
@@ -103,6 +105,7 @@ fn build_config(
         persistent_peers: Vec::new(),
         validators: vec![ValidatorEntry {
             public_key: pub_key,
+            peer_id,
             voting_power: 1,
         }],
     }
@@ -179,10 +182,16 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     let chain = seed_chain(&db, 64, 0xDEAD_BEEF);
 
     let (signer, pub_key) = build_signer(home.path());
+    let peer_id = malachite_libp2p_peer_id(
+        &signer
+            .private_key(pub_key)
+            .expect("validator key")
+            .to_bytes(),
+    );
 
     // ---- first run -------------------------------------------------
     let mut svc = MalachiteService::new(
-        build_config(home.path(), 30_001, pub_key),
+        build_config(home.path(), 30_001, pub_key, peer_id),
         db.clone(),
         signer.clone(),
         Some(pub_key),
@@ -224,7 +233,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
 
     // ---- second run on the SAME home dir + DB ----------------------
     let mut svc2 = MalachiteService::new(
-        build_config(home.path(), 30_001, pub_key),
+        build_config(home.path(), 30_001, pub_key, peer_id),
         db.clone(),
         signer,
         Some(pub_key),

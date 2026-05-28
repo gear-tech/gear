@@ -125,8 +125,8 @@ impl ExternalDataProvider for RouterDataProvider {
 
 /// Build the Malachite validator set from the on-chain validator
 /// list (in router order) by looking each address up in the
-/// `address -> public key` table loaded from the
-/// `--validators-malachite-pub-keys` JSON file.
+/// `address -> validator identity` table loaded from the
+/// `--validators-malachite-identities` JSON file.
 ///
 /// Voting power is fixed at 1 — Malachite quorum is `> 2/3` of the
 /// total, which under uniform weights matches the Router's
@@ -134,19 +134,20 @@ impl ExternalDataProvider for RouterDataProvider {
 /// stake, the lookup here is the natural place to plumb it through.
 fn build_malachite_validator_set(
     on_chain_validators: impl IntoIterator<Item = Address>,
-    pub_keys: &BTreeMap<Address, PublicKey>,
+    identities: &BTreeMap<Address, config::ValidatorIdentity>,
 ) -> Result<Vec<ValidatorEntry>> {
     on_chain_validators
         .into_iter()
         .map(|addr| {
-            let pub_key = pub_keys.get(&addr).copied().with_context(|| {
+            let identity = identities.get(&addr).with_context(|| {
                 format!(
-                    "validator address {addr} has no entry in --validators-malachite-pub-keys; \
+                    "validator address {addr} has no entry in --validators-malachite-identities; \
                      every on-chain validator must be present in the table"
                 )
             })?;
             Ok(ValidatorEntry {
-                public_key: pub_key,
+                public_key: identity.public_key,
+                peer_id: identity.peer_id,
                 voting_power: 1,
             })
         })
@@ -506,7 +507,7 @@ impl Service {
         let malachite = {
             let malachite_validator_set = build_malachite_validator_set(
                 validators.iter().copied(),
-                &config.malachite.validator_pub_keys,
+                &config.malachite.validator_identities,
             )?;
             log::info!(
                 "Malachite validators: {} (local role: {})",
@@ -1074,5 +1075,42 @@ impl GenesisInitializer for GenesisInitializerFromFile {
             Ok(Some((instrumented_code, code_metadata)))
         }
         .boxed()
+    }
+}
+
+#[cfg(test)]
+mod malachite_validator_identity_tests {
+    use super::*;
+    use ethexe_malachite::malachite_libp2p_peer_id;
+
+    fn identity(seed: u8) -> (Address, config::ValidatorIdentity) {
+        let mut bytes = [0u8; 32];
+        bytes[31] = seed;
+        let private_key = PrivateKey::from_seed(bytes).expect("private key");
+        let public_key = private_key.public_key();
+        (
+            public_key.to_address(),
+            config::ValidatorIdentity {
+                public_key,
+                peer_id: malachite_libp2p_peer_id(&bytes),
+            },
+        )
+    }
+
+    #[test]
+    fn build_malachite_validator_set_rejects_missing_active_validator_identity() {
+        let (known_addr, known_identity) = identity(1);
+        let (missing_addr, _) = identity(2);
+        let identities = BTreeMap::from([(known_addr, known_identity)]);
+
+        let error = build_malachite_validator_set([known_addr, missing_addr], &identities)
+            .expect_err("missing identity must fail closed");
+
+        assert!(
+            error
+                .to_string()
+                .contains("--validators-malachite-identities")
+        );
+        assert!(error.to_string().contains(&missing_addr.to_string()));
     }
 }
