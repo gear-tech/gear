@@ -17,6 +17,7 @@ workspace = true
 tracing.workspace = true
 lru.workspace = true
 wasmtime.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
