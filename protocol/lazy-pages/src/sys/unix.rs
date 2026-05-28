@@ -1,27 +1,7 @@
-/*
- * This file is part of Gear.
- *
- * Copyright (C) 2022-2025 Gear Technologies Inc.
- * SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- */
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{
-    common::Error,
-    signal::{ExceptionInfo, UserSignalHandler},
-};
+use crate::signal::{ExceptionInfo, UserSignalHandler};
 use cfg_if::cfg_if;
 use nix::{
     libc::{c_void, siginfo_t},
@@ -30,12 +10,15 @@ use nix::{
 use std::{io, sync::OnceLock};
 
 /// Signal handler which has been set before lazy-pages initialization.
-/// Currently use to support wasmer signal handler.
-/// Wasmer protects memory around wasm memory and for stack limits.
-/// It makes it only in `store` initialization when executor is created,
-/// see https://github.com/gear-tech/substrate/blob/gear-stable/client/executor/common/src/sandbox/wasmer_backend.rs
-/// and https://github.com/wasmerio/wasmer/blob/e6857d116134bdc9ab6a1dabc3544cf8e6aee22b/lib/vm/src/trap/traphandlers.rs#L548
-/// So, if we receive signal from unknown memory we should try to use old (wasmer) signal handler.
+/// Currently use to support wasmtime signal handler.
+/// Wasmtime protects memory around wasm memory and for stack limits.
+/// It initializes its Unix trap handler lazily when an engine/store first
+/// needs traps:
+/// https://docs.wasmtime.dev/api/src/wasmtime/runtime/vm/traphandlers/signals.rs.html
+/// Wasmtime's signal handler explicitly delegates unknown faults to the
+/// previously installed process handler:
+/// https://docs.wasmtime.dev/api/src/wasmtime/runtime/vm/sys/unix/signals.rs.html
+/// So, if we receive signal from unknown memory we should try to use old (wasmtime) signal handler.
 static OLD_SIG_HANDLER: OnceLock<SigHandler> = OnceLock::new();
 
 cfg_if! {
@@ -43,7 +26,8 @@ cfg_if! {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             let error_reg = nix::libc::REG_ERR as usize;
             let error_code = unsafe { *ucontext }.uc_mcontext.gregs[error_reg];
-            // Use second bit from err reg. See https://git.io/JEQn3
+            // Use the W/R bit from the page-fault error code.
+            // See https://wiki.osdev.org/Exceptions#Page_Fault.
             Some(error_code & 0b10 == 0b10)
         }
     } else if #[cfg(all(target_os = "linux", target_arch = "aarch64"))] {
@@ -97,6 +81,22 @@ where
 {
     unsafe {
         let addr = (*info).si_addr();
+
+        // Classify the fault before doing anything that is not
+        // async-signal-safe. If the address is outside the WASM memory
+        // lazy-pages currently manages on this thread, this is not a
+        // lazy-pages page fault: the interrupted code may hold the
+        // allocator or logger lock, so only async-signal-safe work is
+        // allowed. Forward it without touching thread-locals or logging.
+        if !crate::active_wasm_region_contains(addr as usize) {
+            old_sig_handler(sig, info, ucontext);
+            return;
+        }
+
+        // The fault is inside managed WASM memory: the thread was
+        // executing WASM and holds no allocator/logger lock, so the
+        // processing below (thread-local access, logging, page loading)
+        // is safe in this context.
         let is_write = ucontext_get_write(ucontext as *mut _);
         let exc_info = ExceptionInfo {
             fault_addr: addr as *mut _,
@@ -104,15 +104,12 @@ where
         };
 
         if let Err(err) = H::handle(exc_info) {
-            let old_sig_handler_works = match err {
-                Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet => {
-                    old_sig_handler(sig, info, ucontext)
-                }
-                _ => false,
-            };
-            if !old_sig_handler_works {
-                panic!("Signal handler failed: {err}");
-            }
+            // The fault is inside managed WASM memory (classified above) but
+            // `H::handle` could not service it — a lazy-pages invariant
+            // violation, not a foreign fault. Panic: this thread was
+            // executing WASM, so the panic runs safely and its backtrace
+            // points at the bug.
+            panic!("Signal handler failed: {err}");
         }
     }
 }
@@ -215,17 +212,10 @@ where
     H: UserSignalHandler,
 {
     let handler = signal::SigHandler::SigAction(handle_sigsegv::<H>);
-    // Set additional SA_ONSTACK and SA_NODEFER to avoid problems with wasmer executor.
-    // See comment from shorturl.at/KMO68 :
-    // ```
-    //  SA_ONSTACK allows us to handle signals on an alternate stack,
-    //  so that the handler can run in response to running out of
-    //  stack space on the main stack. Rust installs an alternate
-    //  stack with sigaltstack, so we rely on that.
-    //  SA_NODEFER allows us to reenter the signal handler if we
-    //  crash while handling the signal, and fall through to the
-    //  Breakpad handler by testing handlingSegFault.
-    // ```
+    // SA_ONSTACK lets lazy-pages run on the alternate signal stack if the
+    // fault is caused by stack overflow. SA_NODEFER keeps nested faults from
+    // being masked, so an unhandled fault can still fall through to the
+    // previously installed handler.
     let sig_action = signal::SigAction::new(
         handler,
         signal::SaFlags::SA_SIGINFO | signal::SaFlags::SA_ONSTACK | signal::SaFlags::SA_NODEFER,
@@ -248,21 +238,19 @@ where
     Ok(())
 }
 
-unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) -> bool {
-    if let Some(old_sig_handler) = OLD_SIG_HANDLER.get() {
-        match old_sig_handler {
-            SigHandler::SigDfl | SigHandler::SigIgn => false,
-            SigHandler::Handler(func) => {
-                func(sig);
-                true
-            }
-            SigHandler::SigAction(func) => {
-                func(sig, info, ucontext);
-                true
-            }
+unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) {
+    match OLD_SIG_HANDLER.get() {
+        Some(SigHandler::Handler(func)) => func(sig),
+        Some(SigHandler::SigAction(func)) => func(sig, info, ucontext),
+        // No chainable previous handler exists: `SigDfl`/`SigIgn` carry no
+        // function to call, and `None` means nothing was captured at install
+        // time. Restore the default disposition so the re-executed faulting
+        // instruction is terminated by the kernel's default action. The
+        // disposition MUST be reset first: `SA_NODEFER` would otherwise
+        // re-enter this handler on every re-fault, looping forever.
+        Some(SigHandler::SigDfl | SigHandler::SigIgn) | None => {
+            unsafe { libc::signal(sig, libc::SIG_DFL) };
         }
-    } else {
-        false
     }
 }
 

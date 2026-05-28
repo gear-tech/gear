@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     Database,
@@ -22,8 +7,8 @@ use crate::{
     visitor::{DatabaseVisitor, walk},
 };
 use ethexe_common::{
-    Announce, BlockHeader, HashOf, ScheduledTask,
-    db::{AnnounceStorageRO, BlockMeta, OnChainStorageRO},
+    BlockHeader, HashOf, ScheduledTask,
+    db::{BlockMeta, MbStorageRO},
 };
 use ethexe_runtime_common::state::{MessageQueue, MessageQueueHashWithSize};
 use gear_core::code::CodeMetadata;
@@ -41,18 +26,10 @@ pub enum IntegrityVerifierError {
     /* block */
     BlockIsNotSynced(H256),
     BlockIsNotPrepared(H256),
-    BlockAnnouncesLenNotOne(H256),
     NoBlockLastCommittedBatch(H256),
-    NoBlockLastCommittedAnnounce(H256),
+    NoBlockLastCommittedMb(H256),
     NoBlockLatestEraValidatorsCommitted(H256),
-    BlockAnnouncesIsEmpty(H256),
-    NoBlockAnnounces(H256),
     NoBlockHeader(H256),
-
-    /* announce */
-    AnnounceNotFound(HashOf<Announce>),
-    AnnounceIsNotComputed(HashOf<Announce>),
-    AnnounceIsNotIncluded(HashOf<Announce>),
 
     /* block header */
     NoParentBlockHeader(H256),
@@ -74,8 +51,9 @@ pub enum IntegrityVerifierError {
     },
 
     /* rest */
-    AnnounceScheduleHasExpiredTasks {
-        announce_hash: HashOf<Announce>,
+    MbNotFound(H256),
+    MbScheduleHasExpiredTasks {
+        mb_hash: H256,
         expiry: u32,
         tasks: usize,
     },
@@ -162,37 +140,15 @@ impl DatabaseVisitor for IntegrityVerifier {
             self.errors
                 .push(IntegrityVerifierError::NoBlockLastCommittedBatch(block));
         }
-        if meta.last_committed_announce.is_none() {
+        if meta.last_committed_mb.is_none() {
             self.errors
-                .push(IntegrityVerifierError::NoBlockLastCommittedAnnounce(block));
+                .push(IntegrityVerifierError::NoBlockLastCommittedMb(block));
         }
         if meta.latest_era_validators_committed.is_none() {
             self.errors
                 .push(IntegrityVerifierError::NoBlockLatestEraValidatorsCommitted(
                     block,
                 ));
-        }
-        if let Some(announces) = self.db.block_announces(block) {
-            if announces.is_empty() {
-                self.errors
-                    .push(IntegrityVerifierError::BlockAnnouncesIsEmpty(block));
-            }
-        } else {
-            self.errors
-                .push(IntegrityVerifierError::NoBlockAnnounces(block));
-        }
-    }
-
-    #[tracing::instrument(level = "trace", skip(self))]
-    fn visit_announce(&mut self, announce_hash: HashOf<Announce>, announce: Announce) {
-        if self
-            .db
-            .block_announces(announce.block_hash)
-            .map(|announces| announces.iter().all(|a| *a != announce_hash))
-            .unwrap_or(true)
-        {
-            self.errors
-                .push(IntegrityVerifierError::AnnounceIsNotIncluded(announce_hash));
         }
     }
 
@@ -264,26 +220,21 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    fn visit_announce_schedule_tasks(
+    fn visit_mb_schedule_tasks(
         &mut self,
-        announce_hash: HashOf<Announce>,
+        mb_hash: H256,
         height: u32,
         tasks: BTreeSet<ScheduledTask>,
     ) {
-        let Some(announce) = self.db.announce(announce_hash) else {
+        let Some(mb) = self.db.mb_compact_block(mb_hash) else {
             self.errors
-                .push(IntegrityVerifierError::AnnounceNotFound(announce_hash));
+                .push(IntegrityVerifierError::MbNotFound(mb_hash));
             return;
         };
-        let Some(header) = self.db.block_header(announce.block_hash) else {
+        if u64::from(height) <= mb.height {
             self.errors
-                .push(IntegrityVerifierError::NoBlockHeader(announce.block_hash));
-            return;
-        };
-        if height <= header.height {
-            self.errors
-                .push(IntegrityVerifierError::AnnounceScheduleHasExpiredTasks {
-                    announce_hash,
+                .push(IntegrityVerifierError::MbScheduleHasExpiredTasks {
+                    mb_hash,
                     expiry: height,
                     tasks: tasks.len(),
                 });
@@ -325,18 +276,18 @@ impl DatabaseVisitor for IntegrityVerifier {
 mod tests {
     use super::*;
     use crate::iterator::{
-        AnnounceScheduleTasksNode, BlockNode, CodeIdNode, MessageQueueHashWithSizeNode,
-        MessageQueueNode, tests::setup_db,
+        BlockNode, CodeIdNode, MessageQueueHashWithSizeNode, MessageQueueNode, tests::setup_db,
     };
     use ethexe_common::{
-        Digest, MaybeHashOf, ProgramStates, Schedule,
-        db::{AnnounceStorageRW, BlockMetaStorageRW, CodesStorageRW, OnChainStorageRW},
+        Digest, MaybeHashOf,
+        db::{BlockMetaStorageRW, CodesStorageRW, OnChainStorageRW},
     };
     use ethexe_runtime_common::state::Storage;
     use gear_core::{
         code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
         pages::WasmPagesAmount,
     };
+    use std::collections::BTreeSet;
 
     #[test]
     fn test_block_meta_not_synced_error() {
@@ -547,40 +498,42 @@ mod tests {
     }
 
     #[test]
-    fn test_block_schedule_has_expired_tasks_error() {
+    fn test_mb_schedule_has_expired_tasks_error() {
+        use crate::iterator::MbScheduleTasksNode;
+        use ethexe_common::db::{CompactMb, MbStorageRW};
+
         let db = setup_db();
-        let block_hash = H256::random();
+        let mb_hash = H256::random();
 
-        let announce = Announce::base(block_hash, HashOf::zero());
-        let announce_hash = db.set_announce(announce);
+        // MB at height 100; a task scheduled for height 50 is expired.
+        db.set_mb_compact_block(
+            mb_hash,
+            CompactMb {
+                parent: H256::zero(),
+                height: 100,
+                transactions_hash: H256::zero(),
+            },
+        );
 
-        // Setup block with height 100
-        let parent_hash = H256::zero();
-        let header = BlockHeader {
-            height: 100,
-            parent_hash,
-            timestamp: 1000,
-        };
-        db.set_block_header(block_hash, header);
-
-        // Create tasks scheduled for height 50 (expired)
         let mut verifier = IntegrityVerifier::new(db);
         walk(
             &mut verifier,
-            AnnounceScheduleTasksNode {
-                announce_hash,
+            MbScheduleTasksNode {
+                mb_hash,
                 height: 50,
                 tasks: BTreeSet::new(),
             },
         );
 
-        assert!(verifier.errors.contains(
-            &IntegrityVerifierError::AnnounceScheduleHasExpiredTasks {
-                announce_hash,
-                expiry: 50,
-                tasks: 0,
-            }
-        ));
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::MbScheduleHasExpiredTasks {
+                    mb_hash,
+                    expiry: 50,
+                    tasks: 0,
+                })
+        );
     }
 
     #[test]
@@ -684,22 +637,12 @@ mod tests {
             timestamp: 1000,
         };
 
-        let announce = Announce::base(block_hash, HashOf::zero());
-        let announce_hash = db.set_announce(announce);
-        db.set_announce_program_states(announce_hash, ProgramStates::new());
-        db.set_announce_schedule(announce_hash, Schedule::new());
-        db.set_announce_outcome(announce_hash, Vec::new());
-        db.mutate_announce_meta(announce_hash, |meta| {
-            meta.computed = true;
-        });
-
         db.set_block_header(block_hash, block_header);
         db.set_block_events(block_hash, &[]);
-        db.set_block_announces(block_hash, [announce_hash].into());
         db.mutate_block_meta(block_hash, |meta| {
             meta.prepared = true;
             meta.last_committed_batch = Some(Digest::random());
-            meta.last_committed_announce = Some(announce_hash);
+            meta.last_committed_mb = Some(H256::zero());
             meta.codes_queue = Some(Default::default());
             meta.latest_era_validators_committed = Some(10);
         });

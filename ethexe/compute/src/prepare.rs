@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{ComputeError, ComputeEvent, Result, service::SubService};
 use ethexe_common::{
@@ -26,8 +11,8 @@ use ethexe_common::{
     events::{
         BlockEvent, RouterEvent,
         router::{
-            AnnouncesCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
-            CodeValidationRequestedEvent, ValidatorsCommittedForEraEvent,
+            BatchCommittedEvent, CodeGotValidatedEvent, CodeValidationRequestedEvent,
+            EBCommittedEvent, MBCommittedEvent, ValidatorsCommittedForEraEvent,
         },
     },
 };
@@ -298,7 +283,8 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
         .latest_era_validators_committed
         .ok_or(ComputeError::CommittedEraNotFound(parent))?;
 
-    let mut last_committed_announce_hash = None;
+    let mut last_committed_mb_hash = None;
+    let mut last_committed_eb: Option<H256> = None;
 
     for event in block.events {
         match event {
@@ -316,8 +302,11 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
             })) => {
                 validated_codes.insert(code_id);
             }
-            BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
-                last_committed_announce_hash = Some(head);
+            BlockEvent::Router(RouterEvent::MBCommitted(head)) => {
+                last_committed_mb_hash = Some(head);
+            }
+            BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(eth_block_hash))) => {
+                last_committed_eb = Some(eth_block_hash);
             }
 
             BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(
@@ -340,25 +329,25 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
     codes_queue.retain(|code_id| !validated_codes.contains(code_id));
     codes_queue.extend(requested_codes);
 
-    let last_committed_announce_hash =
-        if let Some(AnnouncesCommittedEvent(hash)) = last_committed_announce_hash {
-            hash
-        } else {
-            parent_meta
-                .last_committed_announce
-                .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
-        };
+    let last_committed_mb_hash = if let Some(MBCommittedEvent(hash)) = last_committed_mb_hash {
+        Some(hash)
+    } else {
+        parent_meta.last_committed_mb
+    };
+
+    let last_committed_eb = last_committed_eb.or(parent_meta.last_committed_eb);
 
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
         meta.codes_queue = Some(codes_queue);
-        meta.last_committed_announce = Some(last_committed_announce_hash);
+        meta.last_committed_mb = last_committed_mb_hash;
+        meta.last_committed_eb = last_committed_eb;
         meta.prepared = true;
         meta.latest_era_validators_committed = Some(latest_validators_committed_era);
     });
 
     db.globals_mutate(|globals| {
-        globals.latest_prepared_block_hash = block.hash;
+        globals.latest_prepared_eb_hash = block.hash;
     });
 
     Ok(())
@@ -367,7 +356,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{Announce, Digest, HashOf, events::BlockEvent, mock::*};
+    use ethexe_common::{Digest, events::BlockEvent, mock::*};
     use ethexe_db::Database;
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::H256;
@@ -383,7 +372,7 @@ mod tests {
         let code2_id = CodeId::from([2u8; 32]);
         let batch_committed = Digest::random();
 
-        let block1_announce_hash = HashOf::<Announce>::random();
+        let block1_mb_hash = H256::random();
 
         let block = chain.blocks[1].to_simple().next_block();
         let block = BlockData {
@@ -393,9 +382,7 @@ mod tests {
                 BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
                     digest: batch_committed,
                 })),
-                BlockEvent::Router(RouterEvent::AnnouncesCommitted(AnnouncesCommittedEvent(
-                    block1_announce_hash,
-                ))),
+                BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(block1_mb_hash))),
                 BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id: code1_id,
                     valid: true,
@@ -417,7 +404,7 @@ mod tests {
         assert!(meta.prepared);
         assert_eq!(meta.codes_queue, Some(vec![code2_id].into()),);
         assert_eq!(meta.last_committed_batch, Some(batch_committed),);
-        assert_eq!(meta.last_committed_announce, Some(block1_announce_hash));
+        assert_eq!(meta.last_committed_mb, Some(block1_mb_hash));
     }
 
     #[tokio::test]

@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 //! Gear node loader.
 //!
 //! This tool sends semi-random data to the gear node with one main purpose - crash it.

@@ -1,32 +1,25 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2026 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Cross-validator fan-out for injected transactions.
+//!
+//! [`TransactionsRelayer::relay`] broadcasts a transaction to every
+//! validator in the current era and returns the first acceptance.
 
 use crate::{RpcEvent, errors};
+use anyhow::Context as _;
 use ethexe_common::{
-    Address,
+    Address, ValidatorsVec,
+    db::{ConfigStorageRO, OnChainStorageRO},
     injected::{AddressedInjectedTransaction, InjectedTransactionAcceptance},
 };
 use ethexe_db::Database;
+use futures::{StreamExt, stream::FuturesUnordered};
 use jsonrpsee::core::RpcResult;
+use std::time::{Duration, SystemTime, SystemTimeError};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{error, trace, warn};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TransactionsRelayer {
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     db: Database,
@@ -37,15 +30,19 @@ impl TransactionsRelayer {
         Self { rpc_sender, db }
     }
 
+    /// Broadcast `transaction` to every validator in the current era,
+    /// returning the first `Accept` (or the last `Reject` if none accept).
+    /// Falls back to a single-recipient delivery using the original
+    /// `transaction.recipient` if the validator set isn't known yet.
     pub async fn relay(
         &self,
-        mut transaction: AddressedInjectedTransaction,
+        transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         let tx_hash = transaction.tx.data().to_hash();
-        trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
+        tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
 
         if transaction.tx.data().value != 0 {
-            warn!(
+            tracing::warn!(
                 tx_hash = %tx_hash,
                 value = transaction.tx.data().value,
                 "Injected transaction with non-zero value is not supported"
@@ -55,10 +52,26 @@ impl TransactionsRelayer {
             ));
         }
 
-        if transaction.recipient == Address::default() {
-            utils::route_transaction(&self.db, &mut transaction)?;
+        let recipients: Vec<Address> = match current_validators(&self.db) {
+            Ok(set) => set.iter().copied().collect(),
+            Err(err) => {
+                tracing::warn!(%tx_hash, ?err, "validator set unavailable; falling back to single recipient");
+                Vec::new()
+            }
+        };
+
+        if recipients.is_empty() {
+            return self.send_single(transaction, tx_hash).await;
         }
 
+        self.fan_out(transaction, &recipients, tx_hash).await
+    }
+
+    async fn send_single(
+        &self,
+        transaction: AddressedInjectedTransaction,
+        tx_hash: ethexe_common::HashOf<ethexe_common::injected::InjectedTransaction>,
+    ) -> RpcResult<InjectedTransactionAcceptance> {
         let (response_sender, response_receiver) = oneshot::channel();
         let event = RpcEvent::InjectedTransaction {
             transaction,
@@ -66,150 +79,104 @@ impl TransactionsRelayer {
         };
 
         if let Err(err) = self.rpc_sender.send(event) {
-            error!(
+            tracing::error!(
                 "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
                 The receiving end in the main service might have been dropped."
             );
             return Err(errors::internal());
         }
 
-        trace!(%tx_hash, "Accept transaction, waiting for promise");
+        tracing::trace!(%tx_hash, "Accept transaction, waiting for promise");
 
-        response_receiver.await.map_err(|err| {
-            // Expecting no errors here, because the rpc channel is owned by main server.
-            error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {err}");
+        response_receiver.await.map_err(|e| {
+            tracing::error!(
+                "Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}"
+            );
             errors::internal()
+        })
+    }
+
+    /// Broadcast the transaction to every recipient concurrently and return
+    /// the first `Accept`. If no recipient accepts, return the last reject;
+    /// if every channel is dropped, return an internal error.
+    async fn fan_out(
+        &self,
+        transaction: AddressedInjectedTransaction,
+        recipients: &[Address],
+        tx_hash: ethexe_common::HashOf<ethexe_common::injected::InjectedTransaction>,
+    ) -> RpcResult<InjectedTransactionAcceptance> {
+        let mut response_futures = FuturesUnordered::new();
+        for recipient in recipients {
+            let (response_sender, response_receiver) = oneshot::channel();
+            let event = RpcEvent::InjectedTransaction {
+                transaction: AddressedInjectedTransaction {
+                    recipient: *recipient,
+                    tx: transaction.tx.clone(),
+                },
+                response_sender,
+            };
+
+            if let Err(err) = self.rpc_sender.send(event) {
+                tracing::error!(
+                    "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
+                    The receiving end in the main service might have been dropped."
+                );
+                return Err(errors::internal());
+            }
+
+            response_futures.push(response_receiver);
+        }
+
+        tracing::trace!(%tx_hash, "Broadcast transaction, waiting for first acceptance");
+
+        // Priority: Accept > AlreadyPooled > Reject. `AlreadyPooled` means
+        // the promise will fire, so a racing `Reject` from a different
+        // validator must not bury it.
+        let mut already_pooled: Option<InjectedTransactionAcceptance> = None;
+        let mut last_reject: Option<InjectedTransactionAcceptance> = None;
+        while let Some(result) = response_futures.next().await {
+            match result {
+                Ok(InjectedTransactionAcceptance::Accept) => {
+                    return Ok(InjectedTransactionAcceptance::Accept);
+                }
+                Ok(acceptance @ InjectedTransactionAcceptance::AlreadyPooled { .. }) => {
+                    already_pooled = Some(acceptance);
+                }
+                Ok(rejection) => last_reject = Some(rejection),
+                Err(_) => {}
+            }
+        }
+
+        if let Some(acceptance) = already_pooled {
+            return Ok(acceptance);
+        }
+
+        last_reject.map(Ok).unwrap_or_else(|| {
+            tracing::error!(
+                %tx_hash,
+                "All response senders for the `RpcEvent::InjectedTransaction` fan-out were dropped"
+            );
+            Err(errors::internal())
         })
     }
 }
 
-mod utils {
-    use super::*;
-    use anyhow::{Context as _, Result};
-    use ethexe_common::{
-        Address,
-        db::{ConfigStorageRO, OnChainStorageRO},
-    };
-    use std::time::{Duration, SystemTime, SystemTimeError};
-
-    pub(super) const NEXT_PRODUCER_THRESHOLD_MS: u64 = 50;
-
-    pub fn route_transaction(
-        db: &Database,
-        tx: &mut AddressedInjectedTransaction,
-    ) -> RpcResult<()> {
-        let now = now_since_unix_epoch().map_err(|err| {
-            error!("system clock error: {err}");
-            crate::errors::internal()
-        })?;
-
-        let next_producer = calculate_next_producer(db, now).map_err(|err| {
-            error!("calculate next producer error: {err}");
-            crate::errors::internal()
-        })?;
-        tx.recipient = next_producer;
-
-        Ok(())
-    }
-
-    /// Calculates the producer address to route an injected transaction to.
-    pub(super) fn calculate_next_producer(db: &Database, now: Duration) -> Result<Address> {
-        let timelines = db.config().timelines;
-
-        // Calculate target timestamp, taking into account possible delays, so we append NEXT_PRODUCER_THRESHOLD_MS.
-        // The transaction should be included by the next producer, so we add `slot_duration` to the current time.
-        let target_timestamp = now
-            .checked_add(Duration::from_millis(NEXT_PRODUCER_THRESHOLD_MS))
-            .context("current time is too close to u64::MAX, cannot calculate next producer")?
-            .as_secs()
-            .checked_add(timelines.slot.get())
-            .context("current time is too close to u64::MAX, cannot calculate next producer")?;
-
-        let era = timelines
-            .era_from_ts(target_timestamp)
-            .context("failed to calculate era from target timestamp")?;
-
-        let validators = db
-            .validators(era)
-            .with_context(|| format!("validators not found for era={era}"))?;
-
-        timelines
-            .block_producer_at(&validators, target_timestamp)
-            .context("failed to calculate block producer")
-    }
-
-    /// Returns the current time since [SystemTime::UNIX_EPOCH].
-    fn now_since_unix_epoch() -> Result<Duration, SystemTimeError> {
-        SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
-    }
+/// Validator set effective right now. Errors propagate when the
+/// protocol timelines aren't configured yet or when the era's
+/// validator vector is missing — callers fall back to single-recipient
+/// delivery in that case.
+fn current_validators(db: &Database) -> anyhow::Result<ValidatorsVec> {
+    let timelines = db.config().timelines;
+    let now = now_since_unix_epoch()
+        .context("system clock error")?
+        .as_secs();
+    let era = timelines
+        .era_from_ts(now)
+        .context("failed to calculate era from current timestamp")?;
+    db.validators(era)
+        .with_context(|| format!("validators not found for era={era}"))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::utils;
-    use ethexe_common::{
-        Address, ProtocolTimelines, ValidatorsVec,
-        db::{ConfigStorageRO, OnChainStorageRW, SetConfig},
-    };
-    use ethexe_db::Database;
-    use gear_core::pages::num_traits::ToPrimitive;
-    use std::{ops::Sub, time::Duration};
-
-    const SLOT: u64 = 10;
-    const ERA: u64 = 1000;
-
-    fn setup_db(db: &Database) -> ValidatorsVec {
-        let validators = ValidatorsVec::from_iter((0..10u64).map(Address::from));
-
-        let timelines = ProtocolTimelines {
-            genesis_ts: 0,
-            era: ERA.try_into().unwrap(),
-            election: 0,
-            slot: SLOT.try_into().unwrap(),
-        };
-        db.set_validators(0, validators.clone());
-        let mut config = db.config().clone();
-        config.timelines = timelines;
-        db.set_config(config);
-        validators
-    }
-
-    #[test]
-    fn test_calculate_next_producer_return_next() {
-        let db = Database::memory();
-        let validators = setup_db(&db);
-
-        let now = Duration::from_secs(SLOT / 2);
-        let producer = utils::calculate_next_producer(&db, now).unwrap();
-
-        assert_eq!(validators[1], producer);
-    }
-
-    #[test]
-    fn test_calculate_next_producer_return_next_next() {
-        let db = Database::memory();
-        let validators = setup_db(&db);
-
-        let half_threshold = utils::NEXT_PRODUCER_THRESHOLD_MS.to_u64().unwrap();
-        let now = Duration::from_secs(SLOT).sub(Duration::from_millis(half_threshold));
-        let producer = utils::calculate_next_producer(&db, now).unwrap();
-
-        assert_eq!(validators[2], producer);
-    }
-
-    #[test]
-    fn test_calculate_next_producer_in_next_era() {
-        let db = Database::memory();
-        let validators = setup_db(&db);
-
-        // Prepare next era validators
-        let mut next_era_validators = validators.clone();
-        next_era_validators[0] = validators[9];
-        db.set_validators(1, next_era_validators.clone());
-
-        let now = Duration::from_secs(ERA).sub(Duration::from_secs(1));
-        let producer = utils::calculate_next_producer(&db, now).unwrap();
-
-        assert_eq!(next_era_validators[0], producer);
-    }
+fn now_since_unix_epoch() -> Result<Duration, SystemTimeError> {
+    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
 }

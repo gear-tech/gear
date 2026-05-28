@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Weight tests for the runtime.
 
@@ -197,8 +182,8 @@ fn instruction_weights_heuristics_test() {
         i64extend16s: 400,
         i64extend32s: 400,
         i64extendsi32: 200,
-        i64extendui32: 200,
-        i32wrapi64: 200,
+        i64extendui32: 50,
+        i32wrapi64: 50,
         i64eq: 1_800,
         i32eq: 1_100,
         i64ne: 1_700,
@@ -243,16 +228,16 @@ fn instruction_weights_heuristics_test() {
         i64xor: 1_000,
         i32xor: 500,
 
-        i64shl: 1_000,
-        i32shl: 200,
-        i64shrs: 1_000,
-        i32shrs: 250,
-        i64shru: 1_000,
+        i64shl: 1_200,
+        i32shl: 500,
+        i64shrs: 1_200,
+        i32shrs: 500,
+        i64shru: 1_200,
         i32shru: 400,
-        i64rotl: 750,
+        i64rotl: 900,
         i32rotl: 400,
-        i64rotr: 1_000,
-        i32rotr: 300,
+        i64rotr: 1_200,
+        i32rotr: 550,
     };
 
     let result = check_instructions_weights(weights, expected_weights);

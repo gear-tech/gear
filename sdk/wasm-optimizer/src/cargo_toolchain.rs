@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2023-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context, Result, anyhow, ensure};
 use regex::Regex;
@@ -92,12 +77,9 @@ impl Toolchain {
         let toolchain = Self::PINNED_NIGHTLY_TOOLCHAIN;
         ensure!(
             self.raw_toolchain_str() == toolchain,
-            anyhow!(
-                "recommended toolchain `{x}` not found, install it using the command:\n\
-        rustup toolchain install {x} --target wasm32v1-none\n\n\
-        after installation, do not forget to set `channel = \"{x}\"` in `rust-toolchain.toml` file",
-                x = toolchain
-            )
+            "recommended toolchain `{toolchain}` not found, install it using the command:\n\
+        rustup toolchain install {toolchain} --target wasm32v1-none\n\n\
+        after installation, do not forget to set `channel = \"{toolchain}\"` in `rust-toolchain.toml` file"
         );
         Ok(())
     }

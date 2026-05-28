@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2022-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::optimize;
 use gear_wasm_instrument::{
@@ -338,8 +323,8 @@ mod test {
         STACK_END_EXPORT_NAME, insert_stack_end_export, insert_start_call_in_export_funcs,
         move_mut_globals_to_static,
     };
-    use wasmer::{Imports, Instance, Memory, MemoryType, Module, Store, Value};
     use wasmparser::ExternalKind;
+    use wasmtime::{Instance, Linker, Memory, MemoryType, Module, Store, Val};
 
     fn wat2wasm(source: &str) -> Vec<u8> {
         let code = wat::parse_str(source).expect("failed to parse module");
@@ -399,17 +384,17 @@ mod test {
         let binary = wat2wasm(wat);
 
         let check = |binary, expected| {
-            let mut store: Store = Store::default();
+            let mut store: Store<()> = Store::default();
             let module = Module::new(store.engine(), binary).unwrap();
-            let instance = Instance::new(&mut store, &module, &Imports::new()).unwrap();
+            let instance = Instance::new(&mut store, &module, &[]).unwrap();
 
-            let outputs = instance
-                .exports
-                .get_function("handle")
+            let mut outputs = [Val::FuncRef(None)];
+            instance
+                .get_func(&mut store, "handle")
                 .unwrap()
-                .call(&mut store, &[Value::I32(1)])
+                .call(&mut store, &[Val::I32(1)], &mut outputs)
                 .unwrap();
-            assert_eq!(outputs[0], Value::I32(expected));
+            assert_eq!(outputs[0].unwrap_i32(), expected);
         };
 
         // Check that works without changes
@@ -447,35 +432,32 @@ mod test {
         let binary = wat2wasm(wat);
 
         let check = |binary, expected1, expected2| {
-            let mut store: Store = Store::default();
+            let mut store: Store<()> = Store::default();
             let module = Module::new(store.engine(), binary).unwrap();
-            let memory = Memory::new(&mut store, MemoryType::new(1, None, false)).unwrap();
-            let imports = wasmer::imports! {
-                "env" => {
-                    "memory" => memory.clone(),
-                }
-            };
-            let instance = Instance::new(&mut store, &module, &imports).unwrap();
+            let memory = Memory::new(&mut store, MemoryType::new(1, None)).unwrap();
+            let mut linker = Linker::new(store.engine());
+            linker.define(&store, "env", "memory", memory).unwrap();
+            let instance = linker.instantiate(&mut store, &module).unwrap();
 
-            let outputs = instance
-                .exports
-                .get_function("handle")
+            let mut outputs = [Val::FuncRef(None)];
+            instance
+                .get_func(&mut store, "handle")
                 .unwrap()
-                .call(&mut store, &[Value::I32(1)])
+                .call(&mut store, &[Val::I32(1)], &mut outputs)
                 .unwrap();
-            assert_eq!(outputs[0], Value::I32(expected1));
+            assert_eq!(outputs[0].unwrap_i32(), expected1);
 
             let mut data = vec![0u8; 0x10000];
-            memory.view(&store).read(0, data.as_mut_slice()).unwrap();
-            let instance = Instance::new(&mut store, &module, &imports).unwrap();
-            memory.view(&store).write(0, &data).unwrap();
-            let outputs = instance
-                .exports
-                .get_function("handle")
+            memory.read(&store, 0, data.as_mut_slice()).unwrap();
+            let instance = linker.instantiate(&mut store, &module).unwrap();
+            memory.write(&mut store, 0, &data).unwrap();
+            let mut outputs = [Val::FuncRef(None)];
+            instance
+                .get_func(&mut store, "handle")
                 .unwrap()
-                .call(&mut store, &[Value::I32(1)])
+                .call(&mut store, &[Val::I32(1)], &mut outputs)
                 .unwrap();
-            assert_eq!(outputs[0], Value::I32(expected2));
+            assert_eq!(outputs[0].unwrap_i32(), expected2);
         };
 
         // First check that it works correct without changes.

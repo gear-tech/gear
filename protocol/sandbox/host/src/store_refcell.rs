@@ -1,24 +1,9 @@
-// This file is part of Gear.
-
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
 //! # Description
 //!
-//! Custom implementation of `RefCell` for the `wasmer::Store`/`wasmi::Store` types,
+//! Custom implementation of `RefCell` for the `wasmtime::Store`/`wasmi::Store` types,
 //! enabling safe repeated mutable borrowing of `StoreRefCell` higher up the call stack
 //! when the mutable borrow of `StoreRefCell` still exists.
 //!
@@ -69,9 +54,9 @@
 //!   -----------------------------------
 //!   | runtime executes syscall        |
 //!   --------runtime boundary-----------
-//!   | syscall_callback                | Wasmer/Wasmi calls syscall callback from inside its VM
+//!   | syscall_callback                | Wasmtime/Wasmi calls syscall callback from inside its VM
 //!   -----------------------------------
-//!   | Wasmer's Func::call             | Sandbox starts to executes program function (Borrows Store mutably)
+//!   | Wasmtime's Func::call             | Sandbox starts to executes program function (Borrows Store mutably)
 //!   -------native boundary----------- |
 //!   | sandbox::invoke                 | Runtime interface call
 //!   -----------------------------------
@@ -108,7 +93,7 @@ pub struct StoreRefCell<S> {
 
 trait GenericAsStoreMut {}
 
-impl GenericAsStoreMut for &mut wasmer::StoreMut<'_> {}
+impl<T> GenericAsStoreMut for wasmtime::StoreContextMut<'_, T> {}
 impl<T> GenericAsStoreMut for wasmi::StoreContextMut<'_, T> {}
 
 #[derive(Debug)]

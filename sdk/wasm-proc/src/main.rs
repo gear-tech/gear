@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
 use gear_wasm_builder::{
@@ -41,7 +26,7 @@ const RT_ALLOWED_IMPORTS: [&str; 78] = [
     "ext_crypto_sr25519_sign_version_1",
     "ext_crypto_sr25519_verify_version_2",
     "ext_crypto_start_batch_verify_version_1",
-    // From `GearRI` (runtime-interface/scr/lib.rs)
+    // From `GearRI` (vara/runtime/interface/src/lib.rs)
     "ext_gear_ri_pre_process_memory_accesses_version_1",
     "ext_gear_ri_pre_process_memory_accesses_version_2",
     "ext_gear_ri_lazy_pages_status_version_1",

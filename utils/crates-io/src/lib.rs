@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! crates-io-manager library
 #![deny(missing_docs)]
@@ -56,7 +41,6 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
     "gear-wasm-instrument",
     "gsdk-codegen",
     "gsys",
-    "numerated",
     "gbuiltin-bls381",
 ];
 
@@ -77,7 +61,6 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "builtins-common",
     "gear-utils",
     "gear-common",
-    "gear-wasmer-cache",
     "gear-sandbox-host",
     "gear-lazy-pages-common",
     "gear-lazy-pages",
@@ -86,6 +69,17 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gear-core-backend",
     "gear-core-processor",
     "gear-lazy-pages-native-interface",
+    "gsigner",
+    "ethexe-common",
+    "ethexe-ethereum",
+    "ethexe-runtime-common",
+    "ethexe-db",
+    "ethexe-service-utils",
+    "ethexe-observer",
+    "ethexe-consensus",
+    "ethexe-blob-loader",
+    "ethexe-prometheus",
+    "ethexe-rpc",
 ];
 
 /// Packages need to be published.
@@ -94,7 +88,8 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
 /// on the previous one, please be cautious about changing
 /// the order.
 pub const PACKAGES: &[&str] = &[
-    "gsigner",
+    "ethexe-node-wrapper",
+    "ethexe-sdk",
     "gear-wasm-optimizer",
     "gear-wasm-builder",
     "gear-node-wrapper",

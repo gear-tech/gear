@@ -23,5 +23,5 @@ colored.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
-wasmer.workspace = true
+wasmtime.workspace = true
 wat.workspace = true

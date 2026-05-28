@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use crate::{Arg, Calls, Scheme};
 
 pub const DEAD_MESSAGE: &[u8] = b"If you read this, I'm dead";

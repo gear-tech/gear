@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
@@ -229,20 +214,18 @@ impl ProgramBuilder {
 
     /// Build program with set parameters.
     pub fn build(self, system: &System) -> Program<'_> {
-        let id = self
-            .id
-            .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
+        let Self { code, meta, id } = self;
+        let id = id.unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let code_id = CodeId::generate(&self.code);
-        system.0.borrow_mut().store_code(code_id, self.code);
-        if let Some(metadata) = self.meta {
+        let code_id = CodeId::generate(&code);
+        system.0.borrow_mut().store_code(code_id, code);
+        if let Some(metadata) = meta {
             system
                 .0
                 .borrow_mut()
                 .meta_binaries
                 .insert(code_id, metadata);
         }
-
         // Expiration block logic isn't yet fully implemented in Gear protocol,
         // so we set it to the current block height.
         let expiration_block = system.block_height();
@@ -499,21 +482,24 @@ impl<'a> Program<'a> {
         let mut system = self.manager.borrow_mut();
 
         let source = from.into().0;
+        let payload = payload.into();
 
         // The current block number is always a block number of the "executed" block.
         // So before sending any messages and triggering a block run the block number
         // equals to 0 (curr). So any new message sent by user goes to a new block,
         // that will be executed, i.e. block with number curr + 1.
         let block_number = system.block_height() + 1;
+        let message_id = MessageId::generate_from_user(
+            block_number,
+            source,
+            system.fetch_inc_message_nonce() as u128,
+        );
+
         let message = Message::new(
-            MessageId::generate_from_user(
-                block_number,
-                source,
-                system.fetch_inc_message_nonce() as u128,
-            ),
+            message_id,
             source,
             self.id,
-            payload.into().try_into().unwrap(),
+            payload.try_into().unwrap(),
             Some(gas_limit),
             value,
             None,

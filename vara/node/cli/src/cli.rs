@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
 use std::str::FromStr;
@@ -22,8 +7,8 @@ use std::str::FromStr;
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Parser, derive_more::Display)]
 pub enum SandboxBackend {
-    #[display("wasmer")]
-    Wasmer,
+    #[display("wasmtime")]
+    Wasmtime,
     #[display("wasmi")]
     Wasmi,
 }
@@ -34,7 +19,7 @@ impl FromStr for SandboxBackend {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "wasmer" => Ok(SandboxBackend::Wasmer),
+            "wasmtime" => Ok(SandboxBackend::Wasmtime),
             "wasmi" => Ok(SandboxBackend::Wasmi),
             _ => Err(format!("Unknown sandbox executor: {s}")),
         }
@@ -50,13 +35,12 @@ pub struct RunCmd {
     pub base: sc_cli::RunCmd,
 
     /// The Wasm host executor to use in program sandbox.
-    #[arg(long, default_value_t = SandboxBackend::Wasmer)]
+    #[arg(long, default_value_t = SandboxBackend::Wasmtime)]
     pub sandbox_backend: SandboxBackend,
 
-    /// Sets a limit at which the underlying sandbox store will be cleared (applies only to the Wasmer sandbox backend),
+    /// Sets a limit at which the underlying sandbox store will be cleared (applies only to the Wasmtime sandbox backend),
     /// potentially altering performance characteristics.
-    ///
-    /// See <https://github.com/gear-tech/gear/pull/4420> for more context.
+    // TODO: remove clear counter <https://github.com/gear-tech/gear/issues/5465>
     #[arg(long, default_value_t = 50)]
     pub sandbox_store_clear_counter_limit: u32,
 
