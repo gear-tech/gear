@@ -15,9 +15,13 @@ const MODULES_CACHE_CAPACITY: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
 
 type CachedModules = Mutex<LruCache<u64, Module>>;
 
-fn modules() -> &'static CachedModules {
+fn with_modules<R>(f: impl FnOnce(&mut LruCache<u64, Module>) -> R) -> R {
     static MODULES: OnceLock<CachedModules> = OnceLock::new();
-    MODULES.get_or_init(|| Mutex::new(LruCache::new(MODULES_CACHE_CAPACITY)))
+    let mut modules = MODULES
+        .get_or_init(|| Mutex::new(LruCache::new(MODULES_CACHE_CAPACITY)))
+        .lock()
+        .unwrap();
+    f(&mut modules)
 }
 
 fn hash(code: &[u8]) -> u64 {
@@ -34,31 +38,38 @@ enum ModuleFrom {
 
 fn get_impl(engine: &Engine, code: &[u8]) -> wasmtime::Result<ModuleFrom> {
     let hash = hash(code);
-    let mut modules = modules().lock().expect("failed to lock mutex");
 
-    if let Some(module) = modules.get(&hash) {
-        tracing::trace!("load wasmtime module from LRU cache");
+    let cached_module = with_modules(|modules| -> wasmtime::Result<_> {
+        if let Some(module) = modules.get(&hash) {
+            tracing::trace!("load wasmtime module from LRU cache");
 
-        if !Engine::same(module.engine(), engine) {
-            tracing::trace!("reserialize module because of changed engine");
-            let module = module.serialize().context("failed to serialize module")?;
-            let module = unsafe {
-                Module::deserialize(engine, &module).context("failed to deserialize module")?
-            };
-            let old_module = modules.put(hash, module.clone());
-            debug_assert!(old_module.is_some());
-            return Ok(ModuleFrom::EngineChanged(module));
+            if Engine::same(module.engine(), engine) {
+                Ok(Some(ModuleFrom::Lru(module.clone())))
+            } else {
+                tracing::trace!("reserialize module because of changed engine");
+                let module = module.serialize().context("failed to serialize module")?;
+                let module = unsafe {
+                    Module::deserialize(engine, &module).context("failed to deserialize module")?
+                };
+                let old_module = modules.put(hash, module.clone());
+                debug_assert!(old_module.is_some());
+                Ok(Some(ModuleFrom::EngineChanged(module)))
+            }
+        } else {
+            Ok(None)
         }
+    })?;
 
-        return Ok(ModuleFrom::Lru(module.clone()));
+    if let Some(module) = cached_module {
+        Ok(module)
+    } else {
+        tracing::trace!("create wasmtime module because of missed LRU cache");
+        let module = Module::new(engine, code).context("failed to create module")?;
+        let old_module = with_modules(|modules| modules.put(hash, module.clone()));
+        debug_assert!(old_module.is_none());
+
+        Ok(ModuleFrom::New(module))
     }
-
-    tracing::trace!("create wasmtime module because of missed LRU cache");
-    let module = Module::new(engine, code).context("failed to create module")?;
-    let old_module = modules.put(hash, module.clone());
-    debug_assert!(old_module.is_none());
-
-    Ok(ModuleFrom::New(module))
 }
 
 /// Returns a compiled Wasmtime module, using an in-memory LRU cache on hits.
