@@ -1,23 +1,9 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     RouterDataProvider, Service,
+    config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
         events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
@@ -31,11 +17,10 @@ use alloy::{
 use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
-    ValidatorsVec,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
+    Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest, ValidatorsVec,
+    consensus::DEFAULT_BATCH_SIZE_LIMIT,
     db::ConfigStorageRO,
-    ecdsa::{PrivateKey, PublicKey, SignedData},
+    ecdsa::{PublicKey, SignedData},
     events::{
         BlockEvent, MirrorEvent, RouterEvent,
         mirror::ReplyEvent,
@@ -43,8 +28,8 @@ use ethexe_common::{
     },
     network::{SignedValidatorMessage, ValidatorMessage},
 };
-use ethexe_compute::{ComputeConfig, ComputeService};
-use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
+use ethexe_compute::ComputeService;
+use ethexe_consensus::{BatchCommitter, ConsensusService, ValidatorService};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
     Ethereum, EthereumBuilder,
@@ -52,9 +37,13 @@ use ethexe_ethereum::{
     middleware::MockElectionProvider,
     router::RouterQuery,
 };
+use ethexe_malachite::{
+    InjectedTxMempool, MalachiteConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
+    ValidatorEntry, derive_libp2p_secret, malachite_libp2p_peer_id,
+};
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
-    EthereumConfig, ObserverConfig, ObserverService,
+    ObserverConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
@@ -67,25 +56,44 @@ use jsonrpsee::{
     http_client::HttpClient,
     ws_client::{WsClient, WsClientBuilder},
 };
-use rand::{SeedableRng, prelude::StdRng};
-use roast_secp256k1_evm::frost::{
-    Identifier, SigningKey, keys,
-    keys::{IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
-};
 use std::{
+    collections::HashMap,
     fmt, mem,
-    net::SocketAddr,
+    net::{SocketAddr, TcpListener},
     num::NonZero,
-    ops::Not,
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
-use tokio::task::{self, JoinHandle};
+use tokio::{
+    sync::oneshot,
+    task::{self, JoinHandle},
+};
 use tracing::Instrument;
 
 /// Max network services which can be created by one test environment.
 const MAX_NETWORK_SERVICES_PER_TEST: usize = 1000;
+
+/// Pre-allocated malachite endpoint: TCP port + deterministic peer-id.
+#[derive(Clone, Debug)]
+pub struct MalachiteEndpoint {
+    pub pub_key: PublicKey,
+    pub listen_addr: SocketAddr,
+    pub peer_id: PeerId,
+}
+
+impl MalachiteEndpoint {
+    pub fn multiaddr(&self) -> MalachiteMultiaddr {
+        format!(
+            "/ip4/{}/tcp/{}/p2p/{}",
+            self.listen_addr.ip(),
+            self.listen_addr.port(),
+            self.peer_id,
+        )
+        .parse()
+        .expect("constructed multiaddr is well-formed")
+    }
+}
 
 pub struct TestEnv {
     pub eth_cfg: EthereumConfig,
@@ -98,11 +106,17 @@ pub struct TestEnv {
     pub validators: Vec<ValidatorConfig>,
     pub sender_id: ActorId,
     pub threshold: u64,
-    pub block_time: Duration,
     pub continuous_block_generation: bool,
-    pub commitment_delay_limit: u32,
-    pub compute_config: ComputeConfig,
+    pub commitment_delay_limit: std::num::NonZero<u8>,
+    pub canonical_quarantine: u8,
+    pub post_quarantine_delay: u32,
+    pub kicking_per_blocks: Option<u32>,
+    #[allow(unused)]
     pub db: Database,
+    /// Endpoints aligned 1:1 with `validators`.
+    pub malachite_endpoints: Vec<MalachiteEndpoint>,
+    /// Pre-bound TCP listeners holding each validator's port until handed off in `new_node`.
+    malachite_listeners: HashMap<PublicKey, TcpListener>,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -112,6 +126,43 @@ pub struct TestEnv {
     bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
 
     _anvil: Option<AnvilInstance>,
+}
+
+fn build_malachite_endpoints(
+    signer: &Signer,
+    validators: &[ValidatorConfig],
+) -> (Vec<MalachiteEndpoint>, HashMap<PublicKey, TcpListener>) {
+    // Bind concurrently so the OS picks distinct ports; listeners stay alive until handoff.
+    let listeners: Vec<TcpListener> = (0..validators.len())
+        .map(|_| {
+            TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+                .expect("bind 127.0.0.1:0 for malachite endpoint")
+        })
+        .collect();
+
+    let mut listener_map: HashMap<PublicKey, TcpListener> = HashMap::new();
+    let endpoints: Vec<MalachiteEndpoint> = validators
+        .iter()
+        .zip(listeners)
+        .map(|(v, listener)| {
+            let listen_addr = listener.local_addr().expect("local_addr");
+            listener_map.insert(v.public_key, listener);
+            let secret = signer
+                .private_key(v.public_key)
+                .expect("validator key in keyring")
+                .to_bytes();
+            let peer_id = malachite_libp2p_peer_id(&secret);
+            // Pull `derive_libp2p_secret` into scope to pin the engine's derivation invariant.
+            let _ = derive_libp2p_secret;
+            MalachiteEndpoint {
+                pub_key: v.public_key,
+                listen_addr,
+                peer_id,
+            }
+        })
+        .collect();
+
+    (endpoints, listener_map)
 }
 
 impl TestEnv {
@@ -127,7 +178,9 @@ impl TestEnv {
             network,
             deploy_params,
             commitment_delay_limit,
-            compute_config,
+            canonical_quarantine,
+            post_quarantine_delay,
+            kicking_per_blocks,
         } = config;
 
         log::info!(
@@ -208,8 +261,7 @@ impl TestEnv {
                 .collect(),
         };
 
-        let (validator_configs, verifiable_secret_sharing_commitment) =
-            Self::define_session_keys(&signer, validators.clone());
+        let validator_configs = Self::define_session_keys(validators.clone());
         let sender_address = wallets.next().to_address();
 
         let ethereum = if let Some(router_address) = router_address {
@@ -230,7 +282,6 @@ impl TestEnv {
                 .await
                 .unwrap()
                 .with_validators(validators_addresses.try_into().unwrap())
-                .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
                 .with_params(deploy_params)
                 .deploy()
                 .await?
@@ -252,8 +303,9 @@ impl TestEnv {
             rpc: ws_rpc_url.clone(),
             beacon_rpc: http_rpc_url.clone(),
             router_address,
-            block_time: config.block_time,
+            block_time,
             eip1559_fee_increase_percentage: Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            eip1559_max_fee_per_gas_in_gwei: Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI,
             blob_gas_multiplier: Ethereum::NO_BLOB_GAS_MULTIPLIER,
         };
         let mut observer = ObserverService::new(
@@ -278,7 +330,14 @@ impl TestEnv {
         let provider = observer.provider().clone();
 
         let observer_events = {
-            let (sender, receiver) = events::channel(db.clone());
+            let (sender, receiver) = events::channel(
+                db.clone(),
+                kicking_per_blocks.map(|blocks| {
+                    let provider = provider.clone();
+                    let duration = block_time * blocks;
+                    (duration, provider)
+                }),
+            );
 
             let cloned_sender = sender.clone();
             tokio::spawn(
@@ -356,6 +415,10 @@ impl TestEnv {
             (handle, bootstrap_address, nonce)
         });
 
+        // Hold listeners alive until `start_service` to keep concurrent test processes off our ports.
+        let (malachite_endpoints, malachite_listeners) =
+            build_malachite_endpoints(&signer, &validator_configs);
+
         Ok(TestEnv {
             eth_cfg,
             wallets,
@@ -366,16 +429,25 @@ impl TestEnv {
             validators: validator_configs,
             sender_id: ActorId::from(H160::from(sender_address.0)),
             threshold,
-            block_time,
             continuous_block_generation,
             commitment_delay_limit,
-            compute_config,
+            canonical_quarantine,
+            post_quarantine_delay,
+            kicking_per_blocks,
+            db,
+            malachite_endpoints,
+            malachite_listeners,
             router_query,
             observer_events,
-            db,
             bootstrap_network,
             _anvil: anvil,
         })
+    }
+
+    pub async fn default() -> Self {
+        Self::new(TestEnvConfig::default())
+            .await
+            .expect("failed to create test environment")
     }
 
     pub async fn new_node(&mut self, config: NodeConfig) -> Node {
@@ -411,6 +483,23 @@ impl TestEnv {
                 .expect("failed to generate network key")
         });
 
+        // Allocate once: stop+start reuses the same WAL/store.
+        // Both validators and full nodes need a malachite home — full nodes
+        // run the engine in `NodeRole::FullNode` so they receive
+        // `BlockFinalized` and can compute MBs locally.
+        let malachite_home = Some(tempfile::tempdir().expect("malachite home tempdir"));
+
+        // Take this validator's listener; it lives on the Node until first
+        // `start_service`. Full nodes don't have a pre-allocated endpoint
+        // in `self.malachite_endpoints` and bind a fresh port at start.
+        let malachite_listener = validator_config
+            .as_ref()
+            .and_then(|c| self.malachite_listeners.remove(&c.public_key));
+
+        // Snapshot env.validators now so a node spawned post-rotation boots with the new set.
+        let active_validator_pub_keys: Vec<PublicKey> =
+            self.validators.iter().map(|v| v.public_key).collect();
+
         Node {
             name,
             db,
@@ -423,17 +512,45 @@ impl TestEnv {
             election_provider: self.election_provider.clone(),
             signer: self.signer.clone(),
             threshold: self.threshold,
-            block_time: self.block_time,
             validator_config,
             network_public_key,
             network_address,
             network_bootstrap_address,
             service_rpc_config,
             fast_sync,
-            compute_config: self.compute_config,
             commitment_delay_limit: self.commitment_delay_limit,
+            malachite_endpoints: self.malachite_endpoints.clone(),
+            active_validator_pub_keys,
+            malachite_home,
+            malachite_listener,
             running_service_handle: None,
+            shutdown_tx: None,
+            canonical_quarantine: self.canonical_quarantine,
+            post_quarantine_delay: self.post_quarantine_delay,
+            kicking_per_blocks: self
+                .kicking_per_blocks
+                .map(|blocks| (blocks * self.eth_cfg.block_time, self.provider.clone())),
         }
+    }
+
+    /// Pre-allocate malachite endpoints for an *additional* validator set
+    /// (e.g. the "next" set in an era handover test) and merge them into
+    /// `self.malachite_endpoints` / `self.malachite_listeners`. Without this,
+    /// `start_service` panics when asked to boot a validator whose pubkey
+    /// wasn't part of `TestEnv::new` time.
+    pub fn extend_malachite_endpoints(&mut self, validators: &[ValidatorConfig]) {
+        let (extra_endpoints, extra_listeners) =
+            build_malachite_endpoints(&self.signer, validators);
+        for ep in extra_endpoints {
+            if !self
+                .malachite_endpoints
+                .iter()
+                .any(|e| e.pub_key == ep.pub_key)
+            {
+                self.malachite_endpoints.push(ep);
+            }
+        }
+        self.malachite_listeners.extend(extra_listeners);
     }
 
     pub async fn new_initialized_db(&self) -> Database {
@@ -449,8 +566,9 @@ impl TestEnv {
 
     /// Upload code bytes and request a validation on router. Returns waiter for code validation result.
     ///
-    /// NOTE: [`WaitForUploadCode`] contains a hack for not continuous block generation mode,
-    /// it may cause new blocks mining, so use it carefully, for more info see [`WaitForUploadCode::wait_for`].
+    /// NOTE: when [`Self::continuous_block_generation`] is off, the returned
+    /// [`WaitForUploadCode`] carries a force-mine kick on its receiver, so
+    /// idle waits will mine an Anvil block — use it carefully.
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
         log::info!("📗 Upload code, len {}", code.len());
 
@@ -462,14 +580,7 @@ impl TestEnv {
         let (_tx_hash, new_code_id) = self.ethereum.router().request_code_validation(code).await?;
         assert_eq!(new_code_id, code_id);
 
-        Ok(WaitForUploadCode {
-            code_id,
-            receiver,
-            hack: self
-                .continuous_block_generation
-                .not()
-                .then(|| (self.provider.clone(), self.block_time)),
-        })
+        Ok(WaitForUploadCode { code_id, receiver })
     }
 
     pub async fn create_program(
@@ -493,22 +604,20 @@ impl TestEnv {
         let receiver = self.new_observer_events();
         let router = self.ethereum.router();
 
-        let (_, program_id) = router
-            .create_program(code_id, salt, override_initializer)
-            .await?;
-
-        if initial_executable_balance != 0 {
+        let (_, program_id) = if initial_executable_balance != 0 {
             router
-                .wvara()
-                .approve(program_id, initial_executable_balance)
-                .await?;
-
-            let mirror = self.ethereum.mirror(program_id);
-
-            mirror
-                .executable_balance_top_up(initial_executable_balance)
-                .await?;
-        }
+                .create_program_with_executable_balance(
+                    code_id,
+                    salt,
+                    override_initializer,
+                    initial_executable_balance,
+                )
+                .await
+        } else {
+            router
+                .create_program(code_id, salt, override_initializer)
+                .await
+        }?;
 
         Ok(WaitForProgramCreation {
             receiver,
@@ -530,22 +639,26 @@ impl TestEnv {
         let receiver = self.new_observer_events();
         let router = self.ethereum.router();
 
-        let (_, program_id) = router
-            .create_program_with_abi_interface(code_id, salt, override_initializer, abi_interface)
-            .await?;
-
-        if initial_executable_balance != 0 {
+        let (_, program_id) = if initial_executable_balance != 0 {
             router
-                .wvara()
-                .approve(program_id, initial_executable_balance)
-                .await?;
-
-            let mirror = self.ethereum.mirror(program_id);
-
-            mirror
-                .executable_balance_top_up(initial_executable_balance)
-                .await?;
-        }
+                .create_program_with_abi_interface_and_executable_balance(
+                    code_id,
+                    salt,
+                    override_initializer,
+                    abi_interface,
+                    initial_executable_balance,
+                )
+                .await?
+        } else {
+            router
+                .create_program_with_abi_interface(
+                    code_id,
+                    salt,
+                    override_initializer,
+                    abi_interface,
+                )
+                .await?
+        };
 
         Ok(WaitForProgramCreation {
             receiver,
@@ -642,12 +755,21 @@ impl TestEnv {
     /// If you have some other threads or processes,
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
+    #[allow(dead_code)]
     pub async fn next_block_producer_index(&self) -> usize {
-        let timestamp = self.latest_block().await.header.timestamp + self.block_time.as_secs();
+        let timestamp =
+            self.latest_block().await.header.timestamp + self.eth_cfg.block_time.as_secs();
         self.db
             .config()
             .timelines
-            .block_producer_index_at(self.validators.len(), timestamp)
+            .block_coordinator_index_at(
+                self.validators
+                    .len()
+                    .try_into()
+                    .expect("empty validators unexpected"),
+                timestamp,
+            )
+            .expect("failed to calculate block producer index")
     }
 
     /// Waits until the next block producer index becomes equal to `index`.
@@ -657,6 +779,7 @@ impl TestEnv {
     /// If you have some other threads or processes,
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
+    #[allow(dead_code)]
     pub async fn wait_for_next_producer_index(&self, index: usize) {
         loop {
             let next_index = self.next_block_producer_index().await;
@@ -674,62 +797,14 @@ impl TestEnv {
             .unwrap()
     }
 
-    pub fn define_session_keys(
-        signer: &Signer,
-        validators: Vec<PublicKey>,
-    ) -> (Vec<ValidatorConfig>, VerifiableSecretSharingCommitment) {
-        let max_signers: u16 = validators.len().try_into().expect("conversion failed");
-        let min_signers = max_signers
-            .checked_mul(2)
-            .expect("multiplication failed")
-            .div_ceil(3);
-
-        let maybe_validator_identifiers: anyhow::Result<Vec<_>, _> = validators
-            .iter()
-            .map(|public_key| {
-                Identifier::deserialize(&ActorId::from(public_key.to_address()).into_bytes())
+    pub fn define_session_keys(validators: Vec<PublicKey>) -> Vec<ValidatorConfig> {
+        validators
+            .into_iter()
+            .map(|public_key| ValidatorConfig {
+                public_key,
+                session_public_key: public_key,
             })
-            .collect();
-        let validator_identifiers = maybe_validator_identifiers.expect("conversion failed");
-        let identifiers = IdentifierList::Custom(&validator_identifiers);
-
-        let mut rng = StdRng::seed_from_u64(123);
-
-        let secret = SigningKey::deserialize(&[0x01; 32]).expect("conversion failed");
-
-        let (secret_shares, public_key_package1) =
-            keys::split(&secret, max_signers, min_signers, identifiers, &mut rng)
-                .expect("key split failed");
-
-        let verifiable_secret_sharing_commitment = secret_shares
-            .values()
-            .map(|secret_share| secret_share.commitment().clone())
-            .next()
-            .expect("conversion failed");
-
-        let identifiers = validator_identifiers.clone().into_iter().collect();
-        let public_key_package2 =
-            PublicKeyPackage::from_commitment(&identifiers, &verifiable_secret_sharing_commitment)
-                .expect("conversion failed");
-        assert_eq!(public_key_package1, public_key_package2);
-
-        (
-            validators
-                .into_iter()
-                .zip(validator_identifiers.iter())
-                .map(|(public_key, id)| {
-                    let signing_share = *secret_shares[id].signing_share();
-                    let seed: [u8; 32] = <[u8; 32]>::try_from(signing_share.serialize()).unwrap();
-                    let private_key =
-                        PrivateKey::from_seed(seed).expect("signing share must be valid seed");
-                    ValidatorConfig {
-                        public_key,
-                        session_public_key: signer.import(private_key).unwrap(),
-                    }
-                })
-                .collect(),
-            verifiable_secret_sharing_commitment,
-        )
+            .collect()
     }
 }
 
@@ -787,10 +862,16 @@ pub struct TestEnvConfig {
     pub network: EnvNetworkConfig,
     /// Smart contracts deploy configuration.
     pub deploy_params: ContractsDeploymentParams,
-    /// Commitment delay limit in blocks.
-    pub commitment_delay_limit: u32,
-    /// Compute service configuration
-    pub compute_config: ComputeConfig,
+    /// Commitment delay limit in Eth blocks (coordinator-local).
+    pub commitment_delay_limit: std::num::NonZero<u8>,
+    /// Canonical quarantine period in blocks.
+    pub canonical_quarantine: u8,
+    /// Producer-side extra anchor-depth slack on top of `canonical_quarantine`.
+    /// Tests default this to 0 to keep the old timing behavior.
+    pub post_quarantine_delay: u32,
+    /// How often the waiting for events streams should force new blocks mining in order to avoid tests hanging.
+    /// Some contains amount of block intervals between forced blocks mining, None - means that blocks mining will not be forced at all.
+    pub kicking_per_blocks: Option<u32>,
 }
 
 impl Default for TestEnvConfig {
@@ -811,8 +892,10 @@ impl Default for TestEnvConfig {
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
-            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
-            compute_config: ComputeConfig::without_quarantine(),
+            commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
+            canonical_quarantine: 0,
+            post_quarantine_delay: 0,
+            kicking_per_blocks: Some(3),
         }
     }
 }
@@ -840,6 +923,7 @@ impl NodeConfig {
         }
     }
 
+    #[allow(dead_code)]
     pub fn db(mut self, db: Database) -> Self {
         self.db = Some(db);
         self
@@ -863,6 +947,7 @@ impl NodeConfig {
         self
     }
 
+    #[allow(dead_code)]
     pub fn fast_sync(mut self) -> Self {
         self.fast_sync = true;
         self
@@ -931,17 +1016,31 @@ pub struct Node {
     election_provider: MockElectionProvider,
     signer: Signer,
     threshold: u64,
-    block_time: Duration,
     validator_config: Option<ValidatorConfig>,
     network_public_key: Option<PublicKey>,
     network_address: Option<String>,
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
-    compute_config: ComputeConfig,
-    commitment_delay_limit: u32,
+    commitment_delay_limit: std::num::NonZero<u8>,
+    canonical_quarantine: u8,
+    post_quarantine_delay: u32,
+    kicking_per_blocks: Option<(Duration, RootProvider)>,
+
+    /// Malachite WAL + store.db tempdir; lives with the node.
+    malachite_home: Option<tempfile::TempDir>,
+
+    /// Endpoints of every validator (this node + peers).
+    malachite_endpoints: Vec<MalachiteEndpoint>,
+    /// Snapshot of `env.validators` at `new_node` time — drives the
+    /// boot-time filter on `malachite_endpoints` in `start_service`.
+    active_validator_pub_keys: Vec<PublicKey>,
+    /// Port reservation; dropped just before the first `MalachiteService::new`.
+    malachite_listener: Option<TcpListener>,
 
     running_service_handle: Option<JoinHandle<()>>,
+    /// Graceful shutdown — flushes WAL and releases the libp2p listener.
+    shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
 impl Node {
@@ -952,7 +1051,7 @@ impl Node {
         );
 
         let processor = Processor::new(self.db.clone()).unwrap();
-        let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
+        let compute = ComputeService::new(self.db.clone(), processor);
 
         let observer = ObserverService::new(
             self.db.clone(),
@@ -974,7 +1073,7 @@ impl Node {
             .await
             .unwrap();
 
-        let consensus: Pin<Box<dyn ConsensusService>> = {
+        let consensus: Option<Pin<Box<dyn ConsensusService>>> = {
             if let Some(config) = self.validator_config.as_ref() {
                 let committer = if let Some(custom_committer) = self.custom_committer.take() {
                     custom_committer
@@ -995,7 +1094,7 @@ impl Node {
                         .into()
                 };
 
-                Box::pin(
+                Some(Box::pin(
                     ValidatorService::new(
                         self.signer.clone(),
                         self.election_provider.clone(),
@@ -1004,30 +1103,114 @@ impl Node {
                         ethexe_consensus::ValidatorConfig {
                             pub_key: config.public_key,
                             signatures_threshold: self.threshold,
-                            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                             commitment_delay_limit: self.commitment_delay_limit,
-                            producer_delay: self.block_time / 6,
                             router_address: self.eth_cfg.router_address,
-                            chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
                             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
+                            coordinator_aggregation_delay: std::time::Duration::ZERO,
+                            // High enough that the checkpoint path never fires across the
+                            // short Eth-block budget service tests run for.
+                            uncommitted_chain_len_threshold: std::num::NonZero::new(u32::MAX)
+                                .unwrap(),
                         },
                     )
                     .unwrap(),
-                )
+                ) as Pin<Box<dyn ConsensusService>>)
             } else {
-                Box::pin(ConnectService::new(
-                    self.db.clone(),
-                    self.commitment_delay_limit,
-                ))
+                None
             }
         };
 
-        let validator_address = self
-            .validator_config
-            .as_ref()
-            .map(|c| c.public_key.to_address());
+        let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
+        let validator_address = validator_pub_key.map(|key| key.to_address());
 
-        let (sender, receiver) = events::channel(self.db.clone());
+        // Validators and full/RPC nodes both join the Malachite mesh.
+        // Full nodes run in `NodeRole::FullNode` (no signing) but still
+        // receive `BlockFinalized` and trigger local compute so promise
+        // bodies reach the RPC subscription manager.
+        let malachite = {
+            // Filter `malachite_endpoints` to era-current pubkeys —
+            // leftover entries from `extend_malachite_endpoints` would
+            // skew the >2/3 threshold.
+            let active: Vec<&MalachiteEndpoint> = self
+                .malachite_endpoints
+                .iter()
+                .filter(|e| self.active_validator_pub_keys.contains(&e.pub_key))
+                .collect();
+
+            let (listen_addr, persistent_peers) = match self.validator_config.as_ref() {
+                Some(config) => {
+                    let me = self
+                        .malachite_endpoints
+                        .iter()
+                        .find(|e| e.pub_key == config.public_key)
+                        .cloned()
+                        .expect(
+                            "validator's malachite endpoint missing — env not aware of this key",
+                        );
+                    assert!(
+                        active.iter().any(|e| e.pub_key == config.public_key),
+                        "test setup bug: local validator {} not in env.validators when start_service was called",
+                        config.public_key,
+                    );
+                    let peers: Vec<MalachiteMultiaddr> = active
+                        .iter()
+                        .filter(|e| e.pub_key != config.public_key)
+                        .map(|e| e.multiaddr())
+                        .collect();
+                    (me.listen_addr, peers)
+                }
+                None => {
+                    // Full node: bind a fresh port, dial every active
+                    // validator. No reserved listener since `new_node`
+                    // never allocated one for this key.
+                    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+                        .expect("bind 127.0.0.1:0 for full-node malachite endpoint");
+                    let addr = listener.local_addr().expect("local_addr");
+                    let peers: Vec<MalachiteMultiaddr> =
+                        active.iter().map(|e| e.multiaddr()).collect();
+                    drop(listener);
+                    (addr, peers)
+                }
+            };
+
+            let validators: Vec<ValidatorEntry> = active
+                .iter()
+                .map(|e| ValidatorEntry {
+                    public_key: e.pub_key,
+                    voting_power: 1,
+                })
+                .collect();
+
+            // Reuse the home dir from `new_node` so stop+start resumes from WAL.
+            let home_path = self
+                .malachite_home
+                .as_ref()
+                .expect("node must have a malachite home allocated in new_node")
+                .path()
+                .to_path_buf();
+
+            let mut mc = MalachiteConfig::from_home_dir(home_path)
+                .with_listen_addr(listen_addr)
+                .with_persistent_peers(persistent_peers)
+                .with_validators(validators);
+            mc.canonical_quarantine = self.canonical_quarantine;
+            mc.post_quarantine_delay = self.post_quarantine_delay;
+            let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
+            // Release the port-reservation listener moments before libp2p rebinds.
+            drop(self.malachite_listener.take());
+            let svc = MalachiteService::new(
+                mc,
+                self.db.clone(),
+                self.signer.clone(),
+                self.validator_config.as_ref().map(|c| c.public_key),
+                mempool,
+            )
+            .await
+            .expect("MalachiteService::new");
+            Some(svc)
+        };
+
+        let (sender, receiver) = events::channel(self.db.clone(), self.kicking_per_blocks.clone());
 
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
@@ -1050,8 +1233,8 @@ impl Node {
 
         let rpc = self
             .service_rpc_config
-            .as_ref()
-            .map(|service_rpc_config| RpcServer::new(service_rpc_config.clone(), self.db.clone()));
+            .clone()
+            .map(|config| RpcServer::new(config, self.db.clone()));
 
         self.receiver = Some(receiver);
 
@@ -1062,13 +1245,18 @@ impl Node {
             compute,
             self.signer.clone(),
             consensus,
+            malachite,
             network,
             None,
             rpc,
             sender,
             self.fast_sync,
             validator_address,
+            validator_pub_key,
         );
+
+        let mut service = service;
+        let shutdown_tx = service.install_shutdown_channel();
 
         let name = self.name.clone();
         let handle = task::spawn(async move {
@@ -1079,6 +1267,7 @@ impl Node {
                 .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });
         self.running_service_handle = Some(handle);
+        self.shutdown_tx = Some(shutdown_tx);
 
         if self.fast_sync {
             self.latest_fast_synced_block = Some(
@@ -1110,9 +1299,18 @@ impl Node {
             .running_service_handle
             .take()
             .expect("Service is not running");
-        handle.abort();
 
-        assert!(handle.await.unwrap_err().is_cancelled());
+        // Graceful shutdown so the WAL flushes and libp2p releases; abort if the receiver is gone.
+        if let Some(tx) = self.shutdown_tx.take()
+            && tx.send(()).is_ok()
+        {
+            handle
+                .await
+                .unwrap_or_else(|err| panic!("service task failed during shutdown: {err}"));
+        } else {
+            handle.abort();
+            assert!(handle.await.unwrap_err().is_cancelled());
+        }
 
         self.receiver = None;
     }
@@ -1123,6 +1321,7 @@ impl Node {
         Some(HttpClient::builder().build(&url).unwrap())
     }
 
+    #[allow(dead_code)]
     pub async fn rpc_ws_client(&self) -> Option<WsClient> {
         let listen_addr = self.service_rpc_config.clone()?.listen_addr;
         let url = format!("ws://{listen_addr}");
@@ -1133,6 +1332,7 @@ impl Node {
         self.receiver.clone().expect("node is not started")
     }
 
+    #[allow(dead_code)]
     pub fn new_events(&mut self) -> TestingEventReceiver {
         self.receiver
             .as_ref()
@@ -1180,6 +1380,7 @@ impl Node {
         Some(network)
     }
 
+    #[allow(dead_code)]
     pub async fn publish_validator_message<T: fmt::Debug + ToDigest>(
         &self,
         message: impl Into<ValidatorMessage<T>>,
@@ -1234,6 +1435,10 @@ impl Node {
 impl Drop for Node {
     fn drop(&mut self) {
         if let Some(handle) = &self.running_service_handle {
+            log::error!(
+                "Node {} service was not stopped in test before drop - stopping it now roughly",
+                self.name.as_deref().unwrap_or("<unnamed>")
+            );
             handle.abort();
         }
 
@@ -1249,10 +1454,6 @@ pub struct WaitForUploadCode {
     pub code_id: CodeId,
 
     receiver: ObserverEventReceiver,
-    /// Hack: contains provider and block time.
-    /// If Some then while waiting for code validation result
-    /// it would trigger new block mining each 3 block times.
-    hack: Option<(RootProvider, Duration)>,
 }
 
 #[derive(Debug)]
@@ -1266,39 +1467,15 @@ impl WaitForUploadCode {
         log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
         let mut receiver = self.receiver.filter_map_block_synced();
-        let wait_for_validation_status = receiver.find_map(|event| match event {
-            BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
-                code_id,
-                valid,
-            })) if code_id == self.code_id => Some(valid),
-            _ => None,
-        });
-
-        let Some((provider, block_time)) = self.hack else {
-            return Ok(UploadCodeInfo {
-                code_id: self.code_id,
-                valid: wait_for_validation_status.await,
-            });
-        };
-
-        tokio::pin!(wait_for_validation_status);
-
-        let valid = loop {
-            tokio::select! {
-                _ = tokio::time::sleep(block_time * 3) => {
-                    // A hack to avoid waiting indefinitely in case
-                    // block producer skipped code validation commitment
-                    // by some reason in block with validation request.
-                    // We forcing a new block mining here,
-                    // so that producer have to start batch commitment aggregation for a new block.
-                    log::info!("⏱️ Reached code validation timeout, forcing new block to trigger commitment");
-                    provider.evm_mine(None).await.unwrap();
-                }
-                valid = &mut wait_for_validation_status => {
-                    break valid;
-                }
-            }
-        };
+        let valid = receiver
+            .find_map(|event| match event {
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                    code_id,
+                    valid,
+                })) if code_id == self.code_id => Some(valid),
+                _ => None,
+            })
+            .await;
 
         Ok(UploadCodeInfo {
             code_id: self.code_id,
@@ -1364,6 +1541,7 @@ pub struct ReplyInfo {
 }
 
 impl WaitForReplyTo {
+    #[allow(dead_code)]
     pub fn from_raw_parts(receiver: ObserverEventReceiver, message_id: MessageId) -> Self {
         Self {
             receiver,
@@ -1399,5 +1577,16 @@ impl WaitForReplyTo {
             .await;
 
         Ok(info)
+    }
+}
+
+/// Stop services and drop provided nodes.
+pub async fn stop_nodes(nodes: impl IntoIterator<Item = Node>) {
+    for mut node in nodes.into_iter() {
+        if node.running_service_handle.is_some() {
+            node.stop_service().await;
+        }
+
+        drop(node);
     }
 }

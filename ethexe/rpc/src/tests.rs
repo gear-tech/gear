@@ -1,38 +1,20 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer,
     RpcService,
 };
-
 use ethexe_common::{
+    SignedMessage,
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, Promise, SignedPromise},
+    injected::{AddressedInjectedTransaction, Promise, Receipt, SignedCompactTxReceipt},
     mock::Mock,
 };
 use ethexe_db::Database;
 use futures::StreamExt;
-use gear_core::{
-    message::{ReplyCode, SuccessReplyReason},
-    rpc::ReplyInfo,
-};
+use gear_core::message::{ReplyCode, SuccessReplyReason};
 use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
@@ -67,8 +49,11 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let promises = tx_batch.drain(..).map(Self::create_promise_for).collect();
-                        self.rpc.provide_promises(promises);
+                        for tx in tx_batch.drain(..) {
+                            let (promise, receipt) = Self::create_promise_for(tx);
+                            self.rpc.receive_computed_promise(promise);
+                            self.rpc.receive_tx_receipt(receipt);
+                        }
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -84,16 +69,12 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: AddressedInjectedTransaction) -> SignedPromise {
-        let promise = Promise {
-            tx_hash: tx.tx.data().to_hash(),
-            reply: ReplyInfo {
-                payload: vec![],
-                value: 0,
-                code: ReplyCode::Success(SuccessReplyReason::Manual),
-            },
-        };
-        SignedPromise::create(PrivateKey::random(), promise).expect("Signing promise will succeed")
+    fn create_promise_for(tx: AddressedInjectedTransaction) -> (Promise, SignedCompactTxReceipt) {
+        let promise = Promise::mock(tx.tx.data().to_hash());
+        let receipt =
+            SignedMessage::create(PrivateKey::random(), Receipt::Promise(promise.to_compact()))
+                .unwrap();
+        (promise, receipt.into())
     }
 }
 
@@ -114,7 +95,7 @@ async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService)
 
 /// This helper function waits until all promise subscriptions being closed and cleaned up.
 async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
-    while injected_api.promise_subscribers_count() > 0 {
+    while injected_api.subscribers_count() > 0 {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
 }
@@ -146,14 +127,15 @@ async fn test_cleanup_promise_subscribers() {
                 .expect("Subscription will be created");
 
             subscribers.spawn(async move {
-                let promise = sub
+                let receipt = sub
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
 
@@ -174,14 +156,15 @@ async fn test_cleanup_promise_subscribers() {
                 .expect("Subscription will be created");
 
             subscribers.spawn(async move {
-                let promise = subscription
+                let receipt = subscription
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
             });
@@ -237,14 +220,15 @@ async fn test_concurrent_multiple_clients() {
                     .await
                     .expect("Subscription will be created");
 
-                let promise = subscription
+                let receipt = subscription
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
 

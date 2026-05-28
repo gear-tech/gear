@@ -1,0 +1,87 @@
+[package]
+name = "gear-cli"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[lib]
+name = "gear_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gear"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+mimalloc = { workspace = true, default-features = false }
+log = { workspace = true, features = ["std"] }
+futures.workspace = true
+derive_more.workspace = true
+
+# Gear
+runtime-primitives.workspace = true
+gear-runtime-interface = { workspace = true, features = ["std", "sandbox-host-api"] }
+service.workspace = true
+pallet-gear-payment = { workspace = true, features = ["std"] }
+pallet-gear-staking-rewards = { workspace = true, optional = true, features = ["std"] }
+
+# Gear Runtimes
+vara-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
+
+# Substrate client
+sc-cli.workspace = true
+sc-executor.workspace = true
+sc-service.workspace = true
+sc-client-api.workspace = true
+
+# Substrate primitives
+sp-core = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+sp-inherents = { workspace = true, features = ["std"] }
+sp-keyring.workspace = true
+sp-runtime = { workspace = true, features = ["std"] }
+sp-timestamp = { workspace = true, features = ["std"] }
+
+# Substrate other (benchmarking etc)
+frame-system = { workspace = true, features = ["std"] }
+frame-metadata-hash-extension = { workspace = true, optional = true, features = ["std"] }
+frame-benchmarking = { workspace = true, optional = true, features = ["std"] }
+frame-benchmarking-cli = { workspace = true, optional = true }
+
+# Program CLI
+gcli = { workspace = true, optional = true }
+gear-workspace-hack.workspace = true
+
+[build-dependencies]
+substrate-build-script-utils.workspace = true
+
+[features]
+default = ["vara-native"]
+vara-native = [
+	"vara-runtime",
+	"service/vara-native",
+	"pallet-gear-staking-rewards",
+]
+runtime-benchmarks = [
+	"vara-runtime?/runtime-benchmarks",
+	"service/runtime-benchmarks",
+	"frame-benchmarking",
+	"frame-benchmarking-cli/runtime-benchmarks",
+	"frame-metadata-hash-extension",
+]
+runtime-benchmarks-checkers = [
+	"vara-runtime?/runtime-benchmarks",
+	"service/runtime-benchmarks-checkers",
+]
+cli = [ "gcli" ]
+metadata-hash = [
+	"service/metadata-hash",
+	"vara-runtime?/metadata-hash",
+]

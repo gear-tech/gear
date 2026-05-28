@@ -1,0 +1,75 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+//! RPC interface for the gear module.
+
+use jsonrpsee::{
+    core::RpcResult,
+    proc_macros::rpc,
+    types::{ErrorObjectOwned, error::ErrorObject},
+};
+pub use pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi as GearBuiltinRuntimeApi;
+use sp_api::ProvideRuntimeApi;
+use sp_blockchain::HeaderBackend;
+use sp_core::H256;
+use sp_runtime::traits::Block as BlockT;
+use std::sync::Arc;
+
+#[rpc(server)]
+pub trait GearBuiltinApi<BlockHash, ResponseType> {
+    #[method(name = "gearBuiltin_queryId")]
+    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<ResponseType>;
+}
+
+/// Provides RPC methods to query token economics related data.
+pub struct GearBuiltin<C, P> {
+    /// Shared reference to the client.
+    client: Arc<C>,
+    _marker: std::marker::PhantomData<P>,
+}
+
+impl<C, P> GearBuiltin<C, P> {
+    /// Creates a new instance of the GearBuiltin Rpc helper.
+    pub fn new(client: Arc<C>) -> Self {
+        Self {
+            client,
+            _marker: Default::default(),
+        }
+    }
+}
+
+/// Error type of this RPC api.
+pub enum Error {
+    /// The query was not decodable.
+    DecodeError,
+    /// The call to runtime failed.
+    RuntimeError,
+}
+
+impl From<Error> for i32 {
+    fn from(e: Error) -> i32 {
+        match e {
+            Error::RuntimeError => 1,
+            Error::DecodeError => 2,
+        }
+    }
+}
+
+impl<C, Block> GearBuiltinApiServer<<Block as BlockT>::Hash, H256> for GearBuiltin<C, Block>
+where
+    Block: BlockT,
+    C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
+    C::Api: GearBuiltinRuntimeApi<Block>,
+{
+    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<H256> {
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+
+        fn map_err(error: impl ToString, desc: &'static str) -> ErrorObjectOwned {
+            ErrorObject::owned(Error::RuntimeError.into(), desc, Some(error.to_string()))
+        }
+
+        api.query_actor_id(best_hash, builtin_id)
+            .map_err(|e| map_err(e, "Unable to generate actor id"))
+    }
+}

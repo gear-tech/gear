@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{Gear, utils::*};
 use ethexe_common::gear::*;
@@ -38,7 +23,8 @@ impl From<ChainCommitment> for Gear::ChainCommitment {
     fn from(value: ChainCommitment) -> Self {
         Self {
             transitions: value.transitions.into_iter().map(Into::into).collect(),
-            head: value.head_announce.inner().0.into(),
+            head: value.head.0.into(),
+            lastAdvancedEthBlock: value.last_advanced_eth_block.0.into(),
         }
     }
 }
@@ -55,13 +41,10 @@ impl From<CodeCommitment> for Gear::CodeCommitment {
 impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
     fn from(value: ValidatorsCommitment) -> Self {
         Self {
+            hasAggregatedPublicKey: value.has_aggregated_public_key,
             aggregatedPublicKey: value.aggregated_public_key.into(),
             verifiableSecretSharingCommitment: Bytes::copy_from_slice(
-                &value
-                    .verifiable_secret_sharing_commitment
-                    .serialize()
-                    .expect("Could not serialize `VerifiableSecretSharingCommitment<C>`")
-                    .concat(),
+                &value.verifiable_secret_sharing_commitment,
             ),
             validators: value.validators.into_iter().map(|v| v.into()).collect(),
             eraIndex: Uint256::from(value.era_index),

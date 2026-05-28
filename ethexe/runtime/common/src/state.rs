@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! State-related data structures.
 
@@ -821,6 +806,11 @@ impl UserMailbox {
     fn store<S: Storage + ?Sized>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_user_mailbox(self)))
     }
+
+    #[cfg(any(test, feature = "mock"))]
+    pub fn from_inner(inner: BTreeMap<MessageId, Expiring<MailboxMessage>>) -> Self {
+        Self(inner)
+    }
 }
 
 impl AsRef<BTreeMap<MessageId, Expiring<MailboxMessage>>> for UserMailbox {
@@ -1065,6 +1055,7 @@ impl MemoryPages {
         }
 
         for (region_idx, region) in updated_regions {
+            // TODO #5373
             if let Some(region_hash) = region.store(storage).to_inner() {
                 self[region_idx] = region_hash.into();
             }
@@ -1095,6 +1086,11 @@ impl MemoryPagesRegion {
 
     pub fn as_inner(&self) -> &MemoryPagesRegionInner {
         &self.0
+    }
+
+    #[cfg(any(test, feature = "mock"))]
+    pub fn from_inner(inner: MemoryPagesRegionInner) -> Self {
+        Self(inner)
     }
 }
 

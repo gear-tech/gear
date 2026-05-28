@@ -1,0 +1,28 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+pub fn median(values: &[u64]) -> u64 {
+    assert!(!values.is_empty());
+
+    let len = values.len();
+    if len.is_multiple_of(2) {
+        let i = len / 2;
+        values[i - 1] / 2 + values[i] / 2 + values[i - 1] % 2 + values[i] % 2
+    } else {
+        values[len / 2]
+    }
+}
+
+pub fn average(values: &[u64]) -> u64 {
+    values.iter().sum::<u64>() / values.len() as u64
+}
+
+pub fn std_dev(values: &[u64]) -> u64 {
+    let average = average(values);
+    let sum = values
+        .iter()
+        .map(|x| (x.abs_diff(average) as u128).pow(2))
+        .sum::<u128>();
+    let div = sum / values.len() as u128;
+    (div as f64).sqrt() as u64
+}

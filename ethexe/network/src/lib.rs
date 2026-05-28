@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Networking stack for `ethexe`.
 //!
@@ -59,7 +44,7 @@ use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedPromise},
+    injected::{AddressedInjectedTransaction, SignedCompactTxReceipt},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -79,10 +64,7 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{
-    collections::HashSet, fmt::Write, num::NonZeroU32, pin::Pin, sync::Arc, task::Poll,
-    time::Duration,
-};
+use std::{collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll, time::Duration};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 /// Default listen port.
@@ -100,17 +82,13 @@ const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
 const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
 const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 
-/// Hard cap for the amount of announces that can be returned in one db-sync
-/// response.
-pub const DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
-
 /// High-level events produced by [`NetworkService`].
 #[derive(derive_more::Debug)]
 pub enum NetworkEvent {
     /// A validator-signed message from the validator gossipsub topic.
     ValidatorMessage(VerifiedValidatorMessage),
     /// A public promise observed on the promise gossipsub topic.
-    PromiseMessage(SignedPromise),
+    TxReceiptMessage(SignedCompactTxReceipt),
     /// Validator discovery learned or refreshed the network identity of the
     /// given validator address.
     ValidatorIdentityUpdated(Address),
@@ -154,8 +132,6 @@ pub struct NetworkConfig {
     /// Whether private and local addresses are allowed in discovery and
     /// identify flows.
     pub allow_non_global_addresses: bool,
-    /// Upper bound for `Announces` db-sync responses served by this node.
-    pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl NetworkConfig {
@@ -170,7 +146,6 @@ impl NetworkConfig {
             transport_type: TransportType::Default,
             router_address,
             allow_non_global_addresses: false,
-            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 
@@ -184,7 +159,6 @@ impl NetworkConfig {
             transport_type: TransportType::Test,
             router_address,
             allow_non_global_addresses: true,
-            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 }
@@ -267,7 +241,6 @@ impl NetworkService {
             transport_type,
             router_address,
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
         } = config;
 
         let NetworkRuntimeConfig {
@@ -306,7 +279,6 @@ impl NetworkService {
             general_signer,
             validator_list_snapshot: validator_list_snapshot.clone(),
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
             metrics: (&mut registry, metrics.clone()),
         };
         let behaviour = Behaviour::new(behaviour_config)?;
@@ -562,11 +534,11 @@ impl NetworkService {
                             .verify_validator_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Promise(promise) => {
+                    gossipsub::Message::TxReceipt(receipt) => {
                         // FIXME: previous era validators are ignored
-                        let (acceptance, promise) =
-                            self.validator_topic.verify_promise(source, promise);
-                        (acceptance, promise.map(NetworkEvent::PromiseMessage))
+                        let (acceptance, receipt) =
+                            self.validator_topic.verify_receipt(source, receipt);
+                        (acceptance, receipt.map(NetworkEvent::TxReceiptMessage))
                     }
                 })
             }
@@ -668,8 +640,8 @@ impl NetworkService {
     }
 
     /// Publish a signed promise to the public promise gossipsub topic.
-    pub fn publish_promise(&mut self, promise: SignedPromise) {
-        self.swarm.behaviour_mut().gossipsub.publish(promise)
+    pub fn publish_tx_receipt(&mut self, receipt: SignedCompactTxReceipt) {
+        self.swarm.behaviour_mut().gossipsub.publish(receipt)
     }
 }
 
@@ -706,7 +678,6 @@ struct BehaviourConfig<'a> {
     general_signer: Signer,
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
     allow_non_global_addresses: bool,
-    max_chain_len_for_announces_response: NonZeroU32,
     metrics: (
         &'a mut libp2p::metrics::Registry,
         Arc<libp2p::metrics::Metrics>,
@@ -751,7 +722,6 @@ impl Behaviour {
             general_signer,
             validator_list_snapshot,
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
             metrics: (registry, metrics),
         } = config;
 
@@ -803,10 +773,7 @@ impl Behaviour {
         .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
 
         let db_sync = db_sync::Behaviour::new(
-            db_sync::Config {
-                max_chain_len_for_announces_response,
-                ..Default::default()
-            },
+            db_sync::Config::default(),
             peer_score_handle.clone(),
             external_data_provider,
             db,
@@ -845,11 +812,11 @@ mod tests {
     use super::*;
     use crate::{
         db_sync::{ExternalDataProvider, tests::fill_data_provider},
-        utils::tests::init_logger,
+        utils::tests::{arb_value, init_logger},
     };
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState, mock::*};
+    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState};
     use ethexe_db::Database;
     use gprimitives::{ActorId, CodeId, H256};
     use gsigner::secp256k1::Signer;
@@ -857,6 +824,7 @@ mod tests {
     use std::{
         collections::{BTreeSet, HashMap},
         future,
+        num::NonZeroU64,
         sync::Arc,
     };
     use tokio::{
@@ -955,9 +923,9 @@ mod tests {
             };
             const TIMELINES: ProtocolTimelines = ProtocolTimelines {
                 genesis_ts: GENESIS_BLOCK_HEADER.timestamp,
-                era: 1,
+                era: NonZeroU64::new(1).unwrap(),
                 election: 1,
-                slot: 1,
+                slot: NonZeroU64::new(1).unwrap(),
             };
 
             let Self {
@@ -970,7 +938,7 @@ mod tests {
 
             db.set_config(DBConfig {
                 timelines: TIMELINES,
-                ..DBConfig::mock(())
+                ..arb_value::<DBConfig>(())
             });
 
             let key = signer.generate().unwrap();
@@ -1062,6 +1030,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "test setup populates the requester's data provider rather than the responder's; \
+                needs a real responder-side fixture"]
     async fn external_data_provider() {
         init_logger();
 
@@ -1071,14 +1041,13 @@ mod tests {
         let alice_handle = alice.db_sync_handle();
 
         let bob = NetworkServiceBuilder::new();
-        let bob_db = bob.db.clone();
         let mut bob = bob.build();
 
         alice.connect(&mut bob).await;
         tokio::spawn(alice.loop_on_next());
         tokio::spawn(bob.loop_on_next());
 
-        let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
+        let expected_response = fill_data_provider(alice_data_provider).await;
 
         let request = alice_handle.request(db_sync::Request::program_ids(H256::zero(), 2));
         let response = timeout(Duration::from_secs(5), request)

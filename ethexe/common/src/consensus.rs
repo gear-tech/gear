@@ -1,29 +1,15 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, Digest, HashOf, ProtocolTimelines, ToDigest,
+    Address, Digest, ProtocolTimelines, ToDigest,
     ecdsa::{ContractSignature, VerifiedData},
     gear::BatchCommitment,
     validators::ValidatorsVec,
 };
 use alloc::vec::Vec;
-use gprimitives::CodeId;
+use core::num::NonZeroUsize;
+use gprimitives::{CodeId, H256};
 use k256::sha2::Digest as _;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
@@ -34,47 +20,51 @@ pub const MAX_BATCH_SIZE_LIMIT: u64 = 120 * 1024;
 /// The default batch size - 100 KB.
 pub const DEFAULT_BATCH_SIZE_LIMIT: u64 = 100 * 1024;
 
-/// Default threshold for producer to submit commitment despite of no transitions
-pub const DEFAULT_CHAIN_DEEPNESS_THRESHOLD: u32 = 500;
-
-pub type VerifiedAnnounce = VerifiedData<Announce>;
 pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 
 // TODO #4553: temporary implementation, should be improved
-/// Returns block producer for time slot. Next slot is the next validator in the list.
-pub const fn block_producer_index_for_slot(validators_amount: usize, slot: u64) -> usize {
-    (slot % validators_amount as u64) as usize
+/// Returns batch coordinator index for time slot. Next slot is the next validator in the list.
+pub const fn block_coordinator_index_for_slot(validators_amount: NonZeroUsize, slot: u64) -> usize {
+    (slot % validators_amount.get() as u64) as usize
 }
 
 impl ProtocolTimelines {
-    /// Calculates the producer address for a given timestamp.
+    /// Calculates the coordinator address for a given Ethereum block timestamp.
+    ///
+    /// The coordinator is the validator picked once per Ethereum block to
+    /// aggregate finalized MBs into a [`BatchCommitment`] and submit it
+    /// on-chain. Block production itself is driven by Malachite — coordinator
+    /// election is independent.
     ///
     /// # Arguments
     /// * `validators` - A non-empty vector of validator addresses.
-    /// * `timestamp` - The timestamp for which to calculate the block producer.
+    /// * `timestamp` - The timestamp for which to calculate the coordinator.
     ///
-    /// # Panics
-    /// Panics if timestamp is before genesis.
-    pub fn block_producer_at(&self, validators: &ValidatorsVec, timestamp: u64) -> Address {
-        let block_producer_index = self.block_producer_index_at(validators.len(), timestamp);
-        validators
-            .get(block_producer_index)
-            .cloned()
-            .unwrap_or_else(|| unreachable!("index must be valid"))
+    /// Returns `None` if timestamp is before genesis.
+    pub fn block_coordinator_at(
+        &self,
+        validators: &ValidatorsVec,
+        timestamp: u64,
+    ) -> Option<Address> {
+        let idx = self.block_coordinator_index_at(validators.len_nonzero(), timestamp)?;
+        validators.get(idx).cloned()
     }
 
-    /// Calculates the block producer index for a given timestamp.
+    /// Calculates the coordinator index for a given Ethereum block timestamp.
     ///
     /// # Arguments
     /// * `validators_amount` - The number of validators in the protocol.
-    /// * `timestamp` - The timestamp for which to calculate the block producer index.
+    /// * `timestamp` - The timestamp for which to calculate the coordinator index.
     ///
-    /// # Panics
-    /// Panics if timestamp is before genesis or if validators_amount is zero.
-    pub fn block_producer_index_at(&self, validators_amount: usize, timestamp: u64) -> usize {
-        let slot = self.slot_from_ts(timestamp);
-        block_producer_index_for_slot(validators_amount, slot)
+    /// Returns `None` if timestamp is before genesis.
+    pub fn block_coordinator_index_at(
+        &self,
+        validators_amount: NonZeroUsize,
+        timestamp: u64,
+    ) -> Option<usize> {
+        let slot = self.slot_from_ts(timestamp)?;
+        Some(block_coordinator_index_for_slot(validators_amount, slot))
     }
 }
 
@@ -83,8 +73,9 @@ impl ProtocolTimelines {
 pub struct BatchCommitmentValidationRequest {
     // Digest of batch commitment to validate
     pub digest: Digest,
-    /// Optional head announce hash of the chain commitment
-    pub head: Option<HashOf<Announce>>,
+    /// Optional head MB hash of the chain commitment.
+    /// The hash of the most recent finalized `ethexe_malachite_core::Block` envelope covered by this batch.
+    pub head: Option<H256>,
     /// List of codes which are part of the batch
     pub codes: Vec<CodeId>,
     /// Whether rewards commitment is part of the batch
@@ -103,7 +94,7 @@ impl BatchCommitmentValidationRequest {
 
         BatchCommitmentValidationRequest {
             digest: batch.to_digest(),
-            head: batch.chain_commitment.as_ref().map(|cc| cc.head_announce),
+            head: batch.chain_commitment.as_ref().map(|cc| cc.head),
             codes,
             rewards: batch.rewards_commitment.is_some(),
             validators: batch.validators_commitment.is_some(),
@@ -122,7 +113,7 @@ impl ToDigest for BatchCommitmentValidationRequest {
         } = self;
 
         hasher.update(digest);
-        head.map(|h| hasher.update(h.inner().0));
+        head.map(|h| hasher.update(h.0));
         hasher.update(
             codes
                 .iter()
@@ -155,20 +146,21 @@ impl ToDigest for BatchCommitmentValidationReply {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::num::NonZeroU64;
 
     #[test]
-    fn block_producer_index_calculates_correct_index() {
-        let validators_amount = 5;
+    fn block_coordinator_index_calculates_correct_index() {
+        let validators_amount = NonZeroUsize::new(5).unwrap();
         let slot = 7;
 
-        let index = block_producer_index_for_slot(validators_amount, slot);
+        let index = block_coordinator_index_for_slot(validators_amount, slot);
 
         assert_eq!(index, 2);
     }
 
     #[test]
-    fn block_producer_for_calculates_correct_producer() {
-        let validators = vec![
+    fn block_coordinator_for_calculates_correct_coordinator() {
+        let validators: ValidatorsVec = vec![
             Address::from([1; 20]),
             Address::from([2; 20]),
             Address::from([3; 20]),
@@ -176,19 +168,20 @@ mod tests {
         .try_into()
         .unwrap();
 
-        let producer = ProtocolTimelines {
-            slot: 1,
+        let coordinator = ProtocolTimelines {
+            slot: NonZeroU64::new(1).unwrap(),
             genesis_ts: 0,
-            ..Default::default()
+            era: NonZeroU64::new(1).unwrap(),
+            election: 0,
         }
-        .block_producer_at(&validators, 10);
+        .block_coordinator_at(&validators, 10);
 
-        assert_eq!(producer, Address::from([2; 20]));
+        assert_eq!(coordinator, Some(Address::from([2; 20])));
     }
 
     #[test]
-    fn block_producer_for_calculates_correct_producer_with_genesis_timestamp() {
-        let validators = vec![
+    fn block_coordinator_for_calculates_correct_coordinator_with_genesis_timestamp() {
+        let validators: ValidatorsVec = vec![
             Address::from([1; 20]),
             Address::from([2; 20]),
             Address::from([3; 20]),
@@ -196,13 +189,29 @@ mod tests {
         .try_into()
         .unwrap();
 
-        let producer = ProtocolTimelines {
-            slot: 2,
+        let coordinator = ProtocolTimelines {
+            slot: NonZeroU64::new(2).unwrap(),
             genesis_ts: 6,
-            ..Default::default()
+            era: NonZeroU64::new(1).unwrap(),
+            election: 0,
         }
-        .block_producer_at(&validators, 16);
+        .block_coordinator_at(&validators, 16);
 
-        assert_eq!(producer, Address::from([3; 20]));
+        assert_eq!(coordinator, Some(Address::from([3; 20])));
+    }
+
+    #[test]
+    fn block_coordinator_at_returns_none_before_genesis() {
+        let validators: ValidatorsVec = vec![Address::from([1; 20])].try_into().unwrap();
+
+        let coordinator = ProtocolTimelines {
+            slot: NonZeroU64::new(1).unwrap(),
+            genesis_ts: 100,
+            era: NonZeroU64::new(1).unwrap(),
+            election: 0,
+        }
+        .block_coordinator_at(&validators, 50);
+
+        assert_eq!(coordinator, None);
     }
 }

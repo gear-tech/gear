@@ -1,0 +1,49 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+//! Gear storage primitives.
+//!
+//! Contains basic behavior of interaction with globally shared data,
+//! which could be used directly for common purposes or be a part of
+//! some consistent logic.
+
+// Private modules declaration.
+mod callback;
+mod counted;
+mod double_map;
+mod iterable;
+mod key;
+mod map;
+mod triple_map;
+mod value;
+
+// Public exports from primitive modules.
+pub use callback::{Callback, EmptyCallback, FallibleCallback, GetCallback, TransposeCallback};
+pub use counted::{Counted, CountedByKey};
+pub use double_map::DoubleMapStorage;
+
+#[cfg(feature = "std")]
+pub use double_map::auxiliary_double_map::*;
+
+pub use iterable::{
+    GetFirstPos, GetSecondPos, GetThirdPos, IterableByKeyMap, IterableMap, IteratorWrap,
+    KeyIterableByKeyMap,
+};
+pub use key::{KeyFor, MailboxKeyGen, QueueKeyGen, WaitlistKeyGen};
+pub use map::{AppendMapStorage, MapStorage};
+pub use triple_map::TripleMapStorage;
+pub use value::ValueStorage;
+
+use sp_runtime::{
+    codec::{self, Decode, Encode, MaxEncodedLen},
+    scale_info::{self, TypeInfo},
+};
+
+/// Type for interval values: e.g. in time `(since, till)`.
+#[derive(Clone, Debug, Decode, Encode, MaxEncodedLen, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub struct Interval<T> {
+    pub start: T,
+    pub finish: T,
+}

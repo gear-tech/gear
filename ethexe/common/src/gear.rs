@@ -1,30 +1,14 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
-use crate::{Address, Announce, Digest, HashOf, ToDigest, ValidatorsVec};
+use crate::{Address, Digest, ToDigest, ValidatorsVec};
 use alloc::vec::Vec;
 use alloy_primitives::U256 as AlloyU256;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
-use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
 use scale_info::TypeInfo;
 use sha3::Digest as _;
 
@@ -63,22 +47,26 @@ pub struct AddressBook {
     pub wrapped_vara: ActorId,
 }
 
-/// Squashed chain commitment that contains all state transitions and gear blocks.
+/// Squashed chain commitment with state transitions, MB head, and the latest
+/// advanced Ethereum block hash, zero if no ethereum block has been advanced.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    pub head_announce: HashOf<Announce>,
+    pub head: H256,
+    pub last_advanced_eth_block: H256,
 }
 
 impl ToDigest for ChainCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let ChainCommitment {
             transitions,
-            head_announce,
+            head,
+            last_advanced_eth_block,
         } = self;
 
         hasher.update(transitions.to_digest());
-        hasher.update(head_announce.inner().0);
+        hasher.update(head.0);
+        hasher.update(last_advanced_eth_block.0);
     }
 }
 
@@ -230,8 +218,10 @@ pub struct Timelines {
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ValidatorsCommitment {
+    /// Does the batch have aggregated public key in validators commitment.
+    pub has_aggregated_public_key: bool,
     pub aggregated_public_key: AggregatedPublicKey,
-    pub verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
+    pub verifiable_secret_sharing_commitment: Vec<u8>,
     pub validators: ValidatorsVec,
     pub era_index: u64,
 }
@@ -239,12 +229,14 @@ pub struct ValidatorsCommitment {
 impl ToDigest for ValidatorsCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let ValidatorsCommitment {
+            has_aggregated_public_key,
             aggregated_public_key,
             verifiable_secret_sharing_commitment: _, // TODO: add to digest
             validators,
             era_index,
         } = self;
 
+        hasher.update([*has_aggregated_public_key as u8]);
         hasher.update(<[u8; 32]>::from(aggregated_public_key.x));
         hasher.update(<[u8; 32]>::from(aggregated_public_key.y));
         hasher.update(
@@ -456,4 +448,22 @@ pub struct GenesisBlockInfo {
     pub hash: H256,
     pub number: u32,
     pub timestamp: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validators_commitment_accepts_raw_vss_commitment_bytes() {
+        let commitment = ValidatorsCommitment {
+            has_aggregated_public_key: false,
+            aggregated_public_key: AggregatedPublicKey::default(),
+            verifiable_secret_sharing_commitment: vec![],
+            validators: nonempty::nonempty![crate::Address::default()].into(),
+            era_index: 0,
+        };
+
+        assert!(commitment.verifiable_secret_sharing_commitment.is_empty());
+    }
 }

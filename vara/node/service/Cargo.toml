@@ -1,0 +1,119 @@
+[package]
+name = "gear-service"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+futures.workspace = true
+jsonrpsee = { workspace = true, features = ["server"] }
+log.workspace = true
+serde = { workspace = true, features = ["derive"] }
+parking_lot.workspace = true
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
+
+# Gear
+common = { workspace = true, features = ["std"] }
+gear-core = { workspace = true, features = ["std"] }
+pallet-gear-rpc.workspace = true
+pallet-gear-rpc-runtime-api = { workspace = true, features = ["std"] }
+pallet-gear-staking-rewards-rpc.workspace = true
+pallet-gear-staking-rewards-rpc-runtime-api = { workspace = true, features = ["std"] }
+pallet-gear-builtin-rpc.workspace = true
+pallet-gear-builtin-rpc-runtime-api = { workspace = true, features = ["std"] }
+pallet-gear-eth-bridge-rpc.workspace = true
+pallet-gear-eth-bridge-rpc-runtime-api = { workspace = true, features = ["std"] }
+pallet-gear = { workspace = true, features = ["std"] }
+runtime-primitives = { workspace = true, features = ["std"] }
+gear-runtime-interface = { workspace = true, features = ["std", "sandbox-host-api"] }
+authorship.workspace = true
+
+# Gear Runtimes
+gear-runtime-common = { workspace = true, features = ["std"] }
+vara-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
+
+# Substrate Client
+sc-authority-discovery.workspace = true
+sc-chain-spec.workspace = true
+sc-executor.workspace = true
+sc-executor-common.workspace = true
+sc-service.workspace = true
+sc-telemetry.workspace = true
+sc-network.workspace = true
+sc-network-sync.workspace = true
+sc-consensus-slots.workspace = true
+sc-transaction-pool.workspace = true
+sc-transaction-pool-api.workspace = true
+sc-consensus.workspace = true
+sc-consensus-babe.workspace = true
+sc-consensus-babe-rpc.workspace = true
+sc-consensus-grandpa.workspace = true
+sc-consensus-grandpa-rpc.workspace = true
+sc-client-api.workspace = true
+sc-offchain.workspace = true
+sc-rpc.workspace = true
+sc-sync-state-rpc.workspace = true
+sc-sysinfo.workspace = true
+
+# Substrate Primitives
+sp-core = { workspace = true, features = ["std"] }
+sp-crypto-ec-utils = { workspace = true, features = ["std", "bls12-381"] }
+sp-api = { workspace = true, features = ["std"] }
+sp-authority-discovery = { workspace = true, optional = true, features = ["std"] }
+sp-consensus.workspace = true
+sp-consensus-babe = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+sp-transaction-pool = { workspace = true, features = ["std"] }
+sp-transaction-storage-proof = { workspace = true, features = ["std"] }
+sp-consensus-grandpa = { workspace = true, features = ["std"] }
+sp-runtime = { workspace = true, features = ["std"] }
+sp-timestamp = { workspace = true, features = ["std"] }
+sp-blockchain.workspace = true
+sp-block-builder = { workspace = true, features = ["std"] }
+sp-keystore = { workspace = true, features = ["std"] }
+sp-trie = { workspace = true, features = ["std"] }
+sp-storage = { workspace = true, features = ["std"] }
+sp-state-machine = { workspace = true, features = ["std"] }
+sp-offchain = { workspace = true, features = ["std"] }
+sp-session = { workspace = true, features = ["std"] }
+
+# Frame Pallets
+frame-system.workspace = true
+frame-support = { workspace = true, features = ["std"] }
+pallet-transaction-payment-rpc.workspace = true
+pallet-transaction-payment-rpc-runtime-api = { workspace = true, features = ["std"] }
+
+# Substrate Other
+frame-benchmarking = { workspace = true, features = ["std"] }
+frame-benchmarking-cli.workspace = true
+substrate-frame-rpc-system.workspace = true
+substrate-state-trie-migration-rpc.workspace = true
+gear-workspace-hack.workspace = true
+
+[build-dependencies]
+
+[features]
+vara-native = [
+	"vara-runtime",
+	"sp-authority-discovery"
+]
+runtime-benchmarks = [
+ 	"frame-benchmarking/runtime-benchmarks",
+ 	"frame-benchmarking-cli/runtime-benchmarks",
+	"vara-runtime?/runtime-benchmarks",
+]
+runtime-benchmarks-checkers = [
+	"vara-runtime?/runtime-benchmarks-checkers",
+]
+try-runtime = [
+	"vara-runtime?/try-runtime",
+]
+metadata-hash = [
+	"vara-runtime?/metadata-hash",
+]

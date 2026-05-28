@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::db_sync::PeerId;
 use async_trait::async_trait;
@@ -45,8 +30,8 @@ use tokio::{time, time::Instant};
 pub struct ParityScaleCodec<Req, Resp>(PhantomData<(Req, Resp)>);
 
 impl<Req, Resp> ParityScaleCodec<Req, Resp> {
-    const MAX_REQUEST_SIZE: u64 = 1024 * 1024;
-    const MAX_RESPONSE_SIZE: u64 = 10 * 1024 * 1024;
+    pub const MAX_REQUEST_SIZE: u64 = 1024 * 1024;
+    pub const MAX_RESPONSE_SIZE: u64 = 10 * 1024 * 1024;
 }
 
 #[async_trait]
@@ -409,6 +394,11 @@ pub(crate) mod tests {
         utils::{ConnectionMap, ExponentialBackoffInterval},
     };
     use libp2p::swarm::ConnectionId;
+    use proptest::{
+        arbitrary::Arbitrary,
+        strategy::{Strategy, ValueTree},
+        test_runner::TestRunner,
+    };
     use std::{collections::HashSet, future, time::Duration};
     use tokio::time;
     use tracing_subscriber::EnvFilter;
@@ -421,6 +411,16 @@ pub(crate) mod tests {
             .with_env_filter(EnvFilter::from_default_env())
             .with_test_writer()
             .try_init();
+    }
+
+    pub fn arb_value<T>(args: impl Into<T::Parameters>) -> T
+    where
+        T: Arbitrary + 'static,
+    {
+        T::arbitrary_with(args.into())
+            .new_tree(&mut TestRunner::default())
+            .expect("strategy must produce a value")
+            .current()
     }
 
     #[test]

@@ -1,0 +1,47 @@
+[package]
+name = "gear-sandbox"
+description = "This crate provides means to instantiate and execute wasm modules."
+documentation = "https://docs.rs/gear-sandbox"
+readme = "README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+parity-scale-codec.workspace = true
+log.workspace = true
+sp-core.workspace = true
+sp-std.workspace = true
+sp-wasm-interface-common.workspace = true
+gear-sandbox-interface.workspace = true
+gear-sandbox-env.workspace = true
+
+# embedded executor only
+wasmtime = { workspace = true, optional = true }
+
+gear-workspace-hack.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true
+wat.workspace = true
+
+[features]
+default = ["std"]
+std = [
+	"parity-scale-codec/std",
+	"log/std",
+	"sp-core/std",
+	"sp-std/std",
+	"sp-wasm-interface-common/std",
+	"gear-sandbox-interface/std",
+	"gear-sandbox-env/std",
+	"wasmtime",
+]
+strict = []

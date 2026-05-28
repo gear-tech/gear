@@ -1,23 +1,8 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyEthereum, AlloyProvider, Ethereum, IntoBlockId, TryGetReceipt,
+    AlloyEthereum, AlloyProvider, Eip712PermitData, Ethereum, IntoBlockId, Sender, TryGetReceipt,
     abi::{
         GearLib, IRouter,
         utils::{uint48_to_u64, uint256_to_u256},
@@ -26,11 +11,14 @@ use crate::{
     wvara::WVara,
 };
 use alloy::{
-    consensus::{SidecarBuilder, SimpleCoder},
+    consensus::{SidecarBuilder, SimpleCoder, constants::GWEI_TO_WEI},
     eips::BlockId,
     hex,
     primitives::{Address as AlloyAddress, Bytes, fixed_bytes},
-    providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
+    providers::{
+        PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider,
+        utils::{Eip1559Estimation, Eip1559Estimator},
+    },
     rpc::types::{TransactionReceipt, eth::state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
@@ -44,8 +32,8 @@ use ethexe_common::{
     },
 };
 use events::{
-    AnnouncesCommittedEventBuilder, BatchCommittedEventBuilder, CodeGotValidatedEventBuilder,
-    CodeValidationRequestedEventBuilder, ComputationSettingsChangedEventBuilder,
+    BatchCommittedEventBuilder, CodeGotValidatedEventBuilder, CodeValidationRequestedEventBuilder,
+    ComputationSettingsChangedEventBuilder, EBCommittedEventBuilder, MBCommittedEventBuilder,
     ProgramCreatedEventBuilder, StorageSlotChangedEventBuilder,
     ValidatorsCommittedForEraEventBuilder, signatures,
 };
@@ -64,22 +52,31 @@ type QueryInstance = IRouter::IRouterInstance<RootProvider>;
 pub struct Router {
     instance: Instance,
     wvara_address: AlloyAddress,
+    eip1559_estimator: Eip1559Estimator,
+    eip1559_max_fee_per_gas_in_gwei: u128,
+    sender: Sender,
 }
 
 impl Router {
     /// `Gear.blockIsPredecessor(hash)` can consume up to 30_000 gas
     const GEAR_BLOCK_IS_PREDECESSOR_GAS: u64 = 30_000;
-    /// Huge gas limit is necessary so that the transaction is more likely to be picked up
-    const HUGE_GAS_LIMIT: u64 = 10_000_000;
+    /// Transaction gas limit cap
+    const TX_GAS_LIMIT_CAP: u64 = 10_000_000;
 
     pub(crate) fn new(
         address: AlloyAddress,
         wvara_address: AlloyAddress,
+        eip1559_estimator: Eip1559Estimator,
+        eip1559_max_fee_per_gas_in_gwei: u128,
+        sender: Sender,
         provider: AlloyProvider,
     ) -> Self {
         Self {
             instance: Instance::new(address, provider),
             wvara_address,
+            eip1559_estimator,
+            eip1559_max_fee_per_gas_in_gwei,
+            sender,
         }
     }
 
@@ -153,11 +150,20 @@ impl Router {
         &self,
         code: &[u8],
     ) -> Result<(TransactionReceipt, CodeId)> {
+        let Eip712PermitData { deadline, v, r, s } = Ethereum::prepare_permit_data(
+            self.instance.provider(),
+            self.wvara().query(),
+            &self.sender,
+            self.address().into(),
+            self.query().request_code_validation_base_fee().await?,
+        )
+        .await?;
+
         let code_id = CodeId::generate(code);
 
-        let builder = self
-            .instance
-            .requestCodeValidation(code_id.into_bytes().into());
+        let builder =
+            self.instance
+                .requestCodeValidation(code_id.into_bytes().into(), deadline, v, r, s);
         let builder =
             builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?);
 
@@ -248,6 +254,75 @@ impl Router {
         Ok((receipt, actor_id))
     }
 
+    pub async fn create_program_with_executable_balance(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> Result<(H256, ActorId)> {
+        self.create_program_with_executable_balance_and_receipt(
+            code_id,
+            salt,
+            override_initializer,
+            initial_executable_balance,
+        )
+        .await
+        .map(|(receipt, actor_id)| ((*receipt.transaction_hash).into(), actor_id))
+    }
+
+    pub async fn create_program_with_executable_balance_and_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> Result<(TransactionReceipt, ActorId)> {
+        let Eip712PermitData { deadline, v, r, s } = Ethereum::prepare_permit_data(
+            self.instance.provider(),
+            self.wvara().query(),
+            &self.sender,
+            self.address().into(),
+            initial_executable_balance,
+        )
+        .await?;
+
+        let builder = self.instance.createProgramWithExecutableBalance(
+            code_id.into_bytes().into(),
+            salt.to_fixed_bytes().into(),
+            override_initializer
+                .map(|initializer| {
+                    let initializer = Address::try_from(initializer).expect("infallible");
+                    AlloyAddress::new(initializer.0)
+                })
+                .unwrap_or_default(),
+            initial_executable_balance,
+            deadline,
+            v,
+            r,
+            s,
+        );
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+
+        let mut actor_id = None;
+
+        for log in receipt.inner.logs() {
+            if log.topic0().cloned() == Some(signatures::PROGRAM_CREATED) {
+                let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
+                actor_id = Some((*event.actorId.into_word()).into());
+                break;
+            }
+        }
+
+        let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
+
+        Ok((receipt, actor_id))
+    }
+
     pub async fn create_program_with_abi_interface(
         &self,
         code_id: CodeId,
@@ -286,6 +361,83 @@ impl Router {
                 .unwrap_or_default(),
             abi_interface,
         );
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        let mut actor_id = None;
+
+        for log in receipt.inner.logs() {
+            if log.topic0().cloned() == Some(signatures::PROGRAM_CREATED) {
+                let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
+                actor_id = Some((*event.actorId.into_word()).into());
+                break;
+            }
+        }
+
+        let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
+
+        Ok((receipt, actor_id))
+    }
+
+    pub async fn create_program_with_abi_interface_and_executable_balance(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> Result<(H256, ActorId)> {
+        self.create_program_with_abi_interface_and_executable_balance_with_receipt(
+            code_id,
+            salt,
+            override_initializer,
+            abi_interface,
+            initial_executable_balance,
+        )
+        .await
+        .map(|(receipt, actor_id)| ((*receipt.transaction_hash).into(), actor_id))
+    }
+
+    pub async fn create_program_with_abi_interface_and_executable_balance_with_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> Result<(TransactionReceipt, ActorId)> {
+        let Eip712PermitData { deadline, v, r, s } = Ethereum::prepare_permit_data(
+            self.instance.provider(),
+            self.wvara().query(),
+            &self.sender,
+            self.address().into(),
+            initial_executable_balance,
+        )
+        .await?;
+
+        let abi_interface = Address::try_from(abi_interface).expect("infallible");
+        let abi_interface = AlloyAddress::new(abi_interface.0);
+
+        let builder = self
+            .instance
+            .createProgramWithAbiInterfaceAndExecutableBalance(
+                code_id.into_bytes().into(),
+                salt.to_fixed_bytes().into(),
+                override_initializer
+                    .map(|initializer| {
+                        let initializer = Address::try_from(initializer).expect("infallible");
+                        AlloyAddress::new(initializer.0)
+                    })
+                    .unwrap_or_default(),
+                abi_interface,
+                initial_executable_balance,
+                deadline,
+                v,
+                r,
+                s,
+            );
         let receipt = builder
             .send()
             .await?
@@ -378,8 +530,38 @@ impl Router {
                 ));
             }
         };
-        let gas_limit =
-            Self::HUGE_GAS_LIMIT.max(estimated_gas_limit + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
+
+        let Eip1559Estimation {
+            max_fee_per_gas, ..
+        } = self
+            .instance
+            .provider()
+            .estimate_eip1559_fees_with(self.eip1559_estimator.clone())
+            .await?;
+
+        let eip1559_max_fee_per_gas_in_wei = self
+            .eip1559_max_fee_per_gas_in_gwei
+            .saturating_mul(GWEI_TO_WEI as _);
+
+        if eip1559_max_fee_per_gas_in_wei > 0 && max_fee_per_gas >= eip1559_max_fee_per_gas_in_wei {
+            log::error!(
+                "Estimated max fee per gas {max_fee_per_gas} wei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_wei} wei, refusing to commit batch (commitment: {commitment:?})"
+            );
+            return Err(anyhow!(
+                "Estimated max fee per gas {max_fee_per_gas} wei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_wei} wei, refusing to commit batch",
+            ));
+        }
+
+        let gas_limit = estimated_gas_limit + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS;
+
+        if gas_limit > Self::TX_GAS_LIMIT_CAP {
+            log::error!(
+                "Estimated gas limit {gas_limit} is too high for batch commitment: {commitment:?}",
+            );
+            return Err(anyhow!(
+                "Estimated gas limit {gas_limit} is too high for batch commitment",
+            ));
+        }
 
         builder.gas(gas_limit).send().await.map_err(Into::into)
     }
@@ -716,6 +898,16 @@ impl RouterQuery {
         Ok(count)
     }
 
+    pub async fn request_code_validation_base_fee(&self) -> Result<u128> {
+        let base_fee = self.instance.requestCodeValidationBaseFee().call().await?;
+        Ok(base_fee.try_into().expect("infallible"))
+    }
+
+    pub async fn request_code_validation_extra_fee(&self) -> Result<u128> {
+        let extra_fee = self.instance.requestCodeValidationExtraFee().call().await?;
+        Ok(extra_fee.try_into().expect("infallible"))
+    }
+
     pub async fn timelines(&self) -> Result<Timelines> {
         self.instance
             .timelines()
@@ -739,8 +931,12 @@ impl<'a> RouterEvents<'a> {
         BatchCommittedEventBuilder::new(self.query)
     }
 
-    pub fn announces_committed(&self) -> AnnouncesCommittedEventBuilder<'a> {
-        AnnouncesCommittedEventBuilder::new(self.query)
+    pub fn mb_committed(&self) -> MBCommittedEventBuilder<'a> {
+        MBCommittedEventBuilder::new(self.query)
+    }
+
+    pub fn eb_committed(&self) -> EBCommittedEventBuilder<'a> {
+        EBCommittedEventBuilder::new(self.query)
     }
 
     pub fn code_got_validated(&self) -> CodeGotValidatedEventBuilder<'a> {

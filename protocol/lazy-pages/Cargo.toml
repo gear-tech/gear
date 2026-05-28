@@ -1,0 +1,41 @@
+[package]
+name = "gear-lazy-pages"
+description = "Gear lazy-pages implementation"
+documentation = "https://docs.rs/gear-lazy-pages"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+log = { workspace = true, features = ["std"] }
+sp-wasm-interface-common = { workspace = true, features = ["std"] }
+cfg-if.workspace = true
+region.workspace = true
+derive_more.workspace = true
+numerated.workspace = true
+wasmtime.workspace = true
+
+gear-sandbox-host.workspace = true
+gear-core.workspace = true
+gear-lazy-pages-common.workspace = true
+gear-workspace-hack.workspace = true
+
+[target."cfg(target_vendor = \"apple\")".dependencies.mach2]
+version = "0.6.0"
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+libc.workspace = true
+errno.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+winapi = { workspace = true, features = ["excpt", "memoryapi", "errhandlingapi"] }
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+proptest.workspace = true
+numerated = { workspace = true, features = ["mock"] }

@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Database for ethexe.
 
@@ -25,16 +10,17 @@ use crate::{
 use anyhow::{Context, Result};
 use delegate::delegate;
 use ethexe_common::{
-    Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
+    BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
     db::{
-        AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
-        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, ConfigStorageRO, DBConfig, DBGlobals,
-        GlobalsStorageRO, GlobalsStorageRW, HashStorageRO, InjectedStorageRO, InjectedStorageRW,
+        BlockMeta, BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, CodesStorageRW,
+        CompactMb, ConfigStorageRO, DBConfig, DBGlobals, GlobalsStorageRO, GlobalsStorageRW,
+        HashStorageRO, InjectedStorageRO, InjectedStorageRW, MbMeta, MbStorageRO, MbStorageRW,
         OnChainStorageRO, OnChainStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
+    malachite::Transactions,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -57,16 +43,10 @@ use std::{
 
 #[repr(u64)]
 enum Key {
-    // TODO (kuzmindev): use `HashOf<T>` here
     BlockSmallData(H256) = 0,
     BlockEvents(H256) = 1,
 
     ValidatorSet(u64) = 2,
-
-    AnnounceProgramStates(HashOf<Announce>) = 3,
-    AnnounceOutcome(HashOf<Announce>) = 4,
-    AnnounceSchedule(HashOf<Announce>) = 5,
-    AnnounceMeta(HashOf<Announce>) = 6,
 
     ProgramToCodeId(ActorId) = 7,
     InstrumentedCode(u32, CodeId) = 8,
@@ -79,10 +59,14 @@ enum Key {
     Globals = 14,
     Config = 15,
 
-    // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    LatestEraValidatorsCommitted(H256) = 16,
+    MbProgramStates(H256) = 19,
+    MbOutcome(H256) = 20,
+    MbSchedule(H256) = 21,
+    MbMeta(H256) = 22,
+    MbCompactBlock(H256) = 25,
 
-    Announces(HashOf<Announce>) = 17,
+    Promise(HashOf<InjectedTransaction>) = 26,
+    TxReceipt(HashOf<InjectedTransaction>) = 27,
 }
 
 impl Key {
@@ -100,21 +84,21 @@ impl Key {
         bytes.extend(self.prefix());
 
         match self {
-            Self::BlockSmallData(hash)
-            | Self::BlockEvents(hash)
-            | Self::LatestEraValidatorsCommitted(hash) => bytes.extend(hash.as_ref()),
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => bytes.extend(hash.as_ref()),
 
             Self::ValidatorSet(era_index) => {
                 bytes.extend(era_index.to_le_bytes());
             }
 
-            Self::Announces(hash)
-            | Self::AnnounceProgramStates(hash)
-            | Self::AnnounceOutcome(hash)
-            | Self::AnnounceSchedule(hash)
-            | Self::AnnounceMeta(hash) => bytes.extend(hash.as_ref()),
+            Self::MbProgramStates(hash)
+            | Self::MbOutcome(hash)
+            | Self::MbSchedule(hash)
+            | Self::MbMeta(hash)
+            | Self::MbCompactBlock(hash) => bytes.extend(hash.as_ref()),
 
-            Self::InjectedTransaction(hash) => bytes.extend(hash.as_ref()),
+            Self::InjectedTransaction(hash) | Self::Promise(hash) | Self::TxReceipt(hash) => {
+                bytes.extend(hash.as_ref())
+            }
 
             Self::ProgramToCodeId(program_id) => bytes.extend(program_id.as_ref()),
 
@@ -377,98 +361,96 @@ impl RawDatabase {
     }
 }
 
-impl AnnounceStorageRO for RawDatabase {
-    fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
-        self.kv.get(&Key::Announces(hash).to_bytes()).map(|data| {
-            Announce::decode(&mut data.as_slice()).expect("Failed to decode data into `Announce`")
+impl MbStorageRO for RawDatabase {
+    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb> {
+        self.kv
+            .get(&Key::MbCompactBlock(mb_hash).to_bytes())
+            .map(|data| {
+                CompactMb::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `CompactMb`")
+            })
+    }
+
+    fn transactions(&self, transactions_hash: H256) -> Option<Transactions> {
+        self.cas.read(transactions_hash).map(|data| {
+            Transactions::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `Transactions`")
         })
     }
 
-    fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates> {
+    fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates> {
         self.kv
-            .get(&Key::AnnounceProgramStates(announce_hash).to_bytes())
+            .get(&Key::MbProgramStates(mb_hash).to_bytes())
             .map(|data| {
                 ProgramStates::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `ProgramStates`")
             })
     }
 
-    fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>> {
+    fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>> {
         self.kv
-            .get(&Key::AnnounceOutcome(announce_hash).to_bytes())
+            .get(&Key::MbOutcome(mb_hash).to_bytes())
             .map(|data| {
                 Vec::<StateTransition>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<StateTransition>`")
             })
     }
 
-    fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule> {
+    fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule> {
         self.kv
-            .get(&Key::AnnounceSchedule(announce_hash).to_bytes())
+            .get(&Key::MbSchedule(mb_hash).to_bytes())
             .map(|data| {
                 Schedule::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Schedule`")
             })
     }
 
-    fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta {
+    fn mb_meta(&self, mb_hash: H256) -> MbMeta {
         self.kv
-            .get(&Key::AnnounceMeta(announce_hash).to_bytes())
+            .get(&Key::MbMeta(mb_hash).to_bytes())
             .map(|data| {
-                AnnounceMeta::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `AnnounceMeta`")
+                MbMeta::decode(&mut data.as_slice()).expect("Failed to decode data into `MbMeta`")
             })
             .unwrap_or_default()
     }
 }
 
-impl AnnounceStorageRW for RawDatabase {
-    fn set_announce(&self, announce: Announce) -> HashOf<Announce> {
-        let announce_hash = announce.to_hash();
-        tracing::trace!(announce_hash = %announce_hash, announce = ?announce, "Set announce");
+impl MbStorageRW for RawDatabase {
+    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB compact block");
         self.kv
-            .put(&Key::Announces(announce_hash).to_bytes(), announce.encode());
-        announce_hash
+            .put(&Key::MbCompactBlock(mb_hash).to_bytes(), compact.encode());
     }
 
-    fn set_announce_program_states(
-        &self,
-        announce_hash: HashOf<Announce>,
-        program_states: ProgramStates,
-    ) {
-        tracing::trace!(announce_hash = %announce_hash, "Set announce program states");
+    fn set_transactions(&self, transactions: Transactions) -> H256 {
+        self.cas.write(&transactions.encode())
+    }
+
+    fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB program states");
         self.kv.put(
-            &Key::AnnounceProgramStates(announce_hash).to_bytes(),
+            &Key::MbProgramStates(mb_hash).to_bytes(),
             program_states.encode(),
         );
     }
 
-    fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>) {
-        tracing::trace!(announce_hash = %announce_hash, "Set announce outcome");
-        self.kv.put(
-            &Key::AnnounceOutcome(announce_hash).to_bytes(),
-            outcome.encode(),
-        );
-    }
-
-    fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule) {
-        tracing::trace!(announce_hash = %announce_hash, "Set announce schedule");
-        self.kv.put(
-            &Key::AnnounceSchedule(announce_hash).to_bytes(),
-            schedule.encode(),
-        );
-    }
-
-    fn mutate_announce_meta(
-        &self,
-        announce_hash: HashOf<Announce>,
-        f: impl FnOnce(&mut AnnounceMeta),
-    ) {
-        tracing::trace!(announce_hash = %announce_hash, "Mutate announce meta");
-        let mut meta = self.announce_meta(announce_hash);
-        f(&mut meta);
+    fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB outcome");
         self.kv
-            .put(&Key::AnnounceMeta(announce_hash).to_bytes(), meta.encode());
+            .put(&Key::MbOutcome(mb_hash).to_bytes(), outcome.encode());
+    }
+
+    fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB schedule");
+        self.kv
+            .put(&Key::MbSchedule(mb_hash).to_bytes(), schedule.encode());
+    }
+
+    fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta)) {
+        tracing::trace!(mb_hash = %mb_hash, "Mutate MB meta");
+        let mut meta = self.mb_meta(mb_hash);
+        f(&mut meta);
+        self.kv.put(&Key::MbMeta(mb_hash).to_bytes(), meta.encode());
     }
 }
 
@@ -510,15 +492,6 @@ impl OnChainStorageRO for RawDatabase {
                     .expect("Failed to decode data into `ValidatorsVec`")
             })
     }
-
-    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64> {
-        self.kv
-            .get(&Key::LatestEraValidatorsCommitted(block_hash).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `u64` (era_index)")
-            })
-    }
 }
 
 impl OnChainStorageRW for RawDatabase {
@@ -551,13 +524,6 @@ impl OnChainStorageRW for RawDatabase {
         self.kv.put(
             &Key::ValidatorSet(era_index).to_bytes(),
             validator_set.encode(),
-        );
-    }
-
-    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64) {
-        self.kv.put(
-            &Key::LatestEraValidatorsCommitted(block_hash).to_bytes(),
-            era_index.encode(),
         );
     }
 }
@@ -704,6 +670,21 @@ impl InjectedStorageRO for RawDatabase {
                     .expect("Failed to decode data into `SignedInjectedTransaction`")
             })
     }
+
+    fn promise(&self, tx_hash: HashOf<InjectedTransaction>) -> Option<Promise> {
+        self.kv.get(&Key::Promise(tx_hash).to_bytes()).map(|data| {
+            Promise::decode(&mut data.as_slice()).expect("Failed to decode data into Promise")
+        })
+    }
+
+    fn receipt(&self, tx_hash: HashOf<InjectedTransaction>) -> Option<SignedTxReceipt> {
+        self.kv
+            .get(&Key::TxReceipt(tx_hash).to_bytes())
+            .map(|data| {
+                SignedTxReceipt::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into SignedTxReceipt")
+            })
+    }
 }
 
 impl InjectedStorageRW for RawDatabase {
@@ -713,6 +694,21 @@ impl InjectedStorageRW for RawDatabase {
         tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
         self.kv
             .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
+    }
+
+    fn set_promise(&self, promise: &Promise) {
+        tracing::trace!(?promise, "Set promise for injected transaction");
+
+        self.kv
+            .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode())
+    }
+
+    fn set_receipt(&self, receipt: &SignedTxReceipt) {
+        let tx_hash = receipt.data().tx_hash();
+        tracing::trace!(?receipt, "Set receipt for injected transaction");
+
+        self.kv
+            .put(&Key::TxReceipt(tx_hash).to_bytes(), receipt.encode())
     }
 }
 
@@ -754,6 +750,9 @@ impl Database {
     }
 
     #[cfg(not(feature = "mock"))]
+    /// # Safety
+    ///
+    /// Config and globals initialized by default values, use with caution
     pub unsafe fn memory() -> Self {
         Self::memory_inner()
     }
@@ -769,17 +768,22 @@ impl Database {
             version: VERSION,
             chain_id: 0,
             router_address: Address([0; 20]),
-            timelines: ProtocolTimelines::default(),
+            timelines: ProtocolTimelines {
+                genesis_ts: 0,
+                era: 1.try_into().unwrap(),
+                election: 0,
+                slot: 1.try_into().unwrap(),
+            },
             genesis_block_hash: H256::zero(),
-            genesis_announce_hash: HashOf::zero(),
+            max_validators: 10,
         };
 
         let globals = DBGlobals {
             start_block_hash: H256::zero(),
-            start_announce_hash: HashOf::zero(),
-            latest_synced_block: SimpleBlockData::default(),
-            latest_prepared_block_hash: H256::zero(),
-            latest_computed_announce_hash: HashOf::zero(),
+            latest_synced_eb: SimpleBlockData::default(),
+            latest_prepared_eb_hash: H256::zero(),
+            latest_finalized_mb_hash: H256::zero(),
+            latest_computed_mb_hash: H256::zero(),
         };
 
         <dyn KVDatabase>::set_config(&mem_db, config);
@@ -812,11 +816,11 @@ impl HashStorageRO for Database {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, TypeInfo)]
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub(crate) struct BlockSmallData {
-    pub(crate) block_header: Option<BlockHeader>,
-    pub(crate) block_is_synced: bool,
-    pub(crate) meta: BlockMeta,
+    pub block_header: Option<BlockHeader>,
+    pub block_is_synced: bool,
+    pub meta: BlockMeta,
 }
 
 impl BlockMetaStorageRO for Database {
@@ -873,7 +877,6 @@ impl OnChainStorageRO for Database {
             fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
             fn block_synced(&self, block_hash: H256) -> bool;
             fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
-            fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64>;
         }
     }
 }
@@ -886,48 +889,45 @@ impl OnChainStorageRW for Database {
             fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
             fn set_block_synced(&self, block_hash: H256);
             fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
-            fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64);
         }
     }
-}
-
-impl AnnounceStorageRO for Database {
-    delegate!(to self.raw {
-        fn announce(&self, hash: HashOf<Announce>) -> Option<Announce>;
-        fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates>;
-        fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
-        fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
-        fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
-    });
-}
-
-impl AnnounceStorageRW for Database {
-    delegate!(to self.raw {
-        fn set_announce(&self, announce: Announce) -> HashOf<Announce>;
-        fn set_announce_program_states(
-            &self,
-            announce_hash: HashOf<Announce>,
-            program_states: ProgramStates,
-        );
-        fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
-        fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
-        fn mutate_announce_meta(
-            &self,
-            announce_hash: HashOf<Announce>,
-            f: impl FnOnce(&mut AnnounceMeta),
-        );
-    });
 }
 
 impl InjectedStorageRO for Database {
     delegate!(to self.raw {
         fn injected_transaction(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedInjectedTransaction>;
+        fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
+        fn receipt(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedTxReceipt>;
+    });
+}
+
+impl MbStorageRO for Database {
+    delegate!(to self.raw {
+        fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb>;
+        fn transactions(&self, transactions_hash: H256) -> Option<Transactions>;
+        fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
+        fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
+        fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
+        fn mb_meta(&self, mb_hash: H256) -> MbMeta;
+    });
+}
+
+impl MbStorageRW for Database {
+    delegate!(to self.raw {
+        fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb);
+        fn set_transactions(&self, transactions: Transactions) -> H256;
+        fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
+        fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
+        fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
+        fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
     });
 }
 
 impl InjectedStorageRW for Database {
     delegate!(to self.raw {
         fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
+        fn set_promise(&self, promise: &Promise);
+        fn set_receipt(&self, receipt: &SignedTxReceipt);
     });
 }
 
@@ -1039,54 +1039,6 @@ mod tests {
         let tx_hash = tx.data().to_hash();
         db.set_injected_transaction(tx.clone());
         assert_eq!(db.injected_transaction(tx_hash), Some(tx));
-    }
-
-    #[test]
-    fn test_announce() {
-        let db = Database::memory();
-
-        let announce = Announce {
-            block_hash: H256::random(),
-            parent: HashOf::random(),
-            gas_allowance: Some(1000),
-            injected_transactions: vec![],
-        };
-        let announce_hash = db.set_announce(announce.clone());
-        assert_eq!(announce_hash, announce.to_hash());
-        assert_eq!(db.announce(announce_hash), Some(announce));
-    }
-
-    #[test]
-    fn test_announce_program_states() {
-        let db = Database::memory();
-
-        let announce_hash = HashOf::random();
-        let program_states = ProgramStates::default();
-        db.set_announce_program_states(announce_hash, program_states.clone());
-        assert_eq!(
-            db.announce_program_states(announce_hash),
-            Some(program_states)
-        );
-    }
-
-    #[test]
-    fn test_announce_outcome() {
-        let db = Database::memory();
-
-        let announce_hash = HashOf::random();
-        let block_outcome = vec![StateTransition::default()];
-        db.set_announce_outcome(announce_hash, block_outcome.clone());
-        assert_eq!(db.announce_outcome(announce_hash), Some(block_outcome));
-    }
-
-    #[test]
-    fn test_announce_schedule() {
-        let db = Database::memory();
-
-        let announce_hash = HashOf::random();
-        let schedule = Schedule::default();
-        db.set_announce_schedule(announce_hash, schedule.clone());
-        assert_eq!(db.announce_schedule(announce_hash), Some(schedule));
     }
 
     #[test]

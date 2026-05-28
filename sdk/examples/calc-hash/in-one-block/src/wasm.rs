@@ -1,0 +1,16 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+use crate::Package;
+use gstd::msg;
+
+#[unsafe(no_mangle)]
+extern "C" fn handle() {
+    let mut pkg = msg::load::<Package>().expect("Invalid initial data.");
+
+    while !pkg.finished() {
+        pkg.calc();
+    }
+
+    msg::reply(pkg.result(), 0).expect("Send reply failed.");
+}

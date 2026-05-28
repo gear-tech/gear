@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     db_sync::{Multiaddr, PeerId},
@@ -403,10 +388,10 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::{
-        utils::tests::init_logger,
+        utils::tests::{arb_value, init_logger},
         validator::discovery::{SignedValidatorIdentity, ValidatorAddresses, ValidatorIdentity},
     };
-    use ethexe_common::{injected::InjectedTransaction, mock::Mock};
+    use ethexe_common::injected::InjectedTransaction;
     use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use libp2p::{
         Swarm, Transport,
@@ -420,7 +405,7 @@ mod tests {
         let signer = Signer::memory();
         let pub_key = signer.generate().unwrap();
 
-        let tx = InjectedTransaction::mock(());
+        let tx = arb_value::<InjectedTransaction>(());
         let tx = signer.signed_message(pub_key, tx, None).unwrap();
 
         AddressedInjectedTransaction { recipient, tx }

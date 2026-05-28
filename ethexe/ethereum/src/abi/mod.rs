@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod events;
 mod gear;
@@ -91,62 +76,62 @@ pub mod symbiotic_abi {
     alloy::sol!(
         #[sol(rpc)]
         Vault,
-        "../contracts/lib/symbiotic-core/out/Vault.sol/Vault.json"
+        "abi/Vault.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         VaultFactory,
-        "../contracts/lib/symbiotic-core/out/VaultFactory.sol/VaultFactory.json"
+        "abi/VaultFactory.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         OperatorRegistry,
-        "../contracts/lib/symbiotic-core/out/OperatorRegistry.sol/OperatorRegistry.json"
+        "abi/OperatorRegistry.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         NetworkRegistry,
-        "../contracts/lib/symbiotic-core/out/NetworkRegistry.sol/NetworkRegistry.json"
+        "abi/NetworkRegistry.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         NetworkMiddlewareService,
-        "../contracts/lib/symbiotic-core/out/NetworkMiddlewareService.sol/NetworkMiddlewareService.json"
+        "abi/NetworkMiddlewareService.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         OptInService,
-        "../contracts/lib/symbiotic-core/out/OptInService.sol/OptInService.json"
+        "abi/OptInService.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         DefaultOperatorRewards,
-        "../contracts/lib/symbiotic-rewards/out/DefaultOperatorRewards.sol/DefaultOperatorRewards.json"
+        "abi/DefaultOperatorRewards.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         DelegatorFactory,
-        "../contracts/lib/symbiotic-core/out/DelegatorFactory.sol/DelegatorFactory.json"
+        "abi/DelegatorFactory.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         SlasherFactory,
-        "../contracts/lib/symbiotic-core/out/SlasherFactory.sol/SlasherFactory.json"
+        "abi/SlasherFactory.json"
     );
 
     pub mod staker_rewards_factory {
         alloy::sol!(
             #[sol(rpc)]
             DefaultStakerRewardsFactory,
-            "../contracts/lib/symbiotic-rewards/out/DefaultStakerRewardsFactory.sol/DefaultStakerRewardsFactory.json"
+            "abi/DefaultStakerRewardsFactory.json"
         );
     }
 
@@ -154,20 +139,36 @@ pub mod symbiotic_abi {
         alloy::sol!(
             #[sol(rpc)]
             DefaultStakerRewards,
-            "../contracts/lib/symbiotic-rewards/out/DefaultStakerRewards.sol/DefaultStakerRewards.json"
+            "abi/DefaultStakerRewards.json"
         );
     }
 }
 
 pub mod utils {
-    use alloy::primitives::{FixedBytes, Uint};
+    use alloy::{
+        primitives::{FixedBytes, Uint},
+        sol,
+    };
     use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
+    use serde::Serialize;
 
     pub use alloy::primitives::Bytes;
 
     pub type Bytes32 = FixedBytes<32>;
     pub type Uint256 = Uint<256, 4>;
     pub type Uint48 = Uint<48, 1>;
+
+    sol! {
+        #[allow(missing_docs)]
+        #[derive(Debug, Serialize)]
+        struct Permit {
+            address owner;
+            address spender;
+            uint256 value;
+            uint256 nonce;
+            uint256 deadline;
+        }
+    }
 
     pub fn actor_id_to_address_lossy(actor_id: ActorId) -> alloy::primitives::Address {
         actor_id.to_address_lossy().to_fixed_bytes().into()

@@ -22,10 +22,10 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to the github container registry
         uses: docker/login-action@master
@@ -38,6 +38,6 @@ jobs:
         uses: docker/build-push-action@master
         with:
           context: .
-          file: ./docker/runtime-fuzzer/Dockerfile
+          file: ./vara/docker/runtime-fuzzer/Dockerfile
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-node-fuzzer:latest

@@ -1,0 +1,35 @@
+[package]
+name = "gear-sandbox-host"
+description = "A set of common definitions that are needed for defining execution engines."
+documentation = "https://docs.rs/gear-sandbox-host"
+readme = "README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+atomic_enum.workspace = true
+parity-scale-codec = { workspace = true, features = ["std"] }
+defer.workspace = true
+environmental.workspace = true
+thiserror.workspace = true
+log = { workspace = true, features = ["std"] }
+wasmtime.workspace = true
+wasmi.workspace = true
+sp-allocator = { workspace = true, features = ["std"] }
+sp-wasm-interface-common = { workspace = true, features = ["std"] }
+gear-sandbox-env = { workspace = true, features = ["std"] }
+region.workspace = true
+
+gear-workspace-hack.workspace = true
+
+[features]
+# See wasmi/extra-checks for more information.
+wasmi-extra-checks = ["wasmi/extra-checks"]

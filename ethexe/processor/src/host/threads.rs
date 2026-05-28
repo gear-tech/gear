@@ -1,25 +1,9 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
-use core::fmt;
-use ethexe_common::{HashOf, injected::Promise};
+use ethexe_common::HashOf;
 use ethexe_db::CASDatabase;
 use ethexe_runtime_common::state::{
     ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState, QueryableStorage,
@@ -30,7 +14,6 @@ use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, DecodeAll};
 use std::{cell::RefCell, collections::BTreeMap};
-use tokio::sync::mpsc;
 
 const UNSET_PANIC: &str = "params should be set before query";
 const UNKNOWN_STATE: &str = "state should always be valid (must exist)";
@@ -39,18 +22,11 @@ thread_local! {
     static PARAMS: RefCell<Option<ThreadParams>> = const { RefCell::new(None) };
 }
 
-pub struct ThreadParams {
-    pub db: Box<dyn CASDatabase>,
-    pub state_hash: H256,
-    pub promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+struct ThreadParams {
+    state_hash: H256,
+    db: Box<dyn CASDatabase>,
     pages_registry_cache: Option<MemoryPages>,
     pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
-}
-
-impl fmt::Debug for ThreadParams {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ThreadParams")
-    }
 }
 
 impl ThreadParams {
@@ -104,39 +80,16 @@ impl PageKey {
     }
 }
 
-pub fn set(
-    db: Box<dyn CASDatabase>,
-    state_hash: H256,
-    promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-) {
+pub fn set(db: Box<dyn CASDatabase>, state_hash: H256) {
     PARAMS.set(Some(ThreadParams {
         db,
         state_hash,
-        promise_out_tx,
         pages_registry_cache: None,
         pages_regions_cache: None,
     }))
 }
 
-pub fn update_state_hash(state_hash: H256) {
-    PARAMS.with_borrow_mut(|v| {
-        let params = v.as_mut().expect(UNSET_PANIC);
-
-        params.state_hash = state_hash;
-        params.pages_registry_cache = None;
-        params.pages_regions_cache = None;
-    })
-}
-
-pub fn with_db<T>(f: impl FnOnce(&dyn CASDatabase) -> T) -> T {
-    PARAMS.with_borrow(|v| {
-        let params = v.as_ref().expect(UNSET_PANIC);
-
-        f(params.db.as_ref())
-    })
-}
-
-pub fn with_params<T>(f: impl FnOnce(&mut ThreadParams) -> T) -> T {
+fn with_params<T>(f: impl FnOnce(&mut ThreadParams) -> T) -> T {
     PARAMS.with_borrow_mut(|v| {
         let params = v.as_mut().expect(UNSET_PANIC);
 
@@ -144,17 +97,33 @@ pub fn with_params<T>(f: impl FnOnce(&mut ThreadParams) -> T) -> T {
     })
 }
 
-pub fn clear_promise_out_tx() {
-    PARAMS.with_borrow_mut(|maybe_params| {
-        let params = maybe_params.as_mut().expect(UNSET_PANIC);
-        let _ = params.promise_out_tx.take();
+pub fn update_state_hash(state_hash: H256) {
+    with_params(|params| {
+        params.state_hash = state_hash;
+        params.pages_registry_cache = None;
+        params.pages_regions_cache = None;
     })
+}
+
+pub fn state_hash() -> H256 {
+    with_params(|params| params.state_hash)
 }
 
 #[derive(Debug)]
 pub struct EthexeHostLazyPages;
 
 impl LazyPagesStorage for EthexeHostLazyPages {
+    fn page_exists(&self, key: &[u8]) -> bool {
+        with_params(|params| {
+            let page = PageKey::page_from_buf(key);
+
+            params
+                .get_page_region(page)
+                .map(|region| region.contains_key(&page))
+                .unwrap_or(false)
+        })
+    }
+
     fn load_page(&mut self, key: &[u8], buffer: &mut [u8]) -> Option<u32> {
         with_params(|params| {
             let page = PageKey::page_from_buf(key);
@@ -166,17 +135,6 @@ impl LazyPagesStorage for EthexeHostLazyPages {
             buffer.copy_from_slice(&data);
 
             Some(data.len() as u32)
-        })
-    }
-
-    fn page_exists(&self, key: &[u8]) -> bool {
-        with_params(|params| {
-            let page = PageKey::page_from_buf(key);
-
-            params
-                .get_page_region(page)
-                .map(|region| region.contains_key(&page))
-                .unwrap_or(false)
         })
     }
 }

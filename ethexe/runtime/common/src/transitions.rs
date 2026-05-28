@@ -1,23 +1,8 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{
-    collections::{BTreeMap, BTreeSet, btree_map::Iter},
+    collections::{BTreeMap, btree_map::Iter},
     vec::Vec,
 };
 use anyhow::{Result, anyhow};
@@ -95,8 +80,14 @@ impl InBlockTransitions {
         self.modifications.len()
     }
 
-    pub fn take_actual_tasks(&mut self) -> BTreeSet<ScheduledTask> {
-        self.schedule.remove(&self.block_height).unwrap_or_default()
+    /// Drain every scheduled task whose deadline is at or before
+    /// `block_height` and return them in chronological order
+    /// (oldest height first; within a height, BTreeSet `Ord`).
+    pub fn take_actual_tasks(&mut self) -> Vec<ScheduledTask> {
+        let cutoff = self.block_height.saturating_add(1);
+        let kept = self.schedule.split_off(&cutoff);
+        let due = core::mem::replace(&mut self.schedule, kept);
+        due.into_values().flatten().collect()
     }
 
     pub fn schedule_task(&mut self, in_blocks: NonZero<u32>, task: ScheduledTask) -> u32 {
@@ -237,18 +228,35 @@ impl InBlockTransitions {
         self.block_height
     }
 
-    #[cfg(feature = "mock")]
+    #[cfg(any(test, feature = "mock"))]
+    pub fn from_parts(
+        block_height: u32,
+        states: ProgramStates,
+        schedule: Schedule,
+        modifications: BTreeMap<ActorId, NonFinalTransition>,
+        program_creations: BTreeMap<ActorId, CodeId>,
+    ) -> Self {
+        Self {
+            block_height,
+            states,
+            schedule,
+            modifications,
+            program_creations,
+        }
+    }
+
+    #[cfg(any(test, feature = "mock"))]
     pub fn modifications_mut(&mut self) -> &mut BTreeMap<ActorId, NonFinalTransition> {
         &mut self.modifications
     }
 
-    #[cfg(feature = "mock")]
+    #[cfg(any(test, feature = "mock"))]
     pub fn block_height_mut(&mut self) -> &mut u32 {
         &mut self.block_height
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct NonFinalTransition {
     initial_state: H256,
     pub inheritor: Option<ActorId>,
@@ -265,5 +273,121 @@ impl NonFinalTransition {
             && current_state == self.initial_state
             // check if with unchanged state needs commitment (op)
             && (self.inheritor.is_none() && self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty())
+    }
+
+    #[cfg(any(test, feature = "mock"))]
+    pub fn initial_state(&self) -> H256 {
+        self.initial_state
+    }
+
+    #[cfg(any(test, feature = "mock"))]
+    pub fn new(
+        initial_state: H256,
+        inheritor: Option<ActorId>,
+        value_to_receive: i128,
+        claims: Vec<ValueClaim>,
+        messages: Vec<Message>,
+    ) -> Self {
+        Self {
+            initial_state,
+            inheritor,
+            value_to_receive,
+            claims,
+            messages,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::collections::BTreeSet;
+    use ethexe_common::ScheduledTask;
+    use gprimitives::MessageId;
+
+    fn wake(actor: u8, msg: u8) -> ScheduledTask {
+        ScheduledTask::WakeMessage(ActorId::from([actor; 32]), MessageId::from([msg; 32]))
+    }
+
+    fn transitions_with_schedule(block_height: u32, schedule: Schedule) -> InBlockTransitions {
+        InBlockTransitions::new(block_height, ProgramStates::default(), schedule)
+    }
+
+    #[test]
+    fn take_actual_tasks_single_height() {
+        let mut schedule = Schedule::new();
+        schedule
+            .entry(10)
+            .or_default()
+            .extend([wake(1, 1), wake(2, 2)]);
+        let mut t = transitions_with_schedule(10, schedule);
+
+        let drained = t.take_actual_tasks();
+        let drained: BTreeSet<_> = drained.into_iter().collect();
+        assert_eq!(drained, BTreeSet::from([wake(1, 1), wake(2, 2)]));
+        assert!(t.schedule.is_empty(), "all due heights drained");
+    }
+
+    /// Tasks left over from earlier MBs (heights < current) must fire on the
+    /// next pass — that's the MB-driven invariant. Future heights stay put.
+    #[test]
+    fn take_actual_tasks_drains_past_heights_keeps_future() {
+        let mut schedule = Schedule::new();
+        schedule.entry(5).or_default().insert(wake(1, 1));
+        schedule.entry(8).or_default().insert(wake(2, 2));
+        schedule.entry(10).or_default().insert(wake(3, 3));
+        schedule.entry(15).or_default().insert(wake(4, 4));
+        schedule.entry(20).or_default().insert(wake(5, 5));
+        let mut t = transitions_with_schedule(10, schedule);
+
+        let drained = t.take_actual_tasks();
+        // Past-and-current drained.
+        assert_eq!(drained, vec![wake(1, 1), wake(2, 2), wake(3, 3)]);
+        // Future preserved.
+        assert_eq!(t.schedule.len(), 2);
+        assert!(t.schedule.contains_key(&15));
+        assert!(t.schedule.contains_key(&20));
+    }
+
+    /// Chronological ordering across heights — height-major, BTreeSet `Ord`
+    /// within a height. Validators must agree on this order.
+    #[test]
+    fn take_actual_tasks_ordering_is_height_major() {
+        let mut schedule = Schedule::new();
+        // Inserted out of height order; insertion order in BTreeSet doesn't matter.
+        schedule.entry(20).or_default().insert(wake(0, 9));
+        schedule
+            .entry(5)
+            .or_default()
+            .extend([wake(2, 2), wake(1, 1)]);
+        schedule.entry(15).or_default().insert(wake(3, 3));
+        let mut t = transitions_with_schedule(20, schedule);
+
+        let drained = t.take_actual_tasks();
+        // Height 5 first (Ord-sorted within), then 15, then 20.
+        assert_eq!(
+            drained,
+            vec![wake(1, 1), wake(2, 2), wake(3, 3), wake(0, 9)]
+        );
+        assert!(t.schedule.is_empty());
+    }
+
+    /// Empty schedule → no tasks, no panic.
+    #[test]
+    fn take_actual_tasks_empty() {
+        let mut t = transitions_with_schedule(42, Schedule::new());
+        assert!(t.take_actual_tasks().is_empty());
+    }
+
+    /// `block_height = 0` should still drain height-0 tasks.
+    #[test]
+    fn take_actual_tasks_at_genesis() {
+        let mut schedule = Schedule::new();
+        schedule.entry(0).or_default().insert(wake(1, 1));
+        schedule.entry(1).or_default().insert(wake(2, 2));
+        let mut t = transitions_with_schedule(0, schedule);
+
+        assert_eq!(t.take_actual_tasks(), vec![wake(1, 1)]);
+        assert!(t.schedule.contains_key(&1));
     }
 }

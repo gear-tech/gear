@@ -18,7 +18,7 @@ extend-ignore-identifiers-re = [
 
 [files]
 extend-exclude = [
-  "galloc/optimization/fungible_token.ipynb",
+  "sdk/galloc/optimization/fungible_token.ipynb",
   "ethexe/ethereum/abi/*.json",
   "ethexe/contracts/lib/*",
 ]
@@ -27,6 +27,7 @@ extend-exclude = [
 inherents = "inherents" # plural of `inherent`
 hel = "hel" # `LimiteStr` test
 excpt = "excpt" # winapi
+SEH = "SEH" # Windows Structured Exception Handling
 overlayed = "overlayed" # typo in sp-state-machine, won't fix.
 ws = "ws"
 dur = "dur"

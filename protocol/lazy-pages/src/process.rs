@@ -1,0 +1,210 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+//! Lazy-pages memory accesses processing main logic.
+
+use crate::{
+    common::{Error, LazyPagesExecutionContext, LazyPagesRuntimeContext},
+    mprotect,
+    pages::{GearPage, PagesAmountTrait},
+};
+use gear_lazy_pages_common::Status;
+use std::slice;
+
+/// `process_lazy_pages` use struct which implements this trait,
+/// to process in custom logic two cases: host function call and signal.
+pub(crate) trait AccessHandler {
+    type Pages;
+    type Output;
+
+    /// Returns whether it is write access
+    fn is_write(&self) -> bool;
+
+    /// Returns whether gas exceeded status is allowed for current access.
+    fn check_status_is_gas_exceeded() -> Result<(), Error>;
+
+    /// Returns whether stack memory access can appear for the case.
+    fn check_stack_memory_access() -> Result<(), Error>;
+
+    /// Returns whether write accessed memory access is allowed for the case.
+    fn check_write_accessed_memory_access() -> Result<(), Error>;
+
+    /// Returns whether already accessed memory read access is allowed for the case.
+    fn check_read_from_accessed_memory() -> Result<(), Error>;
+
+    /// Charge for accessed gear page.
+    fn charge_for_page_access(
+        &mut self,
+        page: GearPage,
+        is_already_accessed: bool,
+    ) -> Result<Status, Error>;
+
+    /// Charge for one gear page data loading.
+    fn charge_for_page_data_loading(&mut self) -> Result<Status, Error>;
+
+    /// Get the biggest page from `pages`.
+    fn last_page(pages: &Self::Pages) -> Option<GearPage>;
+
+    /// Apply `f` for all `pages`.
+    fn process_pages(
+        pages: Self::Pages,
+        process_one: impl FnMut(GearPage) -> Result<(), Error>,
+    ) -> Result<(), Error>;
+
+    /// Drops and returns output.
+    fn into_output(self, ctx: &mut LazyPagesExecutionContext) -> Result<Self::Output, Error>;
+}
+
+/// Lazy-pages accesses processing main function.
+/// Acts differently for signals and host functions accesses,
+/// but main logic is the same:
+/// It removes read and write protections for page,
+/// then it loads wasm page data from storage to wasm page memory location.
+/// If native page size is bigger than gear page size, then this will be done
+/// for all gear pages from accessed native page.
+/// 1) Set new access pages protection accordingly it is read or write access.
+/// 2) If some page contains data in storage, then load this data and place it in
+///    program's wasm memory.
+/// 3) Charge gas for access and data loading.
+pub(crate) fn process_lazy_pages<H: AccessHandler>(
+    rt_ctx: &mut LazyPagesRuntimeContext,
+    exec_ctx: &mut LazyPagesExecutionContext,
+    mut handler: H,
+    pages: H::Pages,
+) -> Result<H::Output, Error> {
+    let wasm_mem_size = exec_ctx.wasm_mem_size.offset(rt_ctx);
+    unsafe {
+        if let Some(last_page) = H::last_page(&pages) {
+            // Check that all pages are inside wasm memory.
+            if last_page.end_offset(rt_ctx) as usize >= wasm_mem_size {
+                return Err(Error::OutOfWasmMemoryAccess);
+            }
+        } else {
+            // Accessed pages are empty - nothing to do.
+            return handler.into_output(exec_ctx);
+        }
+
+        if exec_ctx.status != Status::Normal {
+            H::check_status_is_gas_exceeded()?;
+            return handler.into_output(exec_ctx);
+        }
+
+        let stack_end = exec_ctx.stack_end;
+        let wasm_mem_addr = exec_ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
+
+        // Returns `true` if new status is not `Normal`.
+        let update_status = |ctx: &mut LazyPagesExecutionContext, status| {
+            ctx.status = status;
+
+            // If new status is not [Status::Normal], then unprotect lazy-pages
+            // and continue work until the end of current wasm block. We don't care
+            // about future program execution correctness, because gas limit or allowance exceed.
+            match status {
+                Status::Normal => Ok(false),
+                Status::GasLimitExceeded => {
+                    log::trace!(
+                        "Gas limit or allowance exceed, so removes protection from all wasm memory \
+                        and continues execution until the end of current wasm block"
+                    );
+                    // `ACTIVE_WASM_REGION` is deliberately left untouched here:
+                    // the whole buffer is now unprotected, so no in-region
+                    // fault can occur while the stale region stays set. It is
+                    // refreshed on the next `initialize_for_program` and
+                    // cleared by `unset_lazy_pages_protection`.
+                    mprotect::mprotect_interval(wasm_mem_addr, wasm_mem_size, true, true)
+                        .map(|_| true)
+                }
+            }
+        };
+
+        let page_size = GearPage::size(rt_ctx) as usize;
+
+        let process_one = |page: GearPage| {
+            let page_offset = page.offset(rt_ctx);
+            let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(page_offset as usize);
+
+            let protect_page = |prot_write| {
+                mprotect::mprotect_interval(page_buffer_ptr as usize, page_size, true, prot_write)
+            };
+
+            if page_offset < stack_end.offset(rt_ctx) {
+                // Nothing to do, page has r/w accesses and data is in correct state.
+                H::check_stack_memory_access()?;
+            } else if exec_ctx.is_write_accessed(page) {
+                // Nothing to do, page has r/w accesses and data is in correct state.
+                H::check_write_accessed_memory_access()?;
+            } else if exec_ctx.is_accessed(page) {
+                if handler.is_write() {
+                    // Charges for page write access
+                    let status = handler.charge_for_page_access(page, true)?;
+                    if update_status(exec_ctx, status)? {
+                        return Ok(());
+                    }
+
+                    // Sets read/write protection access for page and add page to write accessed
+                    protect_page(true)?;
+                    exec_ctx.set_write_accessed(page)?;
+                } else {
+                    // Nothing to do, page has read accesses and data is in correct state.
+                    H::check_read_from_accessed_memory()?;
+                }
+            } else {
+                // Charge for page access.
+                let status = handler.charge_for_page_access(page, false)?;
+                if update_status(exec_ctx, status)? {
+                    return Ok(());
+                }
+
+                let unprotected = if rt_ctx
+                    .page_has_data_in_storage(&mut exec_ctx.program_storage_prefix, page)
+                {
+                    // Charge for page data loading from storage.
+                    let status = handler.charge_for_page_data_loading()?;
+                    if update_status(exec_ctx, status)? {
+                        return Ok(());
+                    }
+
+                    // Set read/write access, in order to write page data to program memory.
+                    protect_page(true)?;
+
+                    // Load and write data to memory.
+                    let buffer_as_slice = slice::from_raw_parts_mut(page_buffer_ptr, page_size);
+                    if !rt_ctx.load_page_data_from_storage(
+                        &mut exec_ctx.program_storage_prefix,
+                        page,
+                        buffer_as_slice,
+                    )? {
+                        let err_msg = format!(
+                            "process_lazy_pages: `read` returns, that page has no data, but `exist` returns that there is one. \
+                            Page - {page:?}, program storage prefix - {:?}",
+                            &exec_ctx.program_storage_prefix,
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
+                    }
+                    true
+                } else {
+                    false
+                };
+
+                exec_ctx.set_accessed(page);
+                if handler.is_write() {
+                    if !unprotected {
+                        protect_page(true)?;
+                    }
+                    exec_ctx.set_write_accessed(page)?;
+                } else {
+                    // Set only read access for page.
+                    protect_page(false)?;
+                }
+            }
+
+            Ok(())
+        };
+
+        H::process_pages(pages, process_one)?;
+
+        handler.into_output(exec_ctx)
+    }
+}

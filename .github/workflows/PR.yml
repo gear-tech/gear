@@ -18,10 +18,71 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_skip: ${{ steps.skip.outputs.should_skip }}
+
+      ci_macos: ${{ steps.ci.outputs.macos }}
+      ci_windows: ${{ steps.ci.outputs.windows }}
+      ci_linux_aarch64: ${{ steps.ci.outputs.linux_aarch64 }}
+      ci_release: ${{ steps.ci.outputs.release }}
+      ci_production: ${{ steps.ci.outputs.production }}
+      ci_docker: ${{ steps.ci.outputs.docker }}
+
     steps:
       - name: Wait a bit for label storms
         if: ${{ github.event_name == 'pull_request' && github.event.action == 'labeled' }}
         run: sleep 10
+
+      - name: Resolve CI labels
+        id: ci
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          MQ_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          LABELS="$PR_LABELS"
+
+          # In merge_group, pull_request context is absent — fetch labels via API
+          if [ -z "$LABELS" ] && [ -n "$MQ_HEAD_REF" ]; then
+            PR_NUMBER=$(echo "$MQ_HEAD_REF" | sed -E 's#.*/pr-([0-9]+)-.*#\1#')
+            if [ -n "$PR_NUMBER" ]; then
+              LABELS=$(gh api "/repos/$REPO/pulls/$PR_NUMBER" --jq '[.labels[].name] | join(",")')
+            fi
+          fi
+
+          has_label() {
+            case ",$LABELS," in
+              *",$1,"*) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          if [ -n "$MQ_HEAD_REF" ] && has_label "pr: do-not-merge"; then
+            echo "::error::PR is labeled 'pr: do-not-merge' - merge blocked"
+            exit 1
+          fi
+
+          has_full=false
+          if has_label "ci: full"; then
+            has_full=true
+          fi
+
+          set_output() {
+            name="$1"
+            label="$2"
+
+            if [ "$has_full" = "true" ] || has_label "$label"; then
+              echo "$name=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$name=false" >> "$GITHUB_OUTPUT"
+            fi
+          }
+
+          set_output "macos" "ci: macos"
+          set_output "windows" "ci: windows"
+          set_output "linux_aarch64" "ci: linux-aarch64"
+          set_output "release" "ci: release"
+          set_output "production" "ci: production"
+          set_output "docker" "ci: docker"
 
       - name: Only run latest workflow-run for this PR
         id: skip
@@ -35,8 +96,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # github.workflow_ref looks like this, so we extract filename:
-          # owner/repo/.github/workflows/pr.yml@refs/pull/123/merge
           wf_path="$(echo "$WF_REF" | sed -E 's#^[^/]*/[^/]*/##; s#@.*$##')"
           wf_file="$(basename "$wf_path")"
           echo "workflow file: $wf_file"
@@ -71,22 +130,9 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      macos: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
-      windows: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E1-forcenatwin') }}
-      linux-aarch64: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E5-forcelinuxaarch64') }}
-      release: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E3-forcerelease') }}
-      production: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}
-
-  validator:
-    needs: gate
-    if: ${{ github.event_name == 'pull_request' && needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-validator') }}
-    uses: ./.github/workflows/validation.yml
-    secrets:
-      VARA_VALIDATOR_8: ${{ secrets.VARA_VALIDATOR_8 }}
-      SSH_VARA_USERNAME: ${{ secrets.SSH_VARA_USERNAME }}
-      VARA_SSH_PRIVATE_KEY: ${{ secrets.VARA_SSH_PRIVATE_KEY }}
-
-  check-node-sync:
-    needs: gate
-    if: ${{ github.event_name == 'pull_request' && needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-node-sync') }}
-    uses: ./.github/workflows/check-node-sync.yml
+      macos: ${{ needs.gate.outputs.ci_macos == 'true' }}
+      windows: ${{ needs.gate.outputs.ci_windows == 'true' }}
+      linux-aarch64: ${{ needs.gate.outputs.ci_linux_aarch64 == 'true' }}
+      release: ${{ needs.gate.outputs.ci_release == 'true' }}
+      production: ${{ needs.gate.outputs.ci_production == 'true' }}
+      docker: ${{ needs.gate.outputs.ci_docker == 'true' }}

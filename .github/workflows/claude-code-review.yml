@@ -2,15 +2,22 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [labeled]
+    types: [ready_for_review]
   issue_comment:
     types: [created]
 
 jobs:
+  # Temporarily disabled: anthropics/claude-code-action@v1.0.96 fails on every
+  # run with an OIDC token fetch error and the upstream `tsconfig.json` fd 4
+  # crash. v1.0.97+ has the same Bun/tsconfig regression
+  # (anthropics/claude-code-action#1205, #1234), so bumping the pin won't help.
+  # Drop the `false &&` once a working release exists. Latest failing run:
+  # https://github.com/gear-tech/gear/actions/runs/25102428333.
   full-review:
     if: >-
+      false &&
       github.event_name == 'pull_request' &&
-      github.event.label.name == 'A0-pleasereview'
+      github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -31,7 +38,7 @@ jobs:
         run: git fetch origin ${{ github.event.pull_request.base.sha }} --depth=1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -40,7 +47,7 @@ jobs:
 
       - name: Restore graph cache
         id: cache-graph
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .code-review-graph
           key: code-review-graph-${{ github.event.pull_request.base.sha }}
@@ -69,7 +76,12 @@ jobs:
           EOF
 
       - name: Run Claude Code Review
-        uses: anthropics/claude-code-action@v1
+        # Pinned to v1.0.96 + Opus 4-6: last verified green combo (run on
+        # 2026-04-15). v1.0.97+ has a Bun/tsconfig-mismatch crash upstream
+        # (anthropics/claude-code-action#1205, #1234) that exits the Claude
+        # process with code 1 before any API call. v1.0.99+ added Opus 4.7
+        # support but bundled the same regression. Re-bump when #1205 is fixed.
+        uses: anthropics/claude-code-action@v1.0.96
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: '--model claude-opus-4-6 --thinking-budget high --mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
@@ -111,7 +123,9 @@ jobs:
             At the end of the summary, add: "\n---\n> After pushing new commits, comment `/review-delta` to get an incremental review."
 
   delta-review:
+    # Disabled together with full-review above; see comment there.
     if: >-
+      false &&
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
       github.event.sender.type == 'User' &&
@@ -155,7 +169,7 @@ jobs:
           fi
 
       - name: Checkout PR branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.pr.outputs.head_sha }}
           fetch-depth: 1
@@ -172,7 +186,7 @@ jobs:
             > /tmp/prev-review.md 2>/dev/null || echo "No previous review found." > /tmp/prev-review.md
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -181,7 +195,7 @@ jobs:
 
       - name: Restore graph cache
         id: cache-graph
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .code-review-graph
           key: code-review-graph-${{ steps.pr.outputs.base_sha }}
@@ -210,7 +224,8 @@ jobs:
           EOF
 
       - name: Run Claude Delta Review
-        uses: anthropics/claude-code-action@v1
+        # See full-review job above for rationale on pinning.
+        uses: anthropics/claude-code-action@v1.0.96
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: '--model claude-opus-4-6 --thinking-budget high --mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'

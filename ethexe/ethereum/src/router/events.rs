@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     IRouter,
@@ -33,8 +18,8 @@ use anyhow::{Result, anyhow};
 use ethexe_common::events::{
     RouterEvent, RouterRequestEvent,
     router::{
-        AnnouncesCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
-        CodeValidationRequestedEvent, ComputationSettingsChangedEvent, ProgramCreatedEvent,
+        BatchCommittedEvent, CodeGotValidatedEvent, CodeValidationRequestedEvent,
+        ComputationSettingsChangedEvent, EBCommittedEvent, MBCommittedEvent, ProgramCreatedEvent,
         StorageSlotChangedEvent, ValidatorsCommittedForEraEvent,
     },
 };
@@ -48,7 +33,8 @@ pub mod signatures {
     crate::signatures_consts! {
         IRouter;
         BATCH_COMMITTED: BatchCommitted,
-        ANNOUNCES_COMMITTED: AnnouncesCommitted,
+        MB_COMMITTED: MBCommitted,
+        EB_COMMITTED: EBCommitted,
         CODE_GOT_VALIDATED: CodeGotValidated,
         CODE_VALIDATION_REQUESTED: CodeValidationRequested,
         COMPUTATION_SETTINGS_CHANGED: ComputationSettingsChanged,
@@ -75,9 +61,8 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
         BATCH_COMMITTED => {
             RouterEvent::BatchCommitted(decode_log::<IRouter::BatchCommitted>(log)?.into())
         }
-        ANNOUNCES_COMMITTED => {
-            RouterEvent::AnnouncesCommitted(decode_log::<IRouter::AnnouncesCommitted>(log)?.into())
-        }
+        MB_COMMITTED => RouterEvent::MBCommitted(decode_log::<IRouter::MBCommitted>(log)?.into()),
+        EB_COMMITTED => RouterEvent::EBCommitted(decode_log::<IRouter::EBCommitted>(log)?.into()),
         CODE_GOT_VALIDATED => {
             RouterEvent::CodeGotValidated(decode_log::<IRouter::CodeGotValidated>(log)?.into())
         }
@@ -142,7 +127,8 @@ impl<'a> AllEventsBuilder<'a> {
             .address(*self.query.instance.address())
             .event_signature(Topic::from_iter([
                 signatures::BATCH_COMMITTED,
-                signatures::ANNOUNCES_COMMITTED,
+                signatures::MB_COMMITTED,
+                signatures::EB_COMMITTED,
                 signatures::CODE_GOT_VALIDATED,
                 signatures::CODE_VALIDATION_REQUESTED,
                 signatures::COMPUTATION_SETTINGS_CHANGED,
@@ -184,21 +170,43 @@ impl<'a> BatchCommittedEventBuilder<'a> {
     }
 }
 
-pub struct AnnouncesCommittedEventBuilder<'a> {
-    event: Event<&'a RootProvider, IRouter::AnnouncesCommitted>,
+pub struct MBCommittedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IRouter::MBCommitted>,
 }
 
-impl<'a> AnnouncesCommittedEventBuilder<'a> {
+impl<'a> MBCommittedEventBuilder<'a> {
     pub(crate) fn new(query: &'a RouterQuery) -> Self {
         Self {
-            event: query.instance.AnnouncesCommitted_filter(),
+            event: query.instance.MBCommitted_filter(),
         }
     }
 
     pub async fn subscribe(
         self,
-    ) -> Result<impl Stream<Item = Result<(AnnouncesCommittedEvent, Log), Error>> + Unpin + use<>>
-    {
+    ) -> Result<impl Stream<Item = Result<(MBCommittedEvent, Log), Error>> + Unpin + use<>> {
+        Ok(self
+            .event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct EBCommittedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IRouter::EBCommitted>,
+}
+
+impl<'a> EBCommittedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a RouterQuery) -> Self {
+        Self {
+            event: query.instance.EBCommitted_filter(),
+        }
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(EBCommittedEvent, Log), Error>> + Unpin + use<>> {
         Ok(self
             .event
             .subscribe()

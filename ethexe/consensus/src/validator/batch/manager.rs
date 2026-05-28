@@ -1,40 +1,23 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2026 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, ValidationStatus};
-use crate::{
-    announces,
-    validator::{
-        batch::{filler::BatchFiller, types::BatchParts, utils},
-        core::{ElectionRequest, MiddlewareWrapper},
-    },
+use crate::validator::{
+    batch::{filler::BatchFiller, types::BatchParts, utils},
+    core::{ElectionRequest, MiddlewareWrapper},
 };
 
 use alloy::sol_types::SolValue;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData, ToDigest,
-    consensus::{BatchCommitmentValidationRequest, MAX_BATCH_SIZE_LIMIT},
-    db::{AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, OnChainStorageRO},
+    SimpleBlockData, ToDigest,
+    consensus::BatchCommitmentValidationRequest,
+    db::{BlockMetaStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
     gear::{BatchCommitment, ChainCommitment, RewardsCommitment, ValidatorsCommitment},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::abi::Gear;
+use gprimitives::H256;
 use hashbrown::HashSet;
 
 #[derive(derive_more::Debug, Clone)]
@@ -59,17 +42,12 @@ impl BatchCommitmentManager {
         }
     }
 
-    /// Replaces current limits with `new_limits` and returns the previous limits.
-    #[cfg(test)]
-    pub fn replace_limits(&mut self, new_limits: BatchLimits) -> BatchLimits {
-        std::mem::replace(&mut self.limits, new_limits)
-    }
-
-    /// Creates a new [`BatchCommitment`] for producer.
+    /// Coordinator-side batch builder. Walks `[last_committed_mb..latest_finalized_mb]`
+    /// and pairs the chain piece with validators / rewards / code commitments.
+    /// Returns `Ok(None)` when there's nothing to commit.
     pub async fn create_batch_commitment(
         self,
         block: SimpleBlockData,
-        announce_hash: HashOf<Announce>,
     ) -> Result<Option<BatchCommitment>> {
         let mut batch_filler = BatchFiller::new(self.limits.clone());
 
@@ -85,13 +63,44 @@ impl BatchCommitmentManager {
             bail!("failed to include rewards commitment into batch, err={err}")
         }
 
-        // NOTE: we prioritize state transitions over code commitments. So include them firstly.
-        super::utils::try_include_chain_commitment(
-            &self.db,
-            block.hash,
-            announce_hash,
-            &mut batch_filler,
-        )?;
+        // State transitions before code commitments.
+        let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
+        if !latest_finalized_mb.is_zero() {
+            let latest_advanced = self.db.mb_meta(latest_finalized_mb).last_advanced_eb;
+            if !crate::utils::is_eth_block_canonical_to(&self.db, latest_advanced, block.hash)? {
+                // Eth reorged deeper than canonical_quarantine past a finalized
+                // MB; commitments stall until Eth reverts.
+                tracing::error!(
+                    %latest_finalized_mb,
+                    %latest_advanced,
+                    block = %block.hash,
+                    "coordinator: latest finalized MB advanced to a non-canonical Eth block — \
+                     refusing to build batch (commitments to Eth are now blocked until recovery)"
+                );
+                return Ok(None);
+            }
+
+            // `try_include_chain_commitment` is lenient; only DB-invariant errors propagate.
+            super::utils::try_include_chain_commitment(
+                &self.db,
+                block.hash,
+                latest_finalized_mb,
+                &mut batch_filler,
+            )?;
+
+            // Checkpoint: if no chain commitment fits but the producer's
+            // `last_advanced_eth_block` is far ahead of `last_committed_eb`,
+            // emit an empty chain commitment that just bumps the on-chain anchor.
+            if !batch_filler.has_chain_commitment() {
+                super::utils::try_include_checkpoint_chain_commitment(
+                    &self.db,
+                    block.hash,
+                    latest_finalized_mb,
+                    self.limits.uncommitted_chain_len_threshold,
+                    &mut batch_filler,
+                )?;
+            }
+        }
 
         let queue = self.db.block_meta(block.hash).codes_queue.ok_or_else(|| {
             anyhow!(
@@ -119,6 +128,8 @@ impl BatchCommitmentManager {
         )
     }
 
+    /// Participant: re-derive the coordinator's batch and return whether digests agree.
+    /// Drops the signature (Rejected) on chain mismatch instead of erroring.
     pub async fn validate_batch_commitment(
         self,
         block: SimpleBlockData,
@@ -189,79 +200,115 @@ impl BatchCommitmentManager {
             }
         };
 
-        if let Some(announce) = head {
-            // Head announce in validation request is best for `block`.
-            // This guarantees that announce is successor of last committed announce at `block`,
-            // but does not guarantee that announce is computed by this node.
-            if !self.db.announce_meta(announce).computed {
-                return Ok(ValidationStatus::Rejected {
-                    request,
-                    reason: ValidationRejectReason::HeadAnnounceNotComputed(announce),
-                });
-            }
-
-            let candidates = self
-                .db
-                .block_meta(block.hash)
-                .announces
-                .into_iter()
-                .flatten();
-
-            let best_announce_hash =
-                announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
-
-            let Some(last_committed_announce) =
-                self.db.block_meta(block.hash).last_committed_announce
-            else {
-                anyhow::bail!(
-                    "Last committed announce not found in db for prepared block: {}",
-                    block.hash
-                );
-            };
-
-            let not_committed_announces = match utils::collect_not_committed_predecessors(
-                &self.db,
-                last_committed_announce,
-                best_announce_hash,
-            ) {
-                Ok(announces) => announces,
-                Err(err) => {
-                    tracing::debug!(
-                        block = %block.hash,
-                        best_announce = %best_announce_hash,
-                        error = %err,
-                        "failed to collect not committed predecessors for best announce during batch validation"
-                    );
+        if let Some(head_mb) = head {
+            // Mirror the coordinator-side guard: refuse to sign anything if our
+            // own `latest_finalized_mb` advanced to a non-canonical Eth block
+            // (deep Eth reorg past quarantine). The coordinator's advance must
+            // also be canonical here for the batch to ever land.
+            let local_latest_finalized = self.db.globals().latest_finalized_mb_hash;
+            if !local_latest_finalized.is_zero() {
+                let latest_advanced = self.db.mb_meta(local_latest_finalized).last_advanced_eb;
+                if !crate::utils::is_eth_block_canonical_to(&self.db, latest_advanced, block.hash)?
+                {
                     return Ok(ValidationStatus::Rejected {
                         request,
-                        reason: ValidationRejectReason::BestHeadAnnounceChainInvalid(
-                            best_announce_hash,
+                        reason: ValidationRejectReason::LatestFinalizedAdvanceNotCanonical(
+                            latest_advanced,
                         ),
                     });
                 }
-            };
+            }
 
-            if !not_committed_announces.contains(&announce) {
+            // BFT-safety: any two finalized MBs are linearly ordered, so reachability
+            // from `latest_finalized_mb` via parents is iff "finalized locally".
+            let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
+            if !utils::is_finalized_locally(&self.db, head_mb, latest_finalized_mb) {
+                let head_meta = self.db.mb_meta(head_mb);
+                tracing::warn!(
+                    %head_mb,
+                    %latest_finalized_mb,
+                    head_computed = head_meta.computed,
+                    "manager: rejecting batch — head_mb not yet finalized locally",
+                );
                 return Ok(ValidationStatus::Rejected {
                     request,
-                    reason: ValidationRejectReason::HeadAnnounceIsNotFromBestChain {
-                        requested: announce,
-                        best: best_announce_hash,
-                    },
+                    reason: ValidationRejectReason::HeadMbNotFinalized(head_mb),
                 });
             }
-            // Set firstly for current announce.
+
+            let head_meta = self.db.mb_meta(head_mb);
+            if !head_meta.computed {
+                tracing::warn!(
+                    %head_mb,
+                    "manager: rejecting batch — head_mb not yet computed locally",
+                );
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::HeadMbNotComputed(head_mb),
+                });
+            }
+
+            let last_committed_mb = self
+                .db
+                .block_meta(block.hash)
+                .last_committed_mb
+                .unwrap_or(H256::zero());
+
+            // Head must strictly advance past last-committed; genesis = height 0.
+            let head_height = self
+                .db
+                .mb_compact_block(head_mb)
+                .map(|c| c.height)
+                .ok_or_else(|| anyhow!("MB {head_mb} marked finalized but has no compact block"))?;
+            let last_committed_height = if last_committed_mb.is_zero() {
+                0
+            } else {
+                self.db
+                    .mb_compact_block(last_committed_mb)
+                    .map(|c| c.height)
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "last_committed_mb {last_committed_mb} not in DB for block {}",
+                            block.hash,
+                        )
+                    })?
+            };
+            if head_height <= last_committed_height {
+                tracing::warn!(
+                    %head_mb,
+                    head_height,
+                    %last_committed_mb,
+                    last_committed_height,
+                    "manager: rejecting batch — head_mb at or below last_committed_mb height",
+                );
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::HeadMbAlreadyCommitted(head_mb),
+                });
+            }
+
+            // Both endpoints finalized → walk is on canonical chain; only DB-corrupt errors here.
+            let pending = super::utils::collect_not_committed_mb_predecessors(
+                &self.db,
+                last_committed_mb,
+                head_mb,
+            )?;
+
             let mut chain_commitment = ChainCommitment {
                 transitions: Vec::new(),
-                head_announce: announce,
+                head: head_mb,
+                last_advanced_eth_block: self.db.mb_meta(head_mb).last_advanced_eb,
             };
-            for announce_hash in not_committed_announces.into_iter() {
-                let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
-                chain_commitment.transitions.extend(transitions);
-                if announce_hash == announce {
-                    break;
-                }
+            for mb_hash in pending.into_iter() {
+                let Some(mb_transitions) = self.db.mb_outcome(mb_hash) else {
+                    anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
+                };
+                chain_commitment.transitions.extend(mb_transitions);
             }
+            chain_commitment.transitions = super::utils::squash_transitions_by_actor(
+                std::mem::take(&mut chain_commitment.transitions),
+            );
+            super::utils::sort_transitions_by_value_to_receive(&mut chain_commitment.transitions);
             batch_parts.chain_commitment = Some(chain_commitment);
         }
 
@@ -294,7 +341,7 @@ impl BatchCommitmentManager {
         }
 
         let batch_encoded_size = Gear::BatchCommitment::from(batch).abi_encoded_size() as u64;
-        if batch_encoded_size > MAX_BATCH_SIZE_LIMIT {
+        if batch_encoded_size > self.limits.batch_size_limit {
             return Ok(ValidationStatus::Rejected {
                 request,
                 reason: ValidationRejectReason::BatchSizeLimitExceeded,
@@ -308,10 +355,17 @@ impl BatchCommitmentManager {
         &self,
         block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
-        let timelines = self.db.config().timelines;
+        let (timelines, max_validators) = {
+            let config = self.db.config();
+            (config.timelines, config.max_validators)
+        };
 
-        let block_era = timelines.era_from_ts(block.header.timestamp);
-        let election_ts = timelines.era_election_start_ts(block_era);
+        let block_era = timelines
+            .era_from_ts(block.header.timestamp)
+            .context("failed to calculate era from block timestamp")?;
+        let election_ts = timelines
+            .era_election_start_ts(block_era)
+            .context("failed to calculate election start timestamp")?;
 
         if block.header.timestamp < election_ts {
             tracing::trace!(
@@ -326,7 +380,8 @@ impl BatchCommitmentManager {
 
         let latest_era_validators_committed = self
             .db
-            .block_validators_committed_for_era(block.hash)
+            .block_meta(block.hash)
+            .latest_era_validators_committed
             .ok_or_else(|| {
                 anyhow!(
                     "not found latest_era_validators_committed in database for block: {}",
@@ -392,8 +447,7 @@ impl BatchCommitmentManager {
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,
-            // TODO #4908: max validators must be configurable
-            max_validators: 10,
+            max_validators,
         };
 
         let elected_validators = match self.middleware.make_election_at(request).await {
@@ -409,23 +463,10 @@ impl BatchCommitmentManager {
             }
         };
 
-        let (aggregated_public_key, verifiable_secret_sharing_commitment) =
-            match crate::utils::generate_roast_keys(&elected_validators) {
-                Ok(keys) => keys,
-                Err(e) => {
-                    tracing::error!(
-                        error = %e,
-                        block = %block.hash,
-                        "Failed to generate ROAST keys for elected validators, skipping validators commitment"
-                    );
-
-                    return Ok(None);
-                }
-            };
-
         let commitment = ValidatorsCommitment {
-            aggregated_public_key,
-            verifiable_secret_sharing_commitment,
+            has_aggregated_public_key: false,
+            aggregated_public_key: Default::default(),
+            verifiable_secret_sharing_commitment: Vec::new(),
             validators: elected_validators,
             era_index: block_era + 1,
         };

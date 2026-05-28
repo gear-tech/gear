@@ -1,0 +1,17 @@
+[package]
+name = "calc-stack-height"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gear-core.workspace = true
+gear-wasm-instrument.workspace = true
+wasmtime.workspace = true
+wat.workspace = true
+log.workspace = true
+tracing-subscriber.workspace = true
+gear-workspace-hack.workspace = true

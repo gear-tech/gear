@@ -1,0 +1,67 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+use gear_wasm_gen::{
+    ConfigsBundle, GearWasmGeneratorConfig, MemoryPagesConfig, SelectableParams,
+    SyscallsConfigBuilder, SyscallsInjectionTypes,
+};
+use gear_wasm_instrument::{Instruction, Rules, gas_metering::MemoryGrowCost};
+use std::num::NonZero;
+
+use crate::{
+    INITIAL_PAGES,
+    generate::{InjectGlobalsConfig, InjectMemoryAccessesConfig},
+};
+
+#[derive(Debug, Default, Clone)]
+pub struct FuzzerConfigBundle {
+    pub memory_accesses: InjectMemoryAccessesConfig,
+    pub globals: InjectGlobalsConfig,
+}
+
+impl ConfigsBundle for FuzzerConfigBundle {
+    fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
+        (
+            GearWasmGeneratorConfig {
+                memory_config: MemoryPagesConfig {
+                    initial_size: INITIAL_PAGES,
+                    upper_limit: None,
+                    stack_end_page: None,
+                },
+                syscalls_config: SyscallsConfigBuilder::new(SyscallsInjectionTypes::all_never())
+                    .build(),
+                remove_recursions: false,
+                ..Default::default()
+            },
+            SelectableParams {
+                // NOTE: for lazy-pages-fuzzer we don't rly need generate any instruction,
+                // memory/global access are injected manually.
+                allowed_instructions: vec![],
+                max_instructions: 500,
+                min_funcs: NonZero::new(5).expect("non zero value"),
+                max_funcs: NonZero::new(20).expect("non zero value"),
+            },
+        )
+    }
+}
+
+/// Dummy cost rules for the fuzzer
+/// We don't care about the actual costs, just that they are non-zero
+pub struct DummyCostRules;
+
+impl Rules for DummyCostRules {
+    fn instruction_cost(&self, _instruction: &Instruction) -> Option<u32> {
+        const DUMMY_COST: u32 = 13;
+        Some(DUMMY_COST)
+    }
+
+    fn memory_grow_cost(&self) -> MemoryGrowCost {
+        const DUMMY_MEMORY_GROW_COST: u32 = 1242;
+        MemoryGrowCost::Linear(NonZero::<u32>::new(DUMMY_MEMORY_GROW_COST).unwrap())
+    }
+
+    fn call_per_local_cost(&self) -> u32 {
+        const DUMMY_COST_PER_CALL: u32 = 132;
+        DUMMY_COST_PER_CALL
+    }
+}

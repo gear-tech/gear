@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2026 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::VaraEthApi;
 use alloy::rpc::types::TransactionReceipt;
@@ -254,6 +239,40 @@ impl<'a> Router<'a> {
             .await
     }
 
+    pub async fn create_program_with_executable_balance(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> Result<(H256, ActorId)> {
+        self.router_client
+            .create_program_with_executable_balance(
+                code_id,
+                salt,
+                override_initializer,
+                initial_executable_balance,
+            )
+            .await
+    }
+
+    pub async fn create_program_with_executable_balance_and_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> Result<(TransactionReceipt, ActorId)> {
+        self.router_client
+            .create_program_with_executable_balance_and_receipt(
+                code_id,
+                salt,
+                override_initializer,
+                initial_executable_balance,
+            )
+            .await
+    }
+
     pub async fn create_program_with_abi_interface(
         &self,
         code_id: CodeId,
@@ -279,6 +298,44 @@ impl<'a> Router<'a> {
                 salt,
                 override_initializer,
                 abi_interface,
+            )
+            .await
+    }
+
+    pub async fn create_program_with_abi_interface_and_executable_balance(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> Result<(H256, ActorId)> {
+        self.router_client
+            .create_program_with_abi_interface_and_executable_balance(
+                code_id,
+                salt,
+                override_initializer,
+                abi_interface,
+                initial_executable_balance,
+            )
+            .await
+    }
+
+    pub async fn create_program_with_abi_interface_and_executable_balance_with_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> Result<(TransactionReceipt, ActorId)> {
+        self.router_client
+            .create_program_with_abi_interface_and_executable_balance_with_receipt(
+                code_id,
+                salt,
+                override_initializer,
+                abi_interface,
+                initial_executable_balance,
             )
             .await
     }

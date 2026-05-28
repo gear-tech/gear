@@ -18,6 +18,9 @@ on:
       production:
         type: boolean
         default: false
+      docker:
+        type: boolean
+        default: false
 
 run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
 
@@ -163,7 +166,7 @@ jobs:
           cp target/${{ matrix.targets.target }}/release/wbuild/vara-runtime/*.wasm artifact/wbuild/vara-runtime/
 
       - name: "ACTIONS: Upload node and VARA runtime"
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: gear-cli-and-runtime-release-${{ matrix.targets.target }}
           path: artifact
@@ -203,7 +206,7 @@ jobs:
         run: ./scripts/gear.sh build ethexe --release --locked
 
       - name: "ACTIONS: Upload ethexe node"
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ethexe-cli-release-${{ matrix.targets.target }}
           path: target/${{ matrix.targets.target }}/release/ethexe*
@@ -284,7 +287,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly-f1abb2ca347187bb6dea8c3881ca44ce50aab1e7
+          version: v1.7.0
 
       - name: "Show: Versioning"
         run: |
@@ -298,13 +301,13 @@ jobs:
         run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
 
       - name: "ACTIONS: Upload example WASMs"
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: examples-${{ matrix.profiles.name }}-wasm32-gear
           path: target/wasm32-gear/${{ matrix.profiles.name }}
 
       - name: "ACTIONS: Download node and runtime"
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: gear-cli-and-runtime-release-x86_64-unknown-linux-gnu
           path: gear-cli-and-runtime-release
@@ -325,7 +328,7 @@ jobs:
 
       - name: "ACTIONS: Upload junit.xml"
         if: "!cancelled()"
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: "workspace-${{ matrix.profiles.name }}-junit"
           path: target/nextest/ci/junit.xml
@@ -336,6 +339,8 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v6
+        with: 
+          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -471,7 +476,7 @@ jobs:
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.13.0
+        uses: styfle/cancel-workflow-action@0.13.1
         with:
           access_token: ${{ github.token }}
 
@@ -490,8 +495,8 @@ jobs:
         run: |
           FUZZER_LOGS_PATH=/mnt/fuzzer_logs
           sudo mkdir -p $FUZZER_LOGS_PATH
-          sudo ln -s $FUZZER_LOGS_PATH/artifacts $PWD/utils/runtime-fuzzer/fuzz/artifacts
-          sudo ln -s $FUZZER_LOGS_PATH/proptest-regressions $PWD/utils/runtime-fuzzer/proptest-regressions
+          sudo ln -s $FUZZER_LOGS_PATH/artifacts $PWD/vara/tools/runtime-fuzzer/fuzz/artifacts
+          sudo ln -s $FUZZER_LOGS_PATH/proptest-regressions $PWD/vara/tools/runtime-fuzzer/proptest-regressions
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -545,7 +550,7 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "ACTIONS: Download example WASMs"
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: examples-release-wasm32-gear
           path: examples-artifact
@@ -587,7 +592,7 @@ jobs:
 
       - name: Upload artifacts
         if: ${{ github.event_name == 'push' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           path: artifact
 
@@ -595,7 +600,7 @@ jobs:
     name: Build Docker images for gear-cli, ethexe-cli (linux-x86_64)
     runs-on: ubuntu-latest
     needs: [dynamic-matrix, gear-cli, ethexe-cli]
-    if: ${{ contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
+    if: ${{ contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') || inputs.docker }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v6

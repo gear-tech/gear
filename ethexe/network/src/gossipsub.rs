@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 pub(crate) use libp2p::gossipsub::*;
 
@@ -23,7 +8,7 @@ use crate::{
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{Address, injected::SignedPromise, network::SignedValidatorMessage};
+use ethexe_common::{Address, injected::SignedCompactTxReceipt, network::SignedValidatorMessage};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -46,21 +31,21 @@ use std::{
 pub enum Message {
     // TODO: rename to `Validators`
     Commitments(SignedValidatorMessage),
-    Promise(SignedPromise),
+    TxReceipt(SignedCompactTxReceipt),
 }
 
 impl Message {
     fn topic_hash(&self, behaviour: &Behaviour) -> TopicHash {
         match self {
             Message::Commitments(_) => behaviour.commitments_topic.hash(),
-            Message::Promise(_) => behaviour.promises_topic.hash(),
+            Message::TxReceipt(_) => behaviour.tx_receipts_topic.hash(),
         }
     }
 
     fn encode(&self) -> Vec<u8> {
         match self {
             Message::Commitments(message) => message.encode(),
-            Message::Promise(message) => message.encode(),
+            Message::TxReceipt(message) => message.encode(),
         }
     }
 }
@@ -112,7 +97,7 @@ pub(crate) struct Behaviour {
     // TODO: consider to limit queue
     message_queue: VecDeque<Message>,
     commitments_topic: IdentTopic,
-    promises_topic: IdentTopic,
+    tx_receipts_topic: IdentTopic,
     metrics: Arc<libp2p::metrics::Metrics>,
 }
 
@@ -125,7 +110,7 @@ impl Behaviour {
         metrics: Arc<libp2p::metrics::Metrics>,
     ) -> anyhow::Result<Self> {
         let commitments_topic = Self::topic_with_router("commitments", router_address);
-        let promises_topic = Self::topic_with_router("promises", router_address);
+        let tx_receipts_topic = Self::topic_with_router("receipts", router_address);
 
         let inner = ConfigBuilder::default()
             // dedup messages
@@ -149,14 +134,14 @@ impl Behaviour {
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
 
         inner.subscribe(&commitments_topic)?;
-        inner.subscribe(&promises_topic)?;
+        inner.subscribe(&tx_receipts_topic)?;
 
         Ok(Self {
             inner,
             peer_score,
             message_queue: VecDeque::new(),
             commitments_topic,
-            promises_topic,
+            tx_receipts_topic,
             metrics,
         })
     }
@@ -189,8 +174,8 @@ impl Behaviour {
 
                 let res = if topic == self.commitments_topic.hash() {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
-                } else if topic == self.promises_topic.hash() {
-                    SignedPromise::decode(&mut &data[..]).map(Message::Promise)
+                } else if topic == self.tx_receipts_topic.hash() {
+                    SignedCompactTxReceipt::decode(&mut &data[..]).map(Message::TxReceipt)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };

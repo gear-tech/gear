@@ -1,0 +1,94 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+//! command `info`
+use crate::{app::App, utils::HexBytes};
+use anyhow::Result;
+use clap::Parser;
+use colored::Colorize;
+use gear_core::ids::ActorId;
+use gsdk::{
+    Api,
+    ext::sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair},
+};
+
+/// Get account info.
+#[derive(Clone, Debug, Parser)]
+pub struct Info {
+    /// Account address, defaults to the current account.
+    address: Option<String>,
+
+    #[command(subcommand)]
+    action: Action,
+}
+
+#[derive(Clone, Debug, Parser)]
+pub enum Action {
+    /// Get account balance.
+    Balance,
+    /// List messages in the mailbox.
+    Mailbox {
+        /// Limit number of fetched messages.
+        #[arg(default_value = "10", short, long)]
+        count: usize,
+    },
+}
+
+impl Info {
+    pub async fn exec(self, app: &mut App) -> Result<()> {
+        let mut address = match self.address.clone() {
+            Some(address) => address,
+            None => app.ss58_address()?,
+        };
+
+        let api = app.api().await?;
+
+        if address.starts_with("//") {
+            address = Pair::from_string(&address, None)
+                .expect("Parse development address failed")
+                .public()
+                .to_ss58check()
+        }
+
+        let acc: ActorId = address.parse()?;
+        match self.action {
+            Action::Balance => Self::print_balance(&api, acc).await,
+            Action::Mailbox { count } => Self::print_mailbox(&api, acc, count).await,
+        }
+    }
+
+    /// Prints the account balance.
+    async fn print_balance(api: &Api, acc: ActorId) -> Result<()> {
+        let balance = api.free_balance(acc).await?;
+        println!("{} {}", "Free balance:".bold(), balance);
+        Ok(())
+    }
+
+    /// Prints the account mailbox.
+    async fn print_mailbox(api: &Api, acc: ActorId, count: usize) -> Result<()> {
+        let mails = api.mailbox_messages(acc, count).await?;
+        if mails.is_empty() {
+            println!("{}", "Mailbox is empty".dimmed());
+        }
+
+        for (message, interval) in mails {
+            println!("{} {}", "id:".bold(), message.id());
+            println!("{} {}", "source:".bold(), message.source());
+            println!("{} {}", "destination:".bold(), message.destination());
+            println!(
+                "{} {}",
+                "payload:".bold(),
+                HexBytes::from(message.payload_bytes().to_vec())
+            );
+            println!("{} {}", "value:".bold(), message.value());
+            println!(
+                "{} {}..{}",
+                "interval:".bold(),
+                interval.start,
+                interval.finish
+            );
+            println!("{}", "---".dimmed());
+        }
+        Ok(())
+    }
+}

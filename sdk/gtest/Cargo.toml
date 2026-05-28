@@ -1,0 +1,56 @@
+[package]
+name = "gtest"
+description = "Testing utils for developing Gear programs."
+documentation = "https://docs.rs/gtest"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Gear related dependencies
+builtins-common = { workspace = true, features = ["bls12-381-std", "eth-bridge-std"] }
+gprimitives = { workspace = true, features = ["std"] }
+gear-core.workspace = true
+gear-common = { workspace = true, features = ["std"] }
+gear-core-errors.workspace = true
+core-processor = { workspace = true, features = ["std", "gtest"] }
+gear-lazy-pages.workspace = true
+gear-lazy-pages-common.workspace = true
+gear-lazy-pages-native-interface.workspace = true
+gear-utils.workspace = true
+gsys.workspace = true
+ethexe-common = { workspace = true, optional = true }
+ethexe-runtime-common = { workspace = true, optional = true }
+
+# General dependencies
+parity-scale-codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
+colored.workspace = true
+tracing-subscriber.workspace = true
+path-clean.workspace = true
+rand = { workspace = true, features = ["std", "std_rng"] }
+log.workspace = true
+cargo_toml.workspace = true
+etc.workspace = true
+thiserror.workspace = true
+gear-workspace-hack.workspace = true
+
+[dev-dependencies]
+ark-std.workspace = true
+sp-core.workspace = true
+sha2.workspace = true
+demo-custom.workspace = true
+demo-piggy-bank.workspace = true
+demo-ping.workspace = true
+demo-panic-payload.workspace = true
+demo-futures-unordered.workspace = true
+demo-constructor = { workspace = true, features = ["std"] }
+demo-delayed-sender.workspace = true
+gear-core = { workspace = true, features = ["mock"] }
+
+[features]
+ethexe = ["dep:ethexe-common", "dep:ethexe-runtime-common"]

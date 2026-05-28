@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Shared configuration model for the `ethexe` CLI.
 //!
@@ -29,12 +14,14 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 mod ethereum;
+mod malachite;
 mod network;
 mod node;
 mod prometheus;
 mod rpc;
 
 pub use ethereum::EthereumParams;
+pub use malachite::MalachiteParams;
 pub use network::NetworkParams;
 pub use node::NodeParams;
 pub use prometheus::PrometheusParams;
@@ -57,6 +44,11 @@ pub struct Params {
     #[clap(flatten)]
     #[serde(alias = "net")]
     pub network: Option<NetworkParams>,
+
+    /// Malachite consensus service parameters.
+    #[clap(flatten)]
+    #[serde(alias = "mala")]
+    pub malachite: Option<MalachiteParams>,
 
     /// Ethexe RPC service hosting parameters.
     #[clap(flatten)]
@@ -86,6 +78,7 @@ impl Params {
             node,
             ethereum,
             network,
+            malachite,
             rpc,
             prometheus,
         } = self;
@@ -103,12 +96,14 @@ impl Params {
                     .transpose()
             })
             .transpose()?;
+        let malachite = malachite.unwrap_or_default().into_config()?;
         let rpc = rpc.and_then(|p| p.into_config(&node));
         let prometheus = prometheus.and_then(|p| p.into_config());
         Ok(Config {
             node,
             ethereum,
             network,
+            malachite,
             rpc,
             prometheus,
         })
@@ -121,6 +116,7 @@ impl MergeParams for Params {
             node: MergeParams::optional_merge(self.node, with.node),
             ethereum: MergeParams::optional_merge(self.ethereum, with.ethereum),
             network: MergeParams::optional_merge(self.network, with.network),
+            malachite: MergeParams::optional_merge(self.malachite, with.malachite),
             rpc: MergeParams::optional_merge(self.rpc, with.rpc),
             prometheus: MergeParams::optional_merge(self.prometheus, with.prometheus),
         }
@@ -140,5 +136,32 @@ pub trait MergeParams: Sized {
             (None, Some(with)) => Some(with),
             (None, None) => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `deny_unknown_fields` is on every section, so any stale or
+    // misnamed knob in the shipped examples would fail at runtime
+    // the moment an operator uncomments it. Parse the bundled
+    // template directly to catch drift between code and example.
+    #[test]
+    fn example_toml_parses() {
+        let content = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../.ethexe.example.toml"
+        ));
+        toml::from_str::<Params>(content).expect(".ethexe.example.toml must stay parseable");
+    }
+
+    #[test]
+    fn example_local_toml_parses() {
+        let content = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../.ethexe.example.local.toml"
+        ));
+        toml::from_str::<Params>(content).expect(".ethexe.example.local.toml must stay parseable");
     }
 }

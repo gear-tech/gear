@@ -51,6 +51,7 @@ beacon-rpc = "http://127.0.0.1:8545"
 router = "0x..."
 block-time = 12
 eip1559-fee-increase-percentage = 20
+eip1559-max-fee-per-gas-in-gwei = 0
 blob-gas-multiplier = 2
 
 [network]

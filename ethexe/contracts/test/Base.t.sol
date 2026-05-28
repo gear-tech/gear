@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -200,8 +200,9 @@ contract Base is POCBaseTest {
         uint48 _timestamp,
         bool revertExpected
     ) internal {
-        Gear.ChainCommitment memory _chainCommitment =
-            Gear.ChainCommitment({transitions: _transactions, head: keccak256("head")});
+        Gear.ChainCommitment memory _chainCommitment = Gear.ChainCommitment({
+            transitions: _transactions, head: keccak256("head"), lastAdvancedEthBlock: bytes32(0)
+        });
 
         Gear.ChainCommitment[] memory _chainCommitments = new Gear.ChainCommitment[](1);
         _chainCommitments[0] = _chainCommitment;
@@ -261,7 +262,10 @@ contract Base is POCBaseTest {
 
         rollBlocks(1);
 
-        commitBatch(_privateKeys, _batch, revertExpected);
+        if (revertExpected) {
+            vm.expectRevert();
+        }
+        router.commitBatch(_batch, Gear.SignatureType.FROST, signHash(_privateKeys, batchCommitmentHash(_batch)));
     }
 
     function batchCommitmentHash(Gear.BatchCommitment memory _batch) internal pure returns (bytes32) {
@@ -329,7 +333,9 @@ contract Base is POCBaseTest {
             );
         }
 
-        return Gear.chainCommitmentHash(keccak256(abi.encodePacked(_transitionsHashes)), _commitment.head);
+        return Gear.chainCommitmentHash(
+            keccak256(abi.encodePacked(_transitionsHashes)), _commitment.head, _commitment.lastAdvancedEthBlock
+        );
     }
 
     function codeCommitmentsHash(Gear.CodeCommitment[] memory _commitments) internal pure returns (bytes32) {

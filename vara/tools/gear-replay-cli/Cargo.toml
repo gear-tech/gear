@@ -1,0 +1,51 @@
+[package]
+name = "gear-replay-cli"
+version = "1.0.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "gear-replay-cli"
+path = "src/main.rs"
+
+[dependencies]
+# Internal
+gear-runtime-interface = { workspace = true, features = ["std", "sandbox-host-api"] }
+runtime-primitives.workspace = true
+service = { workspace = true, optional = true }
+
+# Substrate Primitives
+sp-core.workspace = true
+sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
+sp-externalities.workspace = true
+sp-io.workspace = true
+sp-keystore.workspace = true
+sp-rpc.workspace = true
+sp-runtime.workspace = true
+sp-state-machine.workspace = true
+
+# Substrate client
+sc-executor.workspace = true
+sc-cli.workspace = true
+sc-tracing.workspace = true
+frame-remote-externalities.workspace = true
+substrate-rpc-client.workspace = true
+
+# third-party
+parity-scale-codec.workspace = true
+clap = { workspace = true, features = ["derive"] }
+hex.workspace = true
+log.workspace = true
+tokio = { workspace = true, features = ["macros"] }
+gear-workspace-hack.workspace = true
+
+[features]
+default = ["always-wasm"]
+always-wasm = []
+vara-native = [
+    "service/vara-native",
+]
+try-runtime = [
+    "service/try-runtime",
+]

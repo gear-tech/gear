@@ -348,9 +348,26 @@ Errors are encoded as little-endian u32. Code `0xffff` is reserved for SyscallUs
 ## Code Conventions
 
 - `rustfmt.toml`: `imports_granularity = "Crate"`, `format_code_in_doc_comments = true`
-- CI uses `[skip-ci]` (not `[skip ci]`) in commit messages to get green status checks while skipping workflows
 - `cargo nextest` is the test runner (not `cargo test`), except for doc tests
 - `cargo hakari` manages workspace dependency deduplication — run `make workspace-hack` after dependency changes
+
+### Test Timeouts
+
+Test timeouts cap at 2 minutes (`120_000` ms). If a test needs more, fix the test (mock I/O, shrink the chain, drive events directly) or ask before raising the cap.
+
+### `unwrap_or` outside tests
+
+Outside tests and mocks, don't reach for `unwrap_or` / `unwrap_or_default` / `unwrap_or_else` on an `Option`/`Result` whose `None`/`Err` branch is supposedly impossible. Use `expect("invariant")` or `ok_or_else(|| anyhow!(...))` instead so a violation becomes a loud failure. `unwrap_or*` is only for fallbacks that are a real semantic value.
+
+### Comment Sizing
+
+Comment length tracks the item's importance:
+- Crate-level `//!` at the top of `lib.rs` / `main.rs`: up to ~200 lines.
+- Public items: up to ~20 lines.
+- Private items: up to ~5 lines.
+- Inline comments inside a function body: one line.
+
+Don't restate what well-named identifiers already say, and only explain *why* — never *what*.
 
 ## GitHub PR Review
 

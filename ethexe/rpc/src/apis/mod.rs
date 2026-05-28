@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod block;
 mod code;
@@ -22,14 +7,21 @@ mod dev;
 mod injected;
 mod program;
 
-pub use block::{BlockApi, BlockServer};
-pub use code::{CodeApi, CodeServer};
-pub use dev::{DevApi, DevServer};
-pub use injected::{InjectedApi, InjectedServer};
-pub use program::{FullProgramState, ProgramApi, ProgramServer};
-
 #[cfg(feature = "client")]
 pub use crate::apis::{
-    block::BlockClient, code::CodeClient, dev::DevClient, injected::InjectedClient,
-    program::ProgramClient,
+    block::BlockClient,
+    code::CodeClient,
+    dev::DevClient,
+    injected::InjectedClient,
+    program::{CalculateReplyForHandleResult, FullProgramState, ProgramClient},
 };
+#[cfg(feature = "server")]
+pub use block::{BlockApi, BlockServer};
+#[cfg(feature = "server")]
+pub use code::{CodeApi, CodeServer};
+#[cfg(feature = "server")]
+pub use dev::{DevApi, DevServer};
+#[cfg(feature = "server")]
+pub use injected::{InjectedApi, InjectedServer};
+#[cfg(feature = "server")]
+pub use program::{ProgramApi, ProgramServer};

@@ -2,7 +2,7 @@
 .binpath
 log/
 weight-dumps/
-gsdk/vara_runtime_prod.scale
+vara/sdk/gsdk/vara_runtime_prod.scale
 *.meta.txt
 
 # cargo
@@ -23,4 +23,4 @@ utils/**/fuzz/fuzz/*
 fuzz_run
 lazy_pages_fuzz_run
 seed.bin
-.vscode/settings.json
+

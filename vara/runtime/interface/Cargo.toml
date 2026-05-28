@@ -1,0 +1,40 @@
+[package]
+name = "gear-runtime-interface"
+description = "Gear Runtime Interface"
+documentation = "https://docs.rs/gear-runtime-interface"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+builtins-common = { workspace = true, optional = true }
+gear-core.workspace = true
+gear-lazy-pages-common.workspace = true
+gear-lazy-pages = { workspace = true, optional = true }
+gear-sandbox-interface = { workspace = true, optional = true }
+
+sp-io.workspace = true
+sp-runtime-interface = { workspace = true, default-features = false }
+sp-std.workspace = true
+parity-scale-codec.workspace = true
+log = { workspace = true, optional = true }
+gear-workspace-hack.workspace = true
+
+[features]
+default = ["std", "sandbox-host-api"]
+std = [
+	"gear-core/std",
+	"gear-lazy-pages",
+
+	"sp-io/std",
+	"sp-std/std",
+	"sp-runtime-interface/std",
+	"parity-scale-codec/std",
+	"log",
+
+	"builtins-common/bls12-381-std",
+]
+sandbox-host-api = ["std", "gear-sandbox-interface/host-api"]

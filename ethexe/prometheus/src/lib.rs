@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Prometheus integration for the ethexe node.
 //!
@@ -25,15 +10,13 @@
 //!
 //! [`PrometheusService`] runs an HTTP server and yields [`PrometheusEvent`]s to
 //! the parent service. When `/metrics` is requested, the service:
-//! - refreshes liveness gauges derived from the latest committed announce,
+//! - refreshes liveness gauges derived from the latest committed MB,
 //! - renders metrics from the global `metrics` recorder,
 //! - asks the parent service for extra registry dumps,
 //! - merges everything into a single Prometheus text response.
 
 use anyhow::{Context as _, Result};
-use ethexe_common::db::{
-    AnnounceStorageRO, BlockMetaStorageRO, GlobalsStorageRO, OnChainStorageRO,
-};
+use ethexe_common::db::{BlockMetaStorageRO, GlobalsStorageRO, MbStorageRO, OnChainStorageRO};
 use ethexe_db::Database;
 use futures::{FutureExt, Stream, stream::FusedStream};
 use hyper::{
@@ -93,13 +76,13 @@ pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyL
 
 #[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe_liveness")]
-/// Liveness gauges derived from the latest committed announce in the database.
+/// Liveness gauges derived from the latest committed MB in the database.
 pub struct LivenessMetrics {
-    /// Height of the block referenced by the latest committed announce.
+    /// Height of the block referenced by the latest committed MB.
     pub latest_committed_block_number: Gauge,
-    /// Timestamp of the block referenced by the latest committed announce.
+    /// Timestamp of the block referenced by the latest committed MB.
     pub latest_committed_block_timestamp: Gauge,
-    /// Seconds between the latest synced block and the latest committed announce.
+    /// Seconds between the latest synced block and the latest committed MB.
     pub time_since_latest_committed_secs: Gauge,
 }
 
@@ -277,22 +260,22 @@ async fn request_metrics(
     .context("Failed to request metrics")
 }
 
-/// Refreshes liveness gauges from the latest committed announce stored in the database.
+/// Refreshes liveness gauges from the latest committed MB stored in the database.
 ///
-/// If the node has not committed any announce yet, the gauges are left unchanged.
+/// If the node has not committed any MB yet, the gauges are left unchanged.
 fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
     let Some(latest_committed_block_header) = db
-        .block_meta(db.globals().latest_prepared_block_hash)
-        .last_committed_announce
-        .and_then(|a| db.announce(a))
-        .and_then(|a| db.block_header(a.block_hash))
+        .block_meta(db.globals().latest_prepared_eb_hash)
+        .last_committed_mb
+        .map(|mb_hash| db.mb_meta(mb_hash).last_advanced_eb)
+        .and_then(|eth_block| db.block_header(eth_block))
     else {
         return;
     };
 
     let time_since_latest_committed_secs = db
         .globals()
-        .latest_synced_block
+        .latest_synced_eb
         .header
         .timestamp
         .saturating_sub(latest_committed_block_header.timestamp);

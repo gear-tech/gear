@@ -1,29 +1,16 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     AlloyProvider, TryGetReceipt,
     abi::{self, IWrappedVara, utils},
 };
 use alloy::{
+    dyn_abi::Eip712Domain,
     primitives::{Address as AlloyAddress, U256 as AlloyU256},
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::TransactionReceipt,
+    sol_types::eip712_domain,
 };
 use anyhow::Result;
 use events::{AllEventsBuilder, ApprovalEventBuilder, TransferEventBuilder};
@@ -215,6 +202,31 @@ impl WVaraQuery {
             .call()
             .await
             .map(|res| U256(res.into_limbs()))
+            .map_err(Into::into)
+    }
+
+    pub async fn nonces(&self, owner: ActorId) -> Result<U256> {
+        self.0
+            .nonces(owner.into())
+            .call()
+            .await
+            .map(|res| U256(res.into_limbs()))
+            .map_err(Into::into)
+    }
+
+    pub(crate) async fn eip712_domain(&self) -> Result<Eip712Domain> {
+        self.0
+            .eip712Domain()
+            .call()
+            .await
+            .map(|res| {
+                eip712_domain! {
+                    name: res.name,
+                    version: res.version,
+                    chain_id: res.chainId.try_into().expect("chainId should fit into u64"),
+                    verifying_contract: res.verifyingContract,
+                }
+            })
             .map_err(Into::into)
     }
 }

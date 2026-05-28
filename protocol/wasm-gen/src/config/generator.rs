@@ -1,0 +1,174 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+//! Configs related to instantiation of gear wasm module generators.
+
+use crate::SyscallsConfig;
+
+pub(crate) const DEFAULT_INITIAL_SIZE: u32 = 16;
+
+/// Builder for [`GearWasmGeneratorConfig`].
+pub struct GearWasmGeneratorConfigBuilder(GearWasmGeneratorConfig);
+
+impl GearWasmGeneratorConfigBuilder {
+    #[allow(clippy::new_without_default)]
+    /// Create a new builder.
+    pub fn new() -> Self {
+        Self(GearWasmGeneratorConfig::default())
+    }
+
+    /// Defines memory pages config for the gear wasm generator.
+    pub fn with_memory_config(mut self, mem_config: MemoryPagesConfig) -> Self {
+        self.0.memory_config = mem_config;
+
+        self
+    }
+
+    /// Defines entry points (gear exports) config for the gear wasm generator.
+    pub fn with_entry_points_config(mut self, ep_config: EntryPointsSet) -> Self {
+        self.0.entry_points_config = ep_config;
+
+        self
+    }
+
+    /// Defines syscalls config for the gear wasm generator.
+    pub fn with_syscalls_config(mut self, syscalls_config: SyscallsConfig) -> Self {
+        self.0.syscalls_config = syscalls_config;
+
+        self
+    }
+
+    /// Defines whether recursions must be removed from the resulting gear wasm.
+    pub fn with_recursions_removed(mut self, remove_recursions: bool) -> Self {
+        self.0.remove_recursions = remove_recursions;
+
+        self
+    }
+
+    /// Defines whether programs should have a critical gas limit.
+    pub fn with_critical_gas_limit(mut self, critical_gas_limit: Option<u64>) -> Self {
+        self.0.critical_gas_limit = critical_gas_limit;
+
+        self
+    }
+
+    /// Build the gear wasm generator.
+    pub fn build(self) -> GearWasmGeneratorConfig {
+        self.0
+    }
+}
+
+/// Gear wasm generator config.
+///
+/// This is a carrier for other configs, that can be used separately
+/// in corresponding generators.
+#[derive(Debug, Clone, Default)]
+pub struct GearWasmGeneratorConfig {
+    /// Memory pages config.
+    pub memory_config: MemoryPagesConfig,
+    /// Entry points config.
+    pub entry_points_config: EntryPointsSet,
+    /// Syscalls generator module config.
+    pub syscalls_config: SyscallsConfig,
+    /// Flag, signalizing whether recursions
+    /// should be removed from resulting module.
+    pub remove_recursions: bool,
+    /// The critical gas limit after which the program
+    /// will attempt to terminate successfully.
+    pub critical_gas_limit: Option<u64>,
+}
+
+/// Memory pages config used by [`crate::MemoryGenerator`].
+#[derive(Debug, Clone, Copy)]
+pub struct MemoryPagesConfig {
+    /// Initial memory size.
+    pub initial_size: u32,
+    /// Optional memory maximum.
+    pub upper_limit: Option<u32>,
+    /// Optional stack end page.
+    pub stack_end_page: Option<u32>,
+}
+
+impl Default for MemoryPagesConfig {
+    fn default() -> Self {
+        Self {
+            initial_size: DEFAULT_INITIAL_SIZE,
+            upper_limit: None,
+            stack_end_page: None,
+        }
+    }
+}
+
+impl MemoryPagesConfig {
+    /// Default maximum memory pages.
+    pub const MAX_VALUE: u32 = 512;
+}
+
+/// Possible for current crate gear entry points
+/// to be generated.
+#[derive(Debug, Clone, Copy)]
+pub enum EntryPointName {
+    Init,
+    Handle,
+    HandleReply,
+}
+
+impl EntryPointName {
+    /// Convert current entry point to str.
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            EntryPointName::Init => "init",
+            EntryPointName::Handle => "handle",
+            EntryPointName::HandleReply => "handle_reply",
+        }
+    }
+}
+
+/// Entry points config used by [`crate::EntryPointsGenerator`].
+///
+/// It's literally all possible combinations of gear entry points
+/// to be generated in the wasm by [`crate::EntryPointsGenerator`].
+#[derive(Debug, Clone, Copy, Default)]
+pub enum EntryPointsSet {
+    #[default]
+    Init,
+    InitHandle,
+    InitHandleReply,
+    InitHandleHandleReply,
+    Handle,
+    HandleHandleReply,
+}
+
+impl EntryPointsSet {
+    /// Checks whether the set has ***init*** entry point.
+    pub fn has_init(&self) -> bool {
+        matches!(
+            self,
+            EntryPointsSet::Init
+                | EntryPointsSet::InitHandle
+                | EntryPointsSet::InitHandleReply
+                | EntryPointsSet::InitHandleHandleReply
+        )
+    }
+
+    /// Checks whether the set has ***handle*** entry point.
+    pub fn has_handle(&self) -> bool {
+        matches!(
+            self,
+            EntryPointsSet::InitHandle
+                | EntryPointsSet::InitHandleHandleReply
+                | EntryPointsSet::Handle
+                | EntryPointsSet::HandleHandleReply
+        )
+    }
+
+    /// Checks whether the set has ***handle_reply*** entry point.
+    pub fn has_handle_reply(&self) -> bool {
+        matches!(
+            self,
+            EntryPointsSet::InitHandleReply
+                | EntryPointsSet::InitHandleHandleReply
+                | EntryPointsSet::HandleHandleReply
+        )
+    }
+}

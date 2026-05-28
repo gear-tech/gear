@@ -1,0 +1,232 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+//! Gear events additional data.
+//!
+//! This module contains components for depositing proper
+//! and extensive data about actions happen.
+
+use gear_core::{env::MessageWaitedType, ids::MessageId};
+use sp_runtime::{
+    codec::{self, Decode, Encode},
+    scale_info::{self, TypeInfo},
+};
+
+/// Programs entry for messages.
+///
+/// Same as `gear_core::message::DispatchKind`,
+/// but with additional info about reply.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum MessageEntry {
+    /// Init entry point.
+    Init,
+    /// Handle entry point.
+    Handle,
+    /// Handle reply entry point.
+    Reply(MessageId),
+    /// System signal entry point.
+    Signal,
+}
+
+/// Status of dispatch dequeue and execution.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum DispatchStatus {
+    /// Dispatch was dequeued and succeed with execution.
+    Success,
+    /// Dispatch was dequeued and failed its execution.
+    Failed,
+    /// Dispatch was dequeued and wasn't executed.
+    /// Occurs if actor no longer exists.
+    NotExecuted,
+}
+
+/// Behavior of types, which represent runtime reasons for some chain actions.
+pub trait RuntimeReason: Sized {
+    /// Converter into composite reason type: not only runtime, but system also.
+    fn into_reason<S: SystemReason>(self) -> Reason<Self, S> {
+        Reason::Runtime(self)
+    }
+}
+
+// Empty implementation for `()` to skip requirements.
+impl RuntimeReason for () {}
+
+/// Behavior of types, which represent system reasons for some chain actions.
+pub trait SystemReason: Sized {
+    /// Converter into composite reason type: not only system, but runtime also.
+    fn into_reason<R: RuntimeReason>(self) -> Reason<R, Self> {
+        Reason::System(self)
+    }
+}
+
+// Empty implementation for `()` to skip requirements.
+impl SystemReason for () {}
+
+/// Composite reason type for any action happened on chain.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum Reason<R: RuntimeReason, S: SystemReason> {
+    /// Runtime reason variant.
+    ///
+    /// This means that actor explicitly forced some action,
+    /// which this reason explains.
+    Runtime(R),
+    /// System reason variant.
+    ///
+    /// This means that system automatically forced some action,
+    /// which this reason explains.
+    System(S),
+}
+
+/// Runtime reason for messages waiting.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum MessageWaitedRuntimeReason {
+    /// Program called `gr_wait` while executing message.
+    WaitCalled,
+    /// Program called `gr_wait_for` while executing message.
+    WaitForCalled,
+    /// Program called `gr_wait_up_to` with insufficient gas for full
+    /// duration while executing message.
+    WaitUpToCalled,
+    /// Program called `gr_wait_up_to` with enough gas for full duration
+    /// storing while executing message.
+    WaitUpToCalledFull,
+}
+
+impl From<MessageWaitedType> for MessageWaitedRuntimeReason {
+    fn from(src: MessageWaitedType) -> Self {
+        match src {
+            MessageWaitedType::Wait => MessageWaitedRuntimeReason::WaitCalled,
+            MessageWaitedType::WaitFor => MessageWaitedRuntimeReason::WaitForCalled,
+            MessageWaitedType::WaitUpTo => MessageWaitedRuntimeReason::WaitUpToCalled,
+            MessageWaitedType::WaitUpToFull => MessageWaitedRuntimeReason::WaitUpToCalledFull,
+        }
+    }
+}
+
+/// System reason for messages waiting.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum MessageWaitedSystemReason {}
+
+/// Composite reason for messages waiting.
+pub type MessageWaitedReason = Reason<MessageWaitedRuntimeReason, MessageWaitedSystemReason>;
+
+/// Runtime reason for messages waking.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum MessageWokenRuntimeReason {
+    /// Program called `gr_wake` with corresponding message id.
+    WakeCalled,
+}
+
+/// System reason for messages waking.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum MessageWokenSystemReason {
+    /// Program had finished initialization.
+    ///
+    /// Note that this variant doesn't contain info
+    /// about initialization success or failure.
+    ProgramGotInitialized,
+    /// Specified by program timeout for waking has come (see #349).
+    TimeoutHasCome,
+    /// Message can no longer pay rent for holding in storage (see #646).
+    OutOfRent,
+}
+
+/// Composite reason for messages waking.
+pub type MessageWokenReason = Reason<MessageWokenRuntimeReason, MessageWokenSystemReason>;
+
+/// Type of changes applied to code in storage.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum CodeChangeKind<BlockNumber> {
+    /// Code become active and ready for use.
+    ///
+    /// Appear when new code created or expiration block number updated.
+    ///
+    /// Expiration block number presents block number when this code become
+    /// inactive due to losing ability to pay rent for holding.
+    /// Equals `None` if stores free (some program relays on it, see #646).
+    Active { expiration: Option<BlockNumber> },
+
+    /// Code become inactive and can no longer be used.
+    Inactive,
+
+    /// Code was reinstrumented.
+    Reinstrumented,
+}
+
+/// Runtime reason for messages reading from `Mailbox`.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum UserMessageReadRuntimeReason {
+    /// Message was replied by user.
+    MessageReplied,
+    /// Message was claimed by user.
+    MessageClaimed,
+}
+
+/// System reason for messages reading from `Mailbox`.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum UserMessageReadSystemReason {
+    /// Message can no longer pay rent for holding in storage (see #646).
+    OutOfRent,
+}
+
+/// Composite reason for messages reading from `Mailbox`.
+pub type UserMessageReadReason = Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>;
+
+/// Type of changes applied to program in storage.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub enum ProgramChangeKind<BlockNumber> {
+    /// Active status achieved.
+    ///
+    /// Occurs when new program created or paused program was resumed.
+    ///
+    /// Expiration block number presents block number when this program become
+    /// paused due to losing ability to pay rent for holding.
+    Active { expiration: BlockNumber },
+
+    /// Program become inactive forever due to `gr_exit` call.
+    Inactive,
+
+    /// Paused status.
+    ///
+    /// Program is no longer available for interaction, but can be
+    /// resumed by paying rent and giving whole data related to it.
+    Paused,
+
+    /// Program become inactive forever due to init failure.
+    Terminated,
+
+    /// Occurs when expiration block number of a program changed.
+    ///
+    /// Expiration block number presents block number when this program become
+    /// paused due to losing ability to pay rent for holding.
+    ExpirationChanged { expiration: BlockNumber },
+
+    /// Occurs when new program set in the storage.
+    ///
+    /// Expiration block number presents block number when this program become
+    /// paused due to losing ability to pay rent for holding or terminated in
+    /// case of didn't get initialised.
+    ProgramSet { expiration: BlockNumber },
+}

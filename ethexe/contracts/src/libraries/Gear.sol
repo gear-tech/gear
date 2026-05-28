@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
@@ -98,7 +98,7 @@ library Gear {
 
     /**
      * @dev Represents an aggregated public key.
-     *      It checked with `FROST.isValidPublicKey(x, y)` in `Router._resetValidators(...)`,
+     *      When present (`hasAggregatedPublicKey` is `true`), it is checked with `FROST.isValidPublicKey(x, y)` in `Router._resetValidators(...)`,
      *      so we can be sure that it is valid.
      */
     struct AggregatedPublicKey {
@@ -191,12 +191,19 @@ library Gear {
          * @dev Head of chain. Hash of the last block in chain.
          */
         bytes32 head;
+        /**
+         * @dev Latest Ethereum block hash whose events were folded into the MB head.
+         *      `bytes32(0)` when not advanced. Used to drive checkpoint batches
+         *      from `last_committed_eb`.
+         */
+        bytes32 lastAdvancedEthBlock;
     }
 
     /**
      * @dev Represents validators commitment.
      */
     struct ValidatorsCommitment {
+        bool hasAggregatedPublicKey;
         AggregatedPublicKey aggregatedPublicKey;
         bytes verifiableSecretSharingCommitment;
         address[] validators;
@@ -384,6 +391,20 @@ library Gear {
          * @dev The total number of validated codes. Used for fast-sync.
          */
         uint256 validatedCodesCount;
+        /**
+         * @dev The maximum number of validators for era.
+         */
+        uint16 maxValidators;
+        /**
+         * @dev The base fee of `Router.requestCodeValidation(...)` method.
+         *      This base fee is paid in WVARA ERC20 token.
+         */
+        uint256 requestCodeValidationBaseFee;
+        /**
+         * @dev The extra fee of `Router.requestCodeValidationOnBehalf(...)` method.
+         *      This extra fee is paid in WVARA ERC20 token.
+         */
+        uint256 requestCodeValidationExtraFee;
     }
 
     /**
@@ -520,9 +541,14 @@ library Gear {
      * @dev Computes the hash of `ChainCommitment`.
      * @param _transitionsHash The hash of the transitions in the chain commitment.
      * @param _head The head of the chain commitment.
+     * @param _lastAdvancedEthBlock The latest folded-in Ethereum block hash.
      */
-    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head) internal pure returns (bytes32) {
-        return Hashes.efficientKeccak256AsBytes32(_transitionsHash, _head);
+    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head, bytes32 _lastAdvancedEthBlock)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_transitionsHash, _head, _lastAdvancedEthBlock));
     }
 
     /**
@@ -561,6 +587,7 @@ library Gear {
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
+                commitment.hasAggregatedPublicKey,
                 commitment.aggregatedPublicKey.x,
                 commitment.aggregatedPublicKey.y,
                 commitment.validators,
@@ -726,6 +753,7 @@ library Gear {
         bytes[] calldata _signatures,
         uint256 ts
     ) internal returns (bool) {
+        // forge-lint: disable-start(block-timestamp)
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
         if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
             require(ts >= router.genesisBlock.timestamp, ValidationBeforeGenesis());
@@ -742,6 +770,7 @@ library Gear {
 
             // Validation must be done using current era validators.
         }
+        // forge-lint: disable-end(block-timestamp)
 
         Validators storage validators = validatorsAt(router, ts);
         bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);

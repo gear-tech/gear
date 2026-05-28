@@ -1,25 +1,11 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2026 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use self::migration::Migration;
-use crate::dump::StateDump;
 #[cfg(feature = "mock")]
-use crate::{Database, MemDb, RawDatabase};
+use crate::{Database, MemDb};
+use crate::{RawDatabase, dump::StateDump};
+use anyhow::{Context, Result};
 use futures::future::BoxFuture;
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::CodeId;
@@ -29,14 +15,13 @@ pub use init::initialize_db;
 
 mod init;
 mod migration;
-
-mod v0;
 mod v1;
-mod v2;
 
-pub const OLDEST_SUPPORTED_VERSION: u32 = v0::VERSION;
-pub const LATEST_VERSION: u32 = v2::VERSION;
-pub const MIGRATIONS: &[&dyn Migration] = &[&v1::migration_from_v0, &v2::migration_from_v1];
+pub const LATEST_VERSION: u32 = v1::VERSION;
+
+pub const OLDEST_SUPPORTED_VERSION: u32 = v1::VERSION;
+
+pub const MIGRATIONS: &[&dyn Migration] = &[];
 
 const _: () = assert!(
     (LATEST_VERSION - OLDEST_SUPPORTED_VERSION) as usize == MIGRATIONS.len(),
@@ -63,4 +48,48 @@ pub async fn create_initialized_empty_memory_db(config: InitConfig) -> anyhow::R
     let raw = RawDatabase::from_one(&MemDb::default());
     init::initialize_empty_db(config, &raw).await?;
     Database::try_from_raw(raw)
+}
+
+/// Walk [`MIGRATIONS`] applying any whose `source_version` matches the
+/// on-disk database version, until the version reaches
+/// [`LATEST_VERSION`]. Errors if a step fails or the resulting version
+/// doesn't reach the target.
+pub async fn migrate(config: &InitConfig, raw: &RawDatabase) -> Result<u32> {
+    let mut version = raw
+        .kv
+        .version()
+        .context("failed to read database version")?
+        .context("database has no version key")?;
+
+    if version < OLDEST_SUPPORTED_VERSION {
+        anyhow::bail!(
+            "database version {version} is older than the oldest supported \
+             {OLDEST_SUPPORTED_VERSION}; please wipe the database"
+        );
+    }
+    if version > LATEST_VERSION {
+        anyhow::bail!(
+            "database version {version} is newer than supported {LATEST_VERSION}; \
+             refusing to downgrade"
+        );
+    }
+
+    for m in MIGRATIONS {
+        if version != m.source_version() {
+            continue;
+        }
+        m.migrate(config, raw)
+            .await
+            .with_context(|| format!("migration from v{version} failed"))?;
+        version += 1;
+    }
+
+    if version != LATEST_VERSION {
+        anyhow::bail!(
+            "database left at v{version}, expected v{LATEST_VERSION} — \
+             missing migration step(s)"
+        );
+    }
+
+    Ok(version)
 }

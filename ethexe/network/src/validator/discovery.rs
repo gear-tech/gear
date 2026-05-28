@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Validator discovery
 //!
@@ -769,6 +754,7 @@ mod tests {
         swarm::{SwarmEvent, behaviour::ExternalAddrConfirmed},
     };
     use libp2p_swarm_test::SwarmExt;
+    use proptest::{prelude::*, test_runner::Config as ProptestConfig};
     use std::sync::Arc;
     use tokio::time;
 
@@ -800,20 +786,44 @@ mod tests {
             .expect("failed to sign validator identity")
     }
 
-    #[test]
-    fn encode_decode_identity() {
-        let signer = Signer::memory();
-        let validator_key = signer.generate().unwrap();
-        let keypair = Keypair::generate_secp256k1();
-        let identity = ValidatorIdentity {
-            addresses: ValidatorAddresses::new(keypair.public().to_peer_id(), test_addr()),
-            creation_time: 999_999,
-        };
-        let identity = identity.sign(&signer, validator_key, &keypair).unwrap();
+    fn signed_identity_strategy() -> impl Strategy<Value = SignedValidatorIdentity> {
+        (any::<[u8; 32]>(), any::<[u8; 32]>(), any::<u128>()).prop_filter_map(
+            "valid secp256k1 validator and network keys",
+            |(validator_seed, mut network_seed, creation_time)| {
+                let validator_private_key = PrivateKey::from_seed(validator_seed).ok()?;
+                let signer = Signer::memory();
+                let validator_key = signer.import(validator_private_key).ok()?;
 
-        let decoded_identity =
-            SignedValidatorIdentity::decode(&mut &identity.encode()[..]).unwrap();
-        assert_eq!(identity, decoded_identity);
+                let network_secret =
+                    libp2p::identity::secp256k1::SecretKey::try_from_bytes(&mut network_seed)
+                        .ok()?;
+                let network_keypair =
+                    Keypair::from(libp2p::identity::secp256k1::Keypair::from(network_secret));
+                let identity = ValidatorIdentity {
+                    addresses: ValidatorAddresses::new(
+                        network_keypair.public().to_peer_id(),
+                        test_addr(),
+                    ),
+                    creation_time,
+                };
+
+                identity.sign(&signer, validator_key, &network_keypair).ok()
+            },
+        )
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        #[test]
+        fn proptest_signed_validator_identity_encode_decode(
+            identity in signed_identity_strategy(),
+        ) {
+            let decoded_identity =
+                SignedValidatorIdentity::decode(&mut &identity.encode()[..]).unwrap();
+
+            prop_assert_eq!(identity, decoded_identity);
+        }
     }
 
     #[test]

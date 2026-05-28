@@ -1,26 +1,11 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::{
-    Announce, BlockHeader, HashOf, MaybeHashOf, ProgramStates, Schedule, ScheduledTask,
+    BlockHeader, HashOf, MaybeHashOf, ProgramStates, Schedule, ScheduledTask,
     StateHashWithQueueSize,
     db::{
-        AnnounceMeta, AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, CodesStorageRO,
+        BlockMeta, BlockMetaStorageRO, CodesStorageRO, CompactMb, MbMeta, MbStorageRO,
         OnChainStorageRO,
     },
     events::BlockEvent,
@@ -43,11 +28,11 @@ use std::{
 };
 
 pub trait DatabaseIteratorStorage:
-    OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO + Storage
+    OnChainStorageRO + BlockMetaStorageRO + CodesStorageRO + MbStorageRO + Storage
 {
 }
 
-impl<T: OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO + Storage>
+impl<T: OnChainStorageRO + BlockMetaStorageRO + CodesStorageRO + MbStorageRO + Storage>
     DatabaseIteratorStorage for T
 {
 }
@@ -165,18 +150,18 @@ node! {
                 pub block_synced: bool,
             }
         ),
-        Announce(
+        Mb(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct AnnounceNode {
-                pub announce_hash: HashOf<Announce>,
-                pub announce: Announce,
+            pub struct MbNode {
+                pub mb_hash: H256,
+                pub mb: CompactMb,
             }
         ),
-        AnnounceMeta(
+        MbMeta(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct AnnounceMetaNode {
-                pub announce_hash: HashOf<Announce>,
-                pub announce_meta: AnnounceMeta,
+            pub struct MbMetaNode {
+                pub mb_hash: H256,
+                pub mb_meta: MbMeta,
             }
         ),
         CodeId(
@@ -218,11 +203,11 @@ node! {
                 pub program_id: ActorId,
             }
         ),
-        AnnounceProgramStates(
+        MbProgramStates(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct AnnounceProgramStatesNode {
-                pub announce_hash: HashOf<Announce>,
-                pub announce_program_states: ProgramStates,
+            pub struct MbProgramStatesNode {
+                pub mb_hash: H256,
+                pub mb_program_states: ProgramStates,
             }
         ),
         ProgramState(
@@ -231,17 +216,17 @@ node! {
                 pub program_state: ProgramState,
             }
         ),
-        AnnounceSchedule(
+        MbSchedule(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct AnnounceScheduleNode {
-                pub announce_hash: HashOf<Announce>,
-                pub announce_schedule: Schedule,
+            pub struct MbScheduleNode {
+                pub mb_hash: H256,
+                pub mb_schedule: Schedule,
             }
         ),
-        AnnounceScheduleTasks(
+        MbScheduleTasks(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct AnnounceScheduleTasksNode {
-                pub announce_hash: HashOf<Announce>,
+            pub struct MbScheduleTasksNode {
+                pub mb_hash: H256,
                 pub height: u32,
                 pub tasks: BTreeSet<ScheduledTask>,
             }
@@ -252,11 +237,11 @@ node! {
                 pub task: ScheduledTask,
             }
         ),
-        AnnounceOutcome(
+        MbOutcome(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct AnnounceOutcomeNode {
-                pub announce_hash: HashOf<Announce>,
-                pub announce_outcome: Vec<StateTransition>,
+            pub struct MbOutcomeNode {
+                pub mb_hash: H256,
+                pub mb_outcome: Vec<StateTransition>,
             }
         ),
         StateTransition(
@@ -360,13 +345,13 @@ pub enum DatabaseIteratorError {
     /* block */
     NoBlockHeader(H256),
     NoBlockEvents(H256),
-    NoBlockAnnounces(H256),
     NoBlockCodesQueue(H256),
 
-    NoAnnounce(HashOf<Announce>),
-    NoAnnounceSchedule(HashOf<Announce>),
-    NoAnnounceOutcome(HashOf<Announce>),
-    NoAnnounceProgramStates(HashOf<Announce>),
+    /* MB */
+    NoMb(H256),
+    NoMbProgramStates(H256),
+    NoMbSchedule(H256),
+    NoMbOutcome(H256),
 
     /* memory */
     NoMemoryPages(HashOf<MemoryPages>),
@@ -463,12 +448,12 @@ where
             Node::InstrumentedCode(_) => {}
             Node::CodeMetadata(_) => {}
             Node::ProgramId(node) => self.iter_program_id(*node),
-            Node::AnnounceProgramStates(node) => self.iter_announce_program_states(node),
+            Node::MbProgramStates(node) => self.iter_mb_program_states(node),
             Node::ProgramState(node) => self.iter_program_state(*node),
-            Node::AnnounceSchedule(node) => self.iter_announce_schedule(node),
-            Node::AnnounceScheduleTasks(node) => self.iter_announce_schedule_tasks(node),
+            Node::MbSchedule(node) => self.iter_mb_schedule(node),
+            Node::MbScheduleTasks(node) => self.iter_mb_schedule_tasks(node),
             Node::ScheduledTask(node) => self.iter_scheduled_task(*node),
-            Node::AnnounceOutcome(node) => self.iter_announce_outcome(node),
+            Node::MbOutcome(node) => self.iter_mb_outcome(node),
             Node::StateTransition(node) => self.iter_state_transition(node),
             Node::Allocations(_) => {}
             Node::MemoryPages(node) => self.iter_memory_pages(node),
@@ -483,8 +468,8 @@ where
             Node::UserMailbox(node) => self.iter_user_mailbox(node),
             Node::DispatchStash(node) => self.iter_dispatch_stash(node),
             Node::Error(_) => {}
-            Node::Announce(node) => self.iter_announce(node),
-            Node::AnnounceMeta(_) => {}
+            Node::Mb(node) => self.iter_mb(node),
+            Node::MbMeta(_) => {}
             Node::BlockSynced(_) => {}
         }
     }
@@ -524,19 +509,21 @@ where
 
     fn iter_block_meta(&mut self, BlockMetaNode { block, meta }: &BlockMetaNode) {
         let BlockMeta {
-            prepared: _,
-            announces,
             codes_queue,
-            last_committed_batch: _,
-            last_committed_announce: _,
+            last_committed_mb,
+            ..
         } = meta;
 
-        if let Some(announces) = announces {
-            for &announce_hash in announces {
-                try_push_node!(with_hash: self.announce(announce_hash));
+        // `H256::zero()` is the genesis sentinel: no MB has been
+        // committed on-chain yet, so there is nothing to walk.
+        if let Some(mb_hash) = *last_committed_mb
+            && mb_hash != H256::zero()
+        {
+            if let Some(mb) = self.storage.mb_compact_block(mb_hash) {
+                self.push_node(MbNode { mb_hash, mb });
+            } else {
+                self.push_node(DatabaseIteratorError::NoMb(mb_hash));
             }
-        } else {
-            self.push_node(DatabaseIteratorError::NoBlockAnnounces(*block));
         }
 
         if let Some(codes_queue) = codes_queue {
@@ -550,32 +537,81 @@ where
         }
     }
 
-    fn iter_announce(
-        &mut self,
-        AnnounceNode {
-            announce_hash,
-            announce: _,
-        }: &AnnounceNode,
-    ) {
-        let announce_hash = *announce_hash;
+    fn iter_mb(&mut self, MbNode { mb_hash, mb: _ }: &MbNode) {
+        let mb_hash = *mb_hash;
 
-        let announce_meta = self.storage.announce_meta(announce_hash);
-        let computed = announce_meta.computed;
+        let mb_meta = self.storage.mb_meta(mb_hash);
+        let computed = mb_meta.computed;
 
-        self.push_node(AnnounceMetaNode {
-            announce_hash,
-            announce_meta,
-        });
+        self.push_node(MbMetaNode { mb_hash, mb_meta });
 
-        // Announce is not obligated to be computed
+        // MB is not obligated to be computed; once it is, all per-MB
+        // post-execution rows must exist.
         if computed {
-            // If computed, all of the following must be present
-            try_push_node!(with_hash: self.announce_schedule(announce_hash));
-            try_push_node!(with_hash: self.announce_outcome(announce_hash));
-            try_push_node!(with_hash: self.announce_program_states(announce_hash));
+            try_push_node!(with_hash: self.mb_schedule(mb_hash));
+            try_push_node!(with_hash: self.mb_outcome(mb_hash));
+            try_push_node!(with_hash: self.mb_program_states(mb_hash));
         }
+    }
 
-        // TODO #4830: offchain transactions
+    fn iter_mb_program_states(
+        &mut self,
+        MbProgramStatesNode {
+            mb_hash: _,
+            mb_program_states,
+        }: &MbProgramStatesNode,
+    ) {
+        for StateHashWithQueueSize {
+            hash: program_state,
+            canonical_queue_size: _,
+            injected_queue_size: _,
+        } in mb_program_states.values().copied()
+        {
+            try_push_node!(no_hash: self.program_state(program_state));
+        }
+    }
+
+    fn iter_mb_schedule(
+        &mut self,
+        MbScheduleNode {
+            mb_hash,
+            mb_schedule,
+        }: &MbScheduleNode,
+    ) {
+        for (&height, tasks) in mb_schedule {
+            self.push_node(MbScheduleTasksNode {
+                mb_hash: *mb_hash,
+                height,
+                tasks: tasks.clone(),
+            });
+        }
+    }
+
+    fn iter_mb_schedule_tasks(
+        &mut self,
+        MbScheduleTasksNode {
+            mb_hash: _,
+            height: _,
+            tasks,
+        }: &MbScheduleTasksNode,
+    ) {
+        for &task in tasks {
+            self.push_node(ScheduledTaskNode { task });
+        }
+    }
+
+    fn iter_mb_outcome(
+        &mut self,
+        MbOutcomeNode {
+            mb_hash: _,
+            mb_outcome,
+        }: &MbOutcomeNode,
+    ) {
+        for state_transition in mb_outcome {
+            self.push_node(StateTransitionNode {
+                state_transition: state_transition.clone(),
+            });
+        }
     }
 
     fn iter_program_id(&mut self, ProgramIdNode { program_id }: ProgramIdNode) {
@@ -604,23 +640,6 @@ where
         }
 
         try_push_node!(with_hash: self.code_metadata(code_id));
-    }
-
-    fn iter_announce_program_states(
-        &mut self,
-        AnnounceProgramStatesNode {
-            announce_hash: _,
-            announce_program_states,
-        }: &AnnounceProgramStatesNode,
-    ) {
-        for StateHashWithQueueSize {
-            hash: program_state,
-            canonical_queue_size: _,
-            injected_queue_size: _,
-        } in announce_program_states.values().copied()
-        {
-            try_push_node!(no_hash: self.program_state(program_state));
-        }
     }
 
     fn iter_program_state(&mut self, ProgramStateNode { program_state }: ProgramStateNode) {
@@ -678,35 +697,6 @@ where
         }
     }
 
-    fn iter_announce_schedule(
-        &mut self,
-        AnnounceScheduleNode {
-            announce_hash,
-            announce_schedule,
-        }: &AnnounceScheduleNode,
-    ) {
-        for (&height, tasks) in announce_schedule {
-            self.push_node(AnnounceScheduleTasksNode {
-                announce_hash: *announce_hash,
-                height,
-                tasks: tasks.clone(),
-            });
-        }
-    }
-
-    fn iter_announce_schedule_tasks(
-        &mut self,
-        AnnounceScheduleTasksNode {
-            announce_hash: _,
-            height: _,
-            tasks,
-        }: &AnnounceScheduleTasksNode,
-    ) {
-        for &task in tasks {
-            self.push_node(ScheduledTaskNode { task });
-        }
-    }
-
     fn iter_scheduled_task(&mut self, ScheduledTaskNode { task }: ScheduledTaskNode) {
         match task {
             ScheduledTask::RemoveFromMailbox((program_id, _), _)
@@ -720,20 +710,6 @@ where
             | ScheduledTask::RemoveGasReservation(program_id, _) => {
                 self.push_node(ProgramIdNode { program_id });
             }
-        }
-    }
-
-    fn iter_announce_outcome(
-        &mut self,
-        AnnounceOutcomeNode {
-            announce_hash: _,
-            announce_outcome,
-        }: &AnnounceOutcomeNode,
-    ) {
-        for state_transition in announce_outcome {
-            self.push_node(StateTransitionNode {
-                state_transition: state_transition.clone(),
-            });
         }
     }
 
@@ -894,9 +870,6 @@ pub fn node_hash(node: &Node) -> u64 {
 pub(crate) mod tests {
     use super::*;
     use crate::{Database, iterator::DatabaseIteratorError};
-    use ethexe_common::StateHashWithQueueSize;
-    use gprimitives::MessageId;
-    use std::collections::BTreeMap;
 
     pub fn setup_db() -> Database {
         Database::memory()
@@ -928,7 +901,6 @@ pub(crate) mod tests {
             DatabaseIteratorError::NoBlockHeader(block),
             DatabaseIteratorError::NoBlockEvents(block),
             DatabaseIteratorError::NoBlockCodesQueue(block),
-            DatabaseIteratorError::NoBlockAnnounces(block),
         ];
 
         for expected_error in expected_errors {
@@ -937,35 +909,6 @@ pub(crate) mod tests {
                 "No expected error: {expected_error:?}",
             );
         }
-    }
-
-    #[test]
-    fn walk_announce_program_states() {
-        let announce_hash = HashOf::random();
-        let program_id = ActorId::from([3u8; 32]);
-        let state_hash = H256::random();
-
-        let mut announce_program_states = BTreeMap::new();
-        announce_program_states.insert(
-            program_id,
-            StateHashWithQueueSize {
-                hash: state_hash,
-                canonical_queue_size: 0,
-                injected_queue_size: 0,
-            },
-        );
-
-        let errors: Vec<_> = DatabaseIterator::new(
-            setup_db(),
-            AnnounceProgramStatesNode {
-                announce_hash,
-                announce_program_states,
-            },
-        )
-        .filter_map(Node::into_error)
-        .collect();
-
-        assert!(errors.contains(&DatabaseIteratorError::NoProgramState(state_hash)));
     }
 
     #[test]
@@ -997,87 +940,6 @@ pub(crate) mod tests {
         for expected_error in expected_errors {
             assert!(errors.contains(&expected_error));
         }
-    }
-
-    #[test]
-    fn walk_block_schedule_tasks() {
-        let announce_hash = HashOf::random();
-        let program_id = ActorId::from([10u8; 32]);
-
-        let mut tasks = BTreeSet::new();
-        tasks.insert(ScheduledTask::WakeMessage(program_id, MessageId::zero()));
-
-        let visited: Vec<_> = DatabaseIterator::new(
-            setup_db(),
-            AnnounceScheduleTasksNode {
-                announce_hash,
-                height: 123,
-                tasks,
-            },
-        )
-        .collect();
-
-        let visited_programs: Vec<ActorId> = visited
-            .iter()
-            .cloned()
-            .filter_map(Node::into_program_id)
-            .map(|node| node.program_id)
-            .collect();
-
-        assert!(visited_programs.contains(&program_id));
-    }
-
-    #[test]
-    fn walk_announce_schedule() {
-        let announce_hash = HashOf::random();
-        let program_id = ActorId::from([14u8; 32]);
-
-        let mut announce_schedule = BTreeMap::new();
-        let mut tasks = BTreeSet::new();
-        tasks.insert(ScheduledTask::WakeMessage(program_id, MessageId::zero()));
-        announce_schedule.insert(1000u32, tasks);
-
-        let visited_programs: Vec<_> = DatabaseIterator::new(
-            setup_db(),
-            AnnounceScheduleNode {
-                announce_hash,
-                announce_schedule,
-            },
-        )
-        .filter_map(Node::into_program_id)
-        .map(|node| node.program_id)
-        .collect();
-
-        assert!(visited_programs.contains(&program_id));
-    }
-
-    #[test]
-    fn walk_announce_outcome() {
-        let announce_hash = HashOf::random();
-        let actor_id = ActorId::from([15u8; 32]);
-        let new_state_hash = H256::random();
-
-        let errors: Vec<_> = DatabaseIterator::new(
-            setup_db(),
-            AnnounceOutcomeNode {
-                announce_hash,
-                announce_outcome: vec![StateTransition {
-                    actor_id,
-                    new_state_hash,
-                    exited: false,
-                    inheritor: Default::default(),
-                    value_to_receive: 0,
-                    value_to_receive_negative_sign: false,
-                    value_claims: vec![],
-                    messages: vec![],
-                }],
-            },
-        )
-        .filter_map(Node::into_error)
-        .collect();
-
-        assert!(errors.contains(&DatabaseIteratorError::NoProgramCodeId(actor_id)));
-        assert!(errors.contains(&DatabaseIteratorError::NoProgramState(new_state_hash)));
     }
 
     #[test]
@@ -1167,5 +1029,123 @@ pub(crate) mod tests {
         .collect();
 
         assert_eq!(visited_payloads, [payload]);
+    }
+
+    #[test]
+    fn walk_mb_program_states() {
+        use ethexe_common::StateHashWithQueueSize;
+        use std::collections::BTreeMap;
+
+        let mb_hash = H256::random();
+        let program_id = ActorId::from([3u8; 32]);
+        let state_hash = H256::random();
+
+        let mut mb_program_states = BTreeMap::new();
+        mb_program_states.insert(
+            program_id,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
+            },
+        );
+
+        let errors: Vec<_> = DatabaseIterator::new(
+            setup_db(),
+            MbProgramStatesNode {
+                mb_hash,
+                mb_program_states,
+            },
+        )
+        .filter_map(Node::into_error)
+        .collect();
+
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramState(state_hash)));
+    }
+
+    #[test]
+    fn walk_mb_schedule_tasks() {
+        use gear_core::ids::MessageId;
+
+        let mb_hash = H256::random();
+        let program_id = ActorId::from([10u8; 32]);
+
+        let mut tasks = BTreeSet::new();
+        tasks.insert(ScheduledTask::WakeMessage(program_id, MessageId::zero()));
+
+        let visited: Vec<_> = DatabaseIterator::new(
+            setup_db(),
+            MbScheduleTasksNode {
+                mb_hash,
+                height: 123,
+                tasks,
+            },
+        )
+        .collect();
+
+        let visited_programs: Vec<ActorId> = visited
+            .iter()
+            .cloned()
+            .filter_map(Node::into_program_id)
+            .map(|node| node.program_id)
+            .collect();
+
+        assert!(visited_programs.contains(&program_id));
+    }
+
+    #[test]
+    fn walk_mb_schedule() {
+        use gear_core::ids::MessageId;
+        use std::collections::BTreeMap;
+
+        let mb_hash = H256::random();
+        let program_id = ActorId::from([14u8; 32]);
+
+        let mut mb_schedule = BTreeMap::new();
+        let mut tasks = BTreeSet::new();
+        tasks.insert(ScheduledTask::WakeMessage(program_id, MessageId::zero()));
+        mb_schedule.insert(1000u32, tasks);
+
+        let visited_programs: Vec<_> = DatabaseIterator::new(
+            setup_db(),
+            MbScheduleNode {
+                mb_hash,
+                mb_schedule,
+            },
+        )
+        .filter_map(Node::into_program_id)
+        .map(|node| node.program_id)
+        .collect();
+
+        assert!(visited_programs.contains(&program_id));
+    }
+
+    #[test]
+    fn walk_mb_outcome() {
+        let mb_hash = H256::random();
+        let actor_id = ActorId::from([15u8; 32]);
+        let new_state_hash = H256::random();
+
+        let errors: Vec<_> = DatabaseIterator::new(
+            setup_db(),
+            MbOutcomeNode {
+                mb_hash,
+                mb_outcome: vec![StateTransition {
+                    actor_id,
+                    new_state_hash,
+                    exited: false,
+                    inheritor: Default::default(),
+                    value_to_receive: 0,
+                    value_to_receive_negative_sign: false,
+                    value_claims: vec![],
+                    messages: vec![],
+                }],
+            },
+        )
+        .filter_map(Node::into_error)
+        .collect();
+
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramCodeId(actor_id)));
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramState(new_state_hash)));
     }
 }

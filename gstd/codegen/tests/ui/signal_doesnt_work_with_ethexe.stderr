@@ -1,7 +1,0 @@
-error: `handle_signal` is forbidden with `ethexe` feature on
- --> tests/ui/signal_doesnt_work_with_ethexe.rs:3:1
-  |
-3 | #[gstd::async_main(handle_signal = custom_handle_signal)]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: this error originates in the attribute macro `gstd::async_main` (in Nightly builds, run with -Z macro-backtrace for more info)

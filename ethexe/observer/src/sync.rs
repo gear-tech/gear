@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Implementation of the on-chain data synchronization.
 
@@ -22,8 +7,12 @@ use crate::{
     RuntimeConfig,
     utils::{BlockLoader, EthereumBlockLoader},
 };
-use alloy::{providers::RootProvider, rpc::types::eth::Header};
-use anyhow::{Result, anyhow};
+use alloy::{
+    providers::RootProvider,
+    rpc::types::eth::Header,
+    transports::{RpcError as AlloyRpcError, TransportErrorKind},
+};
+use anyhow::{Context as _, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
     db::{GlobalsStorageRO, GlobalsStorageRW, OnChainStorageRO, OnChainStorageRW},
@@ -35,7 +24,41 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use gprimitives::H256;
-use std::{collections::HashMap, ops::Add};
+use std::collections::HashMap;
+
+/// Outcome of one chain-sync attempt. `RpcError` is recoverable (caller
+/// retries on the next chain head); `Fatal` propagates.
+#[derive(Debug, thiserror::Error)]
+pub enum SyncError {
+    #[error("RPC error during sync: {0:?}")]
+    RpcError(anyhow::Error),
+    #[error(transparent)]
+    Fatal(anyhow::Error),
+}
+
+pub type SyncResult<T> = std::result::Result<T, SyncError>;
+
+type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
+
+impl From<anyhow::Error> for SyncError {
+    fn from(err: anyhow::Error) -> Self {
+        // `contract::Error::TransportError` is `#[error(transparent)]` +
+        // `#[from]`; its `source()` skips the wrapper, so match it directly.
+        let is_rpc = err.chain().any(|e| {
+            e.downcast_ref::<AlloyRpcError<TransportErrorKind>>()
+                .is_some()
+                || matches!(
+                    e.downcast_ref::<alloy::contract::Error>(),
+                    Some(alloy::contract::Error::TransportError(_))
+                )
+        });
+        if is_rpc {
+            Self::RpcError(err)
+        } else {
+            Self::Fatal(err)
+        }
+    }
+}
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
@@ -62,7 +85,7 @@ impl ChainSync {
         }
     }
 
-    pub async fn sync(self, chain_head: Header) -> Result<H256> {
+    pub async fn sync(self, chain_head: Header) -> SyncResult<H256> {
         let block = SimpleBlockData {
             hash: H256(chain_head.hash.0),
             header: BlockHeader {
@@ -74,7 +97,6 @@ impl ChainSync {
 
         let blocks_data = self.pre_load_data(&block.header).await?;
         let chain = self.load_chain(&block, blocks_data).await?;
-
         self.ensure_validators(block).await?;
         self.mark_chain_as_synced(chain.into_iter().rev());
 
@@ -141,34 +163,34 @@ impl ChainSync {
 
     /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
-        let latest_synced_block_height = self.db.globals().latest_synced_block.header.height;
+        let latest_synced_eb_height = self.db.globals().latest_synced_eb.header.height;
 
-        if header.height <= latest_synced_block_height {
+        if header.height <= latest_synced_eb_height {
             tracing::warn!(
                 "Got a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
-                latest_synced_block_height
+                latest_synced_eb_height
             );
             // Suppose here that all data is already in db.
             return Ok(Default::default());
         }
 
-        if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
+        if (header.height - latest_synced_eb_height) >= self.config.max_sync_depth {
             return Err(anyhow!(
                 "Too much to sync: current block number: {}, Latest synced block number: {}, Max depth: {}",
                 header.height,
-                latest_synced_block_height,
+                latest_synced_eb_height,
                 self.config.max_sync_depth
             ));
         }
 
-        if header.height - latest_synced_block_height < self.config.batched_sync_depth {
+        if header.height - latest_synced_eb_height < self.config.batched_sync_depth {
             // No need to pre load data, because amount of blocks is small enough.
             return Ok(Default::default());
         }
 
         self.block_loader
-            .load_many(latest_synced_block_height as u64..=header.height as u64)
+            .load_many(latest_synced_eb_height as u64..=header.height as u64)
             .await
     }
 
@@ -181,7 +203,8 @@ impl ChainSync {
         let chain_head_era = self
             .config
             .timelines
-            .era_from_ts(block_data.header.timestamp);
+            .era_from_ts(block_data.header.timestamp)
+            .context("failed to calculate era from timestamp")?;
 
         // If we don't have validators for current era - set them.
         if self.db.validators(chain_head_era).is_none() {
@@ -191,14 +214,14 @@ impl ChainSync {
 
         // Fetch next era validators if timestamp `finalized` and we don't set them in database already.
         if let Some(election_ts) = self.election_timestamp_finalized(block_data.header.timestamp)
-            && self.db.validators(chain_head_era.add(1)).is_none()
+            && self.db.validators(chain_head_era + 1).is_none()
         {
             let next_era_validators = self
                 .middleware_query
                 .make_election_at(election_ts, 10)
                 .await?;
             self.db
-                .set_validators(chain_head_era.add(1), next_era_validators);
+                .set_validators(chain_head_era + 1, next_era_validators);
         }
 
         Ok(())
@@ -216,7 +239,7 @@ impl ChainSync {
             );
 
             self.db
-                .globals_mutate(|g| g.latest_synced_block = SimpleBlockData { hash, header });
+                .globals_mutate(|g| g.latest_synced_eb = SimpleBlockData { hash, header });
         }
     }
 
@@ -224,12 +247,10 @@ impl ChainSync {
     ///
     /// The `finalization` blocks period set in observer's [`RuntimeConfig`].
     fn election_timestamp_finalized(&self, timestamp: u64) -> Option<u64> {
-        let election_ts = self
-            .config
-            .timelines
-            .era_election_start_ts(self.config.timelines.era_from_ts(timestamp));
+        let era = self.config.timelines.era_from_ts(timestamp)?;
+        let election_ts = self.config.timelines.era_election_start_ts(era)?;
         (timestamp.saturating_sub(election_ts)
-            > self.config.timelines.slot * self.config.finalization_period_blocks)
+            > self.config.timelines.slot.get() * self.config.finalization_period_blocks)
             .then_some(election_ts)
     }
 }

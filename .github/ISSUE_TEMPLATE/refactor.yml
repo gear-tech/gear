@@ -1,0 +1,26 @@
+name: Refactor
+description: Improve existing code
+labels: ["type: refactor"]
+
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is suboptimal now?
+      placeholder: Describe current issues
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      placeholder: What should be improved?
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      placeholder: Optional

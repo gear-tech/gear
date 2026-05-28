@@ -1,23 +1,8 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyProvider, IntoBlockId, TryGetReceipt,
+    AlloyProvider, Eip712PermitData, Ethereum, IntoBlockId, Sender, TryGetReceipt, WVara,
     abi::{self, IMirror},
     mirror::events::AllEventsBuilder,
 };
@@ -60,23 +45,40 @@ pub struct ClaimInfo {
 type Instance = IMirror::IMirrorInstance<AlloyProvider>;
 type QueryInstance = IMirror::IMirrorInstance<RootProvider>;
 
-pub struct Mirror(Instance);
+pub struct Mirror {
+    instance: Instance,
+    wvara_address: AlloyAddress,
+    sender: Sender,
+}
 
 impl Mirror {
-    pub(crate) fn new(address: AlloyAddress, provider: AlloyProvider) -> Self {
-        Self(Instance::new(address, provider))
+    pub(crate) fn new(
+        address: AlloyAddress,
+        wvara_address: AlloyAddress,
+        sender: Sender,
+        provider: AlloyProvider,
+    ) -> Self {
+        Self {
+            instance: Instance::new(address, provider),
+            wvara_address,
+            sender,
+        }
     }
 
     pub fn actor_id(&self) -> ActorId {
-        let address = Address(*self.0.address().0);
+        let address = Address(*self.instance.address().0);
         address.into()
     }
 
     pub fn query(&self) -> MirrorQuery {
         MirrorQuery(QueryInstance::new(
-            *self.0.address(),
-            self.0.provider().root().clone(),
+            *self.instance.address(),
+            self.instance.provider().root().clone(),
         ))
+    }
+
+    pub fn wvara(&self) -> WVara {
+        WVara::new(self.wvara_address, self.instance.provider().clone())
     }
 
     pub async fn wait_for_state_change(&self) -> Result<H256> {
@@ -135,7 +137,7 @@ impl Mirror {
         value: u128,
     ) -> Result<PendingTransactionBuilder<network::Ethereum>> {
         let call_reply = false;
-        self.0
+        self.instance
             .sendMessage(payload.as_ref().to_vec().into(), call_reply)
             .value(AlloyU256::from(value))
             .send()
@@ -187,7 +189,7 @@ impl Mirror {
         value: u128,
     ) -> Result<(TransactionReceipt, MessageId)> {
         let builder = self
-            .0
+            .instance
             .sendReply(
                 replied_to.into_bytes().into(),
                 payload.as_ref().to_vec().into(),
@@ -212,7 +214,7 @@ impl Mirror {
         &self,
         claimed_id: MessageId,
     ) -> Result<TransactionReceipt> {
-        let builder = self.0.claimValue(claimed_id.into_bytes().into());
+        let builder = self.instance.claimValue(claimed_id.into_bytes().into());
         let receipt = builder
             .send()
             .await?
@@ -228,7 +230,8 @@ impl Mirror {
             if let Ok((ValueClaimedEvent { claimed_id, value }, _)) = result
                 && claimed_id == message_id
             {
-                let actor_id = Address::from(self.0.provider().default_signer_address()).into();
+                let actor_id =
+                    Address::from(self.instance.provider().default_signer_address()).into();
                 return Ok(ClaimInfo {
                     message_id: claimed_id,
                     actor_id,
@@ -250,7 +253,37 @@ impl Mirror {
         &self,
         value: u128,
     ) -> Result<TransactionReceipt> {
-        let builder = self.0.executableBalanceTopUp(value);
+        let builder = self.instance.executableBalanceTopUp(value);
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        Ok(receipt)
+    }
+
+    pub async fn executable_balance_top_up_with_permit(&self, value: u128) -> Result<H256> {
+        self.executable_balance_top_up_with_permit_and_receipt(value)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
+    }
+
+    pub async fn executable_balance_top_up_with_permit_and_receipt(
+        &self,
+        value: u128,
+    ) -> Result<TransactionReceipt> {
+        let Eip712PermitData { deadline, v, r, s } = Ethereum::prepare_permit_data(
+            self.instance.provider(),
+            self.wvara().query(),
+            &self.sender,
+            self.actor_id(),
+            value,
+        )
+        .await?;
+
+        let builder = self
+            .instance
+            .executableBalanceTopUpWithPermit(value, deadline, v, r, s);
         let receipt = builder
             .send()
             .await?
@@ -268,7 +301,7 @@ impl Mirror {
     pub async fn transfer_locked_value_to_inheritor_with_receipt(
         &self,
     ) -> Result<TransactionReceipt> {
-        let builder = self.0.transferLockedValueToInheritor();
+        let builder = self.instance.transferLockedValueToInheritor();
         let receipt = builder
             .send()
             .await?
@@ -287,8 +320,8 @@ impl Mirror {
         &self,
         value: u128,
     ) -> Result<TransactionReceipt> {
-        let builder = CallBuilder::new_raw(self.0.provider(), Bytes::new())
-            .to(*self.0.address())
+        let builder = CallBuilder::new_raw(self.instance.provider(), Bytes::new())
+            .to(*self.instance.address())
             .value(AlloyU256::from(value));
         let receipt = builder
             .send()

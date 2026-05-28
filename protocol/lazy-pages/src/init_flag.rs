@@ -1,0 +1,54 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+#[cfg(not(test))]
+mod not_tests {
+    use crate::InitError;
+    use std::sync::OnceLock;
+
+    pub struct InitializationFlag(OnceLock<Result<(), InitError>>);
+
+    impl InitializationFlag {
+        pub const fn new() -> Self {
+            Self(OnceLock::new())
+        }
+
+        pub fn get_or_init(
+            &self,
+            f: impl FnOnce() -> Result<(), InitError>,
+        ) -> Result<(), InitError> {
+            self.0.get_or_init(f).clone()
+        }
+    }
+}
+
+#[cfg(not(test))]
+pub use not_tests::*;
+
+#[cfg(test)]
+mod tests {
+    use crate::InitError;
+    use std::sync::Mutex;
+
+    pub struct InitializationFlag(Mutex<Option<Result<(), InitError>>>);
+
+    impl InitializationFlag {
+        pub const fn new() -> Self {
+            Self(Mutex::new(None))
+        }
+
+        pub fn get_or_init(
+            &self,
+            f: impl FnOnce() -> Result<(), InitError>,
+        ) -> Result<(), InitError> {
+            self.0.lock().unwrap().get_or_insert(f()).clone()
+        }
+
+        pub fn reset(&self) {
+            self.0.lock().unwrap().take();
+        }
+    }
+}
+
+#[cfg(test)]
+pub use tests::*;

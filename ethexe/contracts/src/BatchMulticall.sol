@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
-import {IMirror} from "./IMirror.sol";
-import {IRouter} from "./IRouter.sol";
-import {IWrappedVara} from "./IWrappedVara.sol";
+import {IMirror} from "src/IMirror.sol";
+import {IRouter} from "src/IRouter.sol";
+import {IWrappedVara} from "src/IWrappedVara.sol";
 
 /**
  * @dev BatchMulticall smart contract is responsible for batching multiple calls to Mirror smart contracts.
