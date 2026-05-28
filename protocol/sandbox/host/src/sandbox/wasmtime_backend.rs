@@ -16,7 +16,10 @@ use crate::{
 use gear_sandbox_env::{GLOBAL_NAME_GAS, HostError, Instantiate, WasmReturnValue};
 use parity_scale_codec::{Decode, Encode};
 use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
-use std::rc::{Rc, Weak};
+use std::{
+    rc::{Rc, Weak},
+    sync::OnceLock,
+};
 use wasmtime::{AsContextMut, Engine, ExternType, Linker, MemoryType, Val};
 
 type Store = wasmtime::Store<Option<FuncEnv>>;
@@ -93,18 +96,26 @@ impl Drop for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let cache = wasmtime::CacheConfig::new();
-        let cache = wasmtime::Cache::new(cache).expect("invalid cache configuration");
-        let mut config = wasmtime::Config::default();
-        config
-            .strategy(wasmtime::Strategy::Winch)
-            .cache(Some(cache))
-            // Gear lazy-pages chains Unix signal handlers. Disable Wasmtime's
-            // macOS Mach-port trap handler so sandbox traps stay delegatable
-            // through the signal-handler chain.
-            .macos_use_mach_ports(false);
-        let engine = Engine::new(&config).expect("invalid engine configuration");
-        let store = Store::new(&engine, None);
+        // The backend is cleared if the store changes or the clear counter is triggered,
+        // so keep the engine always the same. This lets `gear_wasmtime_cache::get`
+        // return a cloned module instead of re-serializing it,
+        // which is around 20 times faster (see `gear-wasmtime-cache` benches).
+        static ENGINE: OnceLock<Engine> = OnceLock::new();
+        let engine = ENGINE.get_or_init(|| {
+            let cache = wasmtime::CacheConfig::new();
+            let cache = wasmtime::Cache::new(cache).expect("invalid cache configuration");
+            let mut config = wasmtime::Config::default();
+            config
+                .strategy(wasmtime::Strategy::Winch)
+                .cache(Some(cache))
+                // Gear lazy-pages chains Unix signal handlers. Disable Wasmtime's
+                // macOS Mach-port trap handler so sandbox traps stay delegatable
+                // through the signal-handler chain.
+                .macos_use_mach_ports(false);
+            Engine::new(&config).expect("invalid engine configuration")
+        });
+
+        let store = Store::new(engine, None);
 
         Backend {
             store: Rc::new(StoreRefCell::new(store)),

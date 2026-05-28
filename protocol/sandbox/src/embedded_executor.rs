@@ -9,7 +9,7 @@ use crate::{
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_wasm_interface_common::HostPointer;
-use std::{collections::btree_map::BTreeMap, marker::PhantomData};
+use std::{collections::btree_map::BTreeMap, marker::PhantomData, sync::OnceLock};
 use wasmtime::{
     Cache, CacheConfig, Config, Engine, ExternType, Global, Linker, MemoryType, StoreContext,
     StoreContextMut, error::Context,
@@ -50,20 +50,27 @@ impl<T> Store<T> {
 
 impl<T: Send + 'static> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        let cache = Cache::new(CacheConfig::new()).expect("invalid cache configuration");
+        // The backend is cleared if the store changes or the clear counter is triggered,
+        // so keep the engine always the same. This lets `gear_wasmtime_cache::get`
+        // return a cloned module instead of re-serializing it,
+        // which is around 20 times faster (see `gear-wasmtime-cache` benches).
+        static ENGINE: OnceLock<Engine> = OnceLock::new();
+        let engine = ENGINE.get_or_init(|| {
+            let cache = Cache::new(CacheConfig::new()).expect("invalid cache configuration");
+            let mut config = Config::new();
+            config
+                .max_wasm_stack(16 * 1024 * 1024) // make stack size bigger for fuzzer
+                .async_stack_size(16 * 1024 * 1024)
+                .strategy(wasmtime::Strategy::Winch)
+                .cache(Some(cache))
+                // Keep sandbox traps on Unix signals on macOS: Gear lazy-pages
+                // installs and chains SIGSEGV handlers, which cannot delegate to
+                // Wasmtime's Mach-port trap handler.
+                .macos_use_mach_ports(false);
+            Engine::new(&config).expect("invalid engine configuration")
+        });
 
-        let mut config = Config::new();
-        config
-            .max_wasm_stack(16 * 1024 * 1024) // make stack size bigger for fuzzer
-            .async_stack_size(16 * 1024 * 1024)
-            .strategy(wasmtime::Strategy::Winch)
-            .cache(Some(cache))
-            // Keep sandbox traps on Unix signals on macOS: Gear lazy-pages
-            // installs and chains SIGSEGV handlers, which cannot delegate to
-            // Wasmtime's Mach-port trap handler.
-            .macos_use_mach_ports(false);
-        let engine = Engine::new(&config).expect("invalid engine configuration");
-        let store = wasmtime::Store::new(&engine, InnerState::new(state));
+        let store = wasmtime::Store::new(engine, InnerState::new(state));
 
         Self { inner: store }
     }
