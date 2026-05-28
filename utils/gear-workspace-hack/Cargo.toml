@@ -481,7 +481,7 @@ wasm-bindgen = { version = "0.2" }
 wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
 wasmi = { version = "0.38", features = ["extra-checks"] }
 wasmparser = { version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
-wasmtime = { version = "44", default-features = false, features = ["cache", "cranelift", "parallel-compilation", "pooling-allocator", "winch"] }
+wasmtime = { version = "44", default-features = false, features = ["anyhow", "cache", "cranelift", "parallel-compilation", "pooling-allocator", "winch"] }
 wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "serde", "std"] }
 wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["pulley"] }
 winnow = { version = "0.7" }
@@ -768,7 +768,7 @@ wasm-bindgen = { version = "0.2" }
 wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
 wasmi = { version = "0.38", features = ["extra-checks"] }
 wasmparser = { version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
-wasmtime = { version = "44", default-features = false, features = ["cache", "cranelift", "parallel-compilation", "pooling-allocator", "winch"] }
+wasmtime = { version = "44", default-features = false, features = ["anyhow", "cache", "cranelift", "parallel-compilation", "pooling-allocator", "winch"] }
 wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "serde", "std"] }
 wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["pulley"] }
 winnow = { version = "0.7" }
