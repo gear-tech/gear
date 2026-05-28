@@ -2,13 +2,13 @@
   "lib/forge-std": {
     "branch": {
       "name": "\"v1\"",
-      "rev": "8987040ede9553cea20c95ad40d0455930f9c8e0"
+      "rev": "620536fa5277db4e3fd46772d5cbc1ea0696fb43"
     }
   },
   "lib/frost-secp256k1-evm": {
     "branch": {
       "name": "\"master\"",
-      "rev": "d9473aa5e35a59c522fab81b12c388bbb23b16d1"
+      "rev": "54e31056379eb3d034f46bb346a27353296d9269"
     }
   },
   "lib/openzeppelin-contracts": {

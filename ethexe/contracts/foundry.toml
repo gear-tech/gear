@@ -3,24 +3,30 @@ src = "src"
 out = "out"
 libs = ["lib"]
 evm_version = "osaka"
-solc_version = "0.8.34"
+solc_version = "0.8.35"
 optimizer = true
 # extra_output_files = ["irOptimized"] # Uncomment to enable saving optimized IR
 via_ir = true
 bytecode_hash = "none"
 cbor_metadata = false
-# Required for OpenZeppelin Foundry Upgrades https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
+# Required for OpenZeppelin Foundry Upgrades:
+# - https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
 ffi = true
 ast = true
 build_info = true
 extra_output = ["storageLayout"]
-# Some warnings should be omitted
+# Some warnings should be omitted:
+# - https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades/issues/115
+# - https://github.com/OpenZeppelin/openzeppelin-contracts/issues/5577
 ignored_warnings_from = [
-    # Warning (2424): Natspec memory-safe-assembly... (https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades/issues/115).
     "lib/openzeppelin-foundry-upgrades/src/internal/Core.sol",
     "lib/openzeppelin-foundry-upgrades/src/internal/DefenderDeploy.sol",
     "lib/openzeppelin-foundry-upgrades/src/internal/StringFinder.sol",
-    # Warning (3628): This contract has a payable fallback function, but no receive ether function.
+
+    "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol",
+    "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableMap.sol",
+    "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol",
+
     "src/Mirror.sol",
     "src/MirrorProxy.sol",
 ]

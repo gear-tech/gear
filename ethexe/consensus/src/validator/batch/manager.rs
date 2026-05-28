@@ -133,26 +133,11 @@ impl BatchCommitmentManager {
         );
 
         if let Ok(Some(BatchCommitment {
-            chain_commitment: Some(ChainCommitment { transitions, .. }),
+            chain_commitment: Some(chain_commitment),
             ..
         })) = batch_commitment.as_ref()
         {
-            for StateTransition {
-                new_state_hash,
-                value_claims,
-                ..
-            } in transitions
-            {
-                let mut outgoing_actions = vec![];
-
-                for value_claim in value_claims {
-                    outgoing_actions.push(OutgoingAction::ValueClaim(value_claim.clone()));
-                }
-
-                let outgoing_actions: OutgoingActions = outgoing_actions.into();
-                self.db
-                    .set_outgoing_actions(*new_state_hash, outgoing_actions);
-            }
+            self.store_outgoing_actions_for_chain_commitment(chain_commitment);
         }
 
         batch_commitment
@@ -339,6 +324,7 @@ impl BatchCommitmentManager {
                 std::mem::take(&mut chain_commitment.transitions),
             );
             super::utils::sort_transitions_by_value_to_receive(&mut chain_commitment.transitions);
+            self.store_outgoing_actions_for_chain_commitment(&chain_commitment);
             batch_parts.chain_commitment = Some(chain_commitment);
         }
 
@@ -379,6 +365,25 @@ impl BatchCommitmentManager {
         }
 
         Ok(ValidationStatus::Accepted(digest))
+    }
+
+    fn store_outgoing_actions_for_chain_commitment(&self, commitment: &ChainCommitment) {
+        for StateTransition {
+            new_state_hash,
+            value_claims,
+            ..
+        } in &commitment.transitions
+        {
+            let mut outgoing_actions = vec![];
+
+            for value_claim in value_claims {
+                outgoing_actions.push(OutgoingAction::ValueClaim(value_claim.clone()));
+            }
+
+            let outgoing_actions: OutgoingActions = outgoing_actions.into();
+            self.db
+                .set_outgoing_actions(*new_state_hash, outgoing_actions);
+        }
     }
 
     pub async fn aggregate_validators_commitment(

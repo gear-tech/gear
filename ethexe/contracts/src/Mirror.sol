@@ -1,5 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-pragma solidity ^0.8.33;
+pragma solidity ^0.8.35;
 
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
@@ -121,7 +122,7 @@ contract Mirror is IMirror {
      */
     uint256 internal constant OFFSET2 = 33;
     /**
-     * @dev `DISCRIMINANT_SIZE + MESSAGE_ID_SIZE + DESTINATION_SIZE + VALUE_SIZE` offset.
+     * @dev `DISCRIMINANT_SIZE + MESSAGE_ID_SIZE + DESTINATION_SIZE` offset.
      */
     uint256 internal constant OFFSET3 = 53;
     /**
@@ -613,7 +614,11 @@ contract Mirror is IMirror {
             discriminant := shr(DISCRIMINANT_BIT_SHIFT, calldataload(_payload.offset))
         }
 
-        if (!(discriminant >= MAILBOXED_MESSAGE && discriminant <= VALUE_CLAIM)) {
+        // TODO: support more discriminants when implementing mailboxed and reply messages
+        /*if (!(discriminant >= MAILBOXED_MESSAGE && discriminant <= VALUE_CLAIM)) {
+            return false;
+        }*/
+        if (!(discriminant == VALUE_CLAIM)) {
             return false;
         }
 
@@ -705,6 +710,8 @@ contract Mirror is IMirror {
         } else if (discriminant == REPLY_MESSAGE) {
             // TODO: implement reply message
         } else if (discriminant == VALUE_CLAIM) {
+            // TODO: remove gas limit 5_000 after full migration to merkle roots
+            //       currently it's ok bcz we don't use claims as smart-contracts
             bool success = _transferEther(destination, value);
             require(success, ValueClaimFailed(messageId, value));
 
