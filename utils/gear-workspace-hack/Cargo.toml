@@ -363,7 +363,6 @@ parity-scale-codec = { version = "3", features = ["bytes", "derive", "full", "ma
 parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 pbkdf2 = { version = "0.12", features = ["std"] }
 percent-encoding = { version = "2" }
-petgraph = { version = "0.6" }
 pkcs8 = { version = "0.10", default-features = false, features = ["pem", "std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
@@ -389,7 +388,6 @@ regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
 ring = { version = "0.17", features = ["std"] }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
-rustc-demangle = { version = "0.1", default-features = false, features = ["std"] }
 rustc-hash-dff4ba8e3ae991db = { package = "rustc-hash", version = "1" }
 rustc-hash-f595c2ba2a3f28df = { package = "rustc-hash", version = "2" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
@@ -479,19 +477,13 @@ unicode-normalization = { version = "0.1", default-features = false, features = 
 unsigned-varint-c38e5c1d305a1b54 = { package = "unsigned-varint", version = "0.8", default-features = false, features = ["asynchronous_codec", "codec"] }
 unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7", default-features = false, features = ["asynchronous_codec", "futures"] }
 url = { version = "2", features = ["serde"] }
-uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
-wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
+wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
 wasmi = { version = "0.38", features = ["extra-checks"] }
-wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
-wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
-wasmtime = { version = "44", features = ["winch"] }
-wasmtime-environ = { version = "44", default-features = false, features = ["backtrace", "compile", "component-model", "demangle", "gc-drc", "gc-null", "stack-switching", "threads"] }
-wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
-wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
-wasmtime-internal-winch = { version = "44", default-features = false, features = ["component-model", "gc", "gc-drc", "gc-null", "stack-switching", "threads"] }
-winch-codegen = { version = "44", default-features = false, features = ["gc", "gc-drc", "gc-null", "stack-switching", "threads"] }
+wasmparser = { version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
+wasmtime = { version = "44", default-features = false, features = ["cache", "cranelift", "parallel-compilation", "pooling-allocator", "winch"] }
+wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "serde", "std"] }
+wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["pulley"] }
 winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
@@ -654,7 +646,6 @@ parity-scale-codec-derive = { version = "3", default-features = false, features 
 parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 pbkdf2 = { version = "0.12", features = ["std"] }
 percent-encoding = { version = "2" }
-petgraph = { version = "0.6" }
 pkcs8 = { version = "0.10", default-features = false, features = ["pem", "std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
@@ -680,7 +671,6 @@ regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
 ring = { version = "0.17", features = ["std"] }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
-rustc-demangle = { version = "0.1", default-features = false, features = ["std"] }
 rustc-hash-dff4ba8e3ae991db = { package = "rustc-hash", version = "1" }
 rustc-hash-f595c2ba2a3f28df = { package = "rustc-hash", version = "2" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
@@ -774,19 +764,13 @@ unicode-normalization = { version = "0.1", default-features = false, features = 
 unsigned-varint-c38e5c1d305a1b54 = { package = "unsigned-varint", version = "0.8", default-features = false, features = ["asynchronous_codec", "codec"] }
 unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7", default-features = false, features = ["asynchronous_codec", "futures"] }
 url = { version = "2", features = ["serde"] }
-uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
-wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
+wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
 wasmi = { version = "0.38", features = ["extra-checks"] }
-wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
-wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
-wasmtime = { version = "44", features = ["winch"] }
-wasmtime-environ = { version = "44", default-features = false, features = ["backtrace", "compile", "component-model", "demangle", "gc-drc", "gc-null", "stack-switching", "threads"] }
-wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
-wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
-wasmtime-internal-winch = { version = "44", default-features = false, features = ["component-model", "gc", "gc-drc", "gc-null", "stack-switching", "threads"] }
-winch-codegen = { version = "44", default-features = false, features = ["gc", "gc-drc", "gc-null", "stack-switching", "threads"] }
+wasmparser = { version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
+wasmtime = { version = "44", default-features = false, features = ["cache", "cranelift", "parallel-compilation", "pooling-allocator", "winch"] }
+wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "serde", "std"] }
+wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["pulley"] }
 winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
@@ -807,7 +791,7 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -830,7 +814,7 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -853,7 +837,7 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -876,7 +860,7 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -895,7 +879,7 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 security-framework = { version = "3", features = ["OSX_10_14"] }
@@ -916,7 +900,7 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 security-framework = { version = "3", features = ["OSX_10_14"] }

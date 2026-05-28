@@ -24,7 +24,7 @@ gear-sandbox-interface.workspace = true
 gear-sandbox-env.workspace = true
 
 # embedded executor only
-wasmtime = { features = ["async", "cache", "runtime", "winch"], workspace = true, optional = true }
+wasmtime = { features = ["cache", "runtime", "winch"], workspace = true, optional = true }
 
 gear-workspace-hack.workspace = true
 
