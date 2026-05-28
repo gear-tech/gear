@@ -1870,12 +1870,13 @@ async fn send_injected_tx() {
         salt: vec![1].try_into().unwrap(),
     };
 
+    let signed_tx = env
+        .signer
+        .signed_message(validator0_pubkey, tx.clone(), None)
+        .unwrap();
     let tx_for_node1 = AddressedInjectedTransaction {
         recipient: validator1_pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(validator0_pubkey, tx.clone(), None)
-            .unwrap(),
+        tx: signed_tx.clone(),
     };
 
     // Send request
@@ -1883,7 +1884,7 @@ async fn send_injected_tx() {
     let acceptance = node1
         .rpc_http_client()
         .unwrap()
-        .send_transaction(tx_for_node1.clone())
+        .send_transaction(signed_tx)
         .await
         .expect("rpc server is set");
     assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
@@ -1949,13 +1950,10 @@ async fn injected_tx_purged_receipt() {
         salt: vec![1].try_into().unwrap(),
     };
     let tx_hash = tx.to_hash();
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: pubkey.to_address(),
-        tx: env.signer.signed_message(pubkey, tx, None).unwrap(),
-    };
+    let signed_tx = env.signer.signed_message(pubkey, tx, None).unwrap();
 
     let mut subscription = rpc_client
-        .send_transaction_and_watch(rpc_tx)
+        .send_transaction_and_watch(signed_tx)
         .await
         .expect("successfully subscribe for transaction receipt");
 
@@ -2634,16 +2632,13 @@ async fn injected_tx_fungible_token() {
         salt: vec![1].try_into().unwrap(),
     };
 
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(pubkey, mint_tx.clone(), None)
-            .unwrap(),
-    };
+    let signed_tx = env
+        .signer
+        .signed_message(pubkey, mint_tx.clone(), None)
+        .unwrap();
 
     let mut subscription = rpc_client
-        .send_transaction_and_watch(rpc_tx)
+        .send_transaction_and_watch(signed_tx)
         .await
         .expect("successfully send transaction to RPC");
 
@@ -2752,7 +2747,7 @@ async fn injected_tx_fungible_token() {
         .expect("RPC WS client provide by node");
 
     let mut subscription = ws_client
-        .send_transaction_and_watch(rpc_tx)
+        .send_transaction_and_watch(rpc_tx.tx)
         .await
         .expect("successfully subscribe for transaction promise");
 
@@ -2813,7 +2808,6 @@ async fn injected_tx_fungible_token_over_network() {
         .await
         .expect("RPC client provide by node");
 
-    let bob_pubkey = env.validators[0].public_key;
     let mut bob_node = env
         .new_node(NodeConfig::named("Bob").validator(env.validators[0]))
         .await;
@@ -2881,13 +2875,10 @@ async fn injected_tx_fungible_token_over_network() {
         salt: vec![1].try_into().unwrap(),
     };
 
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: bob_pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(user_pubkey, mint_tx.clone(), None)
-            .unwrap(),
-    };
+    let signed_tx = env
+        .signer
+        .signed_message(user_pubkey, mint_tx.clone(), None)
+        .unwrap();
 
     alice_node
         .events()
@@ -2900,7 +2891,7 @@ async fn injected_tx_fungible_token_over_network() {
         .await;
 
     let mut subscription = alice_rpc_client
-        .send_transaction_and_watch(rpc_tx)
+        .send_transaction_and_watch(signed_tx)
         .await
         .expect("successfully subscribe for transaction promise");
 

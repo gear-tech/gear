@@ -11,7 +11,9 @@ use anyhow::Context as _;
 use ethexe_common::{
     Address, ValidatorsVec,
     db::{ConfigStorageRO, OnChainStorageRO},
-    injected::{AddressedInjectedTransaction, InjectedTransactionAcceptance},
+    injected::{
+        AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
+    },
 };
 use ethexe_db::Database;
 use futures::{StreamExt, stream::FuturesUnordered};
@@ -32,19 +34,18 @@ impl TransactionsRelayer {
 
     /// Broadcast `transaction` to every validator in the current era,
     /// returning the first `Accept` (or the last `Reject` if none accept).
-    /// Falls back to a single-recipient delivery using the original
-    /// `transaction.recipient` if the validator set isn't known yet.
+    /// Falls back to a zero-address delivery if the validator set isn't known yet.
     pub async fn relay(
         &self,
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        let tx_hash = transaction.tx.data().to_hash();
+        let tx_hash = transaction.data().to_hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
 
-        if transaction.tx.data().value != 0 {
+        if transaction.data().value != 0 {
             tracing::warn!(
                 tx_hash = %tx_hash,
-                value = transaction.tx.data().value,
+                value = transaction.data().value,
                 "Injected transaction with non-zero value is not supported"
             );
             return Err(errors::bad_request(
@@ -61,7 +62,15 @@ impl TransactionsRelayer {
         };
 
         if recipients.is_empty() {
-            return self.send_single(transaction, tx_hash).await;
+            return self
+                .send_single(
+                    AddressedInjectedTransaction {
+                        recipient: Address::default(),
+                        tx: transaction,
+                    },
+                    tx_hash,
+                )
+                .await;
         }
 
         self.fan_out(transaction, &recipients, tx_hash).await
@@ -101,7 +110,7 @@ impl TransactionsRelayer {
     /// if every channel is dropped, return an internal error.
     async fn fan_out(
         &self,
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
         recipients: &[Address],
         tx_hash: ethexe_common::HashOf<ethexe_common::injected::InjectedTransaction>,
     ) -> RpcResult<InjectedTransactionAcceptance> {
@@ -111,7 +120,7 @@ impl TransactionsRelayer {
             let event = RpcEvent::InjectedTransaction {
                 transaction: AddressedInjectedTransaction {
                     recipient: *recipient,
-                    tx: transaction.tx.clone(),
+                    tx: transaction.clone(),
                 },
                 response_sender,
             };

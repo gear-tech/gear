@@ -122,7 +122,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut sub = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()).tx)
                 .await
                 .expect("Subscription will be created");
 
@@ -151,7 +151,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut subscription = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()).tx)
                 .await
                 .expect("Subscription will be created");
 
@@ -179,7 +179,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscriptions = vec![];
         for _ in 0..20 {
             let subscription = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()).tx)
                 .await
                 .expect("Subscription will be created");
             subscriptions.push(subscription);
@@ -216,7 +216,7 @@ async fn test_concurrent_multiple_clients() {
             let mut subscriptions = vec![];
             for _ in 0..50 {
                 let mut subscription = client
-                    .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                    .send_transaction_and_watch(AddressedInjectedTransaction::mock(()).tx)
                     .await
                     .expect("Subscription will be created");
 
