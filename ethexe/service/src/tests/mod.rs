@@ -21,7 +21,10 @@ use ethexe_common::{
         mirror::{MessageEvent, ReplyEvent},
     },
     gear::BatchCommitment,
-    injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
+    injected::{
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Receipt,
+        TransactionPurgedReason,
+    },
     mock::*,
 };
 use ethexe_consensus::BatchCommitter;
@@ -1912,6 +1915,79 @@ async fn send_injected_tx() {
     stop_nodes([node0, node1]).await;
 }
 
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn injected_tx_purged_receipt() {
+    init_logger();
+
+    let test_env_config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(test_env_config).await.unwrap();
+
+    let pubkey = env.validators[0].public_key;
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(9507)
+                .validator(env.validators[0]),
+        )
+        .await;
+    node.start_service().await;
+
+    let rpc_client = node
+        .rpc_ws_client()
+        .await
+        .expect("RPC client provide by node");
+
+    let tx = InjectedTransaction {
+        destination: ActorId::from(H160::random()),
+        payload: vec![].try_into().unwrap(),
+        value: 0,
+        reference_block: H256::zero(),
+        salt: vec![1].try_into().unwrap(),
+    };
+    let tx_hash = tx.to_hash();
+    let rpc_tx = AddressedInjectedTransaction {
+        recipient: pubkey.to_address(),
+        tx: env.signer.signed_message(pubkey, tx, None).unwrap(),
+    };
+
+    let mut subscription = rpc_client
+        .send_transaction_and_watch(rpc_tx)
+        .await
+        .expect("successfully subscribe for transaction receipt");
+
+    env.force_new_block().await;
+
+    let subscription_receipt = subscription
+        .next()
+        .await
+        .expect("subscription produces a receipt")
+        .expect("no RPC subscription error");
+    let Receipt::Purged(purged) = subscription_receipt.data() else {
+        panic!(
+            "expected purged receipt, got {:?}",
+            subscription_receipt.data()
+        );
+    };
+    assert_eq!(purged.tx_hash, tx_hash);
+    assert_eq!(
+        purged.reason,
+        TransactionPurgedReason::UnknownReferenceBlock
+    );
+
+    let stored_receipt = rpc_client
+        .get_transaction_receipt(tx_hash)
+        .await
+        .expect("receipt lookup succeeds")
+        .expect("receipt is stored");
+    assert_eq!(stored_receipt, subscription_receipt);
+
+    stop_nodes([node]).await;
+}
+
 /// 5+5 validator election handover: stage next validator set during the
 /// election window of era N, fire one `ValidatorsCommittedForEra`, swap
 /// validators when era N+1 starts, and verify the new set can serve PING.
@@ -2596,19 +2672,25 @@ async fn injected_tx_fungible_token() {
         .await;
     tracing::info!("✅ Tokens mint successfully");
 
-    let subscription_promise = subscription
+    let subscription_receipt = subscription
         .next()
         .await
         .expect("subscription produce value")
         .expect("no errors for correct injected transaction");
-    assert_eq!(subscription_promise.data().tx_hash, mint_tx.to_hash());
-    assert_eq!(subscription_promise.data().reply.value, 0);
+    assert_eq!(subscription_receipt.data().tx_hash(), mint_tx.to_hash());
+    let subscription_promise = subscription_receipt.data().clone().unwrap_promise();
+    assert_eq!(subscription_promise.reply.value, 0);
     assert_eq!(
-        subscription_promise.data().reply.code,
+        subscription_promise.reply.code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
     assert_eq!(
-        subscription_promise.into_data().reply.payload,
+        subscription_receipt
+            .data()
+            .clone()
+            .unwrap_promise()
+            .reply
+            .payload,
         expected_event.encode()
     );
 
@@ -2679,7 +2761,9 @@ async fn injected_tx_fungible_token() {
         .await
         .expect("promise from subscription")
         .expect("transaction promise")
-        .into_data();
+        .data()
+        .clone()
+        .unwrap_promise();
 
     assert_eq!(promise.tx_hash, transfer_tx.to_hash());
 
@@ -2839,7 +2923,9 @@ async fn injected_tx_fungible_token_over_network() {
         .await
         .expect("promise from subscription")
         .expect("transaction promise")
-        .into_data();
+        .data()
+        .clone()
+        .unwrap_promise();
 
     let expected_event = demo_fungible_token::FTEvent::Transfer {
         from: ActorId::new([0u8; 32]),
