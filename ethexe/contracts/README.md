@@ -15,6 +15,12 @@ https://book.getfoundry.sh/
 
 ## Usage
 
+### Install dependencies
+
+```shell
+$ forge soldeer install
+```
+
 ### Build
 
 ```shell

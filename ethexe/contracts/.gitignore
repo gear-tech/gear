@@ -2,16 +2,26 @@
 cache/
 out/
 
-# Ignores development broadcast logs
-!/broadcast
-/broadcast/*/*/
-/broadcast/**/dry-run/
+# Commonly ignored directories
+.logs/
+.ignore/
+
+# Ignores broadcast logs
+broadcast/
 
 # Docs
 docs/
 
 # Dotenv file
 .env
+!.env.example
+
+# Coverage files
+lcov.info
+coverage/
+
+# Soldeer
+dependencies/
 
 # npm
 package-lock.json

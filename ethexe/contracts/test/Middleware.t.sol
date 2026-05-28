@@ -1,6 +1,6 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-pragma solidity ^0.8.35;
+pragma solidity ^0.8.34;
 
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
@@ -284,6 +284,8 @@ contract MiddlewareTest is Base {
         vm.stopPrank();
 
         /* Try to register vault from another factory*/
+
+        string memory SYMBIOTIC_CORE_PROJECT_ROOT = "dependencies/symbiotic-core-main/";
 
         IVaultFactory vaultFactory2 = IVaultFactory(
             deployCode(

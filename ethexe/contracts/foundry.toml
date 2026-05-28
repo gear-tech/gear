@@ -1,7 +1,16 @@
 [profile.default]
 src = "src"
 out = "out"
-libs = ["lib"]
+libs = ["dependencies"]
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.1/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.6.1/",
+    "@openzeppelin/contracts-upgradeable/=dependencies/@openzeppelin-contracts-upgradeable-5.6.1/",
+    "@symbioticfi/core/=dependencies/symbiotic-core-main/",
+    "symbiotic-core/=dependencies/symbiotic-core-main/",
+    "symbiotic-rewards/=dependencies/symbiotic-rewards-main/",
+    "frost-secp256k1-evm/=dependencies/frost-secp256k1-evm-master/src/",
+]
 evm_version = "osaka"
 solc_version = "0.8.35"
 optimizer = true
@@ -19,19 +28,28 @@ extra_output = ["storageLayout"]
 # - https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades/issues/115
 # - https://github.com/OpenZeppelin/openzeppelin-contracts/issues/5577
 ignored_warnings_from = [
-    "lib/openzeppelin-foundry-upgrades/src/internal/Core.sol",
-    "lib/openzeppelin-foundry-upgrades/src/internal/DefenderDeploy.sol",
-    "lib/openzeppelin-foundry-upgrades/src/internal/StringFinder.sol",
+    "dependencies/openzeppelin-foundry-upgrades-0.4.0/src/internal/Core.sol",
+    "dependencies/openzeppelin-foundry-upgrades-0.4.0/src/internal/DefenderDeploy.sol",
+    "dependencies/openzeppelin-foundry-upgrades-0.4.0/src/internal/StringFinder.sol",
 
-    "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol",
-    "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableMap.sol",
-    "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol",
+    "dependencies/@openzeppelin-contracts-5.6.1/utils/cryptography/ECDSA.sol",
+    "dependencies/@openzeppelin-contracts-5.6.1/utils/structs/EnumerableMap.sol",
+    "dependencies/@openzeppelin-contracts-5.6.1/utils/structs/EnumerableSet.sol",
 
     "src/Mirror.sol",
     "src/MirrorProxy.sol",
 ]
 # Required for Middleware tests
-fs_permissions = [ { access = "read-write", path = "out" }, { access = "read", path = "lib" } ]
+fs_permissions = [ { access = "read-write", path = "out" }, { access = "read", path = "dependencies" } ]
+
+[dependencies]
+forge-std = "1.16.1"
+"@openzeppelin-contracts" = "5.6.1"
+"@openzeppelin-contracts-upgradeable" = "5.6.1"
+openzeppelin-foundry-upgrades = "0.4.0"
+symbiotic-core = { version = "main", git = "https://github.com/StackOverflowExcept1on/symbiotic-core.git", branch = "main" }
+symbiotic-rewards = { version = "main", git = "https://github.com/StackOverflowExcept1on/symbiotic-rewards.git", branch = "main" }
+frost-secp256k1-evm = { version = "master", git = "https://github.com/StackOverflowExcept1on/frost-secp256k1-evm.git", branch = "master" }
 
 [fmt]
 sort_imports = true

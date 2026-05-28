@@ -77,7 +77,6 @@ contract Base is POCBaseTest {
         vm.warp(eraDuration * 100);
 
         // set up the symbiotic ecosystem
-        SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
         super.setUp();
 
         vm.startPrank(admin, admin);

@@ -3,11 +3,9 @@
 pragma solidity ^0.8.35;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {
-    ReentrancyGuardTransientUpgradeable
-} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
@@ -36,7 +34,7 @@ import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultSta
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
-contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable, UUPSUpgradeable {
+contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient, UUPSUpgradeable {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
 
@@ -59,7 +57,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
     function initialize(InitParams calldata _params) public initializer {
         __Ownable_init(_params.owner);
-        __ReentrancyGuardTransient_init();
 
         _setStorageSlot("middleware.storage.MiddlewareV1");
         Storage storage $ = _storage();
