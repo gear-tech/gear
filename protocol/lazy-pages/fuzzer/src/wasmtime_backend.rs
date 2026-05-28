@@ -10,8 +10,8 @@ use anyhow::{Context, Result, bail};
 use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{GLOBAL_NAME_GAS, Module};
 use wasmtime::{
-    Cache, CacheConfig, Config, Engine, Extern, Func, Instance, Linker, Memory, MemoryType, Store,
-    Strategy, Val,
+    Cache, CacheConfig, Config, Engine, Extern, Func, Instance, Linker, Memory, MemoryType,
+    Module as WasmtimeModule, Store, Strategy, Val,
 };
 
 #[derive(Clone)]
@@ -66,9 +66,9 @@ impl Runner for WasmtimeRunner {
             .context("failed to create engine")?;
         let mut store = Store::new(&engine, ());
 
-        let wasmtime_module = gear_wasmtime_cache::get(
+        let wasmtime_module = WasmtimeModule::new(
             store.engine(),
-            &module.serialize().map_err(anyhow::Error::msg)?,
+            module.serialize().map_err(anyhow::Error::msg)?,
         )?;
 
         let ty = MemoryType::new(INITIAL_PAGES, None);

@@ -8,7 +8,9 @@ use gear_core::{
 use gear_wasm_instrument::{STACK_HEIGHT_EXPORT_NAME, SystemBreakCode};
 use std::{env, fs};
 use tracing_subscriber::EnvFilter;
-use wasmtime::{Engine, Linker, Memory, MemoryType, Store, Trap, ValType, ensure, error::Context};
+use wasmtime::{
+    Engine, Linker, Memory, MemoryType, Module, Store, Trap, ValType, ensure, error::Context,
+};
 
 fn main() -> wasmtime::Result<()> {
     tracing_subscriber::fmt()
@@ -45,7 +47,7 @@ fn main() -> wasmtime::Result<()> {
         .macos_use_mach_ports(false);
     let engine = Engine::new(&config).context("invalid engine configuration")?;
     let mut store = Store::new(&engine, ());
-    let module = gear_wasmtime_cache::get(store.engine(), code.instrumented_code().bytes())
+    let module = Module::new(store.engine(), code.instrumented_code().bytes())
         .context("Failed to create initial module")?;
 
     let mut linker = Linker::new(store.engine());
@@ -121,7 +123,7 @@ fn main() -> wasmtime::Result<()> {
         )
         .context("Code error")?;
 
-        let module = gear_wasmtime_cache::get(store.engine(), code.instrumented_code().bytes())
+        let module = Module::new(store.engine(), code.instrumented_code().bytes())
             .context("Failed to create module")?;
         let instance = linker
             .instantiate(&mut store, &module)

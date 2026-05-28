@@ -2789,7 +2789,6 @@ version = "1.10.0"
 dependencies = [
  "gear-core",
  "gear-wasm-instrument",
- "gear-wasmtime-cache",
  "gear-workspace-hack",
  "log",
  "tracing-subscriber",
@@ -5870,7 +5869,6 @@ dependencies = [
  "gear-runtime-interface",
  "gear-sandbox-host",
  "gear-wasm-instrument",
- "gear-wasmtime-cache",
  "gear-workspace-hack",
  "gprimitives",
  "itertools 0.13.0",
@@ -9991,7 +9989,6 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-wasm-gen",
  "gear-wasm-instrument",
- "gear-wasmtime-cache",
  "gear-workspace-hack",
  "log",
  "region",
