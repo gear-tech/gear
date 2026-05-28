@@ -132,15 +132,33 @@ impl BatchCommitmentManager {
             self.limits.commitment_delay_limit,
         );
 
-        if let Ok(Some(BatchCommitment {
-            chain_commitment: Some(chain_commitment),
-            ..
-        })) = batch_commitment.as_ref()
-        {
-            self.store_outgoing_actions_for_chain_commitment(chain_commitment);
+        if let Ok(Some(batch)) = batch_commitment.as_ref() {
+            self.persist_outgoing_actions(batch);
         }
 
         batch_commitment
+    }
+
+    /// Persist per-`new_state_hash` value-claim mappings to the local DB.
+    fn persist_outgoing_actions(&self, batch: &BatchCommitment) {
+        let Some(ChainCommitment { transitions, .. }) = batch.chain_commitment.as_ref() else {
+            return;
+        };
+        for StateTransition {
+            new_state_hash,
+            value_claims,
+            ..
+        } in transitions
+        {
+            let outgoing_actions: OutgoingActions = value_claims
+                .iter()
+                .cloned()
+                .map(OutgoingAction::ValueClaim)
+                .collect::<Vec<_>>()
+                .into();
+            self.db
+                .set_outgoing_actions(*new_state_hash, outgoing_actions);
+        }
     }
 
     /// Participant: re-derive the coordinator's batch and return whether digests agree.
@@ -324,7 +342,6 @@ impl BatchCommitmentManager {
                 std::mem::take(&mut chain_commitment.transitions),
             );
             super::utils::sort_transitions_by_value_to_receive(&mut chain_commitment.transitions);
-            self.store_outgoing_actions_for_chain_commitment(&chain_commitment);
             batch_parts.chain_commitment = Some(chain_commitment);
         }
 
@@ -356,7 +373,8 @@ impl BatchCommitmentManager {
             });
         }
 
-        let batch_encoded_size = Gear::BatchCommitment::from(batch).abi_encoded_size() as u64;
+        let batch_encoded_size =
+            Gear::BatchCommitment::from(batch.clone()).abi_encoded_size() as u64;
         if batch_encoded_size > self.limits.batch_size_limit {
             return Ok(ValidationStatus::Rejected {
                 request,
@@ -364,26 +382,12 @@ impl BatchCommitmentManager {
             });
         }
 
+        // Cache the per-state-hash value-claim mapping locally. Both validating
+        // validators and non-validator watchers persist here so any node can
+        // serve `mirror.outgoing_actions(state_hash)` for merkle-proof clients.
+        self.persist_outgoing_actions(&batch);
+
         Ok(ValidationStatus::Accepted(digest))
-    }
-
-    fn store_outgoing_actions_for_chain_commitment(&self, commitment: &ChainCommitment) {
-        for StateTransition {
-            new_state_hash,
-            value_claims,
-            ..
-        } in &commitment.transitions
-        {
-            let mut outgoing_actions = vec![];
-
-            for value_claim in value_claims {
-                outgoing_actions.push(OutgoingAction::ValueClaim(value_claim.clone()));
-            }
-
-            let outgoing_actions: OutgoingActions = outgoing_actions.into();
-            self.db
-                .set_outgoing_actions(*new_state_hash, outgoing_actions);
-        }
     }
 
     pub async fn aggregate_validators_commitment(

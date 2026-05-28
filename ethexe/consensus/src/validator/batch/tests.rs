@@ -12,17 +12,21 @@
 use super::{BatchCommitmentManager, BatchLimits, ValidationStatus, types::ValidationRejectReason};
 use crate::validator::core::MiddlewareWrapper;
 use ethexe_common::{
-    Address, Digest, ProgramStates, Schedule, SimpleBlockData, ToDigest, ValidatorsVec,
+    Address, Digest, OutgoingAction, ProgramStates, Schedule, SimpleBlockData, ToDigest,
+    ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRW, MbStorageRW, SetConfig},
-    gear::StateTransition,
+    db::{
+        BlockMetaStorageRW, CompactMb, GlobalsStorageRW, MbStorageRW, OutgoingActionStorageRO,
+        SetConfig,
+    },
+    gear::{StateTransition, ValueClaim},
     malachite::{ProcessQueuesLimits, Transaction, Transactions},
     mock::*,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::{ElectionProvider, MockElectionProvider};
 use gear_core::ids::prelude::CodeIdExt;
-use gprimitives::{ActorId, CodeId, H256, U256};
+use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use std::num::{NonZero, NonZeroU64};
 
 const BLOCK_GAS_LIMIT: u64 = ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
@@ -113,6 +117,23 @@ fn nonempty_transition(seed: u8) -> StateTransition {
         value_to_receive_negative_sign: false,
         value_claims: vec![],
         messages: vec![],
+    }
+}
+
+/// Same shape as [`nonempty_transition`] but carries `n` distinct value
+/// claims so tests can assert per-`new_state_hash` persistence into the
+/// `outgoing_actions` table.
+fn transition_with_value_claims(seed: u8, n: u32) -> StateTransition {
+    let value_claims = (0..n)
+        .map(|i| ValueClaim {
+            message_id: MessageId::from([(seed.wrapping_add(i as u8)); 32]),
+            destination: ActorId::from([0xCC; 32]),
+            value: ((seed as u128) << 8) | (i as u128),
+        })
+        .collect();
+    StateTransition {
+        value_claims,
+        ..nonempty_transition(seed)
     }
 }
 
@@ -769,4 +790,114 @@ async fn test_aggregate_validators_commitment() {
         .aggregate_validators_commitment(&chain.blocks[15].to_simple())
         .await
         .unwrap_err();
+}
+
+/// Both the producer (`create_batch_commitment`) and the verifier
+/// (`validate_batch_commitment`, used by Participant and Watcher) must
+/// write the `(post-squash state_hash → outgoing_actions)` mapping to the
+/// local DB. Without parity here, RPC clients hitting a non-producer node
+/// (and that's most nodes most of the time) would get empty results from
+/// `mirror.outgoing_actions`, breaking merkle-proof construction for
+/// value claims.
+#[tokio::test]
+async fn validator_path_persists_outgoing_actions() {
+    // 1. Build the canonical batch on `producer_db`. The producer's own
+    //    persist step runs as a side effect of create_batch_commitment.
+    let producer_db = Database::memory();
+    let chain = test_block_chain(3).setup(&producer_db);
+    let block = chain.blocks[3].to_simple();
+
+    let claims_seed = 7u8;
+    let claims_count = 2u32;
+    setup_mb_chain(
+        &producer_db,
+        vec![
+            vec![transition_with_value_claims(claims_seed, claims_count)],
+            vec![nonempty_transition(2)],
+        ],
+    );
+
+    let batch = mock_batch_manager(producer_db.clone())
+        .create_batch_commitment(block)
+        .await
+        .expect("create_batch_commitment must not error")
+        .expect("expected non-empty batch");
+
+    // Pluck the (state_hash, value_claims) pairs the batch ended up with —
+    // these are post-squash hashes, exactly what RPC will query by.
+    let expected_mappings: Vec<(H256, Vec<ValueClaim>)> = batch
+        .chain_commitment
+        .as_ref()
+        .expect("chain commitment present")
+        .transitions
+        .iter()
+        .filter(|t| !t.value_claims.is_empty())
+        .map(|t| (t.new_state_hash, t.value_claims.clone()))
+        .collect();
+    assert!(
+        !expected_mappings.is_empty(),
+        "test fixture must produce at least one transition with value claims",
+    );
+
+    // Sanity check: producer-side persist actually happened.
+    for (state_hash, value_claims) in &expected_mappings {
+        let stored = producer_db
+            .outgoing_actions(*state_hash)
+            .expect("producer must persist outgoing_actions")
+            .into_inner();
+        let expected: Vec<OutgoingAction> = value_claims
+            .iter()
+            .cloned()
+            .map(OutgoingAction::ValueClaim)
+            .collect();
+        assert_eq!(stored, expected, "producer persist mismatch");
+    }
+
+    // 2. Replay the same chain into a fresh DB and verify the batch via
+    //    `validate_batch_commitment`. The watcher and participant paths
+    //    flow through here too. We never call `create_batch_commitment`
+    //    on this DB, so the only writer of `outgoing_actions` is the
+    //    validator path under test.
+    let verifier_db = Database::memory();
+    test_block_chain(3).setup(&verifier_db);
+    setup_mb_chain(
+        &verifier_db,
+        vec![
+            vec![transition_with_value_claims(claims_seed, claims_count)],
+            vec![nonempty_transition(2)],
+        ],
+    );
+
+    // Confirm the verifier DB has no mappings before validation runs.
+    for (state_hash, _) in &expected_mappings {
+        assert!(
+            verifier_db.outgoing_actions(*state_hash).is_none(),
+            "fresh verifier DB unexpectedly already had outgoing_actions"
+        );
+    }
+
+    let request = BatchCommitmentValidationRequest::new(&batch);
+    let status = mock_batch_manager(verifier_db.clone())
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    assert!(
+        matches!(status, ValidationStatus::Accepted(_)),
+        "expected acceptance, got {status:?}"
+    );
+
+    // 3. After validation, the verifier DB must hold the same mappings
+    //    that the producer wrote.
+    for (state_hash, value_claims) in &expected_mappings {
+        let stored = verifier_db
+            .outgoing_actions(*state_hash)
+            .expect("validator must persist outgoing_actions after Accepted")
+            .into_inner();
+        let expected: Vec<OutgoingAction> = value_claims
+            .iter()
+            .cloned()
+            .map(OutgoingAction::ValueClaim)
+            .collect();
+        assert_eq!(stored, expected, "validator persist mismatch");
+    }
 }

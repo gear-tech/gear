@@ -3300,6 +3300,195 @@ async fn reply_callback() {
     stop_nodes([node]).await;
 }
 
+/// Verifies that nodes which never produce or sign — but receive
+/// `BatchCommitmentValidationRequest` gossip — still populate their local
+/// `outgoing_actions` cache by re-deriving each batch through the watcher
+/// state. Without this, an RPC client hitting a non-producer node would
+/// get an empty response from `mirror.outgoing_actions(state_hash)` and
+/// couldn't build a merkle proof for any value claim.
+///
+/// Setup: one validator node (the producer/coordinator for every round in
+/// this 1-validator env) plus one watcher node (no validator key at all).
+/// We trigger a value claim and assert both DBs end up with the same
+/// `(state_hash → ValueClaim)` mapping.
+///
+/// The "key-present-but-not-in-current-validator-set" case takes the same
+/// Idle routing branch into `Watcher` as the no-key case — see
+/// [`ethexe_consensus::validator::idle`]. Both produce identical observable
+/// behavior, so we don't replicate it here.
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn outgoing_actions_persisted_on_watcher_nodes() {
+    init_logger();
+
+    // Network must be enabled so gossip delivers
+    // `BatchCommitmentValidationRequest` from validators to the watcher.
+    // Three validators give malachite a comfortable >2/3 quorum when the
+    // watcher (a malachite full-node, no voting power) joins the mesh.
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(3),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        let mut validator = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
+            .await;
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    // Pure watcher — `NodeConfig::default()` leaves `validator_config = None`,
+    // which selects `pub_key = None` and routes Idle into the `Watcher` state
+    // on every block.
+    let mut watcher = env.new_node(NodeConfig::named("watcher")).await;
+    watcher.start_service().await;
+
+    // Drive a value claim through the full pipeline using the same fixture
+    // as `value_send_program_to_user_and_claimed`: piggy-bank top-up, claim,
+    // follow-up no-op message to flush the executor.
+    let code_id = env
+        .upload_code(demo_piggy_bank::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .code_id;
+
+    let piggy_bank_id = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .program_id;
+
+    let _ = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    // Force the deposit into a finalized MB.
+    let res = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    // Smash → enqueue the user mailbox message with the claim.
+    let res = env
+        .send_message(piggy_bank_id, b"smash")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    // Read the mailbox on validator-0 to discover the message id that will
+    // become a claim.
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let program_state = validators[0].db.program_state(state_hash).unwrap();
+    let mailbox = validators[0]
+        .db
+        .mailbox(program_state.mailbox_hash.to_inner().unwrap())
+        .unwrap();
+    let sender_address = env.ethereum.provider().default_signer_address();
+    let user_mailbox = mailbox.into_values(&validators[0].db)[&sender_address.into()].clone();
+    let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
+
+    let receiver = env.new_observer_events();
+    piggy_bank.claim_value(mailboxed_msg_id).await.unwrap();
+
+    // Force-process the claim by flushing the executor with one more
+    // no-op message.
+    let _ = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    // `find_value_claim_proof` walks `BlockEvent::Mirror::StateChanged` for
+    // `piggy_bank_id` on validator-0's DB, finds the state_hash whose
+    // `outgoing_actions` contains a `ValueClaim` with our message id, and
+    // returns it. This proves the producer-side persist happened.
+    let (claim_state_hash, _total_leaves, _leaf_index, _proof) =
+        find_value_claim_proof(receiver, &validators[0].db, piggy_bank_id, mailboxed_msg_id).await;
+
+    // What validator-0 persisted under `claim_state_hash`.
+    let producer_actions = validators[0]
+        .db
+        .outgoing_actions(claim_state_hash)
+        .expect("validator-0: outgoing_actions must be persisted on producer path")
+        .into_inner();
+    assert!(
+        !producer_actions.is_empty(),
+        "validator-0: expected at least one outgoing action under {claim_state_hash}",
+    );
+
+    // Other validators (Participant path) and the watcher (Watcher path)
+    // both re-derive the same batch via `validate_batch_commitment`, which
+    // calls `persist_outgoing_actions` on Accepted. They should converge
+    // on the same mapping. Poll briefly: gossip propagation can lag the
+    // producer DB write by a couple of blocks.
+    let deadline = std::time::Instant::now() + Duration::from_secs(45);
+
+    async fn wait_for_persist(
+        db: &ethexe_db::Database,
+        state_hash: H256,
+        deadline: std::time::Instant,
+        label: &str,
+    ) -> Vec<OutgoingAction> {
+        loop {
+            if let Some(actions) = db.outgoing_actions(state_hash) {
+                return actions.into_inner();
+            }
+            if std::time::Instant::now() > deadline {
+                panic!(
+                    "{label}: never persisted outgoing_actions for {state_hash} — \
+                     watcher path is not wired or gossip didn't deliver the request"
+                );
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    }
+
+    // Non-producer validator: goes through Participant.
+    let participant_actions =
+        wait_for_persist(&validators[1].db, claim_state_hash, deadline, "validator-1").await;
+    assert_eq!(
+        producer_actions, participant_actions,
+        "participant's re-derived mapping must match the producer's"
+    );
+
+    // Pure watcher: no validator key, routed through `Watcher` state.
+    let watcher_actions =
+        wait_for_persist(&watcher.db, claim_state_hash, deadline, "watcher").await;
+    assert_eq!(
+        producer_actions, watcher_actions,
+        "watcher's re-derived mapping must match the producer's"
+    );
+
+    stop_nodes(validators.into_iter().chain([watcher])).await;
+}
+
 #[tokio::test]
 #[ignore = "TODO: #5487 port to MB-driven test harness"]
 async fn fast_sync() {}

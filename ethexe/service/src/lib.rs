@@ -408,14 +408,19 @@ impl Service {
             Self::get_config_public_key(config.node.validator_session, &signer)
                 .with_context(|| "failed to get validator session private key")?;
 
-        let consensus: Option<Pin<Box<dyn ConsensusService>>> = if let Some(pub_key) =
-            validator_pub_key
-        {
+        let consensus: Option<Pin<Box<dyn ConsensusService>>> = {
+            let sender_address = match validator_address {
+                Some(addr) => addr,
+                None => signer
+                    .generate()
+                    .with_context(|| "failed to generate ephemeral sender key for watcher")?
+                    .to_address(),
+            };
             let ethereum = EthereumBuilder::default()
                 .rpc_url(&config.ethereum.rpc)
                 .router_address(config.ethereum.router_address)
                 .signer(signer.clone())
-                .sender_address(pub_key.to_address())
+                .sender_address(sender_address)
                 .eip1559_fee_increase_percentage(config.ethereum.eip1559_fee_increase_percentage)
                 .eip1559_max_fee_per_gas_in_gwei(config.ethereum.eip1559_max_fee_per_gas_in_gwei)
                 .blob_gas_multiplier(config.ethereum.blob_gas_multiplier)
@@ -427,7 +432,7 @@ impl Service {
                 ethereum.router(),
                 db.clone(),
                 ValidatorConfig {
-                    pub_key,
+                    pub_key: validator_pub_key,
                     signatures_threshold: threshold,
                     // Coordinator-local: not a protocol constant; configured per node.
                     commitment_delay_limit: config.node.commitment_delay_limit,
@@ -437,8 +442,6 @@ impl Service {
                     uncommitted_chain_len_threshold: config.node.uncommitted_chain_len_threshold,
                 },
             )?))
-        } else {
-            None
         };
 
         let network = if let Some(net_config) = &config.network {

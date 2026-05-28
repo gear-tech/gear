@@ -23,7 +23,9 @@ use tokio::sync::RwLock;
 pub struct ValidatorCore {
     pub signatures_threshold: u64,
     pub router_address: Address,
-    pub pub_key: PublicKey,
+    /// `Some` only for nodes that hold a validator key.
+    /// `None` means watcher.
+    pub pub_key: Option<PublicKey>,
     pub timelines: ProtocolTimelines,
 
     #[debug(skip)]

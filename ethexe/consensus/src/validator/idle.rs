@@ -18,6 +18,7 @@
 
 use super::{
     Participant, StateHandler, ValidatorContext, ValidatorState, coordinator::CoordinatorBoot,
+    watcher::Watcher,
 };
 use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};
@@ -164,10 +165,14 @@ impl Idle {
             .block_coordinator_at(&validators, block.header.timestamp)
             .ok_or_else(|| anyhow!("cannot determine coordinator for block {}", block.hash))?;
 
-        if coordinator_addr == self.ctx.core.pub_key.to_address() {
-            CoordinatorBoot::start(self.ctx, block, validators)
-        } else {
-            Participant::create(self.ctx, block, coordinator_addr)
+        match self.ctx.core.pub_key {
+            Some(pub_key) if pub_key.to_address() == coordinator_addr => {
+                CoordinatorBoot::start(self.ctx, block, validators, pub_key)
+            }
+            Some(pub_key) if validators.iter().any(|v| *v == pub_key.to_address()) => {
+                Participant::create(self.ctx, block, coordinator_addr, pub_key)
+            }
+            _ => Watcher::create(self.ctx, block, coordinator_addr),
         }
     }
 }

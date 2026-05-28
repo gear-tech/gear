@@ -1075,50 +1075,53 @@ impl Node {
             .unwrap();
 
         let consensus: Option<Pin<Box<dyn ConsensusService>>> = {
-            if let Some(config) = self.validator_config.as_ref() {
-                let committer = if let Some(custom_committer) = self.custom_committer.take() {
-                    custom_committer
-                } else {
-                    EthereumBuilder::default()
-                        .rpc_url(&self.eth_cfg.rpc)
-                        .router_address(self.eth_cfg.router_address)
-                        .signer(self.signer.clone())
-                        .sender_address(config.public_key.to_address())
-                        .eip1559_fee_increase_percentage(
-                            self.eth_cfg.eip1559_fee_increase_percentage,
-                        )
-                        .blob_gas_multiplier(self.eth_cfg.blob_gas_multiplier)
-                        .build()
-                        .await
-                        .unwrap()
-                        .router()
-                        .into()
-                };
+            let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
+            let sender_address = match validator_pub_key {
+                Some(k) => k.to_address(),
+                None => self
+                    .signer
+                    .generate()
+                    .expect("test signer must generate ephemeral key")
+                    .to_address(),
+            };
 
-                Some(Box::pin(
-                    ValidatorService::new(
-                        self.signer.clone(),
-                        self.election_provider.clone(),
-                        committer,
-                        self.db.clone(),
-                        ethexe_consensus::ValidatorConfig {
-                            pub_key: config.public_key,
-                            signatures_threshold: self.threshold,
-                            commitment_delay_limit: self.commitment_delay_limit,
-                            router_address: self.eth_cfg.router_address,
-                            batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
-                            coordinator_aggregation_delay: std::time::Duration::ZERO,
-                            // High enough that the checkpoint path never fires across the
-                            // short Eth-block budget service tests run for.
-                            uncommitted_chain_len_threshold: std::num::NonZero::new(u32::MAX)
-                                .unwrap(),
-                        },
-                    )
-                    .unwrap(),
-                ) as Pin<Box<dyn ConsensusService>>)
+            let committer = if let Some(custom_committer) = self.custom_committer.take() {
+                custom_committer
             } else {
-                None
-            }
+                EthereumBuilder::default()
+                    .rpc_url(&self.eth_cfg.rpc)
+                    .router_address(self.eth_cfg.router_address)
+                    .signer(self.signer.clone())
+                    .sender_address(sender_address)
+                    .eip1559_fee_increase_percentage(self.eth_cfg.eip1559_fee_increase_percentage)
+                    .blob_gas_multiplier(self.eth_cfg.blob_gas_multiplier)
+                    .build()
+                    .await
+                    .unwrap()
+                    .router()
+                    .into()
+            };
+
+            Some(Box::pin(
+                ValidatorService::new(
+                    self.signer.clone(),
+                    self.election_provider.clone(),
+                    committer,
+                    self.db.clone(),
+                    ethexe_consensus::ValidatorConfig {
+                        pub_key: validator_pub_key,
+                        signatures_threshold: self.threshold,
+                        commitment_delay_limit: self.commitment_delay_limit,
+                        router_address: self.eth_cfg.router_address,
+                        batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
+                        coordinator_aggregation_delay: std::time::Duration::ZERO,
+                        // High enough that the checkpoint path never fires across the
+                        // short Eth-block budget service tests run for.
+                        uncommitted_chain_len_threshold: std::num::NonZero::new(u32::MAX).unwrap(),
+                    },
+                )
+                .unwrap(),
+            ) as Pin<Box<dyn ConsensusService>>)
         };
 
         let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
