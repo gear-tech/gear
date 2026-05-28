@@ -20,7 +20,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { features = ["derive"], workspace = true }
 impl-trait-for-tuples = { workspace = true }
 log = { optional = true, workspace = true, default-features = true }
-wasmtime = { optional = true, workspace = true }
+wasmtime = { features = ["runtime"], optional = true, workspace = true }
 anyhow = { optional = true, workspace = true }
 sp-wasm-interface-common = { workspace = true, default-features = false }
 sp-allocator = { workspace = true, default-features = false }
@@ -32,6 +32,8 @@ std = [
 	"anyhow?/std",
 	"codec/std",
 	"log/std",
+	"sp-allocator/std",
+	"sp-wasm-interface-common/std",
 ]
 wasmtime = ["anyhow", "dep:wasmtime"]
 wasmi = [ "sp-wasm-interface-common/wasmi" ]

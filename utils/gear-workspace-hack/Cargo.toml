@@ -272,7 +272,6 @@ der = { version = "0.7", default-features = false, features = ["oid", "pem", "st
 derive_more-f595c2ba2a3f28df = { package = "derive_more", version = "2", default-features = false, features = ["full", "std"] }
 digest-274715c4dabd11b0 = { package = "digest", version = "0.9", default-features = false, features = ["std"] }
 digest-93f6ce9d446188ac = { package = "digest", version = "0.10", features = ["mac", "oid", "std"] }
-downcast-rs = { version = "1", default-features = false, features = ["std"] }
 ecdsa = { version = "0.16", default-features = false, features = ["pem", "serde", "signing", "std", "verifying"] }
 ed25519 = { version = "2", default-features = false, features = ["alloc", "std"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
@@ -484,10 +483,7 @@ uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
 wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
 wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
-wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
-wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
-wasmi-validation = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
-wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
+wasmi = { version = "0.38", features = ["extra-checks"] }
 wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
 wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
 wasmtime = { version = "44", features = ["winch"] }
@@ -565,7 +561,6 @@ derive_more-f595c2ba2a3f28df = { package = "derive_more", version = "2", default
 digest-274715c4dabd11b0 = { package = "digest", version = "0.9", default-features = false, features = ["std"] }
 digest-93f6ce9d446188ac = { package = "digest", version = "0.10", features = ["mac", "oid", "std"] }
 displaydoc = { version = "0.2" }
-downcast-rs = { version = "1", default-features = false, features = ["std"] }
 ecdsa = { version = "0.16", default-features = false, features = ["pem", "serde", "signing", "std", "verifying"] }
 ed25519 = { version = "2", default-features = false, features = ["alloc", "std"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
@@ -783,10 +778,7 @@ uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
 wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
 wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
-wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
-wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
-wasmi-validation = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
-wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
+wasmi = { version = "0.38", features = ["extra-checks"] }
 wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
 wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
 wasmtime = { version = "44", features = ["winch"] }

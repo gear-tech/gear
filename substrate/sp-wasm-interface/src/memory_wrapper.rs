@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Wrapper around [`Memory`] that implements [`sp_allocator::Memory`].
+/// Wrapper around [`wasmtime::Memory`] that implements [`sp_allocator::Memory`].
 pub struct MemoryWrapper<'a, C>(&'a wasmtime::Memory, &'a mut C);
 
 impl<'a, C> From<(&'a wasmtime::Memory, &'a mut C)> for MemoryWrapper<'a, C> {
