@@ -193,7 +193,7 @@ async fn rejects_duplicate_code_ids() {
         .unwrap();
     assert_eq!(
         unwrap_rejected(status),
-        ValidationRejectReason::CodesHasDuplicates
+        ValidationRejectReason::CodesHaveDuplicates
     );
 }
 
