@@ -179,6 +179,8 @@ mod utils {
     /// Reuse [VALIDITY_WINDOW] with a `2` slots reserve, because it defines
     /// the exact number of blocks within transaction is valid and promise can appear.
     const MAX_PROMISE_WAITING_SLOTS: u64 = VALIDITY_WINDOW as u64 + 2u64;
+    /// The maximum number of pending receipts which are waiting for promise computation.
+    const MAX_PENDING_RECEIPTS_CACHE_CAPACITY: u64 = 2_000;
     /// The default capacity of pending receipts cache.
     const DEFAULT_PENDING_RECEIPTS_CACHE_CAPACITY: usize = 100;
 
@@ -196,6 +198,7 @@ mod utils {
 
         moka::sync::CacheBuilder::default()
             .initial_capacity(DEFAULT_PENDING_RECEIPTS_CACHE_CAPACITY)
+            .max_capacity(MAX_PENDING_RECEIPTS_CACHE_CAPACITY)
             .time_to_live(time_to_live)
             .build()
     }
