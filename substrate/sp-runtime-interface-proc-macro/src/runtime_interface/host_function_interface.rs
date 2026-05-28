@@ -121,7 +121,7 @@ fn generate_extern_host_function(
         #[doc = #doc_string]
         pub fn #function ( #( #args ),* ) #return_value {
             #[cfg_attr(any(target_arch = "riscv32", target_arch = "riscv64"), #crate_::polkavm::polkavm_import(abi = #crate_::polkavm::polkavm_abi))]
-            extern "C" {
+            unsafe extern "C" {
                 pub fn #ext_function (
                     #( #arg_names: <#arg_types as #crate_::RIType>::FFIType ),*
                 ) #ffi_return_value;

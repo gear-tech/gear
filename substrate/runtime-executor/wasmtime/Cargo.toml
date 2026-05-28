@@ -29,7 +29,6 @@ wasmtime = { features = [
 	"parallel-compilation",
 	"pooling-allocator",
 ], workspace = true }
-anyhow = { workspace = true }
 sp-allocator.workspace = true
 sp-allocator.default-features = true
 sc-executor-common.workspace = true

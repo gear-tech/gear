@@ -18,7 +18,14 @@ APACHE_SPDX="// SPDX-License-Identifier: Apache-2.0"
 
 expected_spdx_for() {
     case "$1" in
-        substrate/sp-allocator/* | substrate/substrate-wasm-builder/*)
+        substrate/sp-wasm-interface-common/src/util.rs)
+            printf '%s\n' "$GEAR_SPDX"
+            ;;
+        substrate/sp-allocator/* | \
+        substrate/sp-runtime-interface-proc-macro/* | \
+        substrate/sp-wasm-interface/* | \
+        substrate/sp-wasm-interface-common/* | \
+        substrate/substrate-wasm-builder/*)
             printf '%s\n' "$APACHE_SPDX"
             ;;
         *)
@@ -29,13 +36,21 @@ expected_spdx_for() {
 
 copyright_pattern_for() {
     case "$1" in
+        substrate/sp-wasm-interface-common/src/util.rs)
+            printf '%s\n' '^// Copyright'
+            ;;
         substrate/runtime-executor/wasmtime/src/host_state.rs | \
         substrate/runtime-executor/wasmtime/src/memory_wrapper.rs | \
         substrate/runtime-executor/wasmtime/src/store_data.rs)
             printf '%s\n' '^// Copyright'
             ;;
-        substrate/runtime-executor/* | substrate/sp-allocator/* | substrate/substrate-wasm-builder/*)
-            printf '%s\n' '^// Copyright [(]C[)] Parity Technologies'
+        substrate/runtime-executor/* | \
+        substrate/sp-allocator/* | \
+        substrate/sp-runtime-interface-proc-macro/* | \
+        substrate/sp-wasm-interface/* | \
+        substrate/sp-wasm-interface-common/* | \
+        substrate/substrate-wasm-builder/*)
+            printf '%s\n' '^// Copyright [(]C[)]( [0-9]{4}(-[0-9]{4})?)? Parity Technologies'
             ;;
         *)
             printf '%s\n' '^// Copyright'

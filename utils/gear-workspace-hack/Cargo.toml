@@ -260,6 +260,7 @@ clap_builder = { version = "4", default-features = false, features = ["color", "
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
 cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
+cranelift-codegen = { version = "0.131", default-features = false, features = ["host-arch", "pulley", "std", "timing", "unwind"] }
 crc32fast = { version = "1" }
 crossbeam-channel = { version = "0.5" }
 crossbeam-utils = { version = "0.8" }
@@ -481,14 +482,20 @@ unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
 wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
 wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
 wasmi-validation = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
 wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
 wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
 wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
+wasmtime = { version = "44", features = ["winch"] }
+wasmtime-environ = { version = "44", default-features = false, features = ["backtrace", "compile", "component-model", "demangle", "gc-drc", "gc-null", "stack-switching", "threads"] }
 wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
+wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
+wasmtime-internal-winch = { version = "44", default-features = false, features = ["component-model", "gc", "gc-drc", "gc-null", "stack-switching", "threads"] }
+winch-codegen = { version = "44", default-features = false, features = ["gc", "gc-drc", "gc-null", "stack-switching", "threads"] }
 winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
@@ -543,6 +550,8 @@ clap_builder = { version = "4", default-features = false, features = ["color", "
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
 cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
+cranelift-codegen = { version = "0.131", default-features = false, features = ["host-arch", "pulley", "std", "timing", "unwind"] }
+cranelift-codegen-meta = { version = "0.131", default-features = false, features = ["pulley"] }
 crc32fast = { version = "1" }
 crossbeam-channel = { version = "0.5" }
 crossbeam-utils = { version = "0.8" }
@@ -772,14 +781,20 @@ unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
 wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
 wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
 wasmi-validation = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
 wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["std"] }
 wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
 wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
+wasmtime = { version = "44", features = ["winch"] }
+wasmtime-environ = { version = "44", default-features = false, features = ["backtrace", "compile", "component-model", "demangle", "gc-drc", "gc-null", "stack-switching", "threads"] }
 wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
+wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
+wasmtime-internal-winch = { version = "44", default-features = false, features = ["component-model", "gc", "gc-drc", "gc-null", "stack-switching", "threads"] }
+winch-codegen = { version = "44", default-features = false, features = ["gc", "gc-drc", "gc-null", "stack-switching", "threads"] }
 winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
