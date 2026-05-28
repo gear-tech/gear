@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{trace, warn};
 
-// TODO: Issues #5384 and #5385.
+// TODO: #5385.
 type PromiseSubscribers =
     Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedTxReceipt>>>;
 type PendingReceiptsCache = moka::sync::Cache<HashOf<InjectedTransaction>, UnfilledPromiseReceipt>;
@@ -268,7 +268,7 @@ mod tests {
     }
 
     /// Producer signature lands first via gossip; the manager parks it
-    /// in `waiting_for_compute` and dispatches as soon as the local
+    /// in `pending_receipts` and dispatches as soon as the local
     /// body lands.
     #[tokio::test]
     async fn compact_first_then_body_dispatches() {
