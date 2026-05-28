@@ -282,7 +282,7 @@ impl MalachiteService {
             return;
         };
 
-        let mut new_set = Vec::with_capacity(self.validator_pool.len());
+        let mut new_set = Vec::with_capacity(addrs.len());
         let mut missing: Vec<Address> = Vec::new();
         for addr in addrs.iter() {
             match self.validator_pool.get(addr) {

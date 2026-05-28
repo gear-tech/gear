@@ -48,8 +48,8 @@ CONTAINER_PROMETHEUS_PORT="9635"
 
 # Malachite BFT consensus uses a separate libp2p TCP swarm (ethexe-network
 # is QUIC/UDP). Port 20334 is the default malachite listen address; we
-# also pre-derive a `validators -> identity` JSON file per node (the
-# `--validators-malachite-identities` operand).
+# also pre-derive one shared `validator -> identity` JSON file and copy it
+# into each node directory (the `--validators-malachite-identities` operand).
 MALACHITE_PORT_START="20334"
 CONTAINER_MALACHITE_PORT="20334"
 

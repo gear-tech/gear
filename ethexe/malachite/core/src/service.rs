@@ -159,7 +159,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
                          configured {configured_peer_id}, derived {local_peer_id}"
                     ));
                 }
-                let peer_id_bytes = libp2p_keypair.public().to_peer_id().to_bytes();
+                let peer_id_bytes = local_peer_id.to_bytes();
                 // Sign (validator_pubkey, peer_id_bytes) to bind
                 // libp2p identity to the validator's on-chain identity.
                 let signing_provider = MalachiteSigner::new(signer.private_key().clone());
