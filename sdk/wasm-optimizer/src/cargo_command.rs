@@ -26,7 +26,7 @@ impl CargoCommand {
         let rustc_version = rustc_version::version().expect("Failed to get rustc version");
         let linker_plugin_lto = rustc_version.major == 1 && rustc_version.minor >= 91;
 
-        let mut rustc_flags = vec!["-Clink-arg=--import-memory"];
+        let mut rustc_flags = vec!["-Clink-arg=--import-memory", "-Clink-arg=--allow-undefined"];
 
         if linker_plugin_lto {
             rustc_flags.extend_from_slice(&[
