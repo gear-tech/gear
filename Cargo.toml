@@ -12,118 +12,123 @@ resolver = "3"
 
 default-members = ["vara/node/cli"]
 
-exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/malachite", "ethexe/scripts"]
+exclude = [
+    "ethexe/contracts",
+    "ethexe/docker",
+    "ethexe/malachite",
+    "ethexe/scripts",
+]
 
 members = [
-  # protocol
-  "protocol/*",
-  "protocol/lazy-pages",
-  "protocol/lazy-pages/common",
-  "protocol/lazy-pages/fuzzer",
-  "protocol/lazy-pages/fuzzer/runner",
-  "protocol/lazy-pages/interface",
-  "protocol/lazy-pages/native-interface",
-  "protocol/sandbox",
-  "protocol/sandbox/env",
-  "protocol/sandbox/host",
-  # vara
-  "vara/common",
-  "vara/common/codegen",
-  "vara/sdk/builtins/*",
-  "vara/sdk/gcli",
-  "vara/sdk/gsdk",
-  "vara/sdk/node-wrapper",
-  "vara/node/authorship",
-  "vara/node/cli",
-  "vara/node/service",
-  "vara/node/testing",
-  "vara/pallets/*",
-  "vara/runtime/*",
-  "vara/runtime/interface/sandbox",
-  "vara/tools/*",
-  "vara/tools/runtime-fuzzer/fuzz",
-  "vara/tools/regression-analysis/junit-common",
-  # ethexe
-  "ethexe/*",
-  "ethexe/malachite/core",
-  "ethexe/malachite/service",
-  "ethexe/runtime/common",
-  "ethexe/service/utils",
-  # sdk
-  "sdk/cargo-gbuild",
-  "sdk/galloc",
-  "sdk/gcore",
-  "sdk/gstd",
-  "sdk/gstd/codegen",
-  "sdk/gsys",
-  "sdk/gtest",
-  "sdk/stack-buffer",
-  "sdk/wasm-builder",
-  "sdk/wasm-optimizer",
-  "sdk/wasm-proc",
-  # sdk/examples
-  "sdk/examples/async",
-  "sdk/examples/async-critical",
-  "sdk/examples/async-custom-entry",
-  "sdk/examples/async-init",
-  "sdk/examples/async-reply-hook",
-  "sdk/examples/async-signal-entry",
-  "sdk/examples/async-tester",
-  "sdk/examples/autoreply",
-  "sdk/examples/big-data-section",
-  "sdk/examples/bls381",
-  "sdk/examples/calc-hash",
-  "sdk/examples/custom",
-  "sdk/examples/delayed-reservation-sender",
-  "sdk/examples/compose",
-  "sdk/examples/constructor",
-  "sdk/examples/create-program-reentrance",
-  "sdk/examples/ctor",
-  "sdk/examples/delayed-sender",
-  "sdk/examples/distributor",
-  "sdk/examples/fungible-token",
-  "sdk/examples/stack-allocations",
-  "sdk/examples/futures-unordered",
-  "sdk/examples/gas-burned",
-  "sdk/examples/incomplete-async-payloads",
-  "sdk/examples/inheritor-in-error-reply",
-  "sdk/examples/init-fail-sender",
-  "sdk/examples/init-wait",
-  "sdk/examples/init-wait-reply-exit",
-  "sdk/examples/messenger",
-  "sdk/examples/mul-by-const",
-  "sdk/examples/ncompose",
-  "sdk/examples/node",
-  "sdk/examples/out-of-memory",
-  "sdk/examples/panic-payload",
-  "sdk/examples/piggy-bank",
-  "sdk/examples/ping",
-  "sdk/examples/program-factory",
-  "sdk/examples/program-generator",
-  "sdk/examples/proxy",
-  "sdk/examples/proxy-broker",
-  "sdk/examples/proxy-relay",
-  "sdk/examples/proxy-reservation-with-gas",
-  "sdk/examples/read-big-state",
-  "sdk/examples/reservation-manager",
-  "sdk/examples/reserve-gas",
-  "sdk/examples/rwlock",
-  "sdk/examples/send-from-reservation",
-  "sdk/examples/signal-entry",
-  "sdk/examples/state-rollback",
-  "sdk/examples/sync-duplicate",
-  "sdk/examples/syscalls",
-  "sdk/examples/syscall-error",
-  "sdk/examples/value-sender",
-  "sdk/examples/vec",
-  "sdk/examples/wait",
-  "sdk/examples/wait-timeout",
-  "sdk/examples/wait_wake",
-  "sdk/examples/waiter",
-  "sdk/examples/waiting-proxy",
-  "sdk/examples/wat",
-  # utils
-  "utils/*",
+    # protocol
+    "protocol/*",
+    "protocol/lazy-pages",
+    "protocol/lazy-pages/common",
+    "protocol/lazy-pages/fuzzer",
+    "protocol/lazy-pages/fuzzer/runner",
+    "protocol/lazy-pages/interface",
+    "protocol/lazy-pages/native-interface",
+    "protocol/sandbox",
+    "protocol/sandbox/env",
+    "protocol/sandbox/host",
+    # vara
+    "vara/common",
+    "vara/common/codegen",
+    "vara/sdk/builtins/*",
+    "vara/sdk/gcli",
+    "vara/sdk/gsdk",
+    "vara/sdk/node-wrapper",
+    "vara/node/authorship",
+    "vara/node/cli",
+    "vara/node/service",
+    "vara/node/testing",
+    "vara/pallets/*",
+    "vara/runtime/*",
+    "vara/runtime/interface/sandbox",
+    "vara/tools/*",
+    "vara/tools/runtime-fuzzer/fuzz",
+    "vara/tools/regression-analysis/junit-common",
+    # ethexe
+    "ethexe/*",
+    "ethexe/malachite/core",
+    "ethexe/malachite/service",
+    "ethexe/runtime/common",
+    "ethexe/service/utils",
+    # sdk
+    "sdk/cargo-gbuild",
+    "sdk/galloc",
+    "sdk/gcore",
+    "sdk/gstd",
+    "sdk/gstd/codegen",
+    "sdk/gsys",
+    "sdk/gtest",
+    "sdk/stack-buffer",
+    "sdk/wasm-builder",
+    "sdk/wasm-optimizer",
+    "sdk/wasm-proc",
+    # sdk/examples
+    "sdk/examples/async",
+    "sdk/examples/async-critical",
+    "sdk/examples/async-custom-entry",
+    "sdk/examples/async-init",
+    "sdk/examples/async-reply-hook",
+    "sdk/examples/async-signal-entry",
+    "sdk/examples/async-tester",
+    "sdk/examples/autoreply",
+    "sdk/examples/big-data-section",
+    "sdk/examples/bls381",
+    "sdk/examples/calc-hash",
+    "sdk/examples/custom",
+    "sdk/examples/delayed-reservation-sender",
+    "sdk/examples/compose",
+    "sdk/examples/constructor",
+    "sdk/examples/create-program-reentrance",
+    "sdk/examples/ctor",
+    "sdk/examples/delayed-sender",
+    "sdk/examples/distributor",
+    "sdk/examples/fungible-token",
+    "sdk/examples/stack-allocations",
+    "sdk/examples/futures-unordered",
+    "sdk/examples/gas-burned",
+    "sdk/examples/incomplete-async-payloads",
+    "sdk/examples/inheritor-in-error-reply",
+    "sdk/examples/init-fail-sender",
+    "sdk/examples/init-wait",
+    "sdk/examples/init-wait-reply-exit",
+    "sdk/examples/messenger",
+    "sdk/examples/mul-by-const",
+    "sdk/examples/ncompose",
+    "sdk/examples/node",
+    "sdk/examples/out-of-memory",
+    "sdk/examples/panic-payload",
+    "sdk/examples/piggy-bank",
+    "sdk/examples/ping",
+    "sdk/examples/program-factory",
+    "sdk/examples/program-generator",
+    "sdk/examples/proxy",
+    "sdk/examples/proxy-broker",
+    "sdk/examples/proxy-relay",
+    "sdk/examples/proxy-reservation-with-gas",
+    "sdk/examples/read-big-state",
+    "sdk/examples/reservation-manager",
+    "sdk/examples/reserve-gas",
+    "sdk/examples/rwlock",
+    "sdk/examples/send-from-reservation",
+    "sdk/examples/signal-entry",
+    "sdk/examples/state-rollback",
+    "sdk/examples/sync-duplicate",
+    "sdk/examples/syscalls",
+    "sdk/examples/syscall-error",
+    "sdk/examples/value-sender",
+    "sdk/examples/vec",
+    "sdk/examples/wait",
+    "sdk/examples/wait-timeout",
+    "sdk/examples/wait_wake",
+    "sdk/examples/waiter",
+    "sdk/examples/waiting-proxy",
+    "sdk/examples/wat",
+    # utils
+    "utils/*",
 ]
 
 [workspace.dependencies]
@@ -207,7 +212,10 @@ lru = "0.16.1"
 url = "2.5.2"
 wat = "1.0.71"
 wasmtime = { version = "44.0.1", features = ["winch"] }
-wasmparser = { version = "0.230", default-features = false, features = ["validate", "features"] }
+wasmparser = { version = "0.230", default-features = false, features = [
+    "validate",
+    "features",
+] }
 which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
@@ -232,6 +240,9 @@ tap = "1.0.1"
 ntest = "0.9.3"
 dashmap = "5.5.3"
 delegate = "0.13.5"
+chacha20poly1305 = "0.10"
+hkdf = { version = "0.12.4", default-features = false }
+zeroize = "1.8"
 
 # metrics
 metrics = "0.24.0"
@@ -338,30 +349,38 @@ ethexe-common = { path = "ethexe/common", default-features = false }
 ethexe-compute = { path = "ethexe/compute", default-features = false }
 ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
 ethexe-db-init = { path = "ethexe/db/init", default-features = false }
-ethexe-node-wrapper = {path = "ethexe/node-wrapper", default-features = false}
+ethexe-node-wrapper = { path = "ethexe/node-wrapper", default-features = false }
 ethexe-malachite = { path = "ethexe/malachite/service", default-features = false }
 ethexe-malachite-core = { path = "ethexe/malachite/core", default-features = false }
+ethexe-tpke = { path = "ethexe/tpke", default-features = false }
 
 # libp2p-identity for ethexe-malachite-core's swarm peer-id derivation.
-libp2p-identity = { version = "0.2", default-features = false, features = ["secp256k1"] }
+libp2p-identity = { version = "0.2", default-features = false, features = [
+    "secp256k1",
+] }
 # Pinned at the version `ethexe-db`'s librocksdb-sys uses — only one
 # `links = "rocksdb"` crate may live in the dependency graph.
 rocksdb = { version = "0.21", default-features = false, features = ["snappy"] }
 
 # Malachite BFT engine — canonical fork at circlefin/malachite, pinned so
 # all sub-crates share the same snapshot.
-malachitebft-app-channel     = { package = "arc-malachitebft-app-channel",    git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
-malachitebft-app             = { package = "arc-malachitebft-app",            git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
-malachitebft-codec           = { package = "arc-malachitebft-codec",          git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
-malachitebft-core-consensus  = { package = "arc-malachitebft-core-consensus", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
-malachitebft-core-types      = { package = "arc-malachitebft-core-types",     git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
-malachitebft-engine          = { package = "arc-malachitebft-engine",         git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
-malachitebft-proto           = { package = "arc-malachitebft-proto",          git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
-malachitebft-signing         = { package = "arc-malachitebft-signing",        git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-app-channel = { package = "arc-malachitebft-app-channel", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-app = { package = "arc-malachitebft-app", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-codec = { package = "arc-malachitebft-codec", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-core-consensus = { package = "arc-malachitebft-core-consensus", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-core-types = { package = "arc-malachitebft-core-types", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-engine = { package = "arc-malachitebft-engine", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-proto = { package = "arc-malachitebft-proto", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-signing = { package = "arc-malachitebft-signing", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
 malachitebft-signing-ed25519 = { package = "arc-malachitebft-signing-ed25519", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
-malachitebft-signing-ecdsa   = { package = "arc-malachitebft-signing-ecdsa",   git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7", default-features = false, features = ["k256", "rand", "serde", "std"] }
-malachitebft-sync            = { package = "arc-malachitebft-sync",           git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
-malachitebft-test            = { package = "arc-malachitebft-test",           git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-signing-ecdsa = { package = "arc-malachitebft-signing-ecdsa", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7", default-features = false, features = [
+    "k256",
+    "rand",
+    "serde",
+    "std",
+] }
+malachitebft-sync = { package = "arc-malachitebft-sync", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-test = { package = "arc-malachitebft-test", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { version = "0.38" }
@@ -594,7 +613,9 @@ num-traits = { version = "0.2", default-features = false } # gear-core
 glob = "0.3.1" # cargo-gbuild
 smallvec = "1.13.2" # vara/sdk/node-wrapper
 bytes = "1.8.0" # ethexe/malachite/core
-wasm-smith = { version = "0.230", features = ["wasmparser"] } # protocol/wasm-gen
+wasm-smith = { version = "0.230", features = [
+    "wasmparser",
+] } # protocol/wasm-gen
 wasm-encoder = { version = "0.230", default-features = false, features = [
     "wasmparser",
 ] } # protocol/wasm-instrument
