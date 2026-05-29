@@ -6975,6 +6975,7 @@ dependencies = [
  "pallet-sudo",
  "parity-scale-codec",
  "parking_lot 0.12.5",
+ "pathdiff",
  "sc-block-builder",
  "sc-client-api",
  "sc-proposer-metrics",
