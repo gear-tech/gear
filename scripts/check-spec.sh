@@ -36,20 +36,27 @@ check_spec() {
     fi
 }
 
-PACKAGES_REQUIRE_BUMP_SPEC="common core core-backend core-processor node pallets runtime-interface"
+PATHS_REQUIRE_BUMP_SPEC="vara/common protocol/core protocol/backend protocol/processor vara/node vara/pallets vara/runtime/interface"
 
 SPEC_ON_MASTER="$(git diff origin/master | sed -n -r "s/^\-[[:space:]]+spec_version: +([0-9]+),$/\1/p")"
-ACTUAL_SPEC_VARA="$(cat $ROOT_DIR/runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')"
+ACTUAL_SPEC_VARA="$(cat $ROOT_DIR/vara/runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')"
 
 if [ -z "$SPEC_ON_MASTER" ]; then
     SPEC_ON_MASTER=$ACTUAL_SPEC_VARA
 fi
 
-for package in $(git diff --name-only origin/master | grep ".rs$" | cut -d "/" -f1 | uniq); do
-    if [[ " ${PACKAGES_REQUIRE_BUMP_SPEC[@]} " =~ " ${package} " ]]; then
-        CHANGES="true"
-    fi
-done
+while read -r path; do
+    case "$path" in
+        *.rs) ;;
+        *) continue ;;
+    esac
+
+    for package in $PATHS_REQUIRE_BUMP_SPEC; do
+        if [[ "$path" == "$package"/* ]]; then
+            CHANGES="true"
+        fi
+    done
+done < <(git diff --name-only origin/master)
 
 EXIT_CODE=0
 

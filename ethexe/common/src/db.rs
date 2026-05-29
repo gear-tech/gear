@@ -8,7 +8,7 @@ use crate::{
     SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
     malachite::Transactions,
 };
 use alloc::{
@@ -116,8 +116,8 @@ pub trait InjectedStorageRO {
     /// Returns the promise by its transaction hash.
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 
-    /// Returns the compact promise by its transaction hash.
-    fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise>;
+    /// Returns the receipt by its transaction hash.
+    fn receipt(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedTxReceipt>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -126,7 +126,7 @@ pub trait InjectedStorageRW: InjectedStorageRO {
 
     fn set_promise(&self, promise: &Promise);
 
-    fn set_compact_promise(&self, promise: &SignedCompactPromise);
+    fn set_receipt(&self, receipt: &SignedTxReceipt);
 }
 
 /// MB static identity. Keyed by the Blake2b envelope hash; existence implies
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "512eb917dfc6c79ecfbab68492ceeb4871f6c47e4afd7040a74c5c34182a5969";
+            "d43d8ab319fb6d934231dba55950c9825e28c6ecf603e8076a90e0cab3855671";
 
         let types = [
             meta_type::<BlockMeta>(),

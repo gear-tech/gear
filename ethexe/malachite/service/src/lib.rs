@@ -28,8 +28,10 @@ pub use crate::{
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
-pub use ethexe_common::malachite::{
-    ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions,
+use ethexe_common::injected::PurgedTransaction;
+pub use ethexe_common::{
+    injected::SignedInjectedTransaction,
+    malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
 };
 pub use ethexe_malachite_core::{
     Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
@@ -56,6 +58,12 @@ pub enum MalachiteEvent {
         height: u64,
         mb_hash: H256,
     },
+
+    /// Transactions that were purged from the mempool.
+    PurgedTransactions {
+        eb_hash: H256,
+        transactions: Vec<PurgedTransaction>,
+    },
 }
 
 impl std::fmt::Display for MalachiteEvent {
@@ -75,6 +83,16 @@ impl std::fmt::Display for MalachiteEvent {
                 mb_hash,
                 cert.signatures.len()
             ),
+            Self::PurgedTransactions {
+                eb_hash,
+                transactions,
+            } => {
+                write!(
+                    f,
+                    "PurgedTransactions(eb_hash: {eb_hash}, transactions_len: {})",
+                    transactions.len()
+                )
+            }
         }
     }
 }
