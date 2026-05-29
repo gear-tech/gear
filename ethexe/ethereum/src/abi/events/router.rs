@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::abi::{IRouter, utils::*};
-use ethexe_common::{Digest, HashOf, events::router::*};
+use ethexe_common::{Digest, events::router::*};
 
 impl From<IRouter::BatchCommitted> for BatchCommittedEvent {
     fn from(value: IRouter::BatchCommitted) -> Self {
@@ -12,10 +12,15 @@ impl From<IRouter::BatchCommitted> for BatchCommittedEvent {
     }
 }
 
-impl From<IRouter::AnnouncesCommitted> for AnnouncesCommittedEvent {
-    fn from(value: IRouter::AnnouncesCommitted) -> Self {
-        // # Safety because of implementation
-        Self(unsafe { HashOf::new(value.head.0.into()) })
+impl From<IRouter::MBCommitted> for MBCommittedEvent {
+    fn from(value: IRouter::MBCommitted) -> Self {
+        Self(bytes32_to_h256(value.head))
+    }
+}
+
+impl From<IRouter::EBCommitted> for EBCommittedEvent {
+    fn from(value: IRouter::EBCommitted) -> Self {
+        Self(bytes32_to_h256(value.ethBlockHash))
     }
 }
 

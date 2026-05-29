@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # This script merges the output of the pallet_gear benchmarking functions into
 # a single file. This is necessary because the Substrate CLI outputs the weights
 # as one file per run, and the run_all_benchmarks.sh script makes multiple runs
@@ -13,8 +15,23 @@ ADDITIONAL_FILES=(
   "./scripts/benchmarking/weights-output/pallet_gear_onetime.rs"
 )
 
+weights1=()
+weights2=()
+DEFINITIONS=()
+
+if [ ! -f "$MAIN_FILE" ]; then
+  echo "[-] Main weight file is missing: $MAIN_FILE"
+  exit 1
+fi
+
 # Loop through the list of pallet_gear files and merge their functions.
 for FILE in "${ADDITIONAL_FILES[@]}"; do
+  if [ ! -f "$FILE" ]; then
+    echo "[-] Expected pallet_gear benchmark output is missing: $FILE"
+    echo "[-] The one-time extrinsics benchmark likely did not run; refusing to merge incomplete weights."
+    exit 1
+  fi
+
   echo "[+] Merging outputs from $FILE into $MAIN_FILE"
 
   ALL_WEIGHTS1=$(perl -0777 -nle 'print $1 if /(?:\G(?!^)|pallet_gear::WeightInfo for SubstrateWeight<T> {)\s(.*)}\s+\/\/ For backwards/gms' "$FILE")
@@ -23,7 +40,9 @@ for FILE in "${ADDITIONAL_FILES[@]}"; do
     weights1+=("$match")
   done < <(echo "$ALL_WEIGHTS1" | perl -0777 -nle 'print "$1\n" while / +(\/\/\/ The range of component [`\[\]\w\s,.]*?(^\s+fn gr_[\w\s\(\)->]+{$(?:.*)}))/gms')
 
-  DEFINITIONS=$(perl -0777 -nle 'print "$&\n" while / *fn gr_[\w_]+[\(\w:, \)->]+$/gms' "$FILE")
+  while IFS= read -r match; do
+    DEFINITIONS+=("$match")
+  done < <(perl -0777 -nle 'print "$&\n" while / *fn gr_[\w_]+[\(\w:, \)->]+$/gms' "$FILE")
 
   ALL_WEIGHTS2=$(perl -0777 -nle 'print $1 if /(?:\G(?!^)|WeightInfo for \(\) {)\s(.*)}/gms' "$FILE")
 

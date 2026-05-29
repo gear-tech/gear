@@ -6,11 +6,11 @@ use crate::{
     RpcService,
 };
 use ethexe_common::{
-    ValidatorsVec,
-    db::{InjectedStorageRW, OnChainStorageRW},
+    SignedMessage, ValidatorsVec,
+    db::OnChainStorageRW,
     ecdsa::{PrivateKey, PublicKey},
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, Promise, SignedCompactPromise},
+    injected::{AddressedInjectedTransaction, Promise, Receipt, SignedCompactTxReceipt},
     mock::Mock,
 };
 use ethexe_db::Database;
@@ -25,7 +25,6 @@ use tokio::task::{JoinHandle, JoinSet};
 struct MockService {
     rpc: RpcService,
     handle: ServerHandle,
-    db: Database,
     validator_key: PrivateKey,
 }
 
@@ -40,11 +39,11 @@ impl MockService {
             ValidatorsVec::try_from(vec![validator_address])
                 .expect("test validator set must be non-empty"),
         );
-        let (handle, rpc) = start_new_server(listen_addr, db.clone()).await;
+
+        let (handle, rpc) = start_new_server(listen_addr, db).await;
         Self {
             rpc,
             handle,
-            db,
             validator_key,
         }
     }
@@ -65,10 +64,11 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let promises = self.promises_bundle(tx_batch.drain(..));
-                        promises.into_iter().for_each(|promise| {
-                            self.rpc.receive_compact_promise(promise);
-                        });
+                        for tx in tx_batch.drain(..) {
+                            let (promise, receipt) = self.create_promise_for(tx);
+                            self.rpc.receive_computed_promise(promise);
+                            self.rpc.receive_tx_receipt(receipt);
+                        }
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -84,18 +84,17 @@ impl MockService {
         })
     }
 
-    fn promises_bundle(
+    fn create_promise_for(
         &self,
-        txs: impl IntoIterator<Item = AddressedInjectedTransaction>,
-    ) -> Vec<SignedCompactPromise> {
-        txs.into_iter()
-            .map(|tx| {
-                let promise = Promise::mock(tx.tx.data().to_hash());
-                self.db.set_promise(&promise);
-                SignedCompactPromise::create_from_promise(self.validator_key.clone(), &promise)
-                    .unwrap()
-            })
-            .collect()
+        tx: AddressedInjectedTransaction,
+    ) -> (Promise, SignedCompactTxReceipt) {
+        let promise = Promise::mock(tx.tx.data().to_hash());
+        let receipt = SignedMessage::create(
+            self.validator_key.clone(),
+            Receipt::Promise(promise.to_compact()),
+        )
+        .unwrap();
+        (promise, receipt.into())
     }
 }
 
@@ -148,14 +147,15 @@ async fn test_cleanup_promise_subscribers() {
                 .expect("Subscription will be created");
 
             subscribers.spawn(async move {
-                let promise = sub
+                let receipt = sub
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
 
@@ -176,14 +176,15 @@ async fn test_cleanup_promise_subscribers() {
                 .expect("Subscription will be created");
 
             subscribers.spawn(async move {
-                let promise = subscription
+                let receipt = subscription
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
             });
@@ -239,14 +240,15 @@ async fn test_concurrent_multiple_clients() {
                     .await
                     .expect("Subscription will be created");
 
-                let promise = subscription
+                let receipt = subscription
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
 

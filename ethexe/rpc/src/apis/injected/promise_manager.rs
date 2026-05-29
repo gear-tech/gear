@@ -4,20 +4,24 @@
 use anyhow::Result;
 use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
-    HashOf,
+    Address, HashOf,
     db::{
         ConfigStorageRO, GlobalsStorageRO, InjectedStorageRO, InjectedStorageRW, OnChainStorageRO,
     },
-    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedPromise},
+    injected::{
+        InjectedTransaction, Promise, SignedCompactTxReceipt, SignedTxReceipt,
+        TryFillPromiseResult, UnfilledPromiseReceipt, UpgradedReceipt,
+    },
 };
 use ethexe_db::Database;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{trace, warn};
 
-// TODO: Issue #5384.
-type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
-type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, SignedCompactPromise>>;
+// TODO: Issues #5384 and #5385.
+type PromiseSubscribers =
+    Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedTxReceipt>>>;
+type ReceiptsComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, UnfilledPromiseReceipt>>;
 
 /// The manager for promise subscribers.
 #[derive(Debug, Clone)]
@@ -25,7 +29,7 @@ pub struct PromiseSubscriptionManager {
     db: Database,
     subscribers: PromiseSubscribers,
 
-    waiting_for_compute: PromisesComputationWaiting,
+    waiting_for_compute: ReceiptsComputationWaiting,
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -34,16 +38,16 @@ pub enum RegisterSubscriberError {
     AlreadyRegistered(HashOf<InjectedTransaction>),
 }
 
-type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedPromise>>;
+type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedTxReceipt>>;
 
-/// The pending [SignedPromise] subscriber.
+/// The pending [SignedTxReceipt] subscriber.
 /// Subscriber will be spawned in separate tokio runtime task and will wait for promise.
 ///
 /// Important: to avoid infinite waiting we wrap [oneshot::Receiver] into [tokio::time::timeout].
 pub struct PendingSubscriber {
     /// Tx hash waiting promise for.
     tx_hash: HashOf<InjectedTransaction>,
-    /// Wrapped promise [oneshot::Receiver].
+    /// Wrapped tx receipt [oneshot::Receiver].
     receiver: TimeoutReceiver,
 }
 
@@ -51,9 +55,9 @@ impl PendingSubscriber {
     pub fn new(
         db: &Database,
         tx_hash: HashOf<InjectedTransaction>,
-        receiver: oneshot::Receiver<SignedPromise>,
+        receiver: oneshot::Receiver<SignedTxReceipt>,
     ) -> Self {
-        let timeout_duration = utils::promise_waiting_timeout(db);
+        let timeout_duration = utils::receipt_waiting_timeout(db);
         let receiver = tokio::time::timeout(timeout_duration, receiver);
         Self { tx_hash, receiver }
     }
@@ -68,7 +72,7 @@ impl PromiseSubscriptionManager {
         Self {
             db,
             subscribers: PromiseSubscribers::default(),
-            waiting_for_compute: PromisesComputationWaiting::default(),
+            waiting_for_compute: ReceiptsComputationWaiting::default(),
         }
     }
 
@@ -90,35 +94,41 @@ impl PromiseSubscriptionManager {
     pub fn cancel_registration(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> Option<oneshot::Sender<SignedPromise>> {
+    ) -> Option<oneshot::Sender<SignedTxReceipt>> {
         self.subscribers.remove(&tx_hash).map(|(_, v)| v)
     }
 
-    pub fn on_compact_promise(&self, compact: SignedCompactPromise) {
-        trace!(?compact, "received new compact promise");
-        let tx_hash = compact.data().tx_hash;
+    // TODO: Issue #5403
+    pub fn on_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
+        trace!(?receipt, "received new compact receipt");
 
-        if !self.compact_promise_signed_by_known_validator(&compact) {
+        if !self.compact_receipt_signed_by_known_validator(&receipt) {
             return;
         }
 
-        match self.db.promise(tx_hash) {
-            Some(promise) => match compact.restore(promise) {
-                Ok(signed_promise) => {
-                    self.db.set_compact_promise(&compact);
-                    self.dispatch_promise(signed_promise);
-                }
+        let unfilled_promise = match receipt.upgrade() {
+            UpgradedReceipt::Ready(receipt) => {
+                self.store_and_dispatch_receipt(receipt);
+                return;
+            }
+            UpgradedReceipt::Pending(unfilled_promise) => unfilled_promise,
+        };
 
-                Err(err) => {
+        let tx_hash = unfilled_promise.tx_hash;
+        match self.db.promise(tx_hash) {
+            Some(promise) => match unfilled_promise.try_fill_with(promise) {
+                TryFillPromiseResult::Filled(receipt) => self.store_and_dispatch_receipt(receipt),
+                TryFillPromiseResult::HashesMismatch(unfilled) => {
                     warn!(
-                        ?compact, %tx_hash, error=?err, "failed to create signed promise from parts, producer send invalid signature: compact_promise={compact:?}"
+                        ?unfilled,
+                        "locally computed promise do not match producer's receipt"
                     );
-                    self.waiting_for_compute.insert(tx_hash, compact);
+                    self.waiting_for_compute.insert(tx_hash, unfilled);
                 }
             },
             None => {
                 trace!("not found promise in database, waiting for computation...");
-                self.waiting_for_compute.insert(tx_hash, compact);
+                self.waiting_for_compute.insert(tx_hash, unfilled_promise);
             }
         }
     }
@@ -127,30 +137,38 @@ impl PromiseSubscriptionManager {
         trace!(?promise, "received new computed promise");
         self.db.set_promise(&promise);
 
-        if let Some((_, compact_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) {
-            if !self.compact_promise_signed_by_known_validator(&compact_promise) {
-                return;
-            }
+        let Some((_, unfilled_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) else {
+            return;
+        };
 
-            match compact_promise.restore(promise) {
-                Ok(signed_promise) => {
-                    self.db.set_compact_promise(&compact_promise);
-                    self.dispatch_promise(signed_promise);
-                }
-                Err(_err) => {
-                    trace!(?compact_promise, tx_hash=?compact_promise.data().tx_hash, "failed to create signed promise from parts");
-                }
+        match unfilled_promise.try_fill_with(promise) {
+            TryFillPromiseResult::Filled(signed_receipt) => {
+                self.store_and_dispatch_receipt(signed_receipt)
+            }
+            TryFillPromiseResult::HashesMismatch(unfilled) => {
+                warn!(
+                    ?unfilled,
+                    "locally computed promise do not match producer's receipt"
+                );
+                self.waiting_for_compute.insert(unfilled.tx_hash, unfilled);
             }
         }
     }
 
-    pub(crate) fn compact_promise_signed_by_known_validator(
+    pub(crate) fn tx_receipt_signed_by_known_validator(&self, receipt: &SignedTxReceipt) -> bool {
+        self.signer_is_known_validator(receipt.address(), receipt.data().tx_hash())
+    }
+
+    fn compact_receipt_signed_by_known_validator(&self, receipt: &SignedCompactTxReceipt) -> bool {
+        self.signer_is_known_validator(receipt.address(), receipt.data().tx_hash())
+    }
+
+    fn signer_is_known_validator(
         &self,
-        compact: &SignedCompactPromise,
+        address: Address,
+        tx_hash: HashOf<InjectedTransaction>,
     ) -> bool {
-        let address = compact.address();
-        let tx_hash = compact.data().tx_hash;
-        let timestamp = self.db.globals().latest_synced_block.header.timestamp;
+        let timestamp = self.db.globals().latest_synced_eb.header.timestamp;
         let timelines = self.db.config().timelines;
 
         let Some(current_era) = timelines.era_from_ts(timestamp) else {
@@ -158,7 +176,7 @@ impl PromiseSubscriptionManager {
                 %tx_hash,
                 ?address,
                 timestamp,
-                "failed to calculate current era for compact promise validator check"
+                "failed to calculate current era for tx receipt validator check"
             );
             return false;
         };
@@ -168,7 +186,7 @@ impl PromiseSubscriptionManager {
                 %tx_hash,
                 ?address,
                 current_era,
-                "current validator set not found for compact promise validator check"
+                "current validator set not found for tx receipt validator check"
             );
             return false;
         };
@@ -180,23 +198,28 @@ impl PromiseSubscriptionManager {
                 .is_some_and(|next_validators| next_validators.contains(&address));
 
         if !signer_is_known {
-            warn!(
+            trace!(
                 %tx_hash,
                 ?address,
                 current_era,
-                "compact promise signer is not in the known validator set"
+                "tx receipt signer is not in the known validator set"
             );
         }
 
         signer_is_known
     }
 
-    fn dispatch_promise(&self, promise: SignedPromise) {
-        if let Some((_, sender)) = self.subscribers.remove(&promise.data().tx_hash)
-            && let Err(unsent_promise) = sender.send(promise)
+    fn dispatch_receipt(&self, receipt: SignedTxReceipt) {
+        if let Some((_, sender)) = self.subscribers.remove(&receipt.data().tx_hash())
+            && let Err(unsent_receipt) = sender.send(receipt)
         {
-            trace!("failed to send promise to subscriber, promise={unsent_promise:?}");
+            trace!("failed to send receipt to subscriber, receipt={unsent_receipt:?}");
         }
+    }
+
+    fn store_and_dispatch_receipt(&self, receipt: SignedTxReceipt) {
+        self.db.set_receipt(&receipt);
+        self.dispatch_receipt(receipt);
     }
 
     #[cfg(test)]
@@ -212,7 +235,7 @@ mod utils {
     const MAX_PROMISE_WAITING_SLOTS: u64 = 20;
 
     /// Returns the maximum time that spawned [super::PendingSubscriber] will wait for promise.
-    pub fn promise_waiting_timeout<DB: ConfigStorageRO>(db: &DB) -> std::time::Duration {
+    pub fn receipt_waiting_timeout<DB: ConfigStorageRO>(db: &DB) -> std::time::Duration {
         let slot_duration_secs = db.config().timelines.slot.get();
         std::time::Duration::from_secs(slot_duration_secs * MAX_PROMISE_WAITING_SLOTS)
     }
@@ -222,12 +245,20 @@ mod utils {
 mod tests {
     use super::*;
     use ethexe_common::{
-        Address, ValidatorsVec,
-        db::{InjectedStorageRO, OnChainStorageRW},
+        Address, SignedMessage, ValidatorsVec,
+        db::OnChainStorageRW,
         ecdsa::PrivateKey,
-        injected::SignedCompactPromise,
+        injected::{InjectedTransaction, Receipt},
         mock::Mock,
     };
+    use gear_core::{message::ReplyCode, rpc::ReplyInfo};
+
+    fn make_promise() -> (Promise, PrivateKey) {
+        let private_key = PrivateKey::random();
+        let tx = InjectedTransaction::mock(());
+        let promise = Promise::mock(tx.to_hash());
+        (promise, private_key)
+    }
 
     fn set_current_validators(db: &Database, validators: Vec<Address>) {
         db.set_validators(
@@ -243,54 +274,185 @@ mod tests {
         );
     }
 
-    fn signed_compact_promise(private_key: PrivateKey) -> (Promise, SignedCompactPromise) {
-        let promise = Promise::mock(());
-        let compact = SignedCompactPromise::create_from_promise(private_key, &promise)
-            .expect("compact promise signing succeeds");
+    fn register(
+        manager: &PromiseSubscriptionManager,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> std::pin::Pin<Box<oneshot::Receiver<SignedTxReceipt>>> {
+        let pending = match manager.try_register_subscriber(tx_hash) {
+            Ok(pending) => pending,
+            Err(err) => panic!("first registration must succeed: {err}"),
+        };
+        let (_, receiver) = pending.into_parts();
+        // Inner oneshot::Receiver is Unpin; the outer Timeout is not,
+        // hence we discard the timeout wrapper (tests drive their own
+        // timing via tokio::time::timeout below).
+        Box::pin(receiver.into_inner())
+    }
 
-        (promise, compact)
+    /// Producer signature lands after the local node has already
+    /// computed the matching body — manager joins the two and delivers
+    /// the full [`SignedTxReceipt`] to the subscriber.
+    #[tokio::test]
+    async fn body_first_then_compact_dispatches() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+
+        let mut receiver = register(&manager, tx_hash);
+
+        manager.on_computed_promise(promise.clone());
+        assert_eq!(manager.subscribers_count(), 1);
+
+        let receipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
+        set_current_validators(&db, vec![receipt.address()]);
+        manager.on_tx_receipt(receipt.into());
+
+        let delivered = receiver.as_mut().await.unwrap();
+        let expected_receipt = Receipt::Promise(promise.clone());
+        assert_eq!(delivered.data().clone(), expected_receipt);
+        assert_eq!(manager.subscribers_count(), 0);
+        assert_eq!(db.promise(tx_hash), Some(promise));
+        assert_eq!(
+            db.receipt(tx_hash).unwrap().data().clone(),
+            expected_receipt
+        );
+    }
+
+    /// Producer signature lands first via gossip; the manager parks it
+    /// in `waiting_for_compute` and dispatches as soon as the local
+    /// body lands.
+    #[tokio::test]
+    async fn compact_first_then_body_dispatches() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+
+        let mut receiver = register(&manager, tx_hash);
+
+        let receipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
+        set_current_validators(&db, vec![receipt.address()]);
+        manager.on_tx_receipt(receipt.into());
+        assert_eq!(manager.subscribers_count(), 1);
+
+        manager.on_computed_promise(promise.clone());
+        let delivered = receiver.as_mut().await.unwrap();
+        let expected_receipt = Receipt::Promise(promise.clone());
+
+        assert_eq!(delivered.data(), &Receipt::Promise(promise.clone()));
+        assert_eq!(manager.subscribers_count(), 0);
+        assert_eq!(db.promise(tx_hash), Some(promise));
+        assert_eq!(
+            db.receipt(tx_hash).unwrap().data().clone(),
+            expected_receipt
+        );
+    }
+
+    /// A duplicate registration for the same tx hash is rejected.
+    #[tokio::test]
+    async fn duplicate_subscriber_rejected() {
+        let manager = PromiseSubscriptionManager::new(Database::memory());
+        let (promise, _) = make_promise();
+        let _first = manager.try_register_subscriber(promise.tx_hash).ok();
+        let err = manager
+            .try_register_subscriber(promise.tx_hash)
+            .err()
+            .expect("second registration must fail");
+        assert!(matches!(err, RegisterSubscriberError::AlreadyRegistered(_)));
+    }
+
+    /// A compact promise whose signature does not match the body that
+    /// arrives later is parked rather than delivering a malformed
+    /// [`SignedTxReceipt`].
+    #[tokio::test]
+    async fn compact_with_wrong_signature_is_parked() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+
+        let mut receiver = register(&manager, tx_hash);
+
+        let other_promise = Promise {
+            tx_hash,
+            reply: ReplyInfo {
+                payload: vec![1, 2, 3],
+                value: 0,
+                code: ReplyCode::Unsupported,
+            },
+        };
+        let bad_receipt =
+            SignedMessage::create(private_key, Receipt::Promise(other_promise.to_compact()))
+                .unwrap();
+        set_current_validators(&db, vec![bad_receipt.address()]);
+        manager.on_tx_receipt(bad_receipt.into());
+        manager.on_computed_promise(promise.clone());
+
+        let elapsed =
+            tokio::time::timeout(std::time::Duration::from_millis(50), receiver.as_mut()).await;
+        assert!(elapsed.is_err(), "no signed promise should be delivered");
+        assert_eq!(db.promise(tx_hash), Some(promise));
+        assert_eq!(db.receipt(tx_hash), None);
     }
 
     #[test]
-    fn on_compact_promise_ignores_non_validator_signature() {
+    fn on_tx_receipt_ignores_non_validator_signature() {
         let db = Database::memory();
         let manager = PromiseSubscriptionManager::new(db.clone());
-        let (promise, compact) = signed_compact_promise(PrivateKey::random());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+        let receipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
 
         set_current_validators(&db, vec![Address::from(1)]);
         db.set_promise(&promise);
 
-        manager.on_compact_promise(compact);
+        manager.on_tx_receipt(receipt.into());
 
-        assert_eq!(db.compact_promise(promise.tx_hash), None);
+        assert_eq!(db.receipt(tx_hash), None);
     }
 
     #[test]
-    fn on_compact_promise_accepts_validator_signature() {
+    fn on_tx_receipt_accepts_validator_signature() {
         let db = Database::memory();
         let manager = PromiseSubscriptionManager::new(db.clone());
-        let (promise, compact) = signed_compact_promise(PrivateKey::random());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+        let receipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
 
-        set_current_validators(&db, vec![compact.address()]);
+        set_current_validators(&db, vec![receipt.address()]);
         db.set_promise(&promise);
 
-        manager.on_compact_promise(compact.clone());
+        manager.on_tx_receipt(receipt.into());
 
-        assert_eq!(db.compact_promise(promise.tx_hash), Some(compact));
+        assert_eq!(
+            db.receipt(tx_hash).unwrap().data(),
+            &Receipt::Promise(promise)
+        );
     }
 
     #[test]
-    fn on_compact_promise_accepts_next_era_validator_signature() {
+    fn on_tx_receipt_accepts_next_era_validator_signature() {
         let db = Database::memory();
         let manager = PromiseSubscriptionManager::new(db.clone());
-        let (promise, compact) = signed_compact_promise(PrivateKey::random());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+        let receipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
 
         set_current_validators(&db, vec![Address::from(1)]);
-        set_next_validators(&db, vec![compact.address()]);
+        set_next_validators(&db, vec![receipt.address()]);
         db.set_promise(&promise);
 
-        manager.on_compact_promise(compact.clone());
+        manager.on_tx_receipt(receipt.into());
 
-        assert_eq!(db.compact_promise(promise.tx_hash), Some(compact));
+        assert_eq!(
+            db.receipt(tx_hash).unwrap().data(),
+            &Receipt::Promise(promise)
+        );
     }
 }
