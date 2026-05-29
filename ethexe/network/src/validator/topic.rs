@@ -10,7 +10,7 @@ use crate::{
 };
 use ethexe_common::{
     Address, HashOf,
-    injected::{InjectedTransaction, SignedCompactTxReceipt},
+    injected::{InjectedTransaction, SignedCompactTxReceipt, SignedInjectedTransaction},
     network::VerifiedValidatorMessage,
 };
 use lru::LruCache;

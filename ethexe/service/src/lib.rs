@@ -666,7 +666,7 @@ impl Service {
         // One fan-out can park N senders under the same tx_hash (one per
         // recipient validator), so we hold a Vec — earlier inserts must
         // not be clobbered by later ones.
-        let mut network_injected_txs: HashMap<_, Vec<oneshot::Sender<_>>> = HashMap::new();
+        // let mut network_injected_txs: HashMap<_, Vec<oneshot::Sender<_>>> = HashMap::new();
 
         loop {
             let event: Event = tokio::select! {
@@ -832,36 +832,14 @@ impl Service {
                                 }
                             }
                         },
-                        NetworkEvent::InjectedTransaction(event) => match event {
-                            ethexe_network::NetworkInjectedEvent::InboundTransaction {
-                                peer: _,
-                                transaction,
-                                channel,
-                            } => {
-                                let acceptance = if let Some(m) = malachite.as_mut() {
-                                    ethexe_malachite::classify_insert_outcome(
-                                        m.receive_injected_transaction((*transaction).clone()),
-                                    )
-                                } else {
-                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept
-                                };
-                                let _ = channel.send(acceptance);
+                        NetworkEvent::InjectedTransactionMessage(transaction) => {
+                            if let Some(malachite) = malachite.as_mut()
+                                && let Err(error) =
+                                    malachite.receive_injected_transaction(transaction)
+                            {
+                                tracing::error!(?error, "failed to save transaction in mempool");
                             }
-                            ethexe_network::NetworkInjectedEvent::OutboundAcceptance {
-                                transaction_hash,
-                                acceptance,
-                            } => {
-                                if let Some(senders) =
-                                    network_injected_txs.get_mut(&transaction_hash)
-                                    && let Some(response_sender) = senders.pop()
-                                {
-                                    let _res = response_sender.send(acceptance);
-                                    if senders.is_empty() {
-                                        network_injected_txs.remove(&transaction_hash);
-                                    }
-                                }
-                            }
-                        },
+                        }
                         NetworkEvent::TxReceiptMessage(receipt) => {
                             if let Some(rpc) = &rpc {
                                 rpc.receive_tx_receipt(receipt);
@@ -876,41 +854,16 @@ impl Service {
                     log::trace!("Received RPC event: {event:?}");
 
                     match event {
-                        RpcEvent::InjectedTransaction {
-                            transaction,
-                            response_sender,
-                        } => {
-                            // zero address means that no matter what validator will insert this tx.
-                            let is_zero_address = transaction.recipient == Address::default();
-                            let is_our_address = Some(transaction.recipient) == validator_address;
+                        RpcEvent::InjectedTransaction { transaction } => {
+                            if let Some(network) = network.as_mut() {
+                                network.send_injected_transaction(transaction.clone());
+                            };
 
-                            if is_zero_address || is_our_address {
-                                let acceptance = if let Some(m) = malachite.as_mut() {
-                                    ethexe_malachite::classify_insert_outcome(
-                                        m.receive_injected_transaction(transaction.tx.clone()),
-                                    )
-                                } else {
-                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept
-                                };
-                                let _res = response_sender.send(acceptance);
-                            } else {
-                                let Some(network) = network.as_mut() else {
-                                    continue;
-                                };
-
-                                let tx_hash = transaction.tx.data().to_hash();
-
-                                match network.send_injected_transaction(transaction) {
-                                    Ok(()) => {
-                                        network_injected_txs
-                                            .entry(tx_hash)
-                                            .or_default()
-                                            .push(response_sender);
-                                    }
-                                    Err(err) => {
-                                        let _res = response_sender.send(Err(err).into());
-                                    }
-                                }
+                            if let Some(malachite) = malachite.as_mut()
+                                && let Err(error) =
+                                    malachite.receive_injected_transaction(transaction)
+                            {
+                                tracing::error!(?error, "failed to insert transaction to mempool");
                             }
                         }
                     }

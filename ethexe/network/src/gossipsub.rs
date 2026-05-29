@@ -8,7 +8,11 @@ use crate::{
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{Address, injected::SignedCompactTxReceipt, network::SignedValidatorMessage};
+use ethexe_common::{
+    Address,
+    injected::{SignedCompactTxReceipt, SignedInjectedTransaction},
+    network::SignedValidatorMessage,
+};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -32,6 +36,7 @@ pub enum Message {
     // TODO: rename to `Validators`
     Commitments(SignedValidatorMessage),
     TxReceipt(SignedCompactTxReceipt),
+    InjectedTransaction(SignedInjectedTransaction),
 }
 
 impl Message {
@@ -39,6 +44,7 @@ impl Message {
         match self {
             Message::Commitments(_) => behaviour.commitments_topic.hash(),
             Message::TxReceipt(_) => behaviour.tx_receipts_topic.hash(),
+            Message::InjectedTransaction(_) => behaviour.transactions_topic.hash(),
         }
     }
 
@@ -46,6 +52,7 @@ impl Message {
         match self {
             Message::Commitments(message) => message.encode(),
             Message::TxReceipt(message) => message.encode(),
+            Message::InjectedTransaction(message) => message.encode(),
         }
     }
 }
@@ -98,6 +105,7 @@ pub(crate) struct Behaviour {
     message_queue: VecDeque<Message>,
     commitments_topic: IdentTopic,
     tx_receipts_topic: IdentTopic,
+    transactions_topic: IdentTopic,
     metrics: Arc<libp2p::metrics::Metrics>,
 }
 
@@ -111,6 +119,7 @@ impl Behaviour {
     ) -> anyhow::Result<Self> {
         let commitments_topic = Self::topic_with_router("commitments", router_address);
         let tx_receipts_topic = Self::topic_with_router("receipts", router_address);
+        let transactions_topic = Self::topic_with_router("transactions", router_address);
 
         let inner = ConfigBuilder::default()
             // dedup messages
@@ -142,6 +151,7 @@ impl Behaviour {
             message_queue: VecDeque::new(),
             commitments_topic,
             tx_receipts_topic,
+            transactions_topic,
             metrics,
         })
     }

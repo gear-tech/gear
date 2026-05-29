@@ -212,20 +212,21 @@ impl<'a> Mirror<'a> {
 
         let message_id = injected_transaction.to_message_id();
 
-        let result: InjectedTransactionAcceptance = self
+        let result = self
             .api
             .vara_eth_client
             .send_transaction(transaction)
             .await
             .with_context(|| "failed to send injected transaction")?;
 
-        match result {
-            InjectedTransactionAcceptance::Accept
-            | InjectedTransactionAcceptance::AlreadyPooled { .. } => Ok(message_id),
-            InjectedTransactionAcceptance::Reject { reason } => {
-                Err(anyhow!("injected transaction was rejected: {reason}"))
-            }
-        }
+        // match result {
+        //     InjectedTransactionAcceptance::Accept
+        //     | InjectedTransactionAcceptance::AlreadyPooled { .. } => Ok(message_id),
+        //     InjectedTransactionAcceptance::Reject { reason } => {
+        //         Err(anyhow!("injected transaction was rejected: {reason}"))
+        //     }
+        // }
+        Ok(message_id)
     }
 
     pub async fn send_message_injected_and_watch(

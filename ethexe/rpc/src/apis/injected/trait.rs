@@ -28,7 +28,7 @@ pub trait Injected {
     async fn send_transaction(
         &self,
         transaction: SignedInjectedTransaction,
-    ) -> jsonrpsee::core::RpcResult<InjectedTransactionAcceptance>;
+    ) -> jsonrpsee::core::RpcResult<()>;
 
     /// Sends an injected transaction and subscribes to its promise.
     #[subscription(

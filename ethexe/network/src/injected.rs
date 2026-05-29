@@ -4,14 +4,10 @@
 use crate::{
     db_sync::{Multiaddr, PeerId},
     utils::ParityScaleCodec,
-    validator::discovery::ValidatorIdentities,
 };
 use ethexe_common::{
     Address, HashOf,
-    injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction,
-    },
+    injected::{InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction},
 };
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use libp2p::{
@@ -158,41 +154,41 @@ impl Behaviour {
         }
     }
 
-    pub fn send_transaction(
-        &mut self,
-        identities: &ValidatorIdentities,
-        transaction: AddressedInjectedTransaction,
-    ) -> Result<(), SendTransactionError> {
-        let AddressedInjectedTransaction { recipient, tx } = transaction;
-        let tx_hash = tx.data().to_hash();
+    // pub fn send_transaction(
+    //     &mut self,
+    //     identities: &ValidatorIdentities,
+    //     transaction: AddressedInjectedTransaction,
+    // ) -> Result<(), SendTransactionError> {
+    //     let AddressedInjectedTransaction { recipient, tx } = transaction;
+    //     let tx_hash = tx.data().to_hash();
 
-        if self.pending_requests.len() >= MAX_PENDING_REQUESTS.get() {
-            return Err(SendTransactionError::TooManyPendingRequests);
-        }
+    //     if self.pending_requests.len() >= MAX_PENDING_REQUESTS.get() {
+    //         return Err(SendTransactionError::TooManyPendingRequests);
+    //     }
 
-        if let Some(transactions) = self.transaction_cache.get_mut(&tx_hash)
-            && let Some(&()) = transactions.get(&recipient)
-        {
-            return Err(SendTransactionError::TransactionAlreadySent);
-        }
+    //     if let Some(transactions) = self.transaction_cache.get_mut(&tx_hash)
+    //         && let Some(&()) = transactions.get(&recipient)
+    //     {
+    //         return Err(SendTransactionError::TransactionAlreadySent);
+    //     }
 
-        let identity = identities
-            .get(&recipient)
-            .ok_or(SendTransactionError::ValidatorNotFound)?;
-        let peer_id = identity.peer_id();
-        let addresses = identity.addresses().iter().cloned().collect();
+    //     let identity = identities
+    //         .get(&recipient)
+    //         .ok_or(SendTransactionError::ValidatorNotFound)?;
+    //     let peer_id = identity.peer_id();
+    //     let addresses = identity.addresses().iter().cloned().collect();
 
-        let id = self
-            .inner
-            .send_request_with_addresses(&peer_id, InnerRequest(tx), addresses);
-        self.pending_requests.insert(id, tx_hash);
+    //     let id = self
+    //         .inner
+    //         .send_request_with_addresses(&peer_id, InnerRequest(tx), addresses);
+    //     self.pending_requests.insert(id, tx_hash);
 
-        self.transaction_cache
-            .get_or_insert_mut(tx_hash, || LruCache::new(MAX_VALIDATORS_PER_TRANSACTION))
-            .put(recipient, ());
+    //     self.transaction_cache
+    //         .get_or_insert_mut(tx_hash, || LruCache::new(MAX_VALIDATORS_PER_TRANSACTION))
+    //         .put(recipient, ());
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     fn handle_inner_event(
         &mut self,
@@ -535,6 +531,7 @@ mod tests {
 
         alice
             .behaviour_mut()
+            .gossipsub
             .send_transaction(&identities, transaction.clone())
             .unwrap();
         let alice_handle = tokio::spawn(async move {
@@ -561,57 +558,57 @@ mod tests {
         alice_handle.await.unwrap();
     }
 
-    #[tokio::test]
-    async fn too_many_pending_requests() {
-        init_logger();
+    // #[tokio::test]
+    // async fn too_many_pending_requests() {
+    //     init_logger();
 
-        let mut alice = Behaviour::new();
-        let (_bob, bob_identity) = new_swarm().await;
-        let bob_address = bob_identity.address();
+    //     let mut alice = Behaviour::new();
+    //     let (_bob, bob_identity) = new_swarm().await;
+    //     let bob_address = bob_identity.address();
 
-        let identities = [(bob_address, bob_identity)].into();
+    //     let identities = [(bob_address, bob_identity)].into();
 
-        for _ in 0..MAX_PENDING_REQUESTS.get() {
-            let transaction = addressed_injected_tx(bob_address);
-            alice.send_transaction(&identities, transaction).unwrap();
-        }
+    //     for _ in 0..MAX_PENDING_REQUESTS.get() {
+    //         let transaction = addressed_injected_tx(bob_address);
+    //         alice.send_transaction(&identities, transaction).unwrap();
+    //     }
 
-        let transaction = addressed_injected_tx(bob_address);
-        let err = alice
-            .send_transaction(&identities, transaction)
-            .unwrap_err();
-        assert_eq!(err, SendTransactionError::TooManyPendingRequests);
-    }
+    //     let transaction = addressed_injected_tx(bob_address);
+    //     let err = alice
+    //         .send_transaction(&identities, transaction)
+    //         .unwrap_err();
+    //     assert_eq!(err, SendTransactionError::TooManyPendingRequests);
+    // }
 
-    #[tokio::test]
-    async fn transaction_already_sent() {
-        init_logger();
+    // #[tokio::test]
+    // async fn transaction_already_sent() {
+    //     init_logger();
 
-        let mut alice = Behaviour::new();
-        let (_bob, bob_identity) = new_swarm().await;
+    //     let mut alice = Behaviour::new();
+    //     let (_bob, bob_identity) = new_swarm().await;
 
-        let transaction = addressed_injected_tx(bob_identity.address());
-        let identities = [(bob_identity.address(), bob_identity)].into();
+    //     let transaction = addressed_injected_tx(bob_identity.address());
+    //     let identities = [(bob_identity.address(), bob_identity)].into();
 
-        alice
-            .send_transaction(&identities, transaction.clone())
-            .unwrap();
+    //     alice
+    //         .send_transaction(&identities, transaction.clone())
+    //         .unwrap();
 
-        let err = alice
-            .send_transaction(&identities, transaction)
-            .unwrap_err();
-        assert_eq!(err, SendTransactionError::TransactionAlreadySent);
-    }
+    //     let err = alice
+    //         .send_transaction(&identities, transaction)
+    //         .unwrap_err();
+    //     assert_eq!(err, SendTransactionError::TransactionAlreadySent);
+    // }
 
-    #[tokio::test]
-    async fn validator_not_found() {
-        let mut alice = Behaviour::new();
+    // #[tokio::test]
+    // async fn validator_not_found() {
+    //     let mut alice = Behaviour::new();
 
-        let transaction = addressed_injected_tx(Address::default());
+    //     let transaction = addressed_injected_tx(Address::default());
 
-        let err = alice
-            .send_transaction(&Default::default(), transaction)
-            .unwrap_err();
-        assert_eq!(err, SendTransactionError::ValidatorNotFound);
-    }
+    //     let err = alice
+    //         .send_transaction(&Default::default(), transaction)
+    //         .unwrap_err();
+    //     assert_eq!(err, SendTransactionError::ValidatorNotFound);
+    // }
 }

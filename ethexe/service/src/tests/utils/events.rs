@@ -12,8 +12,8 @@ use ethexe_common::{
     db::*,
     events::BlockEvent,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedCompactTxReceipt, SignedInjectedTransaction,
+        InjectedTransaction, InjectedTransactionAcceptance, SignedCompactTxReceipt,
+        SignedInjectedTransaction,
     },
     network::VerifiedValidatorMessage,
 };
@@ -21,7 +21,7 @@ use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
 use ethexe_malachite::MalachiteEvent;
-use ethexe_network::{NetworkEvent, NetworkInjectedEvent, export::PeerId};
+use ethexe_network::{NetworkEvent, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_rpc::RpcEvent;
 use futures::{
@@ -53,33 +53,12 @@ pub enum TestingNetworkInjectedEvent {
     },
 }
 
-impl TestingNetworkInjectedEvent {
-    fn new(event: &NetworkInjectedEvent) -> Self {
-        match event {
-            NetworkInjectedEvent::InboundTransaction {
-                peer: _,
-                transaction,
-                channel: _,
-            } => Self::InboundTransaction {
-                transaction: SignedInjectedTransaction::clone(transaction),
-            },
-            NetworkInjectedEvent::OutboundAcceptance {
-                transaction_hash,
-                acceptance,
-            } => Self::OutboundAcceptance {
-                transaction_hash: *transaction_hash,
-                acceptance: acceptance.clone(),
-            },
-        }
-    }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
     TxReceiptMessage(SignedCompactTxReceipt),
+    InjectedTransaction(SignedInjectedTransaction),
     ValidatorIdentityUpdated(Address),
-    InjectedTransaction(TestingNetworkInjectedEvent),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
 }
@@ -92,8 +71,8 @@ impl TestingNetworkEvent {
             NetworkEvent::ValidatorIdentityUpdated(address) => {
                 Self::ValidatorIdentityUpdated(*address)
             }
-            NetworkEvent::InjectedTransaction(event) => {
-                Self::InjectedTransaction(TestingNetworkInjectedEvent::new(event))
+            NetworkEvent::InjectedTransactionMessage(message) => {
+                Self::InjectedTransaction(message.clone())
             }
             NetworkEvent::PeerBlocked(peer_id) => Self::PeerBlocked(*peer_id),
             NetworkEvent::PeerConnected(peer_id) => Self::PeerConnected(*peer_id),
@@ -104,17 +83,14 @@ impl TestingNetworkEvent {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
     InjectedTransaction {
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
     },
 }
 
 impl TestingRpcEvent {
     fn new(event: &RpcEvent) -> Self {
         match event {
-            RpcEvent::InjectedTransaction {
-                transaction,
-                response_sender: _,
-            } => Self::InjectedTransaction {
+            RpcEvent::InjectedTransaction { transaction } => Self::InjectedTransaction {
                 transaction: transaction.clone(),
             },
         }

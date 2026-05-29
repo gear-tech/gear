@@ -30,6 +30,7 @@ pub const MAX_INJECTED_TX_SALT_SIZE: usize = 32;
 /// always admissible.
 pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB: usize = 127 * 1024;
 
+// TODO: remove this
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 pub enum InjectedTransactionAcceptance {
@@ -65,15 +66,6 @@ impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
 }
 
 pub type SignedInjectedTransaction = SignedMessage<InjectedTransaction>;
-
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", derive(Hash))]
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct AddressedInjectedTransaction {
-    /// Address of validator the transaction intended for
-    pub recipient: Address,
-    pub tx: SignedInjectedTransaction,
-}
 
 /// IMPORTANT: message id == tx hash.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]

@@ -20,7 +20,7 @@
 
 pub mod db_sync;
 mod gossipsub;
-mod injected;
+// mod injected;
 mod kad;
 mod peer_score;
 mod slots;
@@ -32,8 +32,6 @@ pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-pub use injected::Event as NetworkInjectedEvent;
-
 use crate::{
     db_sync::DbSyncDatabase,
     utils::MultiaddrExt,
@@ -44,7 +42,7 @@ use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedCompactTxReceipt},
+    injected::{SignedCompactTxReceipt, SignedInjectedTransaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -62,6 +60,7 @@ use libp2p::{
     swarm::{Config as SwarmConfig, NetworkBehaviour, SwarmEvent, behaviour::toggle::Toggle},
     yamux,
 };
+use libp2p_gossipsub::MessageAcceptance;
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
 use std::{collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll, time::Duration};
@@ -89,11 +88,11 @@ pub enum NetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
     /// A public promise observed on the promise gossipsub topic.
     TxReceiptMessage(SignedCompactTxReceipt),
+    /// A public signed injected transaction on transactions gossipsub topic.
+    InjectedTransactionMessage(SignedInjectedTransaction),
     /// Validator discovery learned or refreshed the network identity of the
     /// given validator address.
     ValidatorIdentityUpdated(Address),
-    /// Private injected-transaction protocol produced an event.
-    InjectedTransaction(NetworkInjectedEvent),
     /// Peer scoring blocked a peer.
     PeerBlocked(PeerId),
     /// Swarm established a connection with a peer.
@@ -424,7 +423,6 @@ impl NetworkService {
             BehaviourEvent::Kad(event) => self.handle_kad_event(event),
             BehaviourEvent::Gossipsub(event) => return self.handle_gossipsub_event(event),
             BehaviourEvent::DbSync(_event) => {}
-            BehaviourEvent::Injected(event) => return self.handle_injected_event(event),
             BehaviourEvent::ValidatorDiscovery(event) => {
                 return self.handle_validator_discovery_event(event);
             }
@@ -540,6 +538,10 @@ impl NetworkService {
                             self.validator_topic.verify_receipt(source, receipt);
                         (acceptance, receipt.map(NetworkEvent::TxReceiptMessage))
                     }
+                    gossipsub::Message::InjectedTransaction(transaction) => (
+                        MessageAcceptance::Accept,
+                        Some(NetworkEvent::InjectedTransactionMessage(transaction)),
+                    ),
                 })
             }
             gossipsub::Event::PublishFailure {
@@ -553,19 +555,6 @@ impl NetworkService {
                 None
             }
         }
-    }
-
-    fn handle_injected_event(&mut self, event: injected::Event) -> Option<NetworkEvent> {
-        if let injected::Event::InboundTransaction {
-            peer,
-            transaction: _,
-            channel: _,
-        } = &event
-        {
-            self.swarm.behaviour_mut().slots.report_peer_action(peer);
-        }
-
-        Some(NetworkEvent::InjectedTransaction(event))
     }
 
     fn handle_validator_discovery_event(
@@ -629,14 +618,8 @@ impl NetworkService {
     }
 
     /// Send an injected transaction privately to the destination validator.
-    pub fn send_injected_transaction(
-        &mut self,
-        data: AddressedInjectedTransaction,
-    ) -> Result<(), injected::SendTransactionError> {
-        let behaviour = self.swarm.behaviour_mut();
-        behaviour
-            .injected
-            .send_transaction(behaviour.validator_discovery.identities(), data)
+    pub fn send_injected_transaction(&mut self, transaction: SignedInjectedTransaction) {
+        self.swarm.behaviour_mut().gossipsub.publish(transaction)
     }
 
     /// Publish a signed promise to the public promise gossipsub topic.
@@ -704,8 +687,6 @@ pub(crate) struct Behaviour {
     pub gossipsub: gossipsub::Behaviour,
     // database synchronization protocol
     pub db_sync: db_sync::Behaviour,
-    // injected transaction shenanigans
-    pub injected: injected::Behaviour,
     // validator discovery
     pub validator_discovery: validator::discovery::Behaviour,
 }
@@ -779,8 +760,6 @@ impl Behaviour {
             db,
         );
 
-        let injected = injected::Behaviour::new();
-
         let validator_discovery = validator::discovery::Config {
             kad: kad_handle,
             keypair,
@@ -801,7 +780,6 @@ impl Behaviour {
             kad,
             gossipsub,
             db_sync,
-            injected,
             validator_discovery,
         })
     }

@@ -37,11 +37,8 @@ pub struct InjectedApi {
 // TODO: Issue #5387
 #[async_trait]
 impl InjectedServer for InjectedApi {
-    async fn send_transaction(
-        &self,
-        transaction: SignedInjectedTransaction,
-    ) -> RpcResult<InjectedTransactionAcceptance> {
-        self.send_transaction(transaction).await
+    async fn send_transaction(&self, transaction: SignedInjectedTransaction) -> RpcResult<()> {
+        self.send_transaction(transaction)
     }
 
     async fn send_transaction_and_watch(
@@ -88,11 +85,8 @@ impl InjectedApi {
 
 // RPC API implementation.
 impl InjectedApi {
-    async fn send_transaction(
-        &self,
-        transaction: SignedInjectedTransaction,
-    ) -> RpcResult<InjectedTransactionAcceptance> {
-        self.relayer.relay(transaction).await
+    fn send_transaction(&self, transaction: SignedInjectedTransaction) -> RpcResult<()> {
+        self.relayer.relay(transaction)
     }
 
     // TODO: Issue #5386.
@@ -110,28 +104,13 @@ impl InjectedApi {
             }
         };
 
-        let acceptance = self.relayer.relay(transaction).await.inspect_err(|_err| {
+        self.relayer.relay(transaction).inspect_err(|_err| {
             self.manager.cancel_registration(tx_hash);
         })?;
-        let sink = match acceptance {
-            InjectedTransactionAcceptance::Accept => {
-                pending.accept().await.inspect_err(|_err| {
-                    self.manager.cancel_registration(tx_hash);
-                })?
-            }
-            InjectedTransactionAcceptance::AlreadyPooled { reason } => {
-                // Promise will fire normally; keep the subscription so a
-                // retry / duplicate submit doesn't lose the reply.
-                tracing::debug!(%tx_hash, reason, "watch: retaining subscription on duplicate");
-                pending.accept().await.inspect_err(|_err| {
-                    self.manager.cancel_registration(tx_hash);
-                })?
-            }
-            InjectedTransactionAcceptance::Reject { reason } => {
-                self.manager.cancel_registration(tx_hash);
-                return Err(reason.into());
-            }
-        };
+
+        let sink = pending.accept().await.inspect_err(|_err| {
+            self.manager.cancel_registration(tx_hash);
+        })?;
 
         self.metrics.injected_tx_active_subscriptions.increment(1);
         let (manager, metrics) = (self.manager.clone(), self.metrics.clone());
