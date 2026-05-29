@@ -148,6 +148,8 @@ impl InjectedApi {
     ) -> RpcResult<Option<SignedTxReceipt>> {
         match self.db.receipt(tx_hash) {
             Some(receipt) => {
+                // Receipts may have been persisted before ingestion-time
+                // validation existed, or injected directly into the DB.
                 if !self.manager.tx_receipt_signed_by_known_validator(&receipt) {
                     return Ok(None);
                 }
@@ -187,7 +189,7 @@ mod tests {
     use super::*;
     use ethexe_common::{
         Address, PrivateKey, SignedMessage, ValidatorsVec,
-        db::{InjectedStorageRW, OnChainStorageRW},
+        db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRW, SetGlobals},
         injected::{Promise, Receipt},
         mock::Mock,
     };
@@ -207,6 +209,19 @@ mod tests {
             0,
             ValidatorsVec::try_from(validators).expect("validators must be non-empty"),
         );
+    }
+
+    fn set_validators(db: &Database, era: u64, validators: Vec<Address>) {
+        db.set_validators(
+            era,
+            ValidatorsVec::try_from(validators).expect("validators must be non-empty"),
+        );
+    }
+
+    fn set_current_era(db: &Database, era: u64) {
+        let mut globals = db.globals().clone();
+        globals.latest_synced_eb.header.timestamp = era;
+        db.set_globals(globals);
     }
 
     #[tokio::test]
@@ -308,6 +323,57 @@ mod tests {
                 .into();
 
         set_current_validators(&db, vec![Address::from(1)]);
+        db.set_receipt(&receipt);
+
+        let result = api
+            .get_transaction_receipt(tx_hash)
+            .await
+            .expect("RPC result succeeds");
+
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_receipt_keeps_previous_era_cached_receipt() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx_hash = make_signed_tx().data().to_hash();
+        let promise = Promise::mock(tx_hash);
+        let receipt: SignedTxReceipt =
+            SignedMessage::create(PrivateKey::random(), Receipt::Promise(promise.clone()))
+                .expect("creating signed receipt succeeds")
+                .into();
+
+        set_validators(&db, 0, vec![receipt.address()]);
+        set_validators(&db, 1, vec![Address::from(1)]);
+        set_current_era(&db, 1);
+        db.set_receipt(&receipt);
+
+        let result = api
+            .get_transaction_receipt(tx_hash)
+            .await
+            .expect("RPC result succeeds");
+
+        assert_eq!(result, Some(receipt));
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_receipt_hides_receipt_after_validator_window_passes() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx_hash = make_signed_tx().data().to_hash();
+        let promise = Promise::mock(tx_hash);
+        let receipt: SignedTxReceipt =
+            SignedMessage::create(PrivateKey::random(), Receipt::Promise(promise))
+                .expect("creating signed receipt succeeds")
+                .into();
+
+        set_validators(&db, 0, vec![receipt.address()]);
+        set_validators(&db, 1, vec![Address::from(1)]);
+        set_validators(&db, 2, vec![Address::from(2)]);
+        set_current_era(&db, 2);
         db.set_receipt(&receipt);
 
         let result = api
