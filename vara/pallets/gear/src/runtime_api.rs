@@ -82,6 +82,18 @@ where
         // Running queue head message if exists.
         while let Some((_, journal, _)) = Self::dequeue_head_and_run(&mut ext_manager, None)? {
             let mut reply = None;
+            let new_programs = journal
+                .iter()
+                .filter_map(|note| {
+                    let JournalNote::StoreNewPrograms { candidates, .. } = note else {
+                        return None;
+                    };
+
+                    Some(candidates)
+                })
+                .flatten()
+                .map(|(_, program_id)| *program_id)
+                .collect::<Vec<_>>();
 
             // Looking through all notes in order to find required reply.
             for note in &journal {
@@ -107,15 +119,20 @@ where
                     continue;
                 }
 
-                if delay.is_zero() && ext_manager.check_user_id(&dispatch.destination()) {
+                if delay.is_zero()
+                    && !new_programs.contains(&dispatch.destination())
+                    && ext_manager.check_user_id(&dispatch.destination())
+                {
                     messages.push(
                         UserMessage::try_from(dispatch.message().clone().into_stored())
-                            .map_err(|_| "Failed to convert dispatch into user message")?,
+                            .expect("signal details cannot be dispatched to a user account"),
                     );
                 }
             }
 
             if let Some(reply) = reply {
+                // The reply batch is not journal-applied: this RPC returns simulated user messages
+                // only, while preserving the same temporary-state behavior as gas calculations.
                 return Ok(CalculateReplyForHandleResult { reply, messages });
             }
 

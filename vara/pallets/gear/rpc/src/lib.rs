@@ -267,7 +267,7 @@ where
         })
     }
 
-    fn calculate_reply_for_handle_result(
+    fn inner_calculate_reply_for_handle_result(
         &self,
         at_hash: <Block as BlockT>::Hash,
         origin: H256,
@@ -347,7 +347,7 @@ where
     ) -> RpcResult<ReplyInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.calculate_reply_for_handle_result(
+        self.inner_calculate_reply_for_handle_result(
             at_hash,
             origin,
             destination,
@@ -369,7 +369,7 @@ where
     ) -> RpcResult<CalculateReplyForHandleResult> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.calculate_reply_for_handle_result(
+        self.inner_calculate_reply_for_handle_result(
             at_hash,
             origin,
             destination,
