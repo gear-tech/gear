@@ -504,6 +504,9 @@ impl FreeingBumpHeapAllocator {
     /// the operation would exhaust the heap.
     fn bump(bumper: &mut u32, size: u32, memory: &mut impl Memory) -> Result<u32, Error> {
         let required_size = u64::from(*bumper) + u64::from(size);
+        if required_size > u64::from(u32::MAX) {
+            return Err(Error::AllocatorOutOfSpace);
+        }
 
         if required_size > memory.size() {
             let required_pages =
@@ -938,6 +941,41 @@ mod tests {
 
         // then
         assert_eq!(Error::AllocatorOutOfSpace, ptr.unwrap_err());
+    }
+
+    #[test]
+    fn should_not_overflow_when_bump_reaches_wasm_address_limit() {
+        struct MaxPagesMemory;
+
+        impl Memory for MaxPagesMemory {
+            fn with_access<R>(&self, run: impl FnOnce(&[u8]) -> R) -> R {
+                run(&[])
+            }
+
+            fn with_access_mut<R>(&mut self, run: impl FnOnce(&mut [u8]) -> R) -> R {
+                run(&mut [])
+            }
+
+            fn pages(&self) -> u32 {
+                MAX_WASM_PAGES
+            }
+
+            fn max_pages(&self) -> Option<u32> {
+                Some(MAX_WASM_PAGES)
+            }
+
+            fn grow(&mut self, _: u32) -> Result<(), ()> {
+                unreachable!("memory is already at the wasm address limit")
+            }
+        }
+
+        let mut mem = MaxPagesMemory;
+        let mut bumper = u32::MAX - 7;
+
+        let ptr = FreeingBumpHeapAllocator::bump(&mut bumper, 8, &mut mem);
+
+        assert_eq!(Error::AllocatorOutOfSpace, ptr.unwrap_err());
+        assert_eq!(bumper, u32::MAX - 7);
     }
 
     #[test]

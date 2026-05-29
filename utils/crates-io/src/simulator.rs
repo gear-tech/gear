@@ -118,7 +118,12 @@ fn clear_registry_dir(path: &Path) -> Result<()> {
         let entry = entry?;
         let file_name = entry.file_name();
         if file_name.to_string_lossy().starts_with("127.0.0.1-") {
-            fs::remove_dir_all(entry.path())?;
+            let path = entry.path();
+            if entry.file_type()?.is_dir() {
+                fs::remove_dir_all(path)?;
+            } else {
+                fs::remove_file(path)?;
+            }
         }
     }
 
@@ -137,4 +142,27 @@ fn clear_target_package_dir() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clear_registry_dir_removes_local_registry_dirs_and_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let local_dir = temp_dir.path().join("127.0.0.1-abc");
+        let local_file = temp_dir.path().join("127.0.0.1-def");
+        let upstream_dir = temp_dir.path().join("github.com-abc");
+
+        fs::create_dir(&local_dir).unwrap();
+        fs::write(&local_file, b"crate").unwrap();
+        fs::create_dir(&upstream_dir).unwrap();
+
+        clear_registry_dir(temp_dir.path()).unwrap();
+
+        assert!(!local_dir.exists());
+        assert!(!local_file.exists());
+        assert!(upstream_dir.exists());
+    }
 }

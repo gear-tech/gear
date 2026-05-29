@@ -201,9 +201,9 @@ fn setup_wasmtime_caching(
     let config_content = format!(
         "\
 [cache]
-directory = \"{cache_dir}\"
+directory = {cache_dir}
 ",
-        cache_dir = wasmtime_cache_root.display()
+        cache_dir = toml_basic_string(&wasmtime_cache_root.to_string_lossy())
     );
     fs::write(&cache_config_path, config_content)
         .map_err(|err| format!("cannot write the cache config: {}", err))?;
@@ -213,6 +213,43 @@ directory = \"{cache_dir}\"
     config.cache(Some(cache));
 
     Ok(())
+}
+
+fn toml_basic_string(value: &str) -> String {
+    use std::fmt::Write as _;
+
+    let mut escaped = String::with_capacity(value.len() + 2);
+    escaped.push('"');
+    for ch in value.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            '\u{08}' => escaped.push_str("\\b"),
+            '\u{0c}' => escaped.push_str("\\f"),
+            ch if ch.is_control() => {
+                write!(escaped, "\\u{:04X}", ch as u32).expect("writing to a string cannot fail")
+            }
+            ch => escaped.push(ch),
+        }
+    }
+    escaped.push('"');
+    escaped
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn toml_basic_string_escapes_cache_paths() {
+        assert_eq!(
+            toml_basic_string(r#"C:\Users\gear"cache"\wasmtime"#),
+            r#""C:\\Users\\gear\"cache\"\\wasmtime""#
+        );
+    }
 }
 
 fn common_config(semantics: &Semantics) -> std::result::Result<wasmtime::Config, WasmError> {
