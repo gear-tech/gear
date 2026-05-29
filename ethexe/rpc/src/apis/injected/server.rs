@@ -147,7 +147,17 @@ impl InjectedApi {
         tx_hash: HashOf<InjectedTransaction>,
     ) -> RpcResult<Option<SignedTxReceipt>> {
         match self.db.receipt(tx_hash) {
-            Some(receipt) => Ok(Some(receipt)),
+            Some(receipt) if self.manager.receipt_signed_by_known_validator(&receipt) => {
+                Ok(Some(receipt))
+            }
+            Some(receipt) => {
+                trace!(
+                    ?tx_hash,
+                    ?receipt,
+                    "receipt signer is not a known validator"
+                );
+                Ok(None)
+            }
             None => {
                 trace!(?tx_hash, "receipt not found for injected transaction");
                 Ok(None)
