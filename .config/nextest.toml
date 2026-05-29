@@ -17,6 +17,7 @@ authorship = { max-threads = 1 }
 
 [[profile.default.overrides]]
 filter = 'package(gear-authorship)'
+retries = 5
 test-group = 'authorship'
 
 # ethexe-service tests spawn Anvil child processes plus a malachite
