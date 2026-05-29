@@ -148,12 +148,6 @@ impl InjectedApi {
     ) -> RpcResult<Option<SignedTxReceipt>> {
         match self.db.receipt(tx_hash) {
             Some(receipt) => {
-                // Receipts may have been persisted before ingestion-time
-                // validation existed, or injected directly into the DB.
-                if !self.manager.tx_receipt_signed_by_known_validator(&receipt) {
-                    return Ok(None);
-                }
-
                 Ok(Some(receipt))
             }
             None => {
