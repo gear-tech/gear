@@ -209,6 +209,9 @@ impl Publisher {
         } in self.graph.iter().filter(|m| !m.is_actualized)
         {
             println!("Publishing {path:?}");
+            if let Some(simulator) = self.simulator.as_ref() {
+                simulator.clear_cache()?;
+            }
             let status = crate::publish(&path.to_string_lossy())?;
             if !status.success() {
                 bail!("Failed to publish package {path:?} ...");

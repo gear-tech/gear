@@ -11,17 +11,18 @@ Local Cargo package names intentionally stay compatible with upstream package na
 | Local path | Upstream package | Gear publish name | License |
 | --- | --- | --- | --- |
 | `substrate/sp-allocator` | `sp-allocator`; derived from upstream `sc-allocator` | `gsp-allocator` | Apache-2.0 |
+| `substrate/sp-wasm-interface` | `sp-wasm-interface` | `gsp-wasm-interface` | Apache-2.0 |
 | `substrate/runtime-executor/common` | `sc-executor-common` | `gsc-executor-common` | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/runtime-executor/polkavm` | `sc-executor-polkavm` | `gsc-executor-polkavm` | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/runtime-executor/wasmtime` | `sc-executor-wasmtime` | `gsc-executor-wasmtime` | GPL-3.0-or-later WITH Classpath-exception-2.0 |
-| `substrate/runtime-executor` | `sc-executor` | `gsc-executor` | GPL-3.0-or-later WITH Classpath-exception-2.0 |
+| `substrate/runtime-executor` | `sc-executor` | not published by Gear | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/substrate-wasm-builder` | `substrate-wasm-builder` | `gsubstrate-wasm-builder` | Apache-2.0 |
 
 ## Gear Compatibility Crates
 
 | Local path | Upstream-compatible package name | Gear publish name | License |
 | --- | --- | --- | --- |
-| `substrate/sp-wasm-interface-common` | `sp-wasm-interface-common` | `gsp-wasm-interface-common` | GPL-3.0-or-later WITH Classpath-exception-2.0 |
+| `substrate/sp-wasm-interface-common` | `sp-wasm-interface-common` | `gsp-wasm-interface-common` | Apache-2.0 |
 
 `substrate/sp-wasm-interface-common` is Gear-authored compatibility code, not copied upstream source. It keeps the upstream-compatible local package name so Gear can patch dependencies that previously resolved through the custom Polkadot SDK fork.
 

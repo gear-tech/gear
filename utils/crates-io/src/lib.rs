@@ -51,10 +51,10 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
 pub const GEAR_SUBSTRATE_DEPENDENCIES: &[&str] = &[
     "sp-wasm-interface-common",
     "sp-allocator",
+    "sp-wasm-interface",
     "sc-executor-common",
     "sc-executor-polkavm",
     "sc-executor-wasmtime",
-    "sc-executor",
     "substrate-wasm-builder",
 ];
 

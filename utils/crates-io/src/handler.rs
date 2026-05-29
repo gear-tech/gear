@@ -17,6 +17,7 @@ pub fn crates_io_name(pkg: &str) -> &str {
         // of [`core_processor::patch_workspace`] for more details.
         "gear-core-processor" => "core-processor",
         "sp-allocator" => "gsp-allocator",
+        "sp-wasm-interface" => "gsp-wasm-interface",
         "sp-wasm-interface-common" => "gsp-wasm-interface-common",
         "sc-executor" => "gsc-executor",
         "sc-executor-common" => "gsc-executor-common",
@@ -111,6 +112,10 @@ mod substrate_fork {
             if let Some(dev_deps) = manifest["dev-dependencies"].as_table_like_mut() {
                 dev_deps.remove("sc-runtime-test");
             }
+        }
+
+        if local_name == "substrate-wasm-builder" {
+            super::substrate_wasm_builder::patch(manifest);
         }
     }
 
@@ -268,6 +273,23 @@ mod sandbox_interface {
         wi.insert("version", toml_edit::value("15.0.0"));
         wi.insert("package", toml_edit::value("gp-wasm-interface"));
         wi.remove("workspace");
+    }
+}
+
+/// substrate-wasm-builder handler.
+mod substrate_wasm_builder {
+    use toml_edit::DocumentMut;
+
+    /// Keep the optional `metadata-hash` feature on the upstream executor
+    /// stack. Gear only publishes the lower executor crates that are needed by
+    /// its crates.io packages.
+    pub fn patch(manifest: &mut DocumentMut) {
+        let Some(sc_executor) = manifest["dependencies"]["sc-executor"].as_table_like_mut() else {
+            return;
+        };
+
+        sc_executor.insert("version", toml_edit::value("0.40.1"));
+        sc_executor.remove("workspace");
     }
 }
 
