@@ -306,7 +306,7 @@ pub struct GuestEnvironment {
     /// Function and memory imports of the guest module
     imports: Imports,
 
-    /// Supervisor functinons mapped to guest index space
+    /// Supervisor functions mapped to guest index space
     guest_to_supervisor_mapping: GuestToSupervisorFunctionMapping,
 }
 
