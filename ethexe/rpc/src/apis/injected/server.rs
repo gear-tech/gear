@@ -147,9 +147,7 @@ impl InjectedApi {
         tx_hash: HashOf<InjectedTransaction>,
     ) -> RpcResult<Option<SignedTxReceipt>> {
         match self.db.receipt(tx_hash) {
-            Some(receipt) => {
-                Ok(Some(receipt))
-            }
+            Some(receipt) => Ok(Some(receipt)),
             None => {
                 trace!(?tx_hash, "receipt not found for injected transaction");
                 Ok(None)
