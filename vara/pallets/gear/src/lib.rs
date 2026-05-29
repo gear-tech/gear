@@ -773,6 +773,26 @@ pub mod pallet {
             gas_limit: u64,
             value: u128,
             allowance_multiplier: u64,
+        ) -> Result<ReplyInfo, Vec<u8>> {
+            Self::calculate_reply_for_handle_result(
+                origin,
+                destination,
+                payload,
+                gas_limit,
+                value,
+                allowance_multiplier,
+            )
+            .map(|result| result.reply)
+        }
+
+        #[cfg(not(test))]
+        pub fn calculate_reply_for_handle_result(
+            origin: H256,
+            destination: H256,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: u128,
+            allowance_multiplier: u64,
         ) -> Result<CalculateReplyForHandleResult, Vec<u8>> {
             Self::calculate_reply_for_handle_impl(
                 origin,
@@ -787,6 +807,18 @@ pub mod pallet {
 
         #[cfg(test)]
         pub fn calculate_reply_for_handle(
+            origin: AccountIdOf<T>,
+            destination: ActorId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: u128,
+        ) -> Result<ReplyInfo, String> {
+            Self::calculate_reply_for_handle_result(origin, destination, payload, gas_limit, value)
+                .map(|result| result.reply)
+        }
+
+        #[cfg(test)]
+        pub fn calculate_reply_for_handle_result(
             origin: AccountIdOf<T>,
             destination: ActorId,
             payload: Vec<u8>,

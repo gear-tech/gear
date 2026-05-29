@@ -236,14 +236,13 @@ fn auto_reply_on_exit_exists() {
             .expect("Failed to query reply");
 
         assert_eq!(
-            res.reply,
+            res,
             ReplyInfo {
                 payload: vec![],
                 value: 0,
                 code: ReplyCode::Success(SuccessReplyReason::Auto)
             }
         );
-        assert!(res.messages.is_empty());
     });
 }
 
@@ -268,14 +267,13 @@ fn calculate_reply_for_handle_works() {
         .expect("Failed to query reply");
 
         assert_eq!(
-            res.reply,
+            res,
             ReplyInfo {
                 payload: b"PONG".to_vec(),
                 value: 0,
                 code: ReplyCode::Success(SuccessReplyReason::Manual)
             }
         );
-        assert!(res.messages.is_empty());
 
         // Out of gas panic case.
         let res =
@@ -283,7 +281,7 @@ fn calculate_reply_for_handle_works() {
                 .expect("Failed to query reply");
 
         assert_eq!(
-            res.reply,
+            res,
             ReplyInfo {
                 payload: vec![],
                 value: 0,
@@ -292,7 +290,6 @@ fn calculate_reply_for_handle_works() {
                 )),
             }
         );
-        assert!(res.messages.is_empty());
 
         // TODO: uncomment code below (issue #3804).
         // // Value returned in case of error.
@@ -322,7 +319,7 @@ fn calculate_reply_for_handle_returns_user_messages() {
 
         run_to_next_block(None);
 
-        let res = Gear::calculate_reply_for_handle(
+        let res = Gear::calculate_reply_for_handle_result(
             USER_1,
             program_id,
             b"PING".to_vec(),
@@ -368,7 +365,7 @@ fn calculate_reply_for_handle_does_not_report_created_program_init_as_user_messa
         let (_init_mid, program_id) =
             init_constructor_with_value(Scheme::with_handle(handle), get_ed());
 
-        let res = Gear::calculate_reply_for_handle(
+        let res = Gear::calculate_reply_for_handle_result(
             USER_1,
             program_id,
             b"PING".to_vec(),
@@ -421,7 +418,7 @@ fn calculate_reply_for_handle_collects_user_messages_across_iterations() {
             REPLIER.into()
         ));
 
-        let res = Gear::calculate_reply_for_handle(
+        let res = Gear::calculate_reply_for_handle_result(
             USER_1,
             program_id,
             Kind::CreateProgram(code_id.into()).encode(),

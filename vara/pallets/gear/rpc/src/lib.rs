@@ -276,37 +276,38 @@ where
         gas_limit: u64,
         value: RpcValue,
     ) -> RpcResult<CalculateReplyForHandleResult> {
-        let api_version = self.get_api_version(at_hash)?;
-
         self.run_with_api_copy(|api| {
-            if api_version < 3 {
-                #[allow(deprecated)]
-                api.calculate_reply_for_handle_before_version_3(
-                    at_hash,
-                    origin,
-                    destination,
-                    payload,
-                    gas_limit,
-                    value.0,
-                    self.allowance_multiplier,
-                )
-                .map(|result| {
-                    result.map(|reply| CalculateReplyForHandleResult {
-                        reply,
-                        messages: Vec::new(),
-                    })
-                })
-            } else {
-                api.calculate_reply_for_handle(
-                    at_hash,
-                    origin,
-                    destination,
-                    payload,
-                    gas_limit,
-                    value.0,
-                    self.allowance_multiplier,
-                )
-            }
+            api.calculate_reply_for_handle_result(
+                at_hash,
+                origin,
+                destination,
+                payload,
+                gas_limit,
+                value.0,
+                self.allowance_multiplier,
+            )
+        })
+    }
+
+    fn inner_calculate_reply_for_handle(
+        &self,
+        at_hash: <Block as BlockT>::Hash,
+        origin: H256,
+        destination: H256,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: RpcValue,
+    ) -> RpcResult<ReplyInfo> {
+        self.run_with_api_copy(|api| {
+            api.calculate_reply_for_handle(
+                at_hash,
+                origin,
+                destination,
+                payload,
+                gas_limit,
+                value.0,
+                self.allowance_multiplier,
+            )
         })
     }
 }
@@ -347,7 +348,7 @@ where
     ) -> RpcResult<ReplyInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        self.inner_calculate_reply_for_handle_result(
+        self.inner_calculate_reply_for_handle(
             at_hash,
             origin,
             destination,
@@ -355,7 +356,6 @@ where
             gas_limit,
             value,
         )
-        .map(|result| result.reply)
     }
 
     fn calculate_reply_for_handle_result(

@@ -12,10 +12,13 @@ use sp_runtime::traits::Block as BlockT;
 use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
-    #[api_version(3)]
+    #[api_version(2)]
     pub trait GearApi {
         #[allow(clippy::too_many_arguments)]
-        fn calculate_reply_for_handle(origin: H256, destination: H256, payload: Vec<u8>, gas_limit: u64, value: u128, allowance_multiplier: u64) -> Result<CalculateReplyForHandleResult, Vec<u8>>;
+        fn calculate_reply_for_handle(origin: H256, destination: H256, payload: Vec<u8>, gas_limit: u64, value: u128, allowance_multiplier: u64) -> Result<ReplyInfo, Vec<u8>>;
+
+        #[allow(clippy::too_many_arguments)]
+        fn calculate_reply_for_handle_result(origin: H256, destination: H256, payload: Vec<u8>, gas_limit: u64, value: u128, allowance_multiplier: u64) -> Result<CalculateReplyForHandleResult, Vec<u8>>;
 
         #[allow(clippy::too_many_arguments)]
         fn calculate_gas_info(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128, allow_other_panics: bool, initial_gas: Option<u64>, allowance_multiplier: Option<u64>) -> Result<GasInfo, Vec<u8>>;
@@ -31,10 +34,6 @@ sp_api::decl_runtime_apis! {
         fn read_metahash(program_id: H256, allowance_multiplier: Option<u64>) -> Result<H256, Vec<u8>>;
 
         // DEPRECATED APIS
-
-        #[allow(clippy::too_many_arguments)]
-        #[changed_in(3)]
-        fn calculate_reply_for_handle(origin: H256, destination: H256, payload: Vec<u8>, gas_limit: u64, value: u128, allowance_multiplier: u64) -> Result<ReplyInfo, Vec<u8>>;
 
         #[allow(clippy::too_many_arguments)]
         #[changed_in(2)]
