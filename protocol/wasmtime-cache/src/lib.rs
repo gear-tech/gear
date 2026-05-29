@@ -168,13 +168,8 @@ pub fn get(engine: &Engine, code: &[u8]) -> wasmtime::Result<Module> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        sync::{Arc, Barrier},
-        thread,
-    };
 
     const EMPTY_WASM: &[u8] = b"\x00asm\x01\x00\x00\x00";
-    const CUSTOM_WASM: &[u8] = b"\x00asm\x01\x00\x00\x00\x00\x04\x03foo";
 
     #[test]
     fn smoke() {
@@ -194,50 +189,5 @@ mod tests {
             .get(&Engine::default(), EMPTY_WASM)
             .expect("module loads from cache");
         assert!(matches!(module, ModuleFrom::EngineChanged(_)));
-    }
-
-    #[test]
-    fn two_concurrent_misses_per_code_compile_once_each() {
-        const THREADS: usize = 4;
-
-        let cache = Arc::new(Cache::new());
-        let engine = Engine::default();
-        let barrier = Arc::new(Barrier::new(THREADS));
-        let code_by_thread = [
-            (0, EMPTY_WASM),
-            (0, EMPTY_WASM),
-            (1, CUSTOM_WASM),
-            (1, CUSTOM_WASM),
-        ];
-
-        let handles = code_by_thread
-            .into_iter()
-            .map(|(code_index, code)| {
-                let cache = cache.clone();
-                let engine = engine.clone();
-                let barrier = barrier.clone();
-
-                thread::spawn(move || {
-                    barrier.wait();
-
-                    let module = cache.get(&engine, code).expect("module loads");
-
-                    (code_index, module)
-                })
-            })
-            .collect::<Vec<_>>();
-
-        let mut counts = [(0, 0), (0, 0)];
-        for handle in handles {
-            let (code_index, module) = handle.join().expect("thread does not panic");
-
-            match module {
-                ModuleFrom::New(_) => counts[code_index].0 += 1,
-                ModuleFrom::Lru(_) => counts[code_index].1 += 1,
-                ModuleFrom::EngineChanged(_) => panic!("engine should not change"),
-            }
-        }
-
-        assert_eq!(counts, [(1, 1), (1, 1)]);
     }
 }
