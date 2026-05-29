@@ -118,18 +118,18 @@ where
             // Signals cannot carry system reservations; suppress secondary signals.
             DispatchKind::Signal => {}
             DispatchKind::Init => {
-                if let Ok(reserved) = GasHandlerOf::<T>::get_system_reserve(message_id) {
-                    if reserved != 0 {
-                        GasHandlerOf::<T>::system_unreserve(message_id).unwrap_or_else(|e| {
-                            let err_msg = format!(
-                                "TaskHandler::remove_from_waitlist: failed system unreserve. \
-                                Message id - {message_id}. Got error: {e:?}"
-                            );
+                if let Ok(reserved) = GasHandlerOf::<T>::get_system_reserve(message_id)
+                    && reserved != 0
+                {
+                    GasHandlerOf::<T>::system_unreserve(message_id).unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "TaskHandler::remove_from_waitlist: failed system unreserve. \
+                            Message id - {message_id}. Got error: {e:?}"
+                        );
 
-                            log::error!("{err_msg}");
-                            unreachable!("{err_msg}")
-                        });
-                    }
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
+                    });
                 }
             }
             _ => {
