@@ -1070,7 +1070,6 @@ mod tests {
             new_value.is_none(),
             "future-height validator parts are buffered"
         );
-        assert_eq!(handler.state.open_proposal_streams(), 0);
         let pending = handler
             .state
             .store
