@@ -3,49 +3,38 @@
 
 //! # Validator Consensus Service
 //!
-//! This module provides the core validation functionality for the Ethexe system.
-//! It implements a state machine-based validator service that processes blocks,
-//! handles validation requests, and manages the validation workflow.
+//! State flow:
 //!
-//! State transformations schema:
 //! ```text
-//! Initial
-//!    |
-//!    ├────> Producer
-//!    |         └───> Coordinator
-//!    |
-//!    └───> Subordinate
-//!              └───> Participant
+//! Idle
+//!   ├── self == coordinator(eth_block_ts) ──► Coordinator ──► Idle
+//!   └── otherwise                          ──► Participant ──► Idle
 //! ```
-//! * [`Initial`] switches to a [`Producer`] if it's producer for an incoming block, else becomes a [`Subordinate`].
-//! * [`Producer`] switches to [`Coordinator`] after producing a block and sending it to other validators.
-//! * [`Subordinate`] switches to [`Participant`] after receiving a block from the producer and waiting for its local computation.
-//! * [`Coordinator`] switches to [`Initial`] after receiving enough validation replies from other validators and creates submission task.
-//! * [`Participant`] switches to [`Initial`] after receiving request from [`Coordinator`] and sending validation reply (or rejecting request).
-//! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
+//!
+//! Coordinator: aggregates finalized MBs into a [`BatchCommitment`], gossips
+//! a validation request, collects threshold-many signatures, submits.
+//!
+//! Participant: waits for the coordinator's request, re-derives the same
+//! batch, and replies with a signature.
+//!
+//! Any new chain head aborts the current attempt and resets the state.
 
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
     validator::{
         batch::{BatchCommitmentManager, BatchLimits},
-        coordinator::Coordinator,
+        coordinator::{Coordinator, CoordinatorBoot},
         core::{MiddlewareWrapper, ValidatorCore},
+        idle::Idle,
         participant::Participant,
-        producer::Producer,
-        subordinate::Subordinate,
-        tx_pool::InjectedTxPool,
     },
 };
 use anyhow::Result;
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
-    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::ConfigStorageRO,
+    Address, SimpleBlockData, consensus::VerifiedValidationRequest, db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{Promise, SignedInjectedTransaction},
-    network::AnnouncesResponse,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
@@ -56,7 +45,6 @@ use futures::{
 };
 use gprimitives::H256;
 use gsigner::secp256k1::Signer;
-use initial::Initial;
 use std::{
     collections::VecDeque,
     fmt,
@@ -68,13 +56,8 @@ use std::{
 mod batch;
 mod coordinator;
 mod core;
-mod initial;
-#[cfg(test)]
-mod mock;
+mod idle;
 mod participant;
-mod producer;
-mod subordinate;
-mod tx_pool;
 
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
@@ -89,30 +72,25 @@ pub struct ValidatorConfig {
     /// ECDSA multi-signature threshold
     // TODO #4637: threshold should be a ratio (and maybe also a block dependent value)
     pub signatures_threshold: u64,
-    /// Block gas limit for producer to create announces
-    pub block_gas_limit: u64,
-    /// Delay limit for commitment
-    pub commitment_delay_limit: u32,
-    /// Producer delay before creating new announce after block prepared
-    pub producer_delay: Duration,
+    /// Coordinator-local: how many Ethereum blocks the resulting
+    /// `BatchCommitment` stays valid past its target block. Encoded into
+    /// `BatchCommitment::expiry` (u8). Set freely per-coordinator.
+    pub commitment_delay_limit: std::num::NonZero<u8>,
     /// Address of the router contract
     pub router_address: Address,
-    /// Threshold for producer to submit commitment despite of no transitions
-    pub chain_deepness_threshold: u32,
     /// The maximum size of abi encoded batch commitment.
     pub batch_size_limit: u64,
+    /// Delay between receiving a chain head and the coordinator beginning
+    /// batch aggregation. Buys participants time to receive the same head
+    /// and lets compute catch up on the latest finalized MB.
+    pub coordinator_aggregation_delay: Duration,
+    /// Force a checkpoint chain commitment when the producer's view of
+    /// `last_advanced_eth_block` runs ahead of `last_committed_eb`
+    /// by more than this many Eth blocks.
+    pub uncommitted_chain_len_threshold: std::num::NonZero<u32>,
 }
 
 impl ValidatorService {
-    /// Creates a new validator service instance.
-    ///
-    /// # Arguments
-    /// * `signer` - The signer used for cryptographic operations
-    /// * `db` - The database instance
-    /// * `config` - Configuration parameters for the validator
-    ///
-    /// # Returns
-    /// A new `ValidatorService` instance
     pub fn new(
         signer: Signer,
         election_provider: impl Into<Box<dyn ElectionProvider>>,
@@ -122,9 +100,9 @@ impl ValidatorService {
     ) -> Result<Self> {
         let timelines = db.config().timelines;
         let limits = BatchLimits {
-            chain_deepness_threshold: config.chain_deepness_threshold,
             commitment_delay_limit: config.commitment_delay_limit,
             batch_size_limit: config.batch_size_limit,
+            uncommitted_chain_len_threshold: config.uncommitted_chain_len_threshold,
         };
 
         let middleware = MiddlewareWrapper::from_inner(election_provider);
@@ -137,15 +115,12 @@ impl ValidatorService {
                 pub_key: config.pub_key,
                 timelines,
                 signer,
-                db: db.clone(),
+                db,
                 committer: committer.into(),
                 batch_manager,
-                injected_pool: InjectedTxPool::new(db),
                 metrics: ValidatorMetrics::default(),
-                chain_deepness_threshold: config.chain_deepness_threshold,
-                block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
-                producer_delay: config.producer_delay,
+                coordinator_aggregation_delay: config.coordinator_aggregation_delay,
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
@@ -153,7 +128,7 @@ impl ValidatorService {
         };
 
         Ok(Self {
-            inner: Some(Initial::create(ctx)?),
+            inner: Some(Idle::create(ctx)?),
         })
     }
 
@@ -203,36 +178,12 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_prepared_block(block))
     }
 
-    fn receive_computed_announce(&mut self, announce_hash: HashOf<Announce>) -> Result<()> {
-        self.update_inner(|inner| inner.process_computed_announce(announce_hash))
-    }
-
-    fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
-        self.update_inner(|inner| inner.process_announce(announce))
-    }
-
-    fn receive_promise_for_signing(
-        &mut self,
-        promise: Promise,
-        announce_hash: HashOf<Announce>,
-    ) -> Result<()> {
-        self.update_inner(|inner| inner.process_raw_promise(promise, announce_hash))
-    }
-
     fn receive_validation_request(&mut self, batch: VerifiedValidationRequest) -> Result<()> {
         self.update_inner(|inner| inner.process_validation_request(batch))
     }
 
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()> {
         self.update_inner(|inner| inner.process_validation_reply(reply))
-    }
-
-    fn receive_announces_response(&mut self, response: AnnouncesResponse) -> Result<()> {
-        self.update_inner(|inner| inner.process_announces_response(response))
-    }
-
-    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
-        self.update_inner(|inner| inner.process_injected_transaction(tx))
     }
 }
 
@@ -279,8 +230,6 @@ impl FusedStream for ValidatorService {
 /// An event that can be saved for later processing.
 #[derive(Clone, Debug, From, PartialEq, Eq, derive_more::IsVariant)]
 enum PendingEvent {
-    /// A block from the producer
-    Announce(VerifiedAnnounce),
     /// A validation request
     ValidationRequest(VerifiedValidationRequest),
 }
@@ -315,22 +264,6 @@ where
         DefaultProcessing::prepared_block(self.into(), block)
     }
 
-    fn process_computed_announce(self, announce_hash: HashOf<Announce>) -> Result<ValidatorState> {
-        DefaultProcessing::computed_announce(self.into(), announce_hash)
-    }
-
-    fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
-        DefaultProcessing::announce_from_producer(self, announce)
-    }
-
-    fn process_raw_promise(
-        self,
-        promise: Promise,
-        announce_hash: HashOf<Announce>,
-    ) -> Result<ValidatorState> {
-        DefaultProcessing::promise_for_signing(self, promise, announce_hash)
-    }
-
     fn process_validation_request(
         self,
         request: VerifiedValidationRequest,
@@ -345,14 +278,6 @@ where
         DefaultProcessing::validation_reply(self, reply)
     }
 
-    fn process_announces_response(self, _response: AnnouncesResponse) -> Result<ValidatorState> {
-        DefaultProcessing::announces_response(self, _response)
-    }
-
-    fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
-        DefaultProcessing::injected_transaction(self, tx)
-    }
-
     fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         Ok((Poll::Pending, self.into()))
     }
@@ -363,21 +288,19 @@ where
     Debug, derive_more::Display, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
 )]
 enum ValidatorState {
-    Initial(Initial),
-    Producer(Producer),
+    Idle(Idle),
+    CoordinatorBoot(CoordinatorBoot),
     Coordinator(Coordinator),
-    Subordinate(Subordinate),
     Participant(Participant),
 }
 
 macro_rules! delegate_call {
     ($this:ident => $func:ident( $( $arg:ident ),* )) => {
         match $this {
-            ValidatorState::Initial(initial) => initial.$func($( $arg ),*),
-            ValidatorState::Producer(producer) => producer.$func($( $arg ),*),
-            ValidatorState::Coordinator(coordinator) => coordinator.$func($( $arg ),*),
-            ValidatorState::Subordinate(subordinate) => subordinate.$func($( $arg ),*),
-            ValidatorState::Participant(participant) => participant.$func($( $arg ),*),
+            ValidatorState::Idle(s) => s.$func($( $arg ),*),
+            ValidatorState::CoordinatorBoot(s) => s.$func($( $arg ),*),
+            ValidatorState::Coordinator(s) => s.$func($( $arg ),*),
+            ValidatorState::Participant(s) => s.$func($( $arg ),*),
         }
     };
 }
@@ -411,22 +334,6 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_prepared_block(block))
     }
 
-    fn process_computed_announce(self, announce_hash: HashOf<Announce>) -> Result<ValidatorState> {
-        delegate_call!(self => process_computed_announce(announce_hash))
-    }
-
-    fn process_announce(self, verified_announce: VerifiedAnnounce) -> Result<ValidatorState> {
-        delegate_call!(self => process_announce(verified_announce))
-    }
-
-    fn process_raw_promise(
-        self,
-        promise: Promise,
-        announce_hash: HashOf<Announce>,
-    ) -> Result<ValidatorState> {
-        delegate_call!(self => process_raw_promise(promise, announce_hash))
-    }
-
     fn process_validation_request(
         self,
         request: VerifiedValidationRequest,
@@ -441,16 +348,8 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_validation_reply(reply))
     }
 
-    fn process_announces_response(self, response: AnnouncesResponse) -> Result<ValidatorState> {
-        delegate_call!(self => process_announces_response(response))
-    }
-
     fn poll_next_state(self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         delegate_call!(self => poll_next_state(cx))
-    }
-
-    fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
-        delegate_call!(self => process_injected_transaction(tx))
     }
 }
 
@@ -458,7 +357,7 @@ struct DefaultProcessing;
 
 impl DefaultProcessing {
     fn new_head(s: impl Into<ValidatorState>, block: SimpleBlockData) -> Result<ValidatorState> {
-        Initial::create_with_chain_head(s.into().into_context(), block)
+        Idle::create_with_chain_head(s.into().into_context(), block)
     }
 
     fn synced_block(s: impl Into<ValidatorState>, block: H256) -> Result<ValidatorState> {
@@ -470,39 +369,6 @@ impl DefaultProcessing {
     fn prepared_block(s: impl Into<ValidatorState>, block: H256) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!("unexpected processed block: {block}"));
-        Ok(s)
-    }
-
-    fn computed_announce(
-        s: impl Into<ValidatorState>,
-        announce_hash: HashOf<Announce>,
-    ) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.warning(format!("unexpected computed announce: {}", announce_hash));
-        Ok(s)
-    }
-
-    fn promise_for_signing(
-        s: impl Into<ValidatorState>,
-        promise: Promise,
-        announce_hash: HashOf<Announce>,
-    ) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.warning(format!(
-            "unexpected promise for signing: promise={promise:?}, announce_hash={announce_hash:?}"
-        ));
-        Ok(s)
-    }
-
-    fn announce_from_producer(
-        s: impl Into<ValidatorState>,
-        announce: VerifiedAnnounce,
-    ) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.warning(format!(
-            "unexpected announce from producer: {announce:?}, saved for later."
-        ));
-        s.context_mut().pending(announce);
         Ok(s)
     }
 
@@ -524,26 +390,6 @@ impl DefaultProcessing {
     ) -> Result<ValidatorState> {
         tracing::trace!("Skip validation reply: {reply:?}");
         Ok(s.into())
-    }
-
-    fn announces_response(
-        s: impl Into<ValidatorState>,
-        response: AnnouncesResponse,
-    ) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.warning(format!(
-            "unexpected announces response: {response:?}, ignored."
-        ));
-        Ok(s)
-    }
-
-    fn injected_transaction(
-        s: impl Into<ValidatorState>,
-        tx: SignedInjectedTransaction,
-    ) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.context_mut().core.process_injected_transaction(tx)?;
-        Ok(s)
     }
 }
 

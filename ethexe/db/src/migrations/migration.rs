@@ -1,30 +1,33 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+//! Per-step database migration trait.
+//!
+//! Implementations live next to the version they upgrade *from* — e.g.
+//! `v1::migration_from_v0` produces a v1 database from a v0 one. The
+//! driver in [`super::migrate`] walks [`super::MIGRATIONS`] in order,
+//! applying each step whose `source_version` matches the on-disk one.
+
 use super::InitConfig;
 use crate::RawDatabase;
 use anyhow::Result;
 use std::pin::Pin;
 
-pub trait Migration {
+/// A single schema upgrade step. Implementations must be idempotent on
+/// the migration's target version: running the same migration twice
+/// must not corrupt a database that's already at
+/// `source_version + 1`.
+pub trait Migration: Sync {
+    /// Schema version this migration upgrades from. Successful
+    /// application leaves the database at `source_version() + 1`.
+    fn source_version(&self) -> u32;
+
+    /// Apply the migration in-place.
     fn migrate<'a>(
         &'a self,
         config: &'a InitConfig,
         db: &'a RawDatabase,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a>>;
-}
-
-impl<F> Migration for F
-where
-    F: AsyncFn(&InitConfig, &RawDatabase) -> Result<()>,
-{
-    fn migrate<'a>(
-        &'a self,
-        config: &'a InitConfig,
-        db: &'a RawDatabase,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a>> {
-        Box::pin((self)(config, db))
-    }
 }
 
 #[cfg(test)]
@@ -34,6 +37,7 @@ pub(super) mod test {
     use scale_info::{MetaType, PortableRegistry, Registry};
     use sha3::{Digest, Sha3_256};
 
+    #[allow(unused)]
     #[track_caller]
     pub fn assert_migration_types_hash(migration: &str, types: Vec<MetaType>, expected_hash: &str) {
         let mut registry = Registry::new();

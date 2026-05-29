@@ -3,10 +3,11 @@
 
 #[cfg(feature = "server")]
 use crate::{errors, utils};
+use ethexe_common::gear::Message;
 #[cfg(feature = "server")]
 use ethexe_common::{
-    HashOf, SimpleBlockData,
-    db::{AnnounceStorageRO, CodesStorageRO, OnChainStorageRO},
+    HashOf,
+    db::{CodesStorageRO, MbStorageRO},
 };
 #[cfg(feature = "server")]
 use ethexe_db::Database;
@@ -39,6 +40,12 @@ pub struct FullProgramState {
     pub executable_balance: u128,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CalculateReplyForHandleResult {
+    pub reply: ReplyInfo,
+    pub messages: Vec<Message>,
+}
+
 #[cfg_attr(all(feature = "server", feature = "client"), rpc(server, client))]
 #[cfg_attr(all(feature = "server", not(feature = "client")), rpc(server))]
 #[cfg_attr(all(not(feature = "server"), feature = "client"), rpc(client))]
@@ -51,7 +58,7 @@ pub trait Program {
         program_id: H160,
         payload: Bytes,
         value: u128,
-    ) -> jsonrpsee::core::RpcResult<ReplyInfo>;
+    ) -> jsonrpsee::core::RpcResult<CalculateReplyForHandleResult>;
 
     #[method(name = "program_ids")]
     async fn ids(&self) -> jsonrpsee::core::RpcResult<Vec<H160>>;
@@ -123,31 +130,21 @@ impl ProgramApi {
 impl ProgramServer for ProgramApi {
     async fn calculate_reply_for_handle(
         &self,
-        at: Option<H256>,
+        _at: Option<H256>,
         source: H160,
         program_id: H160,
         payload: Bytes,
         value: u128,
-    ) -> jsonrpsee::core::RpcResult<ReplyInfo> {
-        let announce_hash = utils::announce_at_or_latest_computed(&self.db, at)?;
-
-        let announce = self
-            .db
-            .announce(announce_hash)
-            .ok_or_else(|| errors::db("Failed to get announce"))?;
-        let block_hash = announce.block_hash;
+    ) -> jsonrpsee::core::RpcResult<CalculateReplyForHandleResult> {
+        let mb_hash = utils::latest_computed_mb(&self.db)?;
+        let block = utils::block_at_or_latest_synced(&self.db, None)?;
 
         let executable = ExecutableDataForReply {
-            block: SimpleBlockData {
-                hash: block_hash,
-                header: self
-                    .db
-                    .block_header(block_hash)
-                    .ok_or_else(|| errors::db("Failed to get block header"))?,
-            },
+            height: block.header.height,
+            timestamp: block.header.timestamp,
             program_states: self
                 .db
-                .announce_program_states(announce_hash)
+                .mb_program_states(mb_hash)
                 .ok_or_else(|| errors::db("Failed to get program states"))?,
             source: source.into(),
             program_id: program_id.into(),
@@ -163,15 +160,19 @@ impl ProgramServer for ProgramApi {
             .clone()
             .execute_for_reply(executable)
             .await
+            .map(|outcome| CalculateReplyForHandleResult {
+                reply: outcome.reply,
+                messages: outcome.messages,
+            })
             .map_err(errors::runtime)
     }
 
     async fn ids(&self) -> jsonrpsee::core::RpcResult<Vec<H160>> {
-        let announce_hash = utils::announce_at_or_latest_computed(&self.db, None)?;
+        let mb_hash = utils::latest_computed_mb(&self.db)?;
 
         Ok(self
             .db
-            .announce_program_states(announce_hash)
+            .mb_program_states(mb_hash)
             .ok_or_else(|| errors::db("Failed to get program states"))?
             .into_keys()
             .map(|id| id.try_into().unwrap())

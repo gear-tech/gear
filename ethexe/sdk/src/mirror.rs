@@ -3,12 +3,13 @@
 
 use crate::VaraEthApi;
 use alloy::rpc::types::TransactionReceipt;
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use ethexe_common::{
     Address, SimpleBlockData,
     gear_core::rpc::ReplyInfo,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Promise,
+        Receipt,
     },
 };
 use ethexe_ethereum::{
@@ -18,7 +19,7 @@ use ethexe_ethereum::{
         MirrorQuery as EthereumMirrorQuery,
     },
 };
-use ethexe_rpc::{FullProgramState, InjectedClient, ProgramClient};
+use ethexe_rpc::{CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramClient};
 use ethexe_runtime_common::state::ProgramState;
 use futures::TryFutureExt;
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
@@ -106,7 +107,7 @@ impl<'a> Mirror<'a> {
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<ReplyInfo> {
+    ) -> Result<CalculateReplyForHandleResult> {
         self.calculate_reply_for_handle_at(payload, value, None)
             .await
     }
@@ -116,7 +117,7 @@ impl<'a> Mirror<'a> {
         payload: impl AsRef<[u8]>,
         value: u128,
         at: Option<H256>,
-    ) -> Result<ReplyInfo> {
+    ) -> Result<CalculateReplyForHandleResult> {
         let sender_address = self.api.ethereum_client.sender_address();
         let source: ActorId = sender_address.into();
         let destination = self.actor_id();
@@ -222,7 +223,8 @@ impl<'a> Mirror<'a> {
             .with_context(|| "failed to send injected transaction")?;
 
         match result {
-            InjectedTransactionAcceptance::Accept => Ok(message_id),
+            InjectedTransactionAcceptance::Accept
+            | InjectedTransactionAcceptance::AlreadyPooled { .. } => Ok(message_id),
             InjectedTransactionAcceptance::Reject { reason } => {
                 Err(anyhow!("injected transaction was rejected: {reason}"))
             }
@@ -246,12 +248,19 @@ impl<'a> Mirror<'a> {
             .await
             .with_context(|| "failed to send injected transaction and subscribe to it's promise")?;
 
-        let promise = subscription
+        let receipt = subscription
             .next()
             .await
             .ok_or_else(|| anyhow!("no promise received from subscription"))?
             .with_context(|| "failed to receive transaction promise")?
-            .into_data();
+            .data()
+            .clone();
+        let promise = match receipt {
+            Receipt::Promise(promise) => promise,
+            Receipt::Purged(err) => {
+                bail!("injected transaction was purged: {err}")
+            }
+        };
 
         Ok((message_id, promise))
     }

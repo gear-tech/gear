@@ -29,13 +29,14 @@
 //! The RPC server is configured from [`RpcConfig`]. It provides the following configuration:
 //! - [`RpcConfig::listen_addr`] - the address of RPC server running on
 //! - [`RpcConfig::cors`] - the list of allowed CORS origins
-//! - [`RpcConfig::gas_allowance`] - the gas allowace for program reply calculation
+//! - [`RpcConfig::gas_allowance`] - the gas allowance for program reply calculation
 //! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
 //! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
-    BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient,
+    BlockClient, CalculateReplyForHandleResult, CodeClient, DevClient, FullProgramState,
+    InjectedClient, ProgramClient,
 };
 
 #[cfg(feature = "server")]
@@ -47,7 +48,7 @@ use apis::{
 };
 #[cfg(feature = "server")]
 use ethexe_common::injected::{
-    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactPromise,
+    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt,
 };
 #[cfg(feature = "server")]
 use ethexe_db::Database;
@@ -206,8 +207,8 @@ impl RpcService {
         self.injected_api.on_computed_promise(promise);
     }
 
-    pub fn receive_compact_promise(&self, compact_promise: SignedCompactPromise) {
-        self.injected_api.on_compact_promise(compact_promise);
+    pub fn receive_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
+        self.injected_api.on_tx_receipt(receipt);
     }
 }
 

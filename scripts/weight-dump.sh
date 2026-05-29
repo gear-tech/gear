@@ -3,7 +3,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CORE_DIR="$SCRIPT_DIR/../core"
+CORE_DIR="$SCRIPT_DIR/../protocol/core"
 
 dump_path="weight-dumps"
 mkdir -p "$SCRIPT_DIR/../$dump_path"
