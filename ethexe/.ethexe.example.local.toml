@@ -268,15 +268,19 @@ block-time = 1
 # persistent-peers = []
 
 # Path to a JSON file mapping validator Ethereum addresses to their
-# Malachite secp256k1 public keys. The Router contract stores the
-# validator set as Ethereum addresses; Malachite needs the matching
-# public keys to verify votes and proposals.
-# File format (both fields are 0x-prefixed hex):
+# Malachite secp256k1 public keys and libp2p peer IDs. The Router
+# contract stores the validator set as Ethereum addresses; Malachite
+# needs the matching public keys to verify votes/proposals and peer IDs
+# to reject proposal parts from non-validator publishers before buffering.
+# File format (addresses and keys are 0x-prefixed hex, peer IDs are
+# libp2p peer-id strings):
 # ```json
 # {
-#   "0xaaaa...": "0x02bbbb...",
-#   "0xcccc...": "0x03dddd..."
+#   "0xaaaa...": {
+#     "public_key": "0x02bbbb...",
+#     "peer_id": "16Uiu2HAm..."
+#   }
 # }
 # ```
 # (optional, default: None — required on validator nodes).
-# validator-pub-keys = "/path/to/validators.json"
+# validator-identities = "/path/to/validators.json"
