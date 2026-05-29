@@ -858,7 +858,6 @@ pub(crate) mod tests {
         );
     }
 
-    #[ignore = "temporary ignored"]
     #[tokio::test]
     async fn request_response_type_mismatch() {
         init_logger();

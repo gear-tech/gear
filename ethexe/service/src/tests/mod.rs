@@ -2873,15 +2873,15 @@ async fn injected_tx_fungible_token_over_network() {
         .signed_message(user_pubkey, mint_tx.clone(), None)
         .unwrap();
 
-    // alice_node
-    //     .events()
-    //     .find(|event| {
-    //         matches!(
-    //             event,
-    //             TestingEvent::Network(TestingNetworkEvent::ValidatorIdentityUpdated(_))
-    //         )
-    //     })
-    //     .await;
+    alice_node
+        .events()
+        .find(|event| {
+            matches!(
+                event,
+                TestingEvent::Network(TestingNetworkEvent::ValidatorIdentityUpdated(_))
+            )
+        })
+        .await;
 
     tracing::trace!("🚧 identity updated, subscribing for promise");
 
@@ -2889,7 +2889,7 @@ async fn injected_tx_fungible_token_over_network() {
         .send_transaction_and_watch(signed_tx)
         .await
         .expect("successfully subscribe for transaction promise");
-    tracing::error!("🚧 subscribe fot promise");
+    tracing::trace!("🚧 subscribe fot promise");
 
     // wait for the injected transaction received before forcing a block
     bob_node

@@ -144,6 +144,7 @@ impl Behaviour {
 
         inner.subscribe(&commitments_topic)?;
         inner.subscribe(&tx_receipts_topic)?;
+        inner.subscribe(&transactions_topic)?;
 
         Ok(Self {
             inner,
@@ -186,6 +187,9 @@ impl Behaviour {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
                 } else if topic == self.tx_receipts_topic.hash() {
                     SignedCompactTxReceipt::decode(&mut &data[..]).map(Message::TxReceipt)
+                } else if topic == self.transactions_topic.hash() {
+                    SignedInjectedTransaction::decode(&mut &data[..])
+                        .map(Message::InjectedTransaction)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };
