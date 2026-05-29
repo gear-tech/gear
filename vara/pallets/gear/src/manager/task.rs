@@ -114,22 +114,31 @@ where
                 unreachable!("{err_msg}");
             });
 
-        if matches!(waitlisted.kind(), DispatchKind::Signal | DispatchKind::Init) {
-            GasHandlerOf::<T>::system_unreserve(message_id).unwrap_or_else(|e| {
-                let err_msg = format!(
-                    "TaskHandler::remove_from_waitlist: failed system unreserve. \
-                    Message id - {message_id}. Got error: {e:?}"
-                );
+        match waitlisted.kind() {
+            // Signals cannot carry system reservations; suppress secondary signals.
+            DispatchKind::Signal => {}
+            DispatchKind::Init => {
+                if let Ok(reserved) = GasHandlerOf::<T>::get_system_reserve(message_id) {
+                    if reserved != 0 {
+                        GasHandlerOf::<T>::system_unreserve(message_id).unwrap_or_else(|e| {
+                            let err_msg = format!(
+                                "TaskHandler::remove_from_waitlist: failed system unreserve. \
+                                Message id - {message_id}. Got error: {e:?}"
+                            );
 
-                log::error!("{err_msg}");
-                unreachable!("{err_msg}")
-            });
-        } else {
-            self.send_signal(
-                message_id,
-                waitlisted.destination(),
-                SignalCode::RemovedFromWaitlist,
-            );
+                            log::error!("{err_msg}");
+                            unreachable!("{err_msg}")
+                        });
+                    }
+                }
+            }
+            _ => {
+                self.send_signal(
+                    message_id,
+                    waitlisted.destination(),
+                    SignalCode::RemovedFromWaitlist,
+                );
+            }
         }
 
         if !waitlisted.is_reply() && waitlisted.kind() != DispatchKind::Signal {

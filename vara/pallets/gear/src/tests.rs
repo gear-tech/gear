@@ -14764,17 +14764,28 @@ fn remove_from_waitlist_after_exit_reply() {
 
 #[test]
 fn remove_from_waitlist_init_does_not_send_signal() {
+    remove_from_waitlist_init_does_not_send_signal_impl(true);
+}
+
+#[test]
+fn remove_from_waitlist_init_without_system_reservation_does_not_send_signal() {
+    remove_from_waitlist_init_does_not_send_signal_impl(false);
+}
+
+fn remove_from_waitlist_init_does_not_send_signal_impl(reserve_system_gas: bool) {
     init_logger();
 
     new_test_ext().execute_with(|| {
         let source_var = "source_var";
         let init_signal = b"init_signal".to_vec();
+        let mut init = Calls::builder().source(source_var).send(source_var, []);
+
+        if reserve_system_gas {
+            init = init.system_reserve_gas(1_000_000_000);
+        }
+
         let scheme = Scheme::predefined(
-            Calls::builder()
-                .source(source_var)
-                .send(source_var, [])
-                .system_reserve_gas(1_000_000_000)
-                .wait(),
+            init.wait(),
             Calls::builder().noop(),
             Calls::builder().noop(),
             Calls::builder().send(source_var, init_signal.clone()),
