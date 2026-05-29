@@ -7,7 +7,7 @@
 //!
 //! 1. The [`Mempool`] trait — abstract dependency consumed by
 //!    [`crate::EthexeExternalities`] when [`ethexe_malachite_core::Externalities::build_block_above`]
-//!    fires. Tests can stub it with [`EmptyMempool`]; production
+//!    fires. Tests stub it with a crate-private `EmptyMempool`; production
 //!    uses the [`InjectedTxMempool`] in this file.
 //!
 //! 2. [`InjectedTxMempool`] — the in-memory pool itself. Lifecycle
@@ -46,7 +46,6 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use gprimitives::H256;
-use std::fmt;
 use tokio::sync::Notify;
 use tracing::{info, trace};
 
@@ -60,26 +59,32 @@ use tracing::{info, trace};
 /// Group membership is queried via [`Self::is_accepted`]; the
 /// `From<TxInsertionStatus> for InjectedTransactionAcceptance` impl uses
 /// that to project into the RPC-facing acceptance type.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, derive_more::Display)]
 pub enum TxInsertionStatus {
     // ---- Accept ----
     /// Fresh insert — the tx just entered the pool.
+    #[display("inserted")]
     Inserted,
     /// Same tx hash already lives in the pool — idempotent no-op.
+    #[display("already in pool")]
     AlreadyInPool,
     /// Same tx hash was committed within the validity window and is in
     /// the seen-hash table — idempotent no-op.
+    #[display("already included within validity window")]
     AlreadyIncluded,
     // ---- Reject ----
     /// `reference_block` is past the validity window relative to the
     /// latest observed head.
+    #[display("reference_block past validity window")]
     ExpiredRefBlock,
     /// Pool is at capacity.
+    #[display("mempool at capacity")]
     PoolFull,
     /// Per #5083, non-zero-value injected transactions are not yet
     /// supported. Reject at insert so the pool never holds one — the
     /// proposer cannot accidentally select it and the runtime won't
     /// charge a panicking program for an out-of-budget transfer.
+    #[display("non-zero value injected txs are not yet supported (#5083)")]
     NonZeroValue,
 }
 
@@ -91,20 +96,6 @@ impl TxInsertionStatus {
             self,
             Self::Inserted | Self::AlreadyInPool | Self::AlreadyIncluded,
         )
-    }
-}
-
-impl fmt::Display for TxInsertionStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let msg = match self {
-            Self::Inserted => "inserted",
-            Self::AlreadyInPool => "already in pool",
-            Self::AlreadyIncluded => "already included within validity window",
-            Self::ExpiredRefBlock => "reference_block past validity window",
-            Self::PoolFull => "mempool at capacity",
-            Self::NonZeroValue => "non-zero value injected txs are not yet supported (#5083)",
-        };
-        f.write_str(msg)
     }
 }
 
@@ -145,10 +136,14 @@ pub trait Mempool: Send + Sync + 'static {
     async fn wait_for_new_tx(&self);
 }
 
-/// Always-empty mempool, useful to bring up the service on an idle node.
+/// Always-empty mempool — used by in-crate unit tests to drive
+/// externalities without spinning up the real pool. Kept out of the
+/// public API so consumers can't reach for a no-op pool in production.
+#[cfg(test)]
 #[derive(Clone, Default)]
-pub struct EmptyMempool;
+pub(crate) struct EmptyMempool;
 
+#[cfg(test)]
 #[async_trait]
 impl Mempool for EmptyMempool {
     fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
@@ -592,7 +587,7 @@ mod tests {
 
         // Advance head so block 1 is past the validity window.
         let head_idx = (VALIDITY_WINDOW as usize) + 1;
-        pool.set_chain_head(chain[head_idx]);
+        let _ = pool.set_chain_head(chain[head_idx]);
 
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
         assert_eq!(pool.insert(tx), TxInsertionStatus::ExpiredRefBlock,);

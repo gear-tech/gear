@@ -719,7 +719,7 @@ impl EthexeExternalities {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EmptyMempool, MalachiteEvent};
+    use crate::{MalachiteEvent, mempool::EmptyMempool};
     use ethexe_common::{
         BlockHeader,
         db::{BlockMetaStorageRW, OnChainStorageRW},

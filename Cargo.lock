@@ -5609,6 +5609,7 @@ dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
+ "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-malachite-core",
