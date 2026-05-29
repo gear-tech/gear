@@ -134,6 +134,8 @@ Allowed labels:
 - scope: *
 - priority: critical | important | normal | backlog
 - size: S | M | L | XL
+- ai-friendly (optional)
+- ai-generated (optional)
 
 #### Priority Semantics
 
@@ -159,6 +161,7 @@ Allowed labels:
 - scope: *
 - ci: *
 - ai-friendly (optional)
+- ai-generated (optional)
 - pr: do-not-merge
 
 ### 7.3 Restrictions
@@ -249,9 +252,26 @@ This label is enforced via CI and blocks merge queue.
 
 ---
 
+### ai-generated
+
+Indicates that the issue or Pull Request was created entirely by an AI agent, without direct human authorship.
+
+This label MUST be applied when:
+
+- the issue was opened by an AI agent autonomously
+- the PR was authored and submitted by an AI agent end-to-end
+
+Human review of `ai-generated` issues and Pull Requests is REQUIRED before merging.
+
+---
+
 ### ai-friendly
 
 Indicates that the task is suitable for AI-assisted work.
+
+This label MAY be applied to both **issues** and **Pull Requests**.
+
+On an issue, it signals that contributors are encouraged to point their AI agents at it — the task is scoped well enough for autonomous implementation.
 
 This includes tasks that:
 
