@@ -11,7 +11,7 @@
 
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, BinaryHeap, HashSet},
+    collections::{BTreeMap, BTreeSet, BinaryHeap, HashSet},
 };
 
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input, Output};
@@ -29,6 +29,8 @@ use crate::{
 const MAX_STREAM_MESSAGES: u64 = 16;
 const MAX_STREAMS_PER_PEER: usize = 64;
 const MAX_STREAMS_TOTAL: usize = 1024;
+
+type StreamKey = (PeerId, StreamId);
 
 /// Min-heap wrapper that orders `StreamMessage`s by ascending sequence.
 struct MinSeq<T>(StreamMessage<T>);
@@ -179,13 +181,21 @@ impl ProposalParts {
 
 #[derive(Default)]
 pub struct PartStreamsMap {
-    streams: BTreeMap<(PeerId, StreamId), StreamState>,
+    streams: BTreeMap<StreamKey, StreamState>,
     peer_streams: BTreeMap<PeerId, usize>,
+    recencies: BTreeMap<StreamKey, u64>,
+    recency_order: BTreeSet<(u64, PeerId, StreamId)>,
+    next_recency: u64,
 }
 
 impl PartStreamsMap {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.streams.len()
     }
 
     /// Insert a part. Returns `Some(parts)` once the stream is
@@ -202,8 +212,8 @@ impl PartStreamsMap {
             self.remove_stream(&key);
             return None;
         }
-        if !self.streams.contains_key(&key) && !self.can_open_stream(peer_id) {
-            return None;
+        if !self.streams.contains_key(&key) {
+            self.make_room_for_new_stream(peer_id);
         }
 
         let result = {
@@ -218,18 +228,57 @@ impl PartStreamsMap {
         };
         if result.is_some() {
             self.remove_stream(&key);
+        } else {
+            self.touch_stream(&key);
         }
         result
     }
 
-    fn can_open_stream(&self, peer_id: PeerId) -> bool {
-        self.streams.len() < MAX_STREAMS_TOTAL
-            && self.peer_streams.get(&peer_id).copied().unwrap_or_default() < MAX_STREAMS_PER_PEER
+    fn make_room_for_new_stream(&mut self, peer_id: PeerId) {
+        if self
+            .peer_streams
+            .get(&peer_id)
+            .is_some_and(|count| *count >= MAX_STREAMS_PER_PEER)
+            && let Some(key) = self.oldest_stream_for_peer(peer_id)
+        {
+            self.remove_stream(&key);
+        }
+
+        if self.streams.len() >= MAX_STREAMS_TOTAL
+            && let Some((_, peer_id, stream_id)) = self.recency_order.iter().next().cloned()
+        {
+            self.remove_stream(&(peer_id, stream_id));
+        }
     }
 
-    fn remove_stream(&mut self, key: &(PeerId, StreamId)) {
+    fn oldest_stream_for_peer(&self, peer_id: PeerId) -> Option<StreamKey> {
+        self.recency_order
+            .iter()
+            .find(|(_, candidate_peer, _)| *candidate_peer == peer_id)
+            .map(|(_, peer_id, stream_id)| (*peer_id, stream_id.clone()))
+    }
+
+    fn touch_stream(&mut self, key: &StreamKey) {
+        let recency = self.next_recency;
+        self.next_recency = self
+            .next_recency
+            .checked_add(1)
+            .expect("stream recency counter overflowed");
+
+        if let Some(old_recency) = self.recencies.insert(key.clone(), recency) {
+            self.recency_order
+                .remove(&(old_recency, key.0, key.1.clone()));
+        }
+        self.recency_order.insert((recency, key.0, key.1.clone()));
+    }
+
+    fn remove_stream(&mut self, key: &StreamKey) {
         if self.streams.remove(key).is_none() {
             return;
+        }
+
+        if let Some(recency) = self.recencies.remove(key) {
+            self.recency_order.remove(&(recency, key.0, key.1.clone()));
         }
 
         if let Some(count) = self.peer_streams.get_mut(&key.0) {
@@ -286,6 +335,22 @@ mod tests {
         StreamMessage::new(stream_id, seq, StreamContent::Fin)
     }
 
+    fn fill_global_cap(map: &mut PartStreamsMap, start_stream: u64) {
+        let mut stream = start_stream;
+        for peer_byte in 2..=250 {
+            for _ in 0..MAX_STREAMS_PER_PEER {
+                if map.len() == MAX_STREAMS_TOTAL {
+                    return;
+                }
+                let p = peer_id(peer_byte);
+                let s = sid(stream);
+                assert!(map.insert(p, msg(s, 0, init_part(stream))).is_none());
+                stream += 1;
+            }
+        }
+        assert_eq!(map.len(), MAX_STREAMS_TOTAL);
+    }
+
     #[test]
     fn complete_in_order_assembles() {
         let mut map = PartStreamsMap::new();
@@ -321,6 +386,8 @@ mod tests {
             "completed stream must be removed from PartStreamsMap"
         );
         assert_eq!(map.streams.len(), 0);
+        assert!(map.recencies.is_empty());
+        assert!(map.recency_order.is_empty());
     }
 
     #[test]
@@ -364,32 +431,109 @@ mod tests {
     }
 
     #[test]
-    fn part_streams_map_bounds_single_peer_flood() {
+    fn per_peer_cap_evicts_oldest_and_accepts_new_stream() {
         let mut map = PartStreamsMap::new();
         let p = peer_id(1);
 
-        for stream_idx in 0..100u64 {
+        let first = sid(0xA000_0000);
+        for stream_idx in 0..MAX_STREAMS_PER_PEER as u64 {
             let s = sid(0xA000_0000 + stream_idx);
             assert!(map.insert(p, msg(s.clone(), 0, init_part(1))).is_none());
-            assert!(map.insert(p, msg(s, 1, data_part(b"x"))).is_none());
-        }
-
-        for stream_idx in 0..100u64 {
-            let s = sid(0xB000_0000 + stream_idx);
-            assert!(map.insert(p, fin_msg(s, u64::MAX / 2)).is_none());
         }
 
         assert_eq!(map.streams.len(), MAX_STREAMS_PER_PEER);
         assert_eq!(map.peer_streams.get(&p), Some(&MAX_STREAMS_PER_PEER));
+
+        let newest = sid(0xB000_0000);
+        assert!(
+            map.insert(p, msg(newest.clone(), 0, init_part(1)))
+                .is_none()
+        );
+
+        assert_eq!(map.streams.len(), MAX_STREAMS_PER_PEER);
+        assert!(!map.streams.contains_key(&(p, first)));
+        assert!(map.streams.contains_key(&(p, newest.clone())));
+
+        assert!(
+            map.insert(p, msg(newest.clone(), 1, data_part(b"new")))
+                .is_none()
+        );
+        assert!(map.insert(p, fin_msg(newest.clone(), 2)).is_some());
+        assert!(!map.streams.contains_key(&(p, newest)));
+        assert_eq!(map.peer_streams.get(&p), Some(&(MAX_STREAMS_PER_PEER - 1)));
     }
 
     #[test]
-    fn malformed_far_future_fin_evicts_stream() {
+    fn global_cap_evicts_oldest_and_stays_bounded() {
+        let mut map = PartStreamsMap::new();
+        let first_peer = peer_id(1);
+        let first_stream = sid(10);
+
+        assert!(
+            map.insert(first_peer, msg(first_stream.clone(), 0, init_part(10)))
+                .is_none()
+        );
+        fill_global_cap(&mut map, 1_000);
+        assert_eq!(map.len(), MAX_STREAMS_TOTAL);
+
+        let new_peer = peer_id(251);
+        let new_stream = sid(20_000);
+        assert!(
+            map.insert(new_peer, msg(new_stream.clone(), 0, init_part(20_000)))
+                .is_none()
+        );
+
+        assert_eq!(map.len(), MAX_STREAMS_TOTAL);
+        assert!(!map.streams.contains_key(&(first_peer, first_stream)));
+        assert!(map.streams.contains_key(&(new_peer, new_stream)));
+    }
+
+    #[test]
+    fn valid_parts_refresh_existing_stream_recency() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(1);
+        let refreshed = sid(50);
+        let stale = sid(51);
+
+        assert!(
+            map.insert(p, msg(refreshed.clone(), 0, init_part(50)))
+                .is_none()
+        );
+        assert!(
+            map.insert(p, msg(stale.clone(), 0, init_part(51)))
+                .is_none()
+        );
+        assert!(
+            map.insert(p, msg(refreshed.clone(), 1, data_part(b"fresh")))
+                .is_none()
+        );
+
+        fill_global_cap(&mut map, 2_000);
+
+        let new_peer = peer_id(251);
+        let new_stream = sid(30_000);
+        assert!(
+            map.insert(new_peer, msg(new_stream.clone(), 0, init_part(30_000)))
+                .is_none()
+        );
+
+        assert!(map.streams.contains_key(&(p, refreshed)));
+        assert!(!map.streams.contains_key(&(p, stale)));
+        assert!(map.streams.contains_key(&(new_peer, new_stream)));
+    }
+
+    #[test]
+    fn malformed_far_future_fin_evicts_only_its_stream() {
         let mut map = PartStreamsMap::new();
         let p = peer_id(1);
         let s = sid(30);
+        let other = sid(31);
 
         assert!(map.insert(p, msg(s.clone(), 0, init_part(30))).is_none());
+        assert!(
+            map.insert(p, msg(other.clone(), 0, init_part(31)))
+                .is_none()
+        );
         assert!(map.streams.contains_key(&(p, s.clone())));
         assert!(
             map.insert(p, fin_msg(s.clone(), MAX_STREAM_MESSAGES))
@@ -397,11 +541,13 @@ mod tests {
         );
 
         assert!(!map.streams.contains_key(&(p, s)));
-        assert!(!map.peer_streams.contains_key(&p));
+        assert!(map.streams.contains_key(&(p, other.clone())));
+        assert_eq!(map.peer_streams.get(&p), Some(&1));
+        assert!(map.recencies.contains_key(&(p, other)));
     }
 
     #[test]
-    fn cap_does_not_block_existing_stream_completion() {
+    fn completed_stream_releases_slot_after_cap_eviction() {
         let mut map = PartStreamsMap::new();
         let p = peer_id(1);
         let first = sid(40);
@@ -421,13 +567,15 @@ mod tests {
             map.insert(p, msg(over_cap.clone(), 0, init_part(40)))
                 .is_none()
         );
-        assert!(!map.streams.contains_key(&(p, over_cap)));
+        assert!(!map.streams.contains_key(&(p, first.clone())));
+        assert!(map.streams.contains_key(&(p, over_cap.clone())));
 
         assert!(
-            map.insert(p, msg(first.clone(), 1, data_part(b"ok")))
+            map.insert(p, msg(over_cap.clone(), 1, data_part(b"ok")))
                 .is_none()
         );
-        assert!(map.insert(p, fin_msg(first.clone(), 2)).is_some());
-        assert!(!map.streams.contains_key(&(p, first)));
+        assert!(map.insert(p, fin_msg(over_cap.clone(), 2)).is_some());
+        assert!(!map.streams.contains_key(&(p, over_cap)));
+        assert_eq!(map.streams.len(), MAX_STREAMS_PER_PEER - 1);
     }
 }
