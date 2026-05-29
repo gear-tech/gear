@@ -1177,6 +1177,7 @@ impl Node {
                 .iter()
                 .map(|e| ValidatorEntry {
                     public_key: e.pub_key,
+                    peer_id: e.peer_id,
                     voting_power: 1,
                 })
                 .collect();

@@ -259,6 +259,7 @@ fn validator_entries(setups: &[ValidatorSetup]) -> Vec<ValidatorEntry> {
         .iter()
         .map(|s| ValidatorEntry {
             public_key: s.private_key.public_key(),
+            peer_id: s.peer_id,
             voting_power: 1,
         })
         .collect()
@@ -488,6 +489,7 @@ async fn full_node_syncs_from_validators() {
         .iter()
         .map(|s| ValidatorEntry {
             public_key: s.private_key.public_key(),
+            peer_id: s.peer_id,
             voting_power: 1,
         })
         .collect();

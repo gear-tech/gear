@@ -3,11 +3,12 @@
 
 use ethexe_common::consensus::DEFAULT_BATCH_SIZE_LIMIT;
 use ethexe_ethereum::{Ethereum, router::RouterQuery};
+use ethexe_malachite::malachite_libp2p_peer_id;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
 use ethexe_service::{
     Service,
-    config::{self, Config, EthereumConfig},
+    config::{self, Config, EthereumConfig, ValidatorIdentity},
 };
 use gsigner::secp256k1::Signer;
 use std::{
@@ -64,24 +65,31 @@ async fn constructor() {
 
     // `Service::new` resolves the Malachite validator set by looking
     // each on-chain validator address up in
-    // `config.malachite.validator_pub_keys`. The smoke test only
+    // `config.malachite.validator_identities`. The smoke test only
     // exercises the constructor wiring (the service is dropped
     // immediately, nothing signs anything), so populate the table with
-    // freshly generated keys keyed by the live router's validators.
+    // freshly generated identities keyed by the live router's validators.
     let malachite_signer =
-        Signer::fs(tmp_dir.join("malachite-pub-keys")).expect("failed to create signer");
+        Signer::fs(tmp_dir.join("malachite-identities")).expect("failed to create signer");
     let router_query = RouterQuery::new(&eth_cfg.rpc, eth_cfg.router_address)
         .await
         .expect("router query");
     let validators = router_query.validators().await.expect("validators");
-    let validator_pub_keys = validators
+    let validator_identities = validators
         .iter()
         .map(|addr| {
+            let public_key = malachite_signer
+                .generate()
+                .expect("failed to generate malachite pub key");
+            let secret = malachite_signer
+                .private_key(public_key)
+                .expect("failed to load malachite private key");
             (
                 *addr,
-                malachite_signer
-                    .generate()
-                    .expect("failed to generate malachite pub key"),
+                ValidatorIdentity {
+                    public_key,
+                    peer_id: malachite_libp2p_peer_id(&secret.to_bytes()),
+                },
             )
         })
         .collect();
@@ -91,7 +99,7 @@ async fn constructor() {
         ethereum: eth_cfg,
         network: None,
         malachite: config::MalachiteCliConfig {
-            validator_pub_keys,
+            validator_identities,
             ..Default::default()
         },
         rpc: None,

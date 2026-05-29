@@ -10,6 +10,7 @@
 //! which calls into this struct.
 
 use std::{
+    collections::BTreeSet,
     marker::PhantomData,
     sync::{Arc, RwLock},
     time::Duration,
@@ -71,9 +72,31 @@ impl SharedValidatorSet {
     }
 }
 
+/// Active Malachite peer IDs for proposal-part ingress.
+#[derive(Clone)]
+pub(crate) struct SharedValidatorPeers(Arc<RwLock<BTreeSet<PeerId>>>);
+
+impl SharedValidatorPeers {
+    pub fn new(peers: BTreeSet<PeerId>) -> Self {
+        Self(Arc::new(RwLock::new(peers)))
+    }
+
+    pub fn contains(&self, peer: &PeerId) -> bool {
+        self.0
+            .read()
+            .expect("validator peer set lock poisoned")
+            .contains(peer)
+    }
+
+    pub fn update(&self, peers: BTreeSet<PeerId>) {
+        *self.0.write().expect("validator peer set lock poisoned") = peers;
+    }
+}
+
 pub(crate) struct State<P: BlockPayload> {
     pub signer: MalachiteSigner,
     pub validator_set: SharedValidatorSet,
+    validator_peers: SharedValidatorPeers,
     pub address: Address,
     pub store: Store<P>,
     streams_map: PartStreamsMap,
@@ -88,6 +111,7 @@ impl<P: BlockPayload> State<P> {
     pub fn new(
         signer: MalachiteSigner,
         validator_set: SharedValidatorSet,
+        validator_peers: SharedValidatorPeers,
         address: Address,
         store: Store<P>,
         propose_timeout: Duration,
@@ -99,6 +123,7 @@ impl<P: BlockPayload> State<P> {
         Ok(Self {
             signer,
             validator_set,
+            validator_peers,
             address,
             store,
             streams_map: PartStreamsMap::new(),
@@ -112,6 +137,10 @@ impl<P: BlockPayload> State<P> {
 
     pub fn get_validator_set(&self, _height: Height) -> ValidatorSet {
         self.validator_set.get()
+    }
+
+    pub fn is_active_validator_peer(&self, peer: &PeerId) -> bool {
+        self.validator_peers.contains(peer)
     }
 
     /// Round timeouts. Propose phase is bounded by the configured
@@ -136,6 +165,16 @@ impl<P: BlockPayload> State<P> {
         part: StreamMessage<ProposalPart>,
     ) -> Option<ProposalParts> {
         self.streams_map.insert(from, part)
+    }
+
+    #[cfg(test)]
+    pub fn open_proposal_streams(&self) -> usize {
+        self.streams_map.len()
+    }
+
+    #[cfg(test)]
+    pub fn update_validator_peers(&mut self, peers: BTreeSet<PeerId>) {
+        self.validator_peers.update(peers);
     }
 
     /// Re-assemble a [`ProposedValue`] from a completed

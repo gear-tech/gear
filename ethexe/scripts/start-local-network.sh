@@ -48,8 +48,8 @@ CONTAINER_PROMETHEUS_PORT="9635"
 
 # Malachite BFT consensus uses a separate libp2p TCP swarm (ethexe-network
 # is QUIC/UDP). Port 20334 is the default malachite listen address; we
-# also pre-derive a `validators -> pubkey` JSON file per node (the
-# `--validators-malachite-pub-keys` operand).
+# also pre-derive one shared `validator -> identity` JSON file and copy it
+# into each node directory (the `--validators-malachite-identities` operand).
 MALACHITE_PORT_START="20334"
 CONTAINER_MALACHITE_PORT="20334"
 
@@ -680,17 +680,17 @@ generate_keys() {
 	done
 
 	# Generate one shared `malachite-validators.json` that lists every
-	# validator's address → public key. Every node loads the same map
-	# (via `--validators-malachite-pub-keys`) so they all agree on the
-	# Malachite validator set even though the Router contract only
-	# stores eth-addresses.
+	# validator's address → public key + Malachite peer ID. Every node
+	# loads the same map (via `--validators-malachite-identities`) so
+	# they all agree on the Malachite validator set even though the
+	# Router contract only stores eth-addresses.
 	generate_malachite_validators_json
 }
 
-# Build the validators JSON consumed by `--validators-malachite-pub-keys`.
-# Shape: `{ "0x<address>": "0x<secp256k1_pubkey>", ... }`. The map ordering
-# doesn't matter — the service walks the on-chain validator list (in
-# router order) and looks each address up here.
+# Build the validators JSON consumed by `--validators-malachite-identities`.
+# Shape: `{ "0x<address>": { "public_key": "0x<secp256k1_pubkey>", "peer_id": "<peer>" }, ... }`.
+# The map ordering doesn't matter — the service walks the on-chain validator
+# list (in router order) and looks each address up here.
 generate_malachite_validators_json() {
 	local json_path="$BASE_DIR/malachite-validators.json"
 	{
@@ -698,11 +698,12 @@ generate_malachite_validators_json() {
 		for ((i = 0; i < NUM_VALIDATORS; i++)); do
 			local addr="${VALIDATOR_ADDRESSES[$i]}"
 			local pk="${VALIDATOR_PUB_KEYS[$i]}"
+			local malachite_peer_id="${MALACHITE_PEER_IDS[$i]}"
 			# Trailing comma on every entry except the last.
 			if [[ $i -lt $((NUM_VALIDATORS - 1)) ]]; then
-				printf '  "%s": "%s",\n' "$addr" "$pk"
+				printf '  "%s": { "public_key": "%s", "peer_id": "%s" },\n' "$addr" "$pk" "$malachite_peer_id"
 			else
-				printf '  "%s": "%s"\n' "$addr" "$pk"
+				printf '  "%s": { "public_key": "%s", "peer_id": "%s" }\n' "$addr" "$pk" "$malachite_peer_id"
 			fi
 		done
 		echo "}"
@@ -759,7 +760,7 @@ start_nodes() {
 		# can advertise the container DNS multiaddr directly.
 		cmd+=" --network-public-addr /dns4/${NODE_CONTAINER_PREFIX}-${i}/udp/$CONTAINER_NETWORK_PORT/quic-v1"
 		cmd+=" --malachite-listen-addr 0.0.0.0:$CONTAINER_MALACHITE_PORT"
-		cmd+=" --validators-malachite-pub-keys /data/malachite-validators.json"
+		cmd+=" --validators-malachite-identities /data/malachite-validators.json"
 
 		if [[ "$ETHEXE_VERBOSE" == "true" ]]; then
 			cmd+=" --verbose"

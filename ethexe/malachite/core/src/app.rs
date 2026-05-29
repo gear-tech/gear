@@ -55,7 +55,7 @@ use malachitebft_app_channel::{
 use malachitebft_core_types::Height as _;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::RangeInclusive, sync::Arc};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Max allowed distance into the future for pending proposal parts.
 const FUTURE_HEIGHT_WINDOW: u64 = 4;
@@ -186,6 +186,13 @@ where
 
             // ReceivedProposalPart (we are not proposer)
             AppMsg::ReceivedProposalPart { from, part, reply } => {
+                if !self.state.is_active_validator_peer(&from) {
+                    debug!(%from, "Dropping ReceivedProposalPart from non-validator peer");
+                    if reply.send(None).is_err() {
+                        error!("ReceivedProposalPart: failed to send reply");
+                    }
+                    return Ok(());
+                }
                 let part_type = match &part.content {
                     StreamContent::Data(p) => p.get_type(),
                     StreamContent::Fin => "fin",
@@ -420,13 +427,15 @@ where
 
     // TODO: #5475 add per-peer token-bucket rate limit before `ingest_proposal_part`
     //       (CPU/bandwidth bound; complements the memory bound from #5473).
-    // TODO: #5480 gate `from` against a validator-peer-id allowlist so random
-    //       gossip-mesh peers can't reach this code path at all.
     async fn process_received_proposal_part(
         &mut self,
         from: PeerId,
         part: StreamMessage<ProposalPart>,
     ) -> Result<Option<ProposedValue<MalachiteCtx>>> {
+        if !self.state.is_active_validator_peer(&from) {
+            debug!(%from, "Dropping ReceivedProposalPart from non-validator peer");
+            return Ok(None);
+        }
         let Some(parts) = self.state.ingest_proposal_part(from, part) else {
             return Ok(None);
         };
@@ -769,7 +778,7 @@ mod tests {
     use crate::{
         context::{ProposalData, ProposalInit, Validator, ValidatorSet, Value},
         signing::{MalachiteSigner, libp2p_peer_id, private_key_from_bytes},
-        state::SharedValidatorSet,
+        state::{SharedValidatorPeers, SharedValidatorSet},
         store::Store,
     };
     use async_trait::async_trait;
@@ -777,7 +786,7 @@ mod tests {
         ConsensusRequest, NetworkRequest,
         app::{events::TxEvent, streaming::StreamId},
     };
-    use std::time::Duration;
+    use std::{collections::BTreeSet, time::Duration};
     use tempfile::TempDir;
     use tokio::sync::mpsc;
 
@@ -813,6 +822,10 @@ mod tests {
         bytes[31] = byte;
         let lp = libp2p_peer_id(&bytes);
         PeerId::from_bytes(&lp.to_bytes()).expect("valid multihash")
+    }
+
+    fn validator_peers(peers: impl IntoIterator<Item = PeerId>) -> SharedValidatorPeers {
+        SharedValidatorPeers::new(peers.into_iter().collect::<BTreeSet<_>>())
     }
 
     /// Init + Data + Fin for a fully-formed stream at `height`. The
@@ -862,6 +875,7 @@ mod tests {
         let mut state = State::<TestPayload>::new(
             signer,
             validator_set,
+            validator_peers([test_peer(2)]),
             address,
             store,
             Duration::from_secs(1),
@@ -963,6 +977,111 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn non_validator_proposal_part_is_dropped_before_buffering() {
+        let current = 10u64;
+        let (mut handler, _dir, addr) = make_handler(current);
+        let rogue_peer = test_peer(3);
+        let near = current + FUTURE_HEIGHT_WINDOW;
+
+        let value = run_stream(
+            &mut handler,
+            rogue_peer,
+            complete_stream(addr, near, b"ignored"),
+        )
+        .await;
+
+        assert!(value.is_none());
+        assert_eq!(
+            handler.state.open_proposal_streams(),
+            0,
+            "non-validator peer must not open a proposal stream"
+        );
+        let pending = handler
+            .state
+            .store
+            .get_pending_proposal_parts(Height::new(near), Round::new(0))
+            .unwrap();
+        assert!(
+            pending.is_empty(),
+            "non-validator peer must not create pending proposal DB writes"
+        );
+    }
+
+    #[tokio::test]
+    async fn validator_peer_still_assembles_and_reaches_validation() {
+        let height = 1u64;
+        let (mut handler, _dir, addr) = make_handler(height);
+        let peer = test_peer(2);
+        let block = Block::<TestPayload>::new(H256::zero(), height, TestPayload);
+        let block_bytes = block.encode();
+
+        let value = run_stream(
+            &mut handler,
+            peer,
+            complete_stream(addr, height, &block_bytes),
+        )
+        .await;
+
+        assert!(
+            value.is_some(),
+            "validator peer proposal should be accepted"
+        );
+        let value = value.unwrap();
+        assert_eq!(value.height, Height::new(height));
+        assert!(
+            handler
+                .state
+                .store
+                .get_undecided_proposals(Height::new(height), Round::new(0))
+                .unwrap()
+                .iter()
+                .any(|proposal| proposal.value == value.value),
+            "accepted validator proposal must reach the existing validation/store path"
+        );
+    }
+
+    #[tokio::test]
+    async fn validator_peer_allowlist_rotates() {
+        let current = 10u64;
+        let (mut handler, _dir, addr) = make_handler(current);
+        let old_peer = test_peer(2);
+        let new_peer = test_peer(4);
+        handler
+            .state
+            .update_validator_peers([new_peer].into_iter().collect::<BTreeSet<_>>());
+
+        let old_value = run_stream(
+            &mut handler,
+            old_peer,
+            complete_stream(addr, current + 1, b"old"),
+        )
+        .await;
+        assert!(old_value.is_none());
+        assert_eq!(handler.state.open_proposal_streams(), 0);
+
+        let new_value = run_stream(
+            &mut handler,
+            new_peer,
+            complete_stream(addr, current + 1, b"new"),
+        )
+        .await;
+        assert!(
+            new_value.is_none(),
+            "future-height validator parts are buffered"
+        );
+        let pending = handler
+            .state
+            .store
+            .get_pending_proposal_parts(Height::new(current + 1), Round::new(0))
+            .unwrap();
+        assert_eq!(
+            pending.len(),
+            1,
+            "new active validator peer must be accepted after rotation"
+        );
+    }
+
     /// `Externalities` impl whose finalize-side callback always
     /// fails, so we can drive [`AppMsgHandler::process_finalized`]
     /// down the fatal path. `process_mb_proposal` must succeed so
@@ -1005,6 +1124,7 @@ mod tests {
         let mut state = State::<TestPayload>::new(
             signer,
             validator_set,
+            validator_peers([test_peer(2)]),
             address,
             store,
             Duration::from_secs(1),
