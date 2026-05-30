@@ -18,9 +18,14 @@ use std::{
     collections::HashSet,
     hash::{DefaultHasher, Hasher},
     num::NonZeroUsize,
-    sync::{Condvar, Mutex, OnceLock},
+    sync::OnceLock,
 };
 use wasmtime::{Engine, Module, error::Context};
+
+#[cfg(all(loom, test))]
+use loom::sync::{Condvar, Mutex};
+#[cfg(not(all(loom, test)))]
+use std::sync::{Condvar, Mutex};
 
 const MODULES_CACHE_CAPACITY: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
 
@@ -100,7 +105,7 @@ impl Cache {
         state: &mut CacheState,
         engine: &Engine,
         hash: u64,
-    ) -> wasmtime::Result<Option<ModuleFrom>> {
+    ) -> WasmtimeResult<Option<ModuleFrom>> {
         let Some(module) = state.modules.get(&hash) else {
             return Ok(None);
         };
@@ -165,6 +170,7 @@ pub fn get(engine: &Engine, code: &[u8]) -> wasmtime::Result<Module> {
     }
 }
 
+#[cfg(not(loom))]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,5 +195,47 @@ mod tests {
             .get(&Engine::default(), EMPTY_WASM)
             .expect("module loads from cache");
         assert!(matches!(module, ModuleFrom::EngineChanged(_)));
+    }
+}
+
+#[cfg(loom)]
+#[cfg(test)]
+mod tests_loom {
+    use super::*;
+    use loom::{sync::Arc, thread};
+
+    const EMPTY_WASM: &[u8] = b"\x00asm\x01\x00\x00\x00";
+
+    #[test]
+    fn loom_environment() {
+        loom::model(|| {
+            let engine = Engine::default();
+            let cache = Arc::new(Cache::new());
+            let mut threads = Vec::new();
+
+            for i in 0..2 {
+                let cache = cache.clone();
+                let engine = engine.clone();
+
+                let handle = thread::Builder::new()
+                    .stack_size(4 * 1024 * 1024)
+                    .name(format!("test-thread-{i}"))
+                    .spawn(move || cache.get(&engine, EMPTY_WASM).expect("module compiles"))
+                    .expect("failed to spawn thread");
+                threads.push(handle);
+            }
+
+            let mut new = 0;
+            let mut lru = 0;
+            for handle in threads {
+                match handle.join().expect("thread panicked") {
+                    ModuleFrom::New(_) => new += 1,
+                    ModuleFrom::Lru(_) => lru += 1,
+                    ModuleFrom::EngineChanged(_) => panic!("engine should not change"),
+                }
+            }
+
+            assert_eq!((new, lru), (1, 1));
+        });
     }
 }
