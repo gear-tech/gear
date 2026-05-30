@@ -7756,6 +7756,7 @@ name = "gear-wasmtime-cache"
 version = "1.10.0"
 dependencies = [
  "criterion",
+ "gear-core",
  "gear-workspace-hack",
  "loom",
  "lru 0.16.3",
