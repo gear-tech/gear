@@ -156,10 +156,6 @@ impl PromiseSubscriptionManager {
         }
     }
 
-    pub(crate) fn receipt_signed_by_known_validator(&self, receipt: &SignedTxReceipt) -> bool {
-        self.signer_is_known_validator(receipt.address(), receipt.data().tx_hash())
-    }
-
     fn compact_receipt_signed_by_known_validator(&self, receipt: &SignedCompactTxReceipt) -> bool {
         self.signer_is_known_validator(receipt.address(), receipt.data().tx_hash())
     }
