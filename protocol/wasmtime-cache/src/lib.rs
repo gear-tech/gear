@@ -116,9 +116,23 @@ impl Cache {
             Ok(Some(ModuleFrom::Lru(module.clone())))
         } else {
             tracing::trace!("reserialize module because of changed engine");
-            let module = module.serialize().context("failed to serialize module")?;
-            let module = unsafe {
-                Module::deserialize(engine, &module).context("failed to deserialize module")?
+            let module = match module
+                .serialize()
+                .context("failed to serialize module")
+                .and_then(|module| unsafe {
+                    Module::deserialize(engine, &module).context("failed to deserialize module")
+                }) {
+                Ok(module) => module,
+                Err(error) => {
+                    tracing::trace!(
+                        "failed to reserialize module for changed engine, recompiling: {error:?}"
+                    );
+                    state.modules.pop(&hash);
+                    // Treat an engine-incompatible serialized module as a miss:
+                    // the caller will reserve a compile slot and run
+                    // `Module::new(engine, code)` outside the mutex.
+                    return Ok(None);
+                }
             };
             let old_module = state.modules.put(hash, module.clone());
             debug_assert!(old_module.is_some());
@@ -174,8 +188,17 @@ pub fn get(engine: &Engine, code: &[u8]) -> wasmtime::Result<Module> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasmtime::{Config, ModuleVersionStrategy};
 
     const EMPTY_WASM: &[u8] = b"\x00asm\x01\x00\x00\x00";
+
+    fn engine_with_module_version(version: &str) -> Engine {
+        let mut config = Config::new();
+        config
+            .module_version(ModuleVersionStrategy::Custom(version.to_string()))
+            .expect("module version is valid");
+        Engine::new(&config).expect("engine config is valid")
+    }
 
     #[test]
     fn smoke() {
@@ -195,6 +218,21 @@ mod tests {
             .get(&Engine::default(), EMPTY_WASM)
             .expect("module loads from cache");
         assert!(matches!(module, ModuleFrom::EngineChanged(_)));
+    }
+
+    #[test]
+    fn compiles_when_cached_module_cannot_be_deserialized_for_engine() {
+        let cache = Cache::new();
+
+        let module = cache
+            .get(&engine_with_module_version("first"), EMPTY_WASM)
+            .expect("module compiles");
+        assert!(matches!(module, ModuleFrom::New(_)));
+
+        let module = cache
+            .get(&engine_with_module_version("second"), EMPTY_WASM)
+            .expect("module compiles after deserialize miss");
+        assert!(matches!(module, ModuleFrom::New(_)));
     }
 }
 
