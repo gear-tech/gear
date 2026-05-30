@@ -1,7 +1,100 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Runtime common implementation.
+//! # ethexe-runtime-common
+//!
+//! Shared `no_std` runtime types, traits, and message-queue processing logic for the ethexe execution
+//! layer.
+//!
+//! ## Purpose
+//!
+//! This crate is the portable core of Gear-on-Ethereum program execution. It provides:
+//!
+//! - [`process_queue`] / [`process_queue_with_report`] — the entry points that dequeue and execute all
+//!   pending dispatches for one program within a block's gas budget, returning [`ProgramJournals`] and
+//!   gas spent.
+//! - [`RuntimeInterface`] — the seam between portable runtime logic and the embedding environment,
+//!   extending [`state::Storage`] with lazy-page initialization, randomness, state-hash notification,
+//!   and promise publishing.
+//! - [`state::Storage`] — content-addressed read/write for every program-state component (message
+//!   queues, waitlist, dispatch stash, mailbox, memory pages, allocations).
+//! - [`TransitionController`] — low-level helper that reads a program's current state, applies an
+//!   update closure, writes the new state back to storage, and records the new hash in
+//!   [`InBlockTransitions`].
+//! - [`JournalHandler`] / [`ScheduleHandler`] / [`ScheduleRestorer`] — journal appliers and
+//!   scheduled-task handlers that translate `core-processor` [`JournalNote`](core_processor::common::JournalNote)s into storage mutations.
+//! - [`InBlockTransitions`] / [`FinalizedBlockTransitions`] / [`NonFinalTransition`] — per-block
+//!   accumulators of per-program state-hash and queue-size changes.
+//! - Protocol limit constants ([`MAX_OUTGOING_MESSAGES_PER_EXECUTION`],
+//!   [`MAX_OUTGOING_MESSAGES_PER_RUN`], [`MAX_CALL_REPLIES_PER_RUN`], etc.) and runtime version
+//!   constants ([`VERSION`], [`RUNTIME_ID`]).
+//! - [`pack_u32_to_i64`] / [`unpack_i64_to_u32`] — helpers for WASM FFI return-value packing.
+//!
+//! This crate does **not** contain the executable runtime WASM binary (that is `ethexe-runtime`), does
+//! not speak to Ethereum or the network, and has no Substrate pallets.
+//!
+//! ## Role in the stack
+//!
+//! ```text
+//! ethexe-processor
+//!          │  drives the WASM binary
+//!          ▼
+//! ethexe-runtime (WASM binary)
+//!          │  calls process_queue via NativeRuntimeInterface
+//!          ▼
+//!   ethexe-runtime-common
+//!          │  RuntimeInterface (Storage + host services)
+//!          ▼
+//!   ethexe-db  (Storage impl over RocksDB / MemDb)
+//!
+//! ethexe-compute
+//!          │  orchestrates which programs are scheduled
+//!          ▼
+//!   ethexe-processor
+//! ```
+//!
+//! `ethexe-runtime` is the primary consumer of [`process_queue`]: its `NativeRuntimeInterface`
+//! implements [`RuntimeInterface`] over WASM host functions, and its `run()` entry point calls
+//! [`process_queue`] for each program. `ethexe-processor` drives the `ethexe-runtime` WASM binary
+//! rather than calling [`process_queue`] itself. `ethexe-compute` orchestrates which programs are
+//! scheduled. `ethexe-db` supplies the [`state::Storage`] implementation.
+//!
+//! ## Key types
+//!
+//! | Type | Description |
+//! |---|---|
+//! | [`RuntimeInterface`] | Trait: `Storage` + `init_lazy_pages`, `random_data`, `update_state_hash`, `publish_promise`; associated `LazyPages: LazyPagesInterface`. |
+//! | [`state::Storage`] | Trait: content-addressed read/write of [`state::ProgramState`], queues, pages, allocations. |
+//! | [`ProcessQueueContext`] | SCALE-encoded input for one queue-processing run: program id, state root, queue type, instrumented code, block info, promise policy. |
+//! | [`TransitionController`] | Wraps `&Storage` + `&mut InBlockTransitions`; `update_state` applies a closure and commits the result. |
+//! | [`InBlockTransitions`] | Accumulates per-program state-hash and queue-size updates within a block. |
+//! | [`FinalizedBlockTransitions`] | Finalized view of [`InBlockTransitions`] after all programs in a block have been processed. |
+//! | [`JournalHandler`] | Re-export of `NativeJournalHandler`; applies journal notes to [`state::ProgramState`]. |
+//! | [`ProgramJournals`] | `Vec<(Vec<JournalNote>, MessageType, bool)>` — ordered journal output of a queue run. |
+//!
+//! ## Invariants
+//!
+//! - Promise policy must be disabled for the canonical queue; violated at runtime only if the caller
+//!   misconfigures [`ProcessQueueContext`] (guarded by `debug_assert!` in `process_queue_with_report`).
+//! - A second `Init` dispatch to an already-initialized program is unreachable by protocol; the code
+//!   panics with `unreachable!` if this invariant is broken.
+//! - Uninitialized programs accept only `Init` or `Reply` dispatches; any other kind produces an error
+//!   reply via `core_processor::process_uninitialized`.
+//! - Gas accounting is monotone: `initial_gas_allowance - ctx.gas_allowance.left()` uses
+//!   `checked_sub().expect(...)` to enforce that gas spent never exceeds the allowance.
+//! - [`TransitionController::update_state`] panics if the program is absent from the tracked set or
+//!   its state cannot be read from storage — both indicate a violated caller precondition.
+//! - Forbidden syscalls (reservations, signals, `Random`, `CreateProgram`, and all deprecated `*WGas`
+//!   variants) are blocked in [`BlockConfig`](core_processor::configs::BlockConfig) on every
+//!   `process_queue` call.
+//!
+//! ## Testing
+//!
+//! The crate includes a unit test
+//! `process_queue_with_report_keeps_empty_queue_abi_compatible` that verifies both entry points return
+//! empty journals and zero gas for an empty queue, preserving ABI stability. The `proptest` module
+//! (enabled under `cfg(test)` or the `mock` feature) provides proptest strategies for all state types.
+//! `state::MemStorage` implements [`RuntimeInterface`] for use in tests.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 

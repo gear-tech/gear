@@ -3,62 +3,76 @@
 
 //! # Ethexe Consensus
 //!
-//! Once Malachite finalizes Sequencer Blocks (MBs) and `ethexe-compute`
-//! executes them, the consensus crate is what posts the resulting state
-//! transitions to the Ethereum Router contract.
+//! Once Malachite finalizes Sequencer Blocks (MBs) and `ethexe-compute` executes them,
+//! this crate turns the resulting state transitions into on-chain batch commitments posted
+//! to the Ethereum Router contract.
 //!
-//! Per Ethereum block exactly one validator is elected as the *coordinator*
-//! for that block (deterministically from the block timestamp). The
-//! coordinator collects all MBs that finalized since the last on-chain
-//! commitment, aggregates their outcomes into a batch commitment, gossips
-//! a validation request, and once it has enough threshold signatures pushes
-//! the batch to the Router. Every other validator is a *participant*: it
-//! waits for the coordinator's request, re-derives the same batch
-//! independently, signs it if the digest matches, and replies. Off-cycle
-//! both states sit in `Idle` waiting for the next Ethereum
-//! chain head.
+//! ## Responsibilities
 //!
-//! Block production is *not* a concern of this crate any more — Malachite
-//! drives MB ordering and `ethexe-compute` is responsible for execution.
-//! Consensus only cares about turning finalized MBs into on-chain
-//! commitments.
+//! Per Ethereum block exactly one validator is elected *coordinator* for that block
+//! (deterministically from the block timestamp). The coordinator collects all MBs that
+//! finalized since the last on-chain commitment, aggregates their outcomes into a batch
+//! commitment, gossips a validation request, and once it has enough threshold signatures
+//! pushes the batch to the Router. Every other validator is a *participant*: it waits for
+//! the coordinator's request, re-derives the same batch independently, signs it if the
+//! digest matches, and replies. Off-cycle both states sit in `Idle` waiting for the next
+//! Ethereum chain head.
 //!
-//! ## Role in the stack and relation to other crates
+//! Block production is *not* a concern of this crate — Malachite drives MB ordering and
+//! `ethexe-compute` is responsible for execution. Consensus only cares about turning
+//! finalized MBs into on-chain commitments.
+//!
+//! Connect (non-validator) nodes do not run this crate at all: their [`ConsensusService`]
+//! is `None` in `ethexe-service` and they observe the chain and execute MBs locally.
+//!
+//! ## Role in the Stack
 //!
 //! - `ethexe-observer` feeds Ethereum block data through
 //!   [`ConsensusService::receive_new_chain_head`] and the follow-up
 //!   [`ConsensusService::receive_synced_block`] notifications.
 //! - `ethexe-compute` signals progress through
 //!   [`ConsensusService::receive_prepared_block`].
-//! - `ethexe-network` delivers validation requests/replies.
-//! - `ethexe-ethereum` is reached through the [`BatchCommitter`] trait to
-//!   submit aggregated batch commitments to the Router contract.
-//! - `ethexe-service` is the sole consumer.
+//! - `ethexe-network` delivers validation requests and replies.
+//! - `ethexe-ethereum` is reached through the [`BatchCommitter`] trait to submit
+//!   aggregated batch commitments to the Router contract.
+//! - `ethexe-db` provides the [`Database`](ethexe_db::Database) handle used to read
+//!   timelines, configuration, and batch data.
+//! - `ethexe-service` is the sole consumer; it constructs a [`ValidatorService`] and
+//!   drives it as a `Pin<Box<dyn ConsensusService>>`.
 //!
-//! Connect (non-validator) nodes don't run this crate at all: their
-//! `ConsensusService` is `None` in `ethexe-service` and they just observe
-//! the chain plus execute MBs locally.
+//! ## Entry Points / Public API
 //!
-//! ## Entry points
-//!
-//! All inputs arrive through the [`ConsensusService`] trait. Outputs leave
-//! through the `futures::Stream` impl.
+//! All inputs arrive through the [`ConsensusService`] trait. Outputs leave through its
+//! `futures::Stream` impl.
 //!
 //! Inputs:
 //!
-//! - [`receive_new_chain_head`](ConsensusService::receive_new_chain_head) — new Ethereum chain head.
-//! - [`receive_synced_block`](ConsensusService::receive_synced_block) — block data is now in DB.
-//! - [`receive_prepared_block`](ConsensusService::receive_prepared_block) — block prepared (events processed).
-//! - [`receive_validation_request`](ConsensusService::receive_validation_request) — validate a batch commitment.
-//! - [`receive_validation_reply`](ConsensusService::receive_validation_reply) — signed reply to a coordinated batch.
+//! - [`ConsensusService::receive_new_chain_head`] — new Ethereum chain head; always resets
+//!   to `Idle`.
+//! - [`ConsensusService::receive_synced_block`] — block data is now in the database.
+//! - [`ConsensusService::receive_prepared_block`] — block prepared (events processed).
+//! - [`ConsensusService::receive_validation_request`] — validate a batch commitment.
+//! - [`ConsensusService::receive_validation_reply`] — signed reply to a coordinated batch.
 //!
-//! ## Output events
+//! ## Key Types
 //!
-//! - [`PublishMessage`](ConsensusEvent::PublishMessage) — validator-to-validator gossip.
-//! - [`CommitmentSubmitted`](ConsensusEvent::CommitmentSubmitted) — a batch landed on-chain.
-//! - [`Warning`](ConsensusEvent::Warning) — non-fatal anomaly.
+//! - [`ConsensusService`] — the crate's entire input/output surface; a
+//!   `Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static`.
+//! - [`ConsensusEvent`] — output stream items:
+//!   [`PublishMessage`](ConsensusEvent::PublishMessage),
+//!   [`CommitmentSubmitted`](ConsensusEvent::CommitmentSubmitted), and
+//!   [`Warning`](ConsensusEvent::Warning).
+//! - [`CommitmentSubmitted`] — informational payload describing a batch that landed
+//!   on-chain (block hash, batch digest, submission tx hash).
+//! - [`ValidatorService`] — the concrete [`ConsensusService`] implementation a validator
+//!   node runs; built via `ValidatorService::new`.
+//! - [`ValidatorConfig`] — per-node configuration: `pub_key`, `signatures_threshold`,
+//!   `commitment_delay_limit`, `router_address`, `batch_size_limit`,
+//!   `coordinator_aggregation_delay`, `uncommitted_chain_len_threshold`.
+//! - [`BatchCommitter`] — trait abstracting submission of a signed batch to the Router;
+//!   implemented by the `ethexe-ethereum` router wrapper.
 //!
-//! ## State machine
+//! ## State Machine
 //!
 //! ```text
 //! Idle
@@ -67,6 +81,13 @@
 //! ```
 //!
 //! A new chain head always resets to `Idle`.
+//!
+//! ## Invariants
+//!
+//! - The coordinator is elected deterministically from the block timestamp; there is
+//!   exactly one coordinator per Ethereum block.
+//! - `commitment_delay_limit` is a per-node configuration value, not a protocol constant.
+//! - A new chain head always resets the service to `Idle` regardless of its current state.
 
 use anyhow::Result;
 use ethexe_common::{

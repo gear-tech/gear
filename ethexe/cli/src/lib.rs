@@ -1,21 +1,82 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Command-line entrypoint for operating Vara.eth nodes.
+//! # ethexe-cli
 //!
-//! The crate glues together the configuration model from the `params` module and the
-//! executable workflows from the `commands` module.
+//! Command-line entrypoint for operating Vara.eth (ethexe) nodes. This crate contains no
+//! business logic — it parses arguments, loads configuration, and delegates all real work to
+//! the underlying service and library crates.
+//!
+//! ## Responsibilities
+//!
 //! At startup the binary:
-//! - parses the top-level CLI with [`Cli`]
-//! - optionally loads `./.ethexe.toml` or a custom file passed through `--cfg`
-//! - merges CLI flags over file-based configuration
-//! - dispatches to one of the supported command groups
 //!
-//! The main command groups are:
-//! - `RunCommand` for launching the service stack
-//! - `KeyCommand` for key-store management
-//! - `TxCommand` for Ethereum and injected transaction flows
-//! - `CheckCommand` for database verification
+//! 1. Parses the top-level CLI through [`Cli`].
+//! 2. Loads `./.ethexe.toml` (or a custom path from `--cfg`; `--cfg none` disables file
+//!    loading).
+//! 3. Merges file-based configuration with CLI flags, with CLI values taking priority via the
+//!    `MergeParams` trait.
+//! 4. Dispatches to the chosen command group.
+//!
+//! The `node` and `ethereum` parameter sections are mandatory; configuration construction
+//! fails early if either is absent.
+//!
+//! ## Role in the Stack
+//!
+//! `ethexe-cli` sits at the top of the ethexe workspace. It depends on:
+//!
+//! - `ethexe-service` — the main orchestrator; the CLI builds its `Config` and calls into it
+//!   for the `run` subcommand.
+//! - `ethexe-compute`, `ethexe-network`, `ethexe-malachite`, `ethexe-prometheus`,
+//!   `ethexe-rpc`, `ethexe-ethereum`, `ethexe-db`, `ethexe-processor`,
+//!   `ethexe-runtime-common` — each configurable through the corresponding `Params` section.
+//!
+//! No other ethexe crate depends on `ethexe-cli`; it is a leaf binary.
+//!
+//! ## Entry Point
+//!
+//! [`Cli`] is the only public item exported from the crate. `main.rs` is two lines:
+//!
+//! ```rust,no_run
+//! use clap::Parser;
+//! use ethexe_cli::Cli;
+//!
+//! fn main() -> anyhow::Result<()> {
+//!     let cli = Cli::parse();
+//!     cli.run()
+//! }
+//! ```
+//!
+//! ## Command Groups
+//!
+//! | Subcommand    | Purpose                                              |
+//! |---------------|------------------------------------------------------|
+//! | `run`         | Launch the full ethexe service stack                 |
+//! | `key`         | Keystore manipulation (generate, inspect keypairs)   |
+//! | `tx`          | Submit Ethereum and injected transactions            |
+//! | `check`       | Verify the ethexe database for integrity/correctness |
+//! | `dump`        | State dump operations for re-genesis                 |
+//! | `malachite`   | Malachite-consensus helpers (e.g. peer-id derivation)|
+//!
+//! ## Key Types
+//!
+//! - [`Cli`] — top-level clap parser; holds an optional `--cfg` path and the selected
+//!   `command`; [`Cli::run`] is the single public entry point.
+//! - `DEFAULT_PARAMS_PATH` — compile-time constant `"./.ethexe.toml"` for the default config
+//!   location.
+//!
+//! ## Configuration Model
+//!
+//! The `Params` struct is deserialized from TOML (`#[serde(deny_unknown_fields)]`) and also
+//! populated by clap. Optional sections — `node`, `ethereum`, `network`, `malachite`, `rpc`,
+//! `prometheus` — mirror the sub-crate configs. `Params::into_config()` produces the
+//! `ethexe_service::config::Config` consumed by the service.
+//!
+//! ## Logging
+//!
+//! Logging is initialised per command via an internal helper that configures
+//! `tracing-subscriber` with a caller-supplied default level and `RUST_LOG` override support.
+//! Verbose Cranelift/Wasmtime logs are unconditionally suppressed.
 
 use anyhow::{Context, Result};
 use clap::Parser;

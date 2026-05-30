@@ -1,7 +1,101 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Ethereum state observer for ethexe.
+//! # ethexe-observer
+//!
+//! Watches the Ethereum chain head and back-fills missing blocks into the local database,
+//! surfacing each arrival and each completed sync as an [`ObserverEvent`].
+//!
+//! ## Responsibilities
+//!
+//! - Subscribes to Ethereum block headers via a WebSocket provider and emits
+//!   [`ObserverEvent::Block`] for every new head.
+//! - Drives a per-head chain sync: walks back from the arrived head to the last
+//!   persisted block, loads missing headers and decoded Router/Mirror events via
+//!   [`EthereumBlockLoader`], writes them into [`ethexe_db::Database`], and emits
+//!   [`ObserverEvent::BlockSynced`] when the gap is closed.
+//! - Handles transient failures: subscription failures (drop or close) trigger
+//!   exponential-backoff re-subscription. A [`SyncError::RpcError`] during sync is
+//!   silently skipped: the error is logged, the recoverable-errors counter is
+//!   incremented, and the observer moves on to the next queued head.
+//!   [`SyncError::Fatal`] propagates as a stream error.
+//! - Exposes Prometheus metrics for block-arrival latency, sync latency, and
+//!   recoverable error count.
+//!
+//! ## Role in the Stack
+//!
+//! `ethexe-observer` sits at the bottom of the ethexe data-flow pipeline:
+//!
+//! ```text
+//! Ethereum chain (WebSocket)
+//!         │  block headers
+//!         ▼
+//!   ObserverService  ──ObserverEvent::Block──────────────────────────►  ethexe-service
+//!         │  ChainSync (back-fill via EthereumBlockLoader)              (dispatches to
+//!         │  reads Router/Mirror events from ethexe-ethereum            consensus, compute)
+//!         │  writes headers + events to ethexe-db
+//!         └──ObserverEvent::BlockSynced ──────────────────────────────►  ethexe-service
+//! ```
+//!
+//! It is read-only with respect to Ethereum: all chain writes (batch commitments, etc.)
+//! are the responsibility of `ethexe-ethereum`. Program execution is handled by
+//! `ethexe-compute` and `ethexe-processor`. Consensus interpretation lives in
+//! `ethexe-consensus`.
+//!
+//! ## Entry Points / Public API
+//!
+//! - [`ObserverService::new`] — async constructor; resolves the router address from
+//!   the database config and queries the middleware address from the Router contract
+//!   on-chain, connects the alloy provider, and starts the block-header subscription.
+//! - [`ObserverService`] implements `futures::Stream<Item = Result<ObserverEvent>>` and
+//!   `FusedStream`; `ethexe-service` polls it as the canonical chain-head source.
+//! - [`ObserverService::provider`] — borrows the underlying `alloy` `RootProvider`.
+//! - [`ObserverService::block_loader`] — returns a fresh [`EthereumBlockLoader`] bound
+//!   to the configured router address.
+//! - [`ObserverService::router_query`] — returns a fresh `RouterQuery` for read-only
+//!   contract queries.
+//!
+//! ## Key Types
+//!
+//! | Type | Description |
+//! |------|-------------|
+//! | [`ObserverEvent`] | Stream item: `Block(SimpleBlockData)` on new head; `BlockSynced(H256)` after back-fill |
+//! | [`ObserverConfig`] | Constructor input: Ethereum RPC URL and optional max sync depth |
+//! | [`SyncError`] | Error classifier: `RpcError` (recoverable) vs `Fatal` (propagated) |
+//! | [`utils::BlockLoader`] | Trait abstracting block-data loading from Ethereum |
+//! | [`utils::EthereumBlockLoader`] | alloy-backed `BlockLoader` impl with chunked/concurrent log fetching |
+//!
+//! ## Invariants
+//!
+//! - The stream never reports itself as terminated: `FusedStream::is_terminated` always
+//!   returns `false`.
+//! - Back-fill terminates at the database watermark: the sync walk stops at the first
+//!   block already recorded as synced, so the synced set must be contiguous from genesis.
+//! - Block-hash continuity is asserted during the back-walk: if the loaded block's hash
+//!   does not match the requested hash the code reaches `unreachable!`, enforcing that
+//!   [`EthereumBlockLoader`] always returns data for the exact requested hash.
+//! - Subscription-retry backoff is capped: `500 ms × 2^min(attempt, 6)`, maximum 30 s.
+//! - `max_sync_depth` defaults to `u32::MAX` when `None` is passed in [`ObserverConfig`].
+//!
+//! ## Usage
+//!
+//! ```rust,no_run
+//! use ethexe_observer::{ObserverConfig, ObserverEvent, ObserverService};
+//! use futures::StreamExt as _;
+//!
+//! let mut observer = ObserverService::new(
+//!     db.clone(),
+//!     ObserverConfig { rpc: &ethereum_rpc_url, max_sync_depth: Some(1024) },
+//! )
+//! .await?;
+//!
+//! while let Some(event) = observer.next().await {
+//!     match event? {
+//!         ObserverEvent::Block(block)      => { /* new chain head */ }
+//!         ObserverEvent::BlockSynced(hash) => { /* `hash` and ancestors now in db */ }
+//!     }
+//! }
+//! ```
 
 use crate::utils::EthereumBlockLoader;
 use alloy::{

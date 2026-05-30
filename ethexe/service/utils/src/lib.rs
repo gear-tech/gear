@@ -1,6 +1,68 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+//! # ethexe-service-utils
+//!
+//! Async-runtime helpers that make `tokio::select!`-style event loops cleaner when
+//! service branches are optional or conditionally present.
+//!
+//! ## Responsibilities
+//!
+//! Three focused primitives, no ethexe domain logic:
+//!
+//! - **Optional-branch adapters** — [`OptionFuture`] and [`OptionStreamNext`] let an
+//!   `Option<Future>` or `&mut Option<Stream>` sit in a `select!` arm without special
+//!   casing: a `None` variant stays pending forever rather than resolving or panicking.
+//! - **Named restartable timer** — [`Timer`] wraps `tokio::time::Sleep` and carries
+//!   arbitrary data `T`; it resolves to that data when the deadline elapses and stays
+//!   pending until restarted with `start`.
+//! - **Mutable task-local storage** — the [`task_local!`] macro declares a
+//!   `static LocalKey<T>` that behaves like `tokio::task_local!` but permits mutable
+//!   access via [`LocalKey::with_mut`] and returns the stored value out of the scope.
+//!
+//! ## Role in the Stack
+//!
+//! This crate has no dependency on any other ethexe crate. It is consumed by:
+//!
+//! - `ethexe-service` — imports [`OptionFuture`] and [`OptionStreamNext`] in its main
+//!   service `select!` loop to drive optional subsystems (consensus, network, RPC,
+//!   Prometheus) without conditional branches.
+//! - `ethexe-network` — uses [`task_local!`] in its database-sync request handler for
+//!   mutable per-task state.
+//!
+//! ## Public API
+//!
+//! | Item | Kind | Notes |
+//! |------|------|-------|
+//! | [`OptionFuture`] | sealed trait | `.maybe()` on `Option<F: Future>` |
+//! | [`OptionStreamNext`] | sealed trait | `.maybe_next()` / `.maybe_next_some()` on `&mut Option<S>` and `&mut FuturesUnordered<F>` |
+//! | [`Timer`] | struct | `new` / `new_from_secs` / `new_from_millis`; `start` / `stop` / `started` |
+//! | [`LocalKey`] | struct | `scope` / `with_mut` / `poll_fn` |
+//! | `task_local!` | macro | declares a `static LocalKey<T>` |
+//!
+//! Both traits are sealed: only the impls provided in this crate satisfy them.
+//!
+//! Calling `maybe_next` (not `maybe_next_some`) on a `&mut FuturesUnordered` panics by
+//! design — only `maybe_next_some` is supported for that type.
+//!
+//! ## Usage
+//!
+//! ```rust,no_run
+//! use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _, Timer};
+//!
+//! // Bring traits into scope as `_` (they are sealed; only their methods matter).
+//! // Optional services stay pending when absent; present ones yield events normally.
+//! tokio::select! {
+//!     event = consensus.maybe_next_some() => handle(event),
+//!     event = network.maybe_next_some()   => handle(event),
+//!     data  = &mut retry_timer            => retry(data),
+//! }
+//!
+//! // Timer: arm with data, await, rearm.
+//! let mut t: Timer<u32> = Timer::new_from_secs("retry", 5);
+//! t.start(42);
+//! // resolves to 42 after 5 s; pending again until start() is called
+//! ```
 #![allow(async_fn_in_trait)]
 
 use futures::{

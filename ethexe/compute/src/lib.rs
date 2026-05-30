@@ -3,95 +3,108 @@
 
 //! # Ethexe Compute
 //!
-//! Three pipelines that turn on-chain data and Malachite-finalised
-//! blocks into executed state on the ethexe node: code validation,
-//! Ethereum-block preparation, and Malachite-block (MB) execution.
-//! Each pipeline is owned by an independent sub-service inside
-//! [`ComputeService`]; the outer [`crate::ComputeService`] composes
-//! them and exposes progress as a `futures::Stream` of [`ComputeEvent`]s.
+//! Orchestrates turning on-chain data and Malachite-finalised blocks into executed state on
+//! an ethexe node through three independent pipelines: code validation, Ethereum-block
+//! preparation, and Malachite-block (MB) execution.
 //!
-//! - `codes` — validates and instruments a WASM code blob and marks its
-//!   validity in the database. Emits [`ComputeEvent::CodeProcessed`].
-//! - `prepare` — brings a synced Ethereum block (and any not-yet-prepared
-//!   ancestors) into a state where its events can be folded into MB
-//!   execution, requesting missing code blobs from the caller along
-//!   the way. Emits [`ComputeEvent::RequestLoadCodes`] and
+//! ## Responsibilities
+//!
+//! Each pipeline runs as an independent sub-service composed inside [`ComputeService`]:
+//!
+//! - **`codes`** — validates and instruments a WASM code blob and marks its validity in the
+//!   database. Emits [`ComputeEvent::CodeProcessed`].
+//! - **`prepare`** — brings a synced Ethereum block (and any not-yet-prepared ancestors) into
+//!   a state where its events can be folded into MB execution, requesting missing code blobs
+//!   from the caller along the way. Emits [`ComputeEvent::RequestLoadCodes`] and
 //!   [`ComputeEvent::BlockPrepared`].
-//! - `mb_compute` — executes a finalised Malachite block (computing
-//!   any missing ancestor MBs first) by walking its `Transactions`
-//!   list through `ethexe-processor`. Emits [`ComputeEvent::MbComputed`].
+//! - **`mb_compute`** — executes a finalised Malachite block (computing any missing ancestor
+//!   MBs first) by walking its `Transactions` list through `ethexe-processor`. Emits
+//!   [`ComputeEvent::MbComputed`].
 //!
 //! ## Role in the stack
 //!
-//! - `ethexe-processor` is the backend. Compute is generic over the
-//!   [`ProcessorExt`] trait defined here and has a direct impl for
-//!   [`Processor`]; the only other impl in the tree is a test mock
-//!   (`tests::MockProcessor`).
-//! - `ethexe-blob-loader` is **not** a direct dependency. When `prepare`
-//!   discovers codes with unknown validation status it yields
-//!   [`ComputeEvent::RequestLoadCodes`] upstream; the service layer
-//!   calls the blob loader and feeds the loaded bytes back through
-//!   [`ComputeService::process_code`].
-//! - `ethexe-db` is the only place compute reads from and writes to.
-//! - `ethexe-service` polls the `futures::Stream` and routes each
-//!   event onward (consensus, network, blob-loader).
+//! ```text
+//! ethexe-observer     (decodes Ethereum blocks / events)
+//!        |
+//! ethexe-service ──→ ComputeService::prepare_block(block)
+//!                          |
+//!                    prepare sub-service
+//!                          |  RequestLoadCodes → ethexe-blob-loader → process_code()
+//!                          ↓
+//!                    codes sub-service  (validates, instruments via ProcessorExt)
+//!                          |
+//!                    ethexe-service ──→ ComputeService::compute_mb(mb_hash, policy)
+//!                          |
+//!                    mb_compute sub-service
+//!                          |  ProcessorExt::process_programs → ethexe-processor
+//!                          ↓
+//!                    ComputeEvent::MbComputed ──→ ethexe-service
+//! ```
 //!
-//! ## Entry points
+//! - [`ProcessorExt`] abstracts the execution backend; the production impl delegates to
+//!   `ethexe-processor`'s [`Processor`]; tests inject a `MockProcessor`.
+//! - `ethexe-blob-loader` is **not** a direct dependency. When `prepare` discovers codes of
+//!   unknown validity it yields [`ComputeEvent::RequestLoadCodes`]; the service layer calls
+//!   the blob loader and feeds bytes back through [`ComputeService::process_code`].
+//! - `ethexe-db` is the only storage layer compute reads from and writes to.
+//! - `ethexe-service` polls the [`futures::Stream`](ComputeService) implementation and routes
+//!   each [`ComputeEvent`] onward (to consensus, network, or the blob loader).
 //!
-//! - [`ComputeService::process_code`] — queue a code blob for validation +
-//!   instrumentation + DB persistence.
-//! - [`ComputeService::prepare_block`] — queue a synced Eth block for
-//!   preparation (walks ancestors, requests codes).
-//! - [`ComputeService::compute_mb`] — queue a finalised MB for execution
-//!   (walks uncomputed ancestor MBs first).
-//! - `<ComputeService as Stream>::poll_next` — drive all sub-services
-//!   and yield the next [`ComputeEvent`].
+//! ## Entry points / Public API
 //!
-//! ## Code processing pipeline (`codes`)
+//! | Method | Description |
+//! |--------|-------------|
+//! | [`ComputeService::new`] | Default constructor; uses `ConsensusDriven` promise mode. |
+//! | [`ComputeService::with_promise_mode`] | Constructor used by `ethexe-service`; allows `AlwaysEmit` mode for RPC nodes replaying the chain. |
+//! | [`ComputeService::process_code`] | Queue a code blob for validation, instrumentation, and DB persistence. |
+//! | [`ComputeService::prepare_block`] | Queue a synced Eth block for preparation (walks ancestors, requests codes). |
+//! | [`ComputeService::compute_mb`] | Queue a finalised MB for execution (walks uncomputed ancestors first). |
+//! | `Stream::poll_next` on [`ComputeService`] | Drive all sub-services and yield the next [`ComputeEvent`]. |
 //!
-//! For every code submitted through [`ComputeService::process_code`] the
-//! stream eventually yields exactly one [`ComputeEvent::CodeProcessed`]
-//! (carrying the same `CodeId`) or a [`ComputeError`]. Multiple codes
-//! submitted at once can be processed concurrently.
+//! Re-exported from sub-modules: [`ComputeSubService`], [`prepare_executable_for_mb`].
 //!
-//! ## Block preparation pipeline (`prepare`)
+//! ## Key types
 //!
-//! For every block hash submitted through [`ComputeService::prepare_block`]
-//! the stream eventually yields exactly one [`ComputeEvent::BlockPrepared`]
-//! or a [`ComputeError`]. Before the block-prepared event the stream may
-//! emit one or more [`ComputeEvent::RequestLoadCodes`] if the block — or
-//! any of its still-unprepared ancestors — references codes whose validity
-//! has not yet been established.
+//! - [`ComputeService`] — top-level composed service; generic over `P: ProcessorExt`;
+//!   implements `futures::Stream<Item = std::result::Result<ComputeEvent, ComputeError>>`.
+//! - [`ComputeEvent`] — unit of stream output: `RequestLoadCodes`, `CodeProcessed`,
+//!   `BlockPrepared`, `MbComputed`, `Promise`.
+//! - [`ComputeError`] — exhaustive pipeline error set; most variants signal missing or
+//!   inconsistent DB rows; `Processor` variant is transparent over `ProcessorError`.
+//! - [`ProcessorExt`] — backend abstraction: `process_programs` and `process_code`.
+//!   Bounds: `Sized + Unpin + Send + Clone + 'static`.
+//! - [`ComputeSubService`] — the MB-execution sub-service (re-exported from `compute`).
 //!
-//! ## MB computation pipeline (`mb_compute`)
+//! ## Invariants
 //!
-//! For every MB hash submitted through [`ComputeService::compute_mb`] the
-//! stream yields one [`ComputeEvent::MbComputed`] once the MB and any
-//! uncomputed ancestor MBs have been executed. Compute walks the parent
-//! chain via [`ethexe_common::db::CompactMb::parent`] until it reaches
-//! a computed ancestor (or genesis), then runs the executor over the
-//! [`ethexe_common::malachite::Transactions`] payload of each. Per-step gas
-//! budget is carried inside each `Transaction::ProcessQueues` payload
-//! (see [`ethexe_common::malachite::ProcessQueuesLimits`]).
+//! 1. **Code pipeline**: for every code queued via [`ComputeService::process_code`] the
+//!    stream eventually yields exactly one [`ComputeEvent::CodeProcessed`] (same `CodeId`)
+//!    or a [`ComputeError`]. Concurrent codes are processed concurrently.
 //!
-//! ## Canonical event quarantine
+//! 2. **Block preparation pipeline**: for every block hash queued via
+//!    [`ComputeService::prepare_block`] the stream yields exactly one
+//!    [`ComputeEvent::BlockPrepared`] or a [`ComputeError`]. One or more
+//!    [`ComputeEvent::RequestLoadCodes`] may precede it when block ancestors reference
+//!    codes of unknown validity.
 //!
-//! Ethereum events do not become visible to the runtime on the block
-//! they arrive in. When the executor processes an
-//! `AdvanceTillEthereumBlock` transaction inside an MB it fetches the
-//! events from blocks already past the canonical-quarantine window
-//! (`MalachiteConfig::canonical_quarantine` in `ethexe-malachite` —
-//! enforced inside `ethexe-processor`'s `process_programs`).
+//! 3. **MB computation pipeline**: for every MB hash queued via
+//!    [`ComputeService::compute_mb`] the stream yields one [`ComputeEvent::MbComputed`]
+//!    once the MB and all uncomputed ancestor MBs have been executed. The parent chain is
+//!    walked via `CompactMb::parent` to a computed ancestor or genesis.
 //!
-//! ## When modifying this crate
+//! 4. **Canonical event quarantine**: Ethereum events do not become visible to the runtime
+//!    on the block they arrive in; the quarantine window is controlled by
+//!    `MalachiteConfig::canonical_quarantine` (in `ethexe-malachite`) and is applied when
+//!    the MB producer selects which Ethereum block to advance to; `process_programs` only
+//!    executes the pre-quarantined payload.
 //!
-//! - A code result must reach the `prepare` sub-service before the
-//!   corresponding `CodeProcessed` is emitted upstream, otherwise a
-//!   block waiting on that code will stall for an extra poll.
-//! - `compute_mb` must only be called once the malachite service has
-//!   recorded the matching `CompactMb` + transactions blob. The
-//!   service layer enforces this by gating event emission inside
-//!   `MalachiteService::receive_new_chain_head` (in `ethexe-malachite`).
+//! 5. **Ordering**: a code result must reach the `prepare` sub-service before the
+//!    corresponding `CodeProcessed` is emitted upstream, otherwise a block waiting on that
+//!    code stalls for an extra poll.
+//!
+//! 6. **Caller contract**: [`ComputeService::compute_mb`] must only be called after the
+//!    malachite service has recorded the matching `CompactMb` and transactions blob in the
+//!    database.
 
 use ethexe_common::{CodeAndIdUnchecked, injected::Promise};
 use ethexe_processor::{

@@ -2,34 +2,104 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 //! # Vara.eth service
-//! Top-level runtime service for an ethexe node.
+//!
+//! Top-level orchestrator for an ethexe node. Constructs every subservice from a
+//! single [`Config`] and drives them through one async event loop.
 //!
 //! ## Responsibilities
-//! This crate provides the top-level [`Service`] orchestrator for ethexe.
-//! The service owns all subservices and drives them through a single async event loop.
 //!
-//! ## Event Loop
-//! The subservices in [`Service`] communicate with each other via the [`Event`] enum.
+//! This crate owns the full node lifecycle: it builds all subservices in
+//! [`Service::new`], optionally runs a fast-sync pass, then enters
+//! [`Service::run`] — a `tokio::select!` loop that polls each subservice as a
+//! [`futures::Stream`] and routes the resulting [`Event`] variants to the
+//! appropriate recipients.
 //!
-//! In [`Service::run`], the service uses the [tokio::select] macro to poll
-//! event streams (see [`futures::Stream`]) and route events to the appropriate subservice.
+//! The crate does **not** implement computation, consensus, networking, or RPC
+//! itself; those responsibilities live in `ethexe-compute`, `ethexe-consensus`,
+//! `ethexe-malachite`, `ethexe-network`, `ethexe-rpc`, and the other subservice
+//! crates. This crate only wires them together.
 //!
-//! ## Configuration And Startup
-//! [`Service::new`] takes a [`Config`] on startup.
-//! [`Config`] contains all configuration options required to create the subservices.
+//! ## Role in the stack
 //!
-//! In the general case, [`Service::new`] is called from the `ethexe-cli` crate,
-//! where [`Config`] is parsed from command-line arguments or a configuration file.
+//! ```text
+//! ethexe-cli  (binary — parses CLI args, calls Service::new / Service::run)
+//!     │
+//!     └─► ethexe-service  (this crate — orchestrates all subservices)
+//!             ├── ethexe-observer      (Ethereum block observation)
+//!             ├── ethexe-blob-loader   (EIP-4844 code blob loading)
+//!             ├── ethexe-compute       (block/program computation)
+//!             ├── ethexe-consensus     (validator state machine, optional)
+//!             ├── ethexe-malachite     (BFT block-ordering engine — always running)
+//!             ├── ethexe-network       (libp2p P2P networking, optional)
+//!             ├── ethexe-rpc           (JSON-RPC server, optional)
+//!             └── ethexe-prometheus    (metrics, optional)
+//! ```
+//!
+//! ## Entry points / Public API
+//!
+//! - [`Service::new`] — builds the full service from a [`Config`]. Opens
+//!   `RocksDatabase`, queries the Router for genesis hash and validator set,
+//!   constructs every subservice, and returns a ready-to-run [`Service`].
+//! - [`Service::run`] — runs optional fast-sync then the main event loop until
+//!   an error or shutdown signal is received.
+//! - [`Service::install_shutdown_channel`] — returns a `oneshot::Sender<()>` that
+//!   breaks the loop and awaits [`MalachiteService::shutdown`] before `run`
+//!   returns, freeing the RocksDB advisory lock and libp2p listener.
+//! - [`Service::configure_dev_environment`] — spawns Anvil, imports dev keys,
+//!   deploys contracts, and funds accounts; intended for local development only.
+//!
+//! ## Key types
+//!
+//! - [`Service`] — the top-level orchestrator; owns the database and every
+//!   subservice; built via `new`, run via `run`.
+//! - [`Event`] — unifies the eight subservice event streams into one enum so the
+//!   run loop can dispatch with a single `select!`; each variant wraps the
+//!   corresponding subservice event type.
+//! - [`config::Config`] — full node configuration consumed by [`Service::new`];
+//!   sections cover node, Ethereum, Malachite, network, Prometheus, and RPC.
+//! - [`config::ConfigPublicKey`] — `Enabled(PublicKey)` / `Random` / `Disabled`;
+//!   resolves the validator key and determines whether the node runs as a
+//!   validator.
+//!
+//! ## Invariants
+//!
+//! - **Validator gating**: `consensus` is `None` for connect (non-validator)
+//!   nodes; all `ConsensusService` calls are guarded by `if let Some(c)`.
+//! - **Malachite/compute quarantine agreement**: `MalachiteConfig::canonical_quarantine`
+//!   must match `Config::node::canonical_quarantine` or consensus deadlocks.
+//! - **Genesis hash**: the Router must return a non-zero genesis block hash before
+//!   startup; [`Service::new`] bails otherwise.
+//! - **Validator table completeness**: every on-chain validator address must have
+//!   an entry in the Malachite public-keys table supplied via configuration, or
+//!   `new` returns an error.
+//! - **`MbComputed` ordering**: the compact MB block is persisted to the database
+//!   before [`ComputeEvent::MbComputed`] is emitted; `latest_computed_mb_hash`
+//!   advances monotonically by height and never retreats.
+//! - **Graceful shutdown**: `MalachiteService::shutdown` must complete before the
+//!   process exits; a plain `JoinHandle::abort` does not guarantee WAL flush or
+//!   lock release.
 //!
 //! ## Testing
-//! Integration tests for this crate live in `src/tests`.
-//! They use `TestEnv` to prepare an Anvil-based or external Ethereum environment,
-//! initialize an in-memory database, and construct test nodes.
 //!
-//! Each node runs [`Service`] using `Service::new_from_parts`.
-//! Tests observe service behavior through `TestingEvent` streams, which mirror the
-//! internal [`Event`] flow and allow waiting for startup, block sync,
-//! MB processing, network activity, and RPC requests.
+//! Integration tests in `src/tests` use the private `TestEnv` / `new_from_parts`
+//! harness. Each test node constructs a [`Service`] against an in-memory database
+//! and an Anvil-backed or mock Ethereum environment, then observes behavior
+//! through `TestingEvent` streams that mirror the internal [`Event`] flow.
+//!
+//! ```rust,no_run
+//! use ethexe_service::{Service, config::Config};
+//!
+//! async fn run(config: Config) -> anyhow::Result<()> {
+//!     // `Config` is normally parsed from CLI args by `ethexe-cli`.
+//!     let mut service = Service::new(&config).await?;
+//!
+//!     // Returns a sender that, when fired, triggers graceful teardown.
+//!     let _shutdown = service.install_shutdown_channel();
+//!
+//!     // Runs optional fast-sync then the async event loop.
+//!     service.run().await
+//! }
+//! ```
 
 use crate::config::{Config, ConfigPublicKey};
 use alloy::{

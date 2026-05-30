@@ -1,7 +1,85 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Database library for ethexe.
+//! # ethexe-db
+//!
+//! Storage abstraction and implementation layer for the ethexe node. Defines the low-level
+//! [`CASDatabase`] and [`KVDatabase`] traits, provides two concrete backends ([`RocksDatabase`]
+//! for persistence and [`MemDb`] for tests), and composes them into the typed, domain-aware
+//! [`Database`] that every ethexe service reads and writes.
+//!
+//! ## Responsibilities
+//!
+//! - Exposes [`CASDatabase`] (content-addressable: `write(&[u8]) -> H256`, `read`, `contains`) for
+//!   immutable blobs such as code and program-state nodes, where the key is derived from the
+//!   content via [`hash`].
+//! - Exposes [`KVDatabase`] (`get`/`put`/`contains`/`iter_prefix`/`is_empty` and an unsafe `take`)
+//!   for mutable metadata keyed by a private `Key` enum whose `u64` discriminant becomes a
+//!   32-byte namespace prefix in storage.
+//! - Wraps both backends in [`RawDatabase`] and then in [`Database`], which implements every
+//!   storage-role trait declared in `ethexe-common::db` (block metadata, on-chain data, codes,
+//!   injected transactions, mirror storage, globals, config) as well as the runtime `Storage`
+//!   trait from `ethexe-runtime-common`.
+//! - Manages versioned initialization and migrations through [`initialize_db`],
+//!   [`GenesisInitializer`], [`InitConfig`], and [`VERSION`].
+//! - Provides state [`dump`] (deflate-compressed re-genesis export), trie-style [`iterator`] and
+//!   [`visitor`] traversal, and a [`verifier`] for integrity checks that backs `ethexe check`.
+//!
+//! ## Role in the stack
+//!
+//! ```text
+//! ethexe-observer  ethexe-compute  ethexe-processor  ethexe-consensus  ethexe-rpc
+//!         \               |               /                 |              /
+//!          \              |              /                  |             /
+//!           +-------------+-------------+------------------+------------+
+//!                                       |
+//!                                ethexe-db (Database)
+//!                               /                  \
+//!                     RocksDatabase              MemDb
+//!                    (persistent,              (in-memory,
+//!                     RocksDB)                  tests/mock)
+//! ```
+//!
+//! `ethexe-service` owns the single [`Database`] instance and passes it to every subsystem.
+//! `ethexe-blob-loader` caches code blobs through it; `ethexe-network` exchanges
+//! content-addressed data via db-sync. The storage-role trait *definitions* live in
+//! `ethexe-common::db`; this crate only implements them.
+//!
+//! ## Public API
+//!
+//! | Item | Description |
+//! |------|-------------|
+//! | [`CASDatabase`] | Content-addressable backend trait |
+//! | [`KVDatabase`] | Key-value backend trait |
+//! | [`Database`] | Typed domain database; primary handle held by services |
+//! | [`RawDatabase`] | Un-typed `{ kv, cas }` pairing used during construction |
+//! | [`RocksDatabase`] | Persistent backend (`RocksDatabase::open(path)`) |
+//! | [`MemDb`] | In-memory backend for tests |
+//! | [`hash`] | Blake2 hash helper; matches the key returned by `CASDatabase::write` |
+//! | [`initialize_db`] | Versioned DB bring-up and migration entry point |
+//! | [`dump`] | State dump for re-genesis |
+//! | [`iterator`] / [`visitor`] | Graph traversal over the content-addressed state |
+//! | [`verifier`] | DB integrity verification |
+//!
+//! Under `feature = "mock"`, `create_initialized_empty_memory_db` constructs a
+//! fully-initialized [`MemDb`]-backed [`Database`] suitable for integration tests.
+//!
+//! ## Invariants
+//!
+//! - [`Database::try_from_raw`](Database::try_from_raw) rejects any backend whose stored version
+//!   does not match [`VERSION`]; a mismatch is a hard error requiring migration.
+//! - `KVDatabase::take` is `unsafe`: removing a key without subsequent re-insertion may cause
+//!   permanent data loss.
+//! - Both backends are `Send + Sync`; concurrent reads and writes from multiple threads are safe.
+//! - The CAS round-trip invariant: `write(data)` stores the blob and returns `hash(data)`;
+//!   `read(that_hash)` always returns the same bytes.
+//!
+//! ## Testing
+//!
+//! Unit tests in this crate cover CAS and KV round-trips, prefix iteration, and concurrent
+//! access from multiple threads (`cas_multi_thread`, `kv_multi_thread`). Integration tests in
+//! `ethexe-service` and `ethexe-compute` use `MemDb` (or `create_initialized_empty_memory_db`)
+//! so they never touch disk.
 
 use gprimitives::H256;
 

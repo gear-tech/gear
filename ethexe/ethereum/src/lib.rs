@@ -1,6 +1,97 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+//! # ethexe-ethereum
+//!
+//! Ethereum contract-interaction layer for the ethexe system: typed Rust wrappers around the
+//! ethexe Solidity contracts (Router, Mirror, WrappedVara, Middleware), built on the `alloy`
+//! client stack.
+//!
+//! ## Responsibilities
+//!
+//! - Provides [`EthereumBuilder`] and [`Ethereum`] — the central connection object that wires a
+//!   signer, an EIP-1559/blob-gas-tuned provider, and resolves the on-chain router, wvara, and
+//!   middleware addresses.
+//! - Vends per-contract handles ([`router::Router`], [`mirror::Mirror`], [`wvara::WVara`],
+//!   [`middleware::Middleware`]) for submitting and querying transactions.
+//! - Exposes read-only query counterparts (`RouterQuery`, `MirrorQuery`, `WVaraQuery`,
+//!   `MiddlewareQuery`) and event-filter builders for each contract.
+//! - Provides [`TryGetReceipt`] — a receipt-retrieval trait that retries on null RPC responses,
+//!   extracts `MessageId` from logs, and surfaces revert reasons.
+//! - Contains [`deploy::EthereumDeployer`] for spinning up the full contract set in local/test
+//!   environments.
+//! - Re-exports `alloy::primitives` under [`primitives`] and exposes ABI bindings under [`abi`].
+//!
+//! ## Role in the Stack
+//!
+//! ```text
+//! ethexe-observer  ──(ABI / event types)──┐
+//! ethexe-consensus ──(router types)───────┤
+//! ethexe-cli       ──(EthereumBuilder)────┤──▶  ethexe-ethereum  ──▶  Ethereum RPC
+//! ethexe-service   ──(Ethereum client)────┤         │
+//! ethexe-sdk       ──(contract wrappers)──┘         └──▶  ethexe-common (BlockHeader, Digest)
+//!                                                          gsigner / gprimitives (ActorId, H256)
+//! ```
+//!
+//! This crate does not execute Gear programs (see `ethexe-processor`), watch the chain as an event
+//! loop (see `ethexe-observer`), implement consensus logic (see `ethexe-consensus`), or persist
+//! data (see `ethexe-db`). It is purely a client/binding layer.
+//!
+//! ## Entry Points / Public API
+//!
+//! Build a client with [`EthereumBuilder`], then call methods on the returned [`Ethereum`] instance:
+//!
+//! ```rust,no_run
+//! use ethexe_ethereum::{Ethereum, EthereumBuilder};
+//!
+//! # async fn example() -> anyhow::Result<()> {
+//! let ethereum = EthereumBuilder::default()
+//!     .rpc_url("ws://localhost:8545")
+//!     .router_address(Ethereum::DEFAULT_ROUTER_ADDRESS.into())
+//!     .signer(signer)
+//!     .sender_address(sender)
+//!     .build()
+//!     .await?;
+//!
+//! let router = ethereum.router();           // Router.sol write handle
+//! let _query = router.query();              // read-only views
+//! let mirror = ethereum.mirror(program_id); // per-program Mirror.sol handle
+//! mirror.send_message(payload, value).await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Key Types
+//!
+//! | Type | Purpose |
+//! |------|---------|
+//! | [`AlloyProvider`] | Type alias for the concrete alloy provider stack; returned by [`Ethereum::provider`] |
+//! | [`EthereumBuilder`] | Fluent builder: RPC URL, router address, signer, fee tuning |
+//! | [`Ethereum`] | Central connection; vends contract handles and block queries |
+//! | [`router::Router`] / `RouterQuery` | Router.sol: code validation, batch commitment, program creation |
+//! | [`mirror::Mirror`] / `MirrorQuery` | Mirror.sol: send/reply messages, claim value, top up balances |
+//! | [`wvara::WVara`] / `WVaraQuery` | WrappedVara ERC-20: transfer, approve, mint, balance queries |
+//! | [`middleware::Middleware`] / `MiddlewareQuery` | Validator election/permissions contract |
+//! | [`TryGetReceipt`] | Retry-aware receipt retrieval with log parsing and revert detection |
+//! | [`IntoBlockId`] | Convert `H256` / `u32` / `u64` into `alloy::eips::BlockId` |
+//!
+//! ## Invariants
+//!
+//! - [`EthereumBuilder::build`] errors if `signer` or `sender_address` are not set.
+//! - [`Ethereum::middleware`] panics if the middleware address is zero — this happens when the
+//!   contract set was deployed without the `with_middleware` flag on [`deploy::EthereumDeployer`].
+//! - [`TryGetReceipt::try_get_receipt`] retries up to 20 times (100 ms apart) only while the RPC
+//!   returns a null response; any other error breaks the loop immediately.
+//! - [`TryGetReceipt::try_get_message_send_receipt`] requires a `MessageQueueingRequested` log in
+//!   the receipt or returns an error.
+//! - The EIP-712 permit deadline is set to `latest_block.timestamp + PERMIT_DEADLINE_OFFSET`
+//!   (300 s).
+//!
+//! ## Testing
+//!
+//! [`deploy::EthereumDeployer`] is documented as a test/local-deployment helper. Integration tests
+//! in `ethexe-service` drive it against Anvil (a local Ethereum node) with mock contracts.
+
 #![allow(dead_code, clippy::new_without_default)]
 
 use crate::{

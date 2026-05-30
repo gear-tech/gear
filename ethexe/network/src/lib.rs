@@ -1,22 +1,112 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Networking stack for `ethexe`.
+//! # ethexe-network
 //!
-//! This crate wires together the libp2p swarm used by the execution layer and
-//! exposes it as a single [`NetworkService`] stream. The service combines:
+//! libp2p networking stack for the `ethexe` Ethereum execution layer. It wires
+//! together a single libp2p swarm and exposes it as one [`NetworkService`] that
+//! implements `futures::Stream<Item = NetworkEvent>`, yielding already-validated
+//! high-level events to the caller.
 //!
-//! - peer management and connection caps;
-//! - Kademlia-backed validator discovery;
-//! - gossipsub topics for validator messages and public promises;
-//! - request/response database synchronization;
-//! - private injected-transaction delivery to validators;
-//! - peer scoring and temporary peer blocking.
+//! ## Responsibilities
 //!
-//! [`NetworkService`] is the main integration point used by higher-level
-//! services. It owns the swarm, emits validated [`NetworkEvent`] items, and
-//! hands out protocol-specific handles such as [`db_sync::Handle`] for
-//! database synchronization and a peer-scoring handle for internal use.
+//! - **Peer management** — connection caps (max 2 per peer, 500 established
+//!   in/out, 10 pending in/out) and slot-based backpressure.
+//! - **Validator discovery** — Kademlia-backed DHT that maps validator `Address`es
+//!   to libp2p `PeerId`s; validators publish signed identity records on connect.
+//! - **Gossipsub messaging** — two topics: validator-signed commitment messages and
+//!   public promise (tx-receipt) messages. Messages are verified before being
+//!   surfaced as [`NetworkEvent`] items.
+//! - **Database synchronization** — request/response `db_sync` sub-protocol for
+//!   syncing CAS hashes, program-to-code mappings, and valid code sets between nodes.
+//! - **Injected transactions** — private point-to-point delivery of injected
+//!   transactions to the validator responsible for a given slot.
+//! - **Peer scoring and blocking** — tracks misbehaving peers and disconnects them
+//!   after exceeding a bad-data threshold.
+//!
+//! ## Role in the Stack
+//!
+//! ```text
+//! ethexe-observer (synced block)
+//!         │
+//!         ▼
+//!   ethexe-service ──set_chain_head()──────────────┐
+//!         │  Stream<Item = NetworkEvent>            ▼
+//!         │                                  NetworkService  ◄──┐
+//!         │◄──────────────────────────────────────────────────  │
+//!         ├── feed ValidatorMessage → ethexe-consensus          │
+//!         ├── feed TxReceiptMessage → ethexe-compute            │
+//!         ├── feed InjectedTransaction → local handler          │
+//!         └── issue db_sync::Request ─────────────────────────►─┘
+//!                   via db_sync::Handle
+//! ```
+//!
+//! `ethexe-service` is the only direct consumer of this crate. `ethexe-cli` uses
+//! [`DEFAULT_LISTEN_PORT`] when building CLI network parameters.
+//!
+//! ## Entry Points / Public API
+//!
+//! Construct the service with [`NetworkService::new`], passing a [`NetworkConfig`]
+//! (static, usually from CLI flags) and a [`NetworkRuntimeConfig`] (runtime
+//! dependencies).
+//!
+//! Key methods on [`NetworkService`]:
+//!
+//! | Method | Purpose |
+//! |--------|---------|
+//! | `new(config, runtime_config)` | Build and start the swarm |
+//! | `db_sync_handle()` | Return a cloneable [`db_sync::Handle`] |
+//! | `set_chain_head(hash)` | Refresh validator snapshot after a new block |
+//! | `publish_message(msg)` | Gossip a validator-signed message |
+//! | `publish_tx_receipt(receipt)` | Gossip a signed promise |
+//! | `send_injected_transaction(tx)` | Private delivery to a validator |
+//! | `local_peer_id()` | Return the local libp2p `PeerId` |
+//!
+//! ## Key Types
+//!
+//! - [`NetworkService`] — owns the `Swarm`; implements `Stream<Item = NetworkEvent>`
+//!   and `FusedStream`. Removes its listeners on drop so in-memory transport ports
+//!   are not leaked.
+//! - [`NetworkEvent`] — six variants: `ValidatorMessage`, `TxReceiptMessage`,
+//!   `ValidatorIdentityUpdated`, `InjectedTransaction`, `PeerBlocked`,
+//!   `PeerConnected`. All gossip events are signature-verified before emission.
+//! - [`NetworkConfig`] — static config: networking `public_key`, `router_address`
+//!   (namespaces topics), external/bootstrap/listen addresses, [`TransportType`].
+//!   Constructors: `new_local` (localhost QUIC, default stack) and `new_test`
+//!   (in-memory transport).
+//! - [`NetworkRuntimeConfig`] — runtime deps: `latest_block_header`,
+//!   `latest_validators`, optional `validator_key`, signers, a boxed
+//!   [`db_sync::ExternalDataProvider`], and a `Database`.
+//! - [`TransportType`] — `Default` (QUIC + TCP + DNS + TLS + yamux, optional mDNS)
+//!   or `Test` (in-memory plaintext, for unit tests).
+//! - [`db_sync::Handle`] — cloneable handle for issuing `db_sync::Request`s
+//!   (`hashes`, `program_ids`, `valid_codes`) that resolve to a `db_sync::Response`.
+//! - [`db_sync::ExternalDataProvider`] — caller-supplied async lookups
+//!   (`programs_code_ids_at`, `codes_states_at`) used to validate and serve
+//!   inbound db-sync requests.
+//!
+//! ## Invariants
+//!
+//! - The networking identity (`public_key` / `network_signer`) is distinct from the
+//!   validator key. Validator identity is handled separately and may be absent on
+//!   non-validator nodes.
+//! - Bootstrap addresses must carry an embedded `PeerId`; `NetworkService::new`
+//!   returns an error otherwise.
+//! - `set_chain_head` must be called on every chain-head change to keep
+//!   validator-message verification and validator discovery in sync with the
+//!   current era.
+//! - A failed ping (including unsupported-protocol errors) disconnects the peer.
+//! - Identify errors do not penalize a peer — identify is best-effort metadata.
+//! - A peer is blocked as soon as its cumulative penalty score reaches `i8::MIN / 3`
+//!   (score-based, not count-based); a single invalid-data report is sufficient to
+//!   trigger a block.
+//!
+//! ## Testing
+//!
+//! Unit tests in `lib.rs` use [`TransportType::Test`] (in-memory MemoryTransport)
+//! and a `NetworkServiceBuilder` helper to construct services without real network
+//! sockets. Integration-level tests in `ethexe-service` drive the full service
+//! against a local Anvil Ethereum node with mock contracts.
 
 pub mod db_sync;
 mod gossipsub;
