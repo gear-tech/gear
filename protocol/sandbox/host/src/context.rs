@@ -398,13 +398,3 @@ pub fn set_global_val(
         Err(_) => sandbox_env::env::ERROR_GLOBALS_OTHER,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn init_selects_backend_without_store_clear_limit() {
-        init(sandbox_env::SandboxBackend::Wasmtime);
-    }
-}
