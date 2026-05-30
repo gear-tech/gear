@@ -19,51 +19,93 @@ use std::{
     hash::Hash,
 };
 
+/// Enumerates all integrity violations detected during chain or database verification.
+///
+/// Each variant corresponds to a specific invariant that must hold for a well-formed
+/// ethexe database. Errors are collected (not fatal) so a single verification pass
+/// can surface multiple violations at once.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum IntegrityVerifierError {
+    /// Wraps a low-level [`DatabaseIteratorError`] produced while traversing the DB.
     DatabaseIterator(DatabaseIteratorError),
 
     /* block */
+    /// The block has not been marked as synced in the database.
     BlockIsNotSynced(H256),
+    /// The block metadata `prepared` flag is `false`.
     BlockIsNotPrepared(H256),
+    /// The block metadata is missing a `last_committed_batch` entry.
     NoBlockLastCommittedBatch(H256),
+    /// The block metadata is missing a `last_committed_mb` entry.
     NoBlockLastCommittedMb(H256),
+    /// The block metadata is missing a `latest_era_validators_committed` entry.
     NoBlockLatestEraValidatorsCommitted(H256),
+    /// No block header record exists for the given block hash.
     NoBlockHeader(H256),
 
     /* block header */
+    /// The parent block header cannot be found in the database.
     NoParentBlockHeader(H256),
+    /// The child block height is not exactly `parent_height + 1`.
     InvalidBlockParentHeight {
+        /// Stored height of the parent block.
         parent_height: u32,
+        /// Stored height of the child block.
         height: u32,
     },
+    /// The child block timestamp is earlier than its parent's timestamp.
     InvalidParentTimestamp {
+        /// Timestamp of the parent block.
         parent_timestamp: u64,
+        /// Timestamp of the child block.
         timestamp: u64,
     },
 
     /* code */
+    /// The code validity flag is set to `false` in the database.
     CodeIsNotValid,
+    /// The `original_code_len` stored in the code metadata does not match the actual blob length.
     InvalidCodeLenInMetadata {
+        /// Identifier of the offending code blob.
         code_id: CodeId,
+        /// Length recorded in the metadata.
         metadata_len: u32,
+        /// Actual byte length of the stored original code blob.
         original_len: u32,
     },
 
     /* rest */
+    /// The compact mb record referenced by `mb_hash` is absent from the database.
     MbNotFound(H256),
+    /// A scheduled task's expiry height is not greater than the mb's current height.
     MbScheduleHasExpiredTasks {
+        /// Hash of the mb block the tasks belong to.
         mb_hash: H256,
+        /// Block height at which the tasks were scheduled to expire.
         expiry: u32,
+        /// Number of expired tasks found.
         tasks: usize,
     },
+    /// The cached queue size stored alongside a [`MessageQueue`] hash does not match
+    /// the actual number of messages in the queue.
     InvalidCachedMessageQueueSize {
+        /// Hash of the message queue.
         hash: HashOf<MessageQueue>,
+        /// Size recorded in the cache entry.
         cached_size: u8,
+        /// Actual size obtained by decoding the queue.
         actual_size: u8,
     },
 }
 
+/// Walks a chain segment in the database and accumulates all integrity violations found.
+///
+/// Implements [`DatabaseVisitor`] so it can be driven by `walk()` over any node type.
+/// Errors are not returned eagerly; call [`verify_chain`] for a complete pass or
+/// [`into_errors`] to consume accumulated errors after manual visitor calls.
+///
+/// [`verify_chain`]: IntegrityVerifier::verify_chain
+/// [`into_errors`]: IntegrityVerifier::into_errors
 pub struct IntegrityVerifier {
     db: Database,
     errors: Vec<IntegrityVerifierError>,
@@ -73,6 +115,7 @@ pub struct IntegrityVerifier {
 }
 
 impl IntegrityVerifier {
+    /// Creates a new verifier backed by the given [`Database`].
     pub fn new(db: Database) -> Self {
         Self {
             db,
@@ -83,6 +126,12 @@ impl IntegrityVerifier {
         }
     }
 
+    /// Walks all blocks from `head` down to `bottom` (inclusive) and verifies
+    /// every reachable database record.
+    ///
+    /// Returns `Ok(())` when no violations are found, or `Err` containing the
+    /// full list of collected [`IntegrityVerifierError`]s. In debug builds the
+    /// list is asserted to contain no duplicates.
     pub fn verify_chain(
         mut self,
         head: H256,
@@ -111,6 +160,11 @@ impl IntegrityVerifier {
         }
     }
 
+    /// Consumes the verifier and returns all accumulated errors.
+    ///
+    /// Useful when driving the visitor manually via `walk()` rather than through [`verify_chain`].
+    ///
+    /// [`verify_chain`]: IntegrityVerifier::verify_chain
     pub fn into_errors(self) -> Vec<IntegrityVerifierError> {
         self.errors
     }

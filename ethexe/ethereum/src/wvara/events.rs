@@ -20,6 +20,8 @@ use ethexe_common::{
 use futures::{Stream, StreamExt};
 use signatures::*;
 
+/// Keccak-256 topic-0 signature hashes for every `IWrappedVara` event, plus `REQUESTS` and `ALL`
+/// slices used to build Ethereum log filters.
 pub mod signatures {
     use super::*;
 
@@ -29,9 +31,14 @@ pub mod signatures {
         APPROVAL: Approval,
     }
 
+    /// Subset of event signatures that represent user-initiated requests; currently only `Transfer`.
     pub const REQUESTS: &[B256] = &[TRANSFER];
 }
 
+/// Attempts to decode an Ethereum log into a [`WVaraEvent`].
+///
+/// Returns `Ok(None)` when the log's topic-0 does not match any known `IWrappedVara` event
+/// signature, and `Err` when decoding a matching log fails.
 pub fn try_extract_event(log: &Log) -> Result<Option<WVaraEvent>> {
     let Some(topic0) = log.topic0().filter(|&v| ALL.contains(v)) else {
         return Ok(None);
@@ -46,6 +53,8 @@ pub fn try_extract_event(log: &Log) -> Result<Option<WVaraEvent>> {
     Ok(Some(event))
 }
 
+/// Builder that subscribes to all `IWrappedVara` events (`Transfer` and `Approval`) on a given
+/// contract address and yields them as a unified [`WVaraEvent`] stream.
 pub struct AllEventsBuilder<'a> {
     query: &'a WVaraQuery,
 }
@@ -55,6 +64,7 @@ impl<'a> AllEventsBuilder<'a> {
         Self { query }
     }
 
+    /// Subscribes to all `IWrappedVara` log events and returns a stream of decoded [`WVaraEvent`]s.
     pub async fn subscribe(self) -> Result<impl Stream<Item = Result<WVaraEvent>> + Unpin + use<>> {
         let filter = Filter::new()
             .address(*self.query.0.address())
@@ -73,6 +83,8 @@ impl<'a> AllEventsBuilder<'a> {
     }
 }
 
+/// Builder for subscribing to `IWrappedVara::Transfer` events, with optional indexed filters
+/// on the `from` and `to` address topics.
 pub struct TransferEventBuilder<'a> {
     event: Event<&'a RootProvider, IWrappedVara::Transfer>,
     from: Option<Address>,
@@ -88,16 +100,19 @@ impl<'a> TransferEventBuilder<'a> {
         }
     }
 
+    /// Restricts the subscription to transfers originating from `from`.
     pub fn from(mut self, from: Address) -> Self {
         self.from = Some(from);
         self
     }
 
+    /// Restricts the subscription to transfers directed to `to`.
     pub fn to(mut self, to: Address) -> Self {
         self.to = Some(to);
         self
     }
 
+    /// Subscribes with the configured topic filters and returns a stream of `(TransferEvent, Log)` pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(TransferEvent, Log), Error>> + Unpin + use<>> {
@@ -118,6 +133,8 @@ impl<'a> TransferEventBuilder<'a> {
     }
 }
 
+/// Builder for subscribing to `IWrappedVara::Approval` events, with optional indexed filters
+/// on the `owner` and `spender` address topics.
 pub struct ApprovalEventBuilder<'a> {
     event: Event<&'a RootProvider, IWrappedVara::Approval>,
     owner: Option<Address>,
@@ -133,16 +150,19 @@ impl<'a> ApprovalEventBuilder<'a> {
         }
     }
 
+    /// Restricts the subscription to approvals granted by `owner`.
     pub fn owner(mut self, owner: Address) -> Self {
         self.owner = Some(owner);
         self
     }
 
+    /// Restricts the subscription to approvals granted to `spender`.
     pub fn spender(mut self, spender: Address) -> Self {
         self.spender = Some(spender);
         self
     }
 
+    /// Subscribes with the configured topic filters and returns a stream of `(ApprovalEvent, Log)` pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ApprovalEvent, Log), Error>> + Unpin + use<>> {

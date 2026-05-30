@@ -90,15 +90,20 @@ use reqwest::Client;
 use std::{collections::HashSet, fmt, num::NonZero, pin::Pin, task::Poll};
 use tokio::{sync::OnceCell, time::Duration};
 
+/// Output event emitted by [`BlobLoader`] when a code blob has been fetched and decoded.
 #[derive(Clone, PartialEq, Eq)]
 pub enum BlobLoaderEvent {
+    /// A code blob was successfully retrieved and decoded; carries the raw WASM bytes paired with its [`CodeId`].
     BlobLoaded(CodeAndIdUnchecked),
 }
 
+/// Error type for blob-loading operations; returned by [`BlobLoader::new`] and [`BlobLoaderService::load_codes`].
 #[derive(thiserror::Error, Debug)]
 pub enum BlobLoaderError {
+    /// An Ethereum JSON-RPC transport failure occurred while communicating with the execution-layer node.
     #[error("transport error: {0}")]
     Transport(#[from] RpcError<TransportErrorKind>),
+    /// The local database has no [`CodeBlobInfo`] for the requested [`CodeId`], so the originating transaction cannot be located.
     #[error("failed to get code blob info for: {0}")]
     CodeBlobInfoNotFound(CodeId),
 }
@@ -138,13 +143,24 @@ enum ReaderError {
 type LoaderResult<T> = Result<T, BlobLoaderError>;
 type ReaderResult<T> = Result<T, ReaderError>;
 
+/// Object-safe interface used by `ethexe-service` to drive blob loading.
+///
+/// Combines a fused [`Stream`] of [`BlobLoaderEvent`] results with imperative methods for
+/// enqueuing new codes and inspecting the pending queue. Implementors must be `Send + Unpin`
+/// so they can be stored as `Box<dyn BlobLoaderService>` inside the async service loop.
 pub trait BlobLoaderService:
     Stream<Item = LoaderResult<BlobLoaderEvent>> + FusedStream + Send + Unpin
 {
+    /// Enqueue a set of [`CodeId`]s for blob fetching.
+    ///
+    /// Already-pending ids are silently skipped. Returns an error if the database has no
+    /// [`CodeBlobInfo`] for a requested id.
     fn load_codes(&mut self, codes: HashSet<CodeId>) -> LoaderResult<()>;
 
+    /// Wrap `self` in a [`Box`] for type-erasure as `Box<dyn BlobLoaderService>`.
     fn into_box(self) -> Box<dyn BlobLoaderService>;
 
+    /// Returns the number of [`CodeId`]s currently awaiting a blob fetch response.
     fn pending_codes_len(&self) -> usize;
 }
 
@@ -156,11 +172,16 @@ impl fmt::Debug for BlobLoaderEvent {
     }
 }
 
+/// Configuration for connecting to the Ethereum execution-layer and beacon-layer RPC endpoints.
 #[derive(Clone)]
 pub struct ConsensusLayerConfig {
+    /// WebSocket or HTTP URL of the Ethereum execution-layer JSON-RPC endpoint.
     pub ethereum_rpc: String,
+    /// HTTP base URL of the Ethereum beacon-node REST API (used to fetch blob sidecars and genesis time).
     pub ethereum_beacon_rpc: String,
+    /// Expected duration of a single beacon slot; used to convert block timestamps to slot numbers.
     pub beacon_block_time: Duration,
+    /// Number of fetch attempts before giving up on a single blob; must be non-zero.
     pub attempts: NonZero<u8>,
 }
 
@@ -295,9 +316,16 @@ impl ConsensusLayerBlobReader {
     }
 }
 
+/// Marker trait for database types that [`BlobLoader`] can use to look up code blob metadata.
+///
+/// Blanket-implemented for every type satisfying `CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static`.
 pub trait Database: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static {}
 impl<T: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static> Database for T {}
 
+/// Concrete [`BlobLoaderService`] implementation that fetches EIP-4844 blobs from an Ethereum beacon node.
+///
+/// Constructed with [`BlobLoader::new`]. Internally drives a [`FuturesUnordered`] pool of
+/// in-flight blob fetch futures, one per queued [`CodeId`].
 pub struct BlobLoader<DB: Database> {
     futures: FuturesUnordered<BoxFuture<'static, ReaderResult<CodeAndIdUnchecked>>>,
     codes_loading: HashSet<CodeId>,
@@ -335,6 +363,9 @@ impl<DB: Database> FusedStream for BlobLoader<DB> {
 }
 
 impl<DB: Database> BlobLoader<DB> {
+    /// Create a new `BlobLoader` by connecting to the execution-layer RPC specified in `consensus_cfg`.
+    ///
+    /// Returns a [`BlobLoaderError::Transport`] error if the RPC connection cannot be established.
     pub async fn new(db: DB, consensus_cfg: ConsensusLayerConfig) -> LoaderResult<Self> {
         Ok(Self {
             futures: FuturesUnordered::new(),

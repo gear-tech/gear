@@ -20,7 +20,9 @@ pub const MAX_BATCH_SIZE_LIMIT: u64 = 120 * 1024;
 /// The default batch size - 100 KB.
 pub const DEFAULT_BATCH_SIZE_LIMIT: u64 = 100 * 1024;
 
+/// A [`BatchCommitmentValidationRequest`] that has been ECDSA-verified, binding the request to its sender's address.
 pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
+/// A [`BatchCommitmentValidationReply`] that has been ECDSA-verified, binding the reply to its sender's address.
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 
 // TODO #4553: temporary implementation, should be improved
@@ -72,6 +74,7 @@ impl ProtocolTimelines {
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct BatchCommitmentValidationRequest {
     // Digest of batch commitment to validate
+    /// Keccak256 digest of the [`BatchCommitment`] that subordinate validators are asked to verify.
     pub digest: Digest,
     /// Optional head MB hash of the chain commitment.
     /// The hash of the most recent finalized `ethexe_malachite_core::Block` envelope covered by this batch.
@@ -85,6 +88,7 @@ pub struct BatchCommitmentValidationRequest {
 }
 
 impl BatchCommitmentValidationRequest {
+    /// Constructs a validation request from a [`BatchCommitment`], extracting its digest, code IDs, and presence flags.
     pub fn new(batch: &BatchCommitment) -> Self {
         let codes = batch
             .code_commitments

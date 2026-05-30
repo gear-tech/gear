@@ -133,17 +133,26 @@ use mirror::Mirror;
 use router::{Router, RouterQuery};
 use std::time::Duration;
 
+/// Raw ABI bindings generated from the ethexe Solidity contracts.
 pub mod abi;
+/// Deployment helpers for spinning up the full ethexe contract set in local/test environments.
 pub mod deploy;
+/// Typed wrapper around the Middleware.sol validator-election/permissions contract.
 pub mod middleware;
+/// Typed wrapper around the Mirror.sol per-program proxy contract.
 pub mod mirror;
+/// Typed wrapper around the Router.sol central co-processor contract.
 pub mod router;
+/// Typed wrapper around the WrappedVara ERC-20 contract.
 pub mod wvara;
 
+/// Re-export of `alloy::primitives` for downstream crates that need Ethereum primitive types.
 pub mod primitives {
     pub use alloy::primitives::*;
 }
 
+/// Concrete alloy provider stack used throughout this crate, pre-configured with gas, nonce,
+/// chain-id, wallet, and blob-gas fillers on top of an HTTP/WS root provider.
 pub type AlloyProvider = FillProvider<
     JoinFill<
         JoinFill<
@@ -158,6 +167,10 @@ pub type AlloyProvider = FillProvider<
     RootProvider,
 >;
 
+/// Fluent builder for [`Ethereum`].
+///
+/// Callers must set at least `signer` and `sender_address` before calling [`EthereumBuilder::build`];
+/// all other fields fall back to the defaults declared on [`Ethereum`].
 #[derive(Debug, Clone, Default)]
 pub struct EthereumBuilder {
     rpc_url: Option<String>,
@@ -305,6 +318,12 @@ pub(crate) struct Eip712PermitData {
     pub s: B256,
 }
 
+/// Central Ethereum connection: holds a signed [`AlloyProvider`] and resolves on-chain addresses
+/// for the Router, WrappedVara, and Middleware contracts.
+///
+/// Obtain an instance via [`EthereumBuilder`]. Once built, use [`Ethereum::router`],
+/// [`Ethereum::mirror`], [`Ethereum::wrapped_vara`], and [`Ethereum::middleware`] to get typed
+/// contract handles.
 #[derive(Clone)]
 pub struct Ethereum {
     router: AlloyAddress,
@@ -397,6 +416,7 @@ impl Ethereum {
         Ok(())
     }
 
+    /// Returns the underlying key signer used for transaction signing.
     pub fn signer(&self) -> &Signer {
         &self.signer
     }
@@ -405,14 +425,17 @@ impl Ethereum {
         Sender::new(self.signer.clone(), self.sender_address).expect("infallible")
     }
 
+    /// Returns the Ethereum address that signs and pays for submitted transactions.
     pub fn sender_address(&self) -> Address {
         self.sender_address
     }
 
+    /// Returns a clone of the underlying [`AlloyProvider`].
     pub fn provider(&self) -> AlloyProvider {
         self.provider.clone()
     }
 
+    /// Fetches the chain ID from the connected Ethereum node.
     pub async fn chain_id(&self) -> Result<u64> {
         self.provider.get_chain_id().await.map_err(Into::into)
     }
@@ -448,10 +471,12 @@ impl Ethereum {
         Ok(SimpleBlockData { hash, header })
     }
 
+    /// Fetches the latest Ethereum block and returns its hash and header.
     pub async fn get_latest_block(&self) -> Result<SimpleBlockData> {
         Self::get_latest_block_inner(&self.provider()).await
     }
 
+    /// Fetches a specific Ethereum block by block ID and returns its hash and header.
     pub async fn get_block(&self, block_id: impl IntoBlockId) -> Result<SimpleBlockData> {
         Self::get_block_inner(&self.provider(), block_id).await
     }
@@ -496,10 +521,12 @@ impl Ethereum {
         Ok(Eip712PermitData { deadline, v, r, s })
     }
 
+    /// Returns a write handle for the Mirror.sol proxy contract deployed for `actor_id`.
     pub fn mirror(&self, actor_id: ActorId) -> Mirror {
         Mirror::new(actor_id.into(), self.wvara, self.sender(), self.provider())
     }
 
+    /// Returns a write handle for the Router.sol central co-processor contract.
     pub fn router(&self) -> Router {
         Router::new(
             self.router,
@@ -511,10 +538,15 @@ impl Ethereum {
         )
     }
 
+    /// Returns a write handle for the WrappedVara ERC-20 contract.
     pub fn wrapped_vara(&self) -> WVara {
         WVara::new(self.wvara, self.provider())
     }
 
+    /// Returns a write handle for the Middleware.sol validator-election contract.
+    ///
+    /// Panics if the middleware address was not resolved (i.e., the contract set was deployed
+    /// without the `with_middleware` flag on [`deploy::EthereumDeployer`]).
     pub fn middleware(&self) -> Middleware {
         assert_ne!(
             self.middleware,
@@ -618,6 +650,8 @@ impl SignerSync for Sender {
     }
 }
 
+/// Extension trait for [`PendingTransactionBuilder`] that adds retry-aware receipt retrieval,
+/// `MessageQueueingRequested` log extraction, and revert-reason surfacing.
 #[async_trait::async_trait]
 pub trait TryGetReceipt<N: Network> {
     /// Works like `self.get_receipt().await`, but retries a few times if rpc returns a null response.
@@ -742,6 +776,7 @@ use crate::wvara::WVara;
 
 /// A helping trait for converting various types into `alloy::eips::BlockId`.
 pub trait IntoBlockId {
+    /// Converts this value into an `alloy::eips::BlockId`.
     fn into_block_id(self) -> BlockId;
 }
 

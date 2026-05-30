@@ -14,22 +14,26 @@ interface::declare! {
 }
 
 // TODO(romanm): consider to move into separate RI module
+/// Notifies the host of the updated program state hash after execution completes.
 pub fn update_state_hash(hash: &H256) {
     unsafe {
         sys::ext_update_state_hash_version_1(hash.as_ptr() as _);
     }
 }
 
+/// Reads and SCALE-decodes the value stored under `hash`, returning `None` if not found.
 pub fn read<D: Decode>(hash: &H256) -> Option<Result<D, CodecError>> {
     let mut slice = read_raw(hash)?;
 
     Some(D::decode(&mut slice))
 }
 
+/// Reads and SCALE-decodes the value stored under `hash`, panicking if decoding fails.
 pub fn read_unwrapping<D: Decode>(hash: &H256) -> Option<D> {
     read(hash).map(|v| v.unwrap())
 }
 
+/// Returns a byte slice of the value stored under `hash`, or `None` if the key is absent.
 pub fn read_raw(hash: &H256) -> Option<&[u8]> {
     unsafe {
         let ptr_len = sys::ext_database_read_by_hash_version_1(hash.as_ptr() as _);
@@ -41,10 +45,12 @@ pub fn read_raw(hash: &H256) -> Option<&[u8]> {
     }
 }
 
+/// SCALE-encodes `data`, writes it to the host database, and returns the content hash.
 pub fn write(data: impl Encode) -> H256 {
     write_raw(data.encode())
 }
 
+/// Writes raw bytes to the host database and returns their content hash.
 pub fn write_raw(data: impl AsRef<[u8]>) -> H256 {
     let data = data.as_ref();
 

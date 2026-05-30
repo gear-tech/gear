@@ -21,6 +21,7 @@ use ethexe_common::{
     HashOf, MaybeHashOf,
     gear::{Message, MessageType},
 };
+/// Re-export of `gear_core::program::ProgramState` as `InitStatus` for use in ethexe state.
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
     buffer::Payload,
@@ -63,7 +64,9 @@ fn option_string<S: ToString>(value: &Option<S>) -> String {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PayloadLookup {
+    /// Payload bytes held inline.
     Direct(Payload),
+    /// Payload is stored in the database; this variant carries its content-addressed hash.
     Stored(HashOf<Payload>),
 }
 
@@ -83,10 +86,12 @@ impl PayloadLookup {
     /// Lower len to be stored in storage instead of holding value itself; 1 KB.
     pub const STORING_THRESHOLD: usize = 1024;
 
+    /// Returns a [`PayloadLookup::Direct`] variant with an empty payload.
     pub const fn empty() -> Self {
         Self::Direct(Payload::new())
     }
 
+    /// Returns `true` only when the payload is [`Direct`](PayloadLookup::Direct) and has zero bytes.
     pub fn is_empty(&self) -> bool {
         if let Self::Direct(payload) = self {
             payload.is_empty()
@@ -95,6 +100,10 @@ impl PayloadLookup {
         }
     }
 
+    /// Ensures the payload is persisted in storage, converting a `Direct` variant to `Stored`.
+    ///
+    /// Returns the content hash of the payload. If already `Stored`, returns the existing hash
+    /// without writing again.
     pub fn force_stored<S: Storage>(&mut self, storage: &S) -> HashOf<Payload> {
         let hash = match self {
             Self::Direct(payload) => {
@@ -109,6 +118,7 @@ impl PayloadLookup {
         hash
     }
 
+    /// Resolves the payload to its bytes, fetching from storage if necessary.
     pub fn query<S: Storage>(self, storage: &S) -> Result<Payload> {
         match self {
             Self::Direct(payload) => Ok(payload),
@@ -229,15 +239,22 @@ impl<S: Storage> ModifiableStorage<MemoryPages> for S {
 }
 
 // TODO(romanm): consider to make it into general primitive: `HashOf`, `SizedHashOf`, `MaybeHashOf`, `SizedMaybeHashOf`
+/// A [`MessageQueue`] hash paired with a cached count of pending messages.
+///
+/// The `cached_queue_size` is a saturating `u8` snapshot of the queue length, propagated to
+/// the parent [`ProgramState`] so callers can gauge queue depth without fetching the full queue.
 #[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueueHashWithSize {
+    /// Content-addressed hash of the [`MessageQueue`], or empty if the queue is absent.
     pub hash: MaybeHashOf<MessageQueue>,
     // NOTE: only here to propagate queue size to the parent state (`StateHashWithQueueSize`).
+    /// Saturating snapshot of the queue length; capped at `u8::MAX`.
     pub cached_queue_size: u8,
 }
 
 impl MessageQueueHashWithSize {
+    /// Reads the [`MessageQueue`] from storage, returning an empty queue if the hash is absent.
     pub fn query<S: Storage + ?Sized>(&self, storage: &S) -> Result<MessageQueue> {
         self.hash.try_map_or_default(|hash| {
             storage.message_queue(hash).ok_or(anyhow!(
@@ -246,6 +263,8 @@ impl MessageQueueHashWithSize {
         })
     }
 
+    /// Loads the queue, applies `f`, then re-serializes it, updating both `hash` and
+    /// `cached_queue_size` atomically.
     pub fn modify_queue<S: Storage + ?Sized, T>(
         &mut self,
         storage: &S,
@@ -262,6 +281,7 @@ impl MessageQueueHashWithSize {
         r
     }
 
+    /// Returns `true` if the queue hash is absent (no messages queued).
     pub fn is_empty(&self) -> bool {
         self.hash.is_empty()
     }
@@ -299,6 +319,7 @@ impl<S: Storage> ModifiableStorage<Waitlist> for S {
     }
 }
 
+/// State of a program that is currently active (not exited or terminated).
 #[derive(Copy, Clone, Debug, Decode, Encode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ActiveProgram {
@@ -312,19 +333,25 @@ pub struct ActiveProgram {
     pub initialized: bool,
 }
 
+/// Lifecycle state of a Gear program.
 #[derive(Copy, Clone, Debug, Decode, Encode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Program {
+    /// Program is running; contains its runtime state.
     Active(ActiveProgram),
+    /// Program has called `gr_exit`; the inheritor `ActorId` receives its remaining balance.
     Exited(ActorId),
+    /// Program initialization failed; the inheritor `ActorId` receives its remaining balance.
     Terminated(ActorId),
 }
 
 impl Program {
+    /// Returns `true` if the program is in the `Active` state.
     pub fn is_active(&self) -> bool {
         matches!(self, Self::Active(_))
     }
 
+    /// Returns `true` if the program is active and its initialization has completed.
     pub fn is_initialized(&self) -> bool {
         matches!(
             self,
@@ -359,6 +386,7 @@ pub struct ProgramState {
 }
 
 impl ProgramState {
+    /// Returns the zero (freshly created, uninitialized) program state with no messages and no balance.
     pub const fn zero() -> Self {
         Self {
             program: Program::Active(ActiveProgram {
@@ -383,10 +411,13 @@ impl ProgramState {
         }
     }
 
+    /// Returns `true` if this state equals [`ProgramState::zero()`].
     pub fn is_zero(&self) -> bool {
         *self == Self::zero()
     }
 
+    /// Returns `true` when the program is uninitialized and all queues are empty,
+    /// meaning an `Init` message must be sent before the program can proceed.
     pub fn requires_init_message(&self) -> bool {
         if !matches!(
             self.program,
@@ -403,6 +434,8 @@ impl ProgramState {
             && self.waitlist_hash.is_empty()
     }
 
+    /// Returns a mutable reference to either the canonical or injected queue
+    /// based on the supplied [`MessageType`].
     pub fn queue_from_msg_type(
         &mut self,
         message_type: MessageType,
@@ -414,6 +447,10 @@ impl ProgramState {
     }
 }
 
+/// An ethexe runtime dispatch: a message together with its routing metadata.
+///
+/// Wraps a Gear message with the additional context needed by the ethexe runtime
+/// (dispatch kind, source, payload lookup, Ethereum `call` flag, and execution context).
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Dispatch {
@@ -439,6 +476,7 @@ pub struct Dispatch {
 }
 
 impl Dispatch {
+    /// Creates an `Init` or `Handle` dispatch, writing the payload to storage if it is large.
     #[expect(clippy::too_many_arguments)]
     pub fn new<S: Storage + ?Sized>(
         storage: &S,
@@ -471,6 +509,7 @@ impl Dispatch {
         })
     }
 
+    /// Creates a `Reply` dispatch for the given `replied_to` message, writing the payload to storage.
     pub fn new_reply<S: Storage + ?Sized>(
         storage: &S,
         replied_to: MessageId,
@@ -493,6 +532,7 @@ impl Dispatch {
         ))
     }
 
+    /// Constructs a `Reply` dispatch from an already-resolved [`PayloadLookup`].
     pub fn reply(
         reply_to: MessageId,
         source: ActorId,
@@ -515,6 +555,8 @@ impl Dispatch {
         }
     }
 
+    /// Converts a `gear_core` [`StoredDispatch`] into an ethexe [`Dispatch`], persisting its
+    /// payload via `storage`.
     pub fn from_core_stored<S: Storage + ?Sized>(
         storage: &S,
         value: StoredDispatch,
@@ -541,6 +583,8 @@ impl Dispatch {
         }
     }
 
+    /// Converts this dispatch into an `ethexe_common::gear::Message` bound for `destination`,
+    /// resolving the payload from storage if needed.
     pub fn into_message<S: Storage>(self, storage: &S, destination: ActorId) -> Message {
         let Self {
             id,
@@ -564,10 +608,13 @@ impl Dispatch {
     }
 }
 
+/// Wraps a value with a block-number expiry.
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Expiring<T> {
+    /// The wrapped value.
     pub value: T,
+    /// Block number at which this entry expires and should be removed.
     pub expiry: u32,
 }
 
@@ -591,29 +638,36 @@ impl<T> From<(T, u32)> for Expiring<T> {
     derive_more::IntoIterator,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+/// FIFO queue of [`Dispatch`] entries for a single program.
 pub struct MessageQueue(VecDeque<Dispatch>);
 
 impl MessageQueue {
+    /// Returns `true` if the queue contains no dispatches.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
+    /// Returns the number of dispatches in the queue.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// Appends a dispatch to the back of the queue.
     pub fn queue(&mut self, dispatch: Dispatch) {
         self.0.push_back(dispatch);
     }
 
+    /// Removes and returns the dispatch at the front of the queue.
     pub fn dequeue(&mut self) -> Option<Dispatch> {
         self.0.pop_front()
     }
 
+    /// Returns a reference to the dispatch at the front without removing it.
     pub fn peek(&self) -> Option<&Dispatch> {
         self.0.front()
     }
 
+    /// Writes the queue to storage and returns its hash, or an empty hash if the queue is empty.
     pub fn store<S: Storage + ?Sized>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_message_queue(self)))
     }
@@ -622,10 +676,12 @@ impl MessageQueue {
 /// Methods introduced due to solution to #4513.
 /// Remove when becomes unnecessary.
 impl MessageQueue {
+    /// Removes all dispatches from the queue without returning them.
     pub fn clear(&mut self) {
         self.0.clear()
     }
 
+    /// Removes and returns the dispatch at the back of the queue.
     pub fn pop_back(&mut self) -> Option<Dispatch> {
         self.0.pop_back()
     }
@@ -644,6 +700,10 @@ impl MessageQueue {
     derive_more::AsRef,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+/// Map of suspended dispatches keyed by [`MessageId`], each with a block-number expiry.
+///
+/// Programs are placed on the waitlist when they await a reply. They are woken and re-queued
+/// when the matching reply arrives or the expiry block is reached.
 pub struct Waitlist {
     #[as_ref]
     inner: BTreeMap<MessageId, Expiring<Dispatch>>,
@@ -653,6 +713,7 @@ pub struct Waitlist {
 }
 
 impl Waitlist {
+    /// Suspends `dispatch` until it is woken or expires at `expiry` block.
     pub fn wait(&mut self, dispatch: Dispatch, expiry: u32) {
         self.changed = true;
 
@@ -666,18 +727,23 @@ impl Waitlist {
         debug_assert!(r.is_none())
     }
 
+    /// Removes and returns the dispatch for `message_id`, or `None` if it is not waiting.
     pub fn wake(&mut self, message_id: &MessageId) -> Option<Expiring<Dispatch>> {
         self.inner
             .remove(message_id)
             .inspect(|_| self.changed = true)
     }
 
+    /// Persists the waitlist to storage if it was modified, returning the new hash.
+    ///
+    /// Returns `None` if the waitlist was not modified since it was last loaded.
     pub fn store<S: Storage>(self, storage: &S) -> Option<MaybeHashOf<Self>> {
         self.changed.then(|| {
             MaybeHashOf::from_inner((!self.inner.is_empty()).then(|| storage.write_waitlist(self)))
         })
     }
 
+    /// Consumes the waitlist and returns the underlying map.
     pub fn into_inner(self) -> BTreeMap<MessageId, Expiring<Dispatch>> {
         self.into()
     }
@@ -696,9 +762,14 @@ impl Waitlist {
     derive_more::AsRef,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+/// Temporary storage for dispatches that are awaiting forwarding to either a program or a user.
+///
+/// Each entry carries an optional [`ActorId`] that, when `Some`, identifies the target user;
+/// `None` means the dispatch is destined for a program.
 pub struct DispatchStash(BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>);
 
 impl DispatchStash {
+    /// Stashes a dispatch intended to be forwarded to a program, expiring at `expiry` block.
     pub fn add_to_program(&mut self, dispatch: Dispatch, expiry: u32) {
         let r = self.0.insert(
             dispatch.id,
@@ -710,6 +781,7 @@ impl DispatchStash {
         debug_assert!(r.is_none());
     }
 
+    /// Stashes a dispatch intended to be forwarded to `user_id`, expiring at `expiry` block.
     pub fn add_to_user(&mut self, dispatch: Dispatch, expiry: u32, user_id: ActorId) {
         let r = self.0.insert(
             dispatch.id,
@@ -721,6 +793,9 @@ impl DispatchStash {
         debug_assert!(r.is_none());
     }
 
+    /// Removes and returns the dispatch stashed for program delivery.
+    ///
+    /// Panics if the message is not found or was stashed for user delivery.
     pub fn remove_to_program(&mut self, message_id: &MessageId) -> Dispatch {
         let Expiring {
             value: (dispatch, user_id),
@@ -737,6 +812,9 @@ impl DispatchStash {
         dispatch
     }
 
+    /// Removes and returns the dispatch and its target user stashed for user delivery.
+    ///
+    /// Panics if the message is not found or was stashed for program delivery.
     pub fn remove_to_user(&mut self, message_id: &MessageId) -> (Dispatch, ActorId) {
         let Expiring {
             value: (dispatch, user_id),
@@ -752,20 +830,26 @@ impl DispatchStash {
         (dispatch, user_id)
     }
 
+    /// Writes the stash to storage and returns its hash, or an empty hash if the stash is empty.
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_dispatch_stash(self)))
     }
 }
 
+/// A message held in a user's mailbox, retaining its payload, value, and origin type.
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MailboxMessage {
+    /// Payload bytes or a reference to payload stored in the database.
     pub payload: PayloadLookup,
+    /// Value (tokens) attached to the message.
     pub value: Value,
+    /// Whether the message originated from the canonical or injected queue.
     pub message_type: MessageType,
 }
 
 impl MailboxMessage {
+    /// Constructs a [`MailboxMessage`] from its components.
     pub fn new(payload: PayloadLookup, value: Value, message_type: MessageType) -> Self {
         Self {
             payload,
@@ -785,6 +869,7 @@ impl From<Dispatch> for MailboxMessage {
     }
 }
 
+/// Per-user mailbox: a map from [`MessageId`] to an expiring [`MailboxMessage`].
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct UserMailbox(BTreeMap<MessageId, Expiring<MailboxMessage>>);
@@ -807,6 +892,7 @@ impl UserMailbox {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_user_mailbox(self)))
     }
 
+    /// Constructs a [`UserMailbox`] from an existing map; available in tests and mock builds.
     #[cfg(any(test, feature = "mock"))]
     pub fn from_inner(inner: BTreeMap<MessageId, Expiring<MailboxMessage>>) -> Self {
         Self(inner)
@@ -832,6 +918,8 @@ impl AsRef<BTreeMap<MessageId, Expiring<MailboxMessage>>> for UserMailbox {
     derive_more::AsRef,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+/// Top-level mailbox for a program, mapping each user [`ActorId`] to a hash of their
+/// [`UserMailbox`].  The `changed` flag enables write-back only when mutations occurred.
 pub struct Mailbox {
     #[as_ref]
     inner: BTreeMap<ActorId, HashOf<UserMailbox>>,
@@ -841,6 +929,7 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
+    /// Adds `message` to `user_id`'s mailbox and immediately persists the updated user mailbox.
     pub fn add_and_store_user_mailbox<S: Storage + ?Sized>(
         &mut self,
         storage: &S,
@@ -864,6 +953,9 @@ impl Mailbox {
         let _ = self.inner.insert(user_id, hash);
     }
 
+    /// Removes `message_id` from `user_id`'s mailbox and persists the change.
+    ///
+    /// Returns the removed [`Expiring<MailboxMessage>`] if it existed, or `None`.
     pub fn remove_and_store_user_mailbox<S: Storage + ?Sized>(
         &mut self,
         storage: &S,
@@ -896,12 +988,16 @@ impl Mailbox {
         value
     }
 
+    /// Persists the mailbox to storage if it was modified, returning the new hash.
+    ///
+    /// Returns `None` when no modifications were made.
     pub fn store<S: Storage>(self, storage: &S) -> Option<MaybeHashOf<Self>> {
         self.changed.then(|| {
             MaybeHashOf::from_inner((!self.inner.is_empty()).then(|| storage.write_mailbox(self)))
         })
     }
 
+    /// Resolves all per-user mailbox hashes and returns a nested map of all mailboxed messages.
     pub fn into_values<S: Storage>(
         self,
         storage: &S,
@@ -923,6 +1019,11 @@ impl Mailbox {
     }
 }
 
+/// Content-addressed index of a program's WASM memory pages, split into fixed-size regions.
+///
+/// Each entry in the inner array is a `MaybeHashOf<MemoryPagesRegion>` covering
+/// `PAGES_PER_REGION` consecutive [`GearPage`]s.  Only touched pages need to be
+/// loaded, matching the lazy-page model used at the native layer.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MemoryPages(MemoryPagesInner);
@@ -972,10 +1073,12 @@ impl MemoryPages {
     pub const PAGES_PER_REGION: usize = Self::MAX_PAGES / Self::REGIONS_AMOUNT;
     const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES.is_multiple_of(Self::REGIONS_AMOUNT));
 
+    /// Returns the [`RegionIdx`] that contains `page`.
     pub fn page_region(page: GearPage) -> RegionIdx {
         RegionIdx((u32::from(page) as usize / Self::PAGES_PER_REGION) as u8)
     }
 
+    /// Inserts or updates the given pages in the relevant regions, persisting changed regions.
     pub fn update_and_store_regions<S: Storage>(
         &mut self,
         storage: &S,
@@ -1022,6 +1125,7 @@ impl MemoryPages {
         }
     }
 
+    /// Removes the given pages from their regions and persists changed regions.
     pub fn remove_and_store_regions<S: Storage>(&mut self, storage: &S, pages: &Vec<GearPage>) {
         let mut updated_regions = BTreeMap::new();
 
@@ -1062,42 +1166,55 @@ impl MemoryPages {
         }
     }
 
+    /// Writes the pages index to storage and returns its content hash. Because the inner array
+    /// always has `REGIONS_AMOUNT` entries, the hash is always non-empty.
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_memory_pages(self)))
     }
 
+    /// Returns a copy of the underlying [`MemoryPagesInner`] array.
     pub fn to_inner(&self) -> MemoryPagesInner {
         self.0
     }
 }
 
+/// One region of a program's memory pages: a map from [`GearPage`] to its content hash.
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MemoryPagesRegion(MemoryPagesRegionInner);
 
+/// Inner map type for [`MemoryPagesRegion`].
 pub type MemoryPagesRegionInner = BTreeMap<GearPage, HashOf<PageBuf>>;
 
 impl MemoryPagesRegion {
+    /// Writes this region to storage, returning its hash (or empty if the region contains no pages).
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner(
             (!self.0.is_empty()).then(|| storage.write_memory_pages_region(self)),
         )
     }
 
+    /// Returns a reference to the underlying [`MemoryPagesRegionInner`] map.
     pub fn as_inner(&self) -> &MemoryPagesRegionInner {
         &self.0
     }
 
+    /// Constructs a [`MemoryPagesRegion`] from an existing map; available in tests and mock builds.
     #[cfg(any(test, feature = "mock"))]
     pub fn from_inner(inner: MemoryPagesRegionInner) -> Self {
         Self(inner)
     }
 }
 
+/// Zero-based index into the [`MemoryPages`] regions array.
 #[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct RegionIdx(u8);
 
+/// WASM page allocations for an active program, stored as an interval tree of [`WasmPage`]s.
+///
+/// The `changed` flag defers serialization: only call [`store`](Allocations::store) if an
+/// update was actually performed.
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Into)]
 pub struct Allocations {
     inner: IntervalsTree<WasmPage>,
@@ -1107,10 +1224,13 @@ pub struct Allocations {
 }
 
 impl Allocations {
+    /// Returns the number of disjoint intervals in the allocation tree.
     pub fn tree_len(&self) -> u32 {
         self.inner.intervals_amount() as u32
     }
 
+    /// Replaces the allocation tree with `allocations` and returns the [`GearPage`]s that were
+    /// deallocated (present before but absent after the update).
     pub fn update(&mut self, allocations: IntervalsTree<WasmPage>) -> Vec<GearPage> {
         let removed_pages: Vec<_> = self
             .inner
@@ -1127,6 +1247,9 @@ impl Allocations {
         removed_pages
     }
 
+    /// Persists the allocations to storage if they were modified, returning the new hash.
+    ///
+    /// Returns `None` when no modifications were made since last load.
     pub fn store<S: Storage>(self, storage: &S) -> Option<MaybeHashOf<Self>> {
         self.changed.then(|| {
             MaybeHashOf::from_inner(
@@ -1136,6 +1259,12 @@ impl Allocations {
     }
 }
 
+/// Content-addressed backing store for all ethexe runtime state objects.
+///
+/// Implementors must be able to read and write every state primitive (program state, queues,
+/// waitlist, stash, mailboxes, memory pages, allocations, payloads, and page buffers) using
+/// their content hash as the key.  The trait is blanket-implemented for `&T` and `Box<T>` via
+/// `auto_impl`.
 #[auto_impl::auto_impl(&, Box)]
 pub trait Storage {
     /// Reads program state by state hash.
@@ -1236,12 +1365,14 @@ pub trait Storage {
 /// [`QueryableStorage`] is a extension over [`Storage`] which provides methods to query
 /// runtime primitives from it.
 pub trait QueryableStorage<T>: Storage {
+    /// Reads `T` from storage by `hash`, returning a default value when the hash is absent.
     fn query(&self, hash: &MaybeHashOf<T>) -> Result<T>;
 }
 
 /// [`ModifiableStorage`] is a extension over [`Storage`] which provides method to modify
 /// runtime primitives by its hash.
 pub trait ModifiableStorage<T>: QueryableStorage<T> {
+    /// Loads `T` by `hash`, applies `f`, writes the result back, and updates `hash` in place.
     fn modify<U>(&self, hash: &mut MaybeHashOf<T>, f: impl FnOnce(&mut T) -> U) -> U;
 }
 

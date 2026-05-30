@@ -23,6 +23,10 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     [b1, b2, b3, b4, b5, b6]
 }
 
+/// Persists a fully prepared block into the database by writing its header, events, and metadata.
+///
+/// Marks the block as synced and populates its [`BlockMeta`] with commit and queue information
+/// derived from `block_data`.
 pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db: &DB,
     block_hash: H256,

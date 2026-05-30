@@ -13,7 +13,9 @@ use scale_info::TypeInfo;
 use sha3::Digest as _;
 
 // TODO: support query from router.
+/// Default gas threshold for a single computation unit, measured in gas units.
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
+/// Token reward rate expressed as wVARA (the smallest unit) emitted per second of computation.
 pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
 
 /// Gas limit for chunk processing.
@@ -27,23 +29,33 @@ pub const MAX_BLOCK_GAS_LIMIT: u64 = 9_000_000_000_000;
 /// [`CANONICAL_QUARANTINE`] defines the period of blocks to wait before applying canonical events.
 pub const CANONICAL_QUARANTINE: u8 = 16;
 
+/// Aggregated FROST public key represented as an affine point on the elliptic curve.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedPublicKey {
+    /// X coordinate of the public key point.
     pub x: U256,
+    /// Y coordinate of the public key point.
     pub y: U256,
 }
 
+/// Discriminator for the signature scheme used in a validator commitment.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 #[repr(u8)]
 pub enum SignatureType {
+    /// Flexible Round-Optimized Schnorr Threshold (FROST) multi-party signature.
     FROST,
+    /// Standard Ethereum ECDSA signature.
     ECDSA,
 }
 
+/// On-chain addresses of the core ethexe contracts used by the router.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AddressBook {
+    /// Address of the Mirror contract implementation.
     pub mirror: ActorId,
+    /// Address of the Mirror proxy (cloneable beacon).
     pub mirror_proxy: ActorId,
+    /// Address of the WrappedVara ERC-20 contract.
     pub wrapped_vara: ActorId,
 }
 
@@ -51,8 +63,11 @@ pub struct AddressBook {
 /// advanced Ethereum block hash, zero if no ethereum block has been advanced.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
+    /// Ordered list of program state transitions included in this commitment.
     pub transitions: Vec<StateTransition>,
+    /// Hash of the Gear chain head block covered by this commitment.
     pub head: H256,
+    /// Hash of the most recent Ethereum block that has been advanced; zero if none.
     pub last_advanced_eth_block: H256,
 }
 
@@ -70,9 +85,12 @@ impl ToDigest for ChainCommitment {
     }
 }
 
+/// Validator commitment recording whether a given code blob passed validation.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct CodeCommitment {
+    /// Identifier of the code blob being committed.
     pub id: CodeId,
+    /// `true` if the code passed validation; `false` if it was rejected.
     pub valid: bool,
 }
 
@@ -86,9 +104,12 @@ impl ToDigest for CodeCommitment {
     }
 }
 
+/// Commitment to the total operator rewards for a batch, with a Merkle root for individual claims.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct OperatorRewardsCommitment {
+    /// Total reward amount distributed to operators.
     pub amount: U256,
+    /// Merkle root of the per-operator reward tree used to verify individual claims.
     pub root: H256,
 }
 
@@ -101,16 +122,23 @@ impl ToDigest for OperatorRewardsCommitment {
     }
 }
 
+/// Reward allocation for a single staker vault.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct StakerRewards {
+    /// Ethereum address of the vault receiving the rewards.
     pub vault: Address,
+    /// Amount of rewards allocated to this vault.
     pub amount: U256,
 }
 
+/// Commitment to the full staker reward distribution for a batch.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct StakerRewardsCommitment {
+    /// Per-vault reward allocations that sum to `total_amount`.
     pub distribution: Vec<StakerRewards>,
+    /// Total reward amount across all vaults.
     pub total_amount: U256,
+    /// Address of the ERC-20 token in which rewards are denominated.
     pub token: Address,
 }
 
@@ -134,9 +162,12 @@ impl ToDigest for StakerRewardsCommitment {
     }
 }
 
+/// Combined reward commitment covering both operator and staker reward distributions for a batch.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct RewardsCommitment {
+    /// Reward commitment for node operators.
     pub operators: OperatorRewardsCommitment,
+    /// Reward commitment for stakers across vaults.
     pub stakers: StakerRewardsCommitment,
     /// Rewards for timestamp. Represented as u48 in router contract.
     pub timestamp: u64,
@@ -178,9 +209,13 @@ pub struct BatchCommitment {
     /// ... etc.
     pub expiry: u8,
 
+    /// Optional commitment to chain state transitions; absent when no programs were executed.
     pub chain_commitment: Option<ChainCommitment>,
+    /// Commitments to code blob validation results included in this batch.
     pub code_commitments: Vec<CodeCommitment>,
+    /// Optional commitment to a validator set change; absent when the set is unchanged.
     pub validators_commitment: Option<ValidatorsCommitment>,
+    /// Optional commitment to reward distributions; absent when no rewards are issued.
     pub rewards_commitment: Option<RewardsCommitment>,
 }
 
@@ -209,20 +244,29 @@ impl ToDigest for BatchCommitment {
     }
 }
 
+/// Block-count durations governing era rotation, validator election, and validation scheduling.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct Timelines {
+    /// Number of Ethereum blocks in one era.
     pub era: u64,
+    /// Number of blocks before era end at which the election is held.
     pub election: u64,
+    /// Number of blocks to wait after a chain head before requesting validation.
     pub validation_delay: u64,
 }
 
+/// Commitment to a new validator set, including the FROST key material and era index.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ValidatorsCommitment {
     /// Does the batch have aggregated public key in validators commitment.
     pub has_aggregated_public_key: bool,
+    /// Combined FROST public key for the new validator set; meaningful only when `has_aggregated_public_key` is `true`.
     pub aggregated_public_key: AggregatedPublicKey,
+    /// Raw bytes of the verifiable secret-sharing commitment for the DKG round.
     pub verifiable_secret_sharing_commitment: Vec<u8>,
+    /// Ordered list of Ethereum addresses of the new validators.
     pub validators: ValidatorsVec,
+    /// Index of the era that this validator set will govern.
     pub era_index: u64,
 }
 
@@ -256,11 +300,15 @@ impl ToDigest for ValidatorsCommitment {
     }
 }
 
+/// Tracks the validation lifecycle of a code blob on-chain.
 #[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub enum CodeState {
+    /// The code has not been seen or its state is unrecognized.
     #[default]
     Unknown,
+    /// Validation of the code has been requested but not yet committed.
     ValidationRequested,
+    /// The code has been validated and accepted by the validator set.
     Validated,
 }
 
@@ -276,27 +324,39 @@ impl From<u8> for CodeState {
     }
 }
 
+/// Identifies the last Ethereum block that was fully committed by the router.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct CommittedBlockInfo {
+    /// Hash of the committed Ethereum block.
     pub hash: H256,
     /// represented as u48 in router contract.
     pub timestamp: u64,
 }
 
+/// On-chain parameters controlling how computation costs are priced and billed.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct ComputationSettings {
+    /// Gas threshold per computation unit; mirrors `COMPUTATION_THRESHOLD` when read from the router.
     pub threshold: u64,
+    /// wVARA token units charged per second of computation; mirrors `WVARA_PER_SECOND`.
     pub wvara_per_second: u128,
 }
 
+/// A Gear message included in a [`StateTransition`], mirroring the on-chain `Gear.Message` struct.
 #[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Message {
+    /// Unique identifier of the message.
     pub id: MessageId,
+    /// Program or user account that should receive the message.
     pub destination: ActorId,
+    /// Encoded message payload bytes.
     pub payload: Vec<u8>,
+    /// Value (in the smallest token unit) attached to the message.
     pub value: u128,
+    /// Present when the message is a reply; carries the origin message id and reply code.
     pub reply_details: Option<ReplyDetails>,
+    /// When `true`, the message is treated as a synchronous call rather than an async send.
     pub call: bool,
 }
 
@@ -329,6 +389,7 @@ impl ToDigest for Message {
 }
 
 impl Message {
+    /// Converts a `StoredMessage` into a [`Message`], discarding the source and setting `call`.
     pub fn from_stored(value: StoredMessage, call: bool) -> Self {
         let (id, _source, destination, payload, value, details) = value.into_parts();
         Self {
@@ -342,20 +403,27 @@ impl Message {
     }
 }
 
+/// Aggregate protocol counters read from the router contract.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct ProtocolData {
     // flatten mapping of codes CodeId => CodeState
     // flatten mapping of program to codes ActorId => CodeId
+    /// Total number of programs registered in the router.
     pub programs_count: U256,
+    /// Number of code blobs that have been successfully validated.
     pub validated_codes_count: U256,
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StateTransition {
+    /// Identifier of the program whose state changed.
     pub actor_id: ActorId,
+    /// Hash of the program's new state after execution.
     pub new_state_hash: H256,
+    /// `true` when the program called `gr_exit` and is no longer active.
     pub exited: bool,
+    /// Program that inherits the exited program's balance; zero address if not applicable.
     pub inheritor: ActorId,
     /// We represent `value_to_receive` as `u128` and `bool` because each non-zero byte costs 16 gas,
     /// and each zero byte costs 4 gas (see <https://evm.codes/about#gascosts>).
@@ -400,11 +468,15 @@ impl ToDigest for StateTransition {
     }
 }
 
+/// A request to transfer value from an expired or claimed mailbox message to a destination.
 #[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueClaim {
+    /// Identifier of the mailbox message whose value is being claimed.
     pub message_id: MessageId,
+    /// Address that should receive the claimed value.
     pub destination: ActorId,
+    /// Amount of value (in smallest token unit) to transfer.
     pub value: u128,
 }
 
@@ -422,6 +494,7 @@ impl ToDigest for ValueClaim {
     }
 }
 
+/// Distinguishes messages that originate from the canonical Gear chain from those injected externally.
 #[derive(
     Clone,
     Copy,
@@ -438,15 +511,21 @@ impl ToDigest for ValueClaim {
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MessageType {
+    /// Message produced by normal Gear chain execution.
     #[default]
     Canonical,
+    /// Message injected from an external source (e.g., an Ethereum cross-chain call).
     Injected,
 }
 
+/// Identifying information about the Ethereum genesis block used to anchor the ethexe deployment.
 #[derive(Debug)]
 pub struct GenesisBlockInfo {
+    /// Hash of the genesis Ethereum block.
     pub hash: H256,
+    /// Block number of the genesis Ethereum block.
     pub number: u32,
+    /// Unix timestamp of the genesis Ethereum block, in seconds.
     pub timestamp: u64,
 }
 

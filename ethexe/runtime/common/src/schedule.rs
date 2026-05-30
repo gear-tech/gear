@@ -15,7 +15,10 @@ use gear_core::tasks::TaskHandler;
 use gear_core_errors::SuccessReplyReason;
 use gprimitives::{ActorId, H256, MessageId, ReservationId};
 
+/// Implements [`TaskHandler`] for the ethexe runtime, executing scheduled tasks
+/// against program state via a [`TransitionController`].
 pub struct Handler<'a, S: Storage> {
+    /// Provides access to storage and mutable in-block transition state.
     pub controller: TransitionController<'a, S>,
 }
 
@@ -222,6 +225,9 @@ impl Restorer {
         Ok(restorer)
     }
 
+    /// Registers pending wake tasks from a program's waitlist into the schedule.
+    ///
+    /// Entries whose expiry is at or before `current_block` are skipped.
     pub fn waitlist(&mut self, program_id: ActorId, waitlist: &Waitlist) {
         for (
             &message_id,
@@ -244,6 +250,9 @@ impl Restorer {
         }
     }
 
+    /// Registers pending mailbox-removal tasks for a single user's mailbox entries.
+    ///
+    /// Entries whose expiry is at or before `current_block` are skipped.
     pub fn user_mailbox(
         &mut self,
         program_id: ActorId,
@@ -265,6 +274,10 @@ impl Restorer {
         }
     }
 
+    /// Registers pending send tasks from a program's dispatch stash into the schedule.
+    ///
+    /// Stashed entries destined for a user produce `SendUserMessage` tasks; those destined for a
+    /// program produce `SendDispatch` tasks. Entries at or before `current_block` are skipped.
     pub fn stash(&mut self, program_id: ActorId, stash: &DispatchStash) {
         for (
             &message_id,
@@ -293,6 +306,7 @@ impl Restorer {
         }
     }
 
+    /// Consumes the restorer and returns the reconstructed [`Schedule`].
     pub fn restore(self) -> Schedule {
         self.schedule
     }

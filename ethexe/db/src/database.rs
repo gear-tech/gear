@@ -130,6 +130,7 @@ impl Key {
 }
 
 impl dyn KVDatabase + '_ {
+    /// Returns the stored database version, or `None` if the config key is absent.
     pub fn version(&self) -> Result<Option<u32>> {
         self.get(&Key::Config.to_bytes())
             .map(|data| {
@@ -138,6 +139,7 @@ impl dyn KVDatabase + '_ {
             .transpose()
     }
 
+    /// Reads and decodes the [`DBConfig`] stored under the `Config` key; errors if absent or corrupt.
     pub fn config(&self) -> Result<DBConfig> {
         self.get(&Key::Config.to_bytes())
             .context("Database config is not found")
@@ -146,6 +148,7 @@ impl dyn KVDatabase + '_ {
             })
     }
 
+    /// Reads and decodes the [`DBGlobals`] stored under the `Globals` key; errors if absent or corrupt.
     pub fn globals(&self) -> Result<DBGlobals> {
         self.get(&Key::Globals.to_bytes())
             .context("Database globals are not found")
@@ -154,10 +157,12 @@ impl dyn KVDatabase + '_ {
             })
     }
 
+    /// Encodes and persists `config` under the `Config` key, replacing any prior value.
     pub fn set_config(&self, config: DBConfig) {
         self.put(&Key::Config.to_bytes(), config.encode());
     }
 
+    /// Encodes and persists `globals` under the `Globals` key, replacing any prior value.
     pub fn set_globals(&self, globals: DBGlobals) {
         self.put(&Key::Globals.to_bytes(), globals.encode());
     }
@@ -317,8 +322,15 @@ impl Storage for dyn CASDatabase + '_ {
     }
 }
 
+/// An untyped pairing of a [`KVDatabase`] and a [`CASDatabase`] backend.
+///
+/// Used during database construction and migration before the typed [`Database`] wrapper is built.
+/// Both fields are exposed publicly so callers can supply pre-initialized backends via
+/// [`RawDatabase::from_one`] or [`RawDatabase::from_refs`].
 pub struct RawDatabase {
+    /// Key-value backend for structured metadata.
     pub kv: Box<dyn KVDatabase>,
+    /// Content-addressable backend for immutable blobs.
     pub cas: Box<dyn CASDatabase>,
 }
 
@@ -332,6 +344,7 @@ impl Clone for RawDatabase {
 }
 
 impl RawDatabase {
+    /// Constructs a `RawDatabase` by cloning both roles from a single backend that implements both traits.
     pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB) -> Self {
         Self {
             kv: KVDatabase::clone_boxed(db),
@@ -339,6 +352,7 @@ impl RawDatabase {
         }
     }
 
+    /// Constructs a `RawDatabase` by cloning each backend from separate trait-object references.
     pub fn from_refs(cas: &dyn CASDatabase, kv: &dyn KVDatabase) -> Self {
         Self {
             kv: kv.clone_boxed(),
@@ -712,6 +726,16 @@ impl InjectedStorageRW for RawDatabase {
     }
 }
 
+/// Typed, domain-aware database handle used by all ethexe services.
+///
+/// Wraps a [`RawDatabase`] and implements every storage-role trait declared in
+/// `ethexe-common::db` (block metadata, on-chain data, codes, injected transactions,
+/// mirror block storage, globals, config) as well as the runtime `Storage` trait.
+/// Globals and config are cached in `Arc<RwLock<_>>` fields so that in-process reads
+/// bypass the underlying backend after initial load.
+///
+/// Construct via [`Database::try_from_raw`]; the constructor rejects any backend whose
+/// stored version does not match [`VERSION`].
 #[derive(derive_more::Debug, Clone)]
 #[debug("Database(CAS + KV)")]
 pub struct Database {
@@ -721,6 +745,9 @@ pub struct Database {
 }
 
 impl Database {
+    /// Opens a [`Database`] from a [`RawDatabase`], verifying that the stored version matches [`VERSION`].
+    ///
+    /// Returns an error if the config key is absent, corrupt, or contains a mismatched version number.
     pub fn try_from_raw(raw: RawDatabase) -> Result<Self> {
         let config = raw.kv.config()?;
 
@@ -743,6 +770,7 @@ impl Database {
         Ok(db)
     }
 
+    /// Creates an in-memory [`Database`] initialized with default config and globals, for use in tests.
     #[cfg(feature = "mock")]
     #[track_caller]
     pub fn memory() -> Self {
@@ -805,6 +833,7 @@ impl Database {
         }
     }
 
+    /// Returns a reference to the underlying content-addressable backend.
     pub fn cas(&self) -> &dyn CASDatabase {
         self.raw.cas.as_ref()
     }

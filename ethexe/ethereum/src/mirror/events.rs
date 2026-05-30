@@ -25,6 +25,8 @@ use gear_core::message::ReplyCode;
 use gprimitives::ActorId;
 use signatures::*;
 
+/// Keccak-256 topic-0 signature hashes for every `IMirror` event, plus the `REQUESTS` and `ALL`
+/// slices used to build log filters.
 pub mod signatures {
     use super::*;
 
@@ -46,6 +48,8 @@ pub mod signatures {
         VALUE_CLAIM_FAILED: ValueClaimFailed,
     }
 
+    /// Topic-0 signatures for events that originate from an on-chain user request, as opposed to
+    /// events that record the outcome of program execution.
     pub const REQUESTS: &[B256] = &[
         OWNED_BALANCE_TOP_UP_REQUESTED,
         EXECUTABLE_BALANCE_TOP_UP_REQUESTED,
@@ -55,6 +59,9 @@ pub mod signatures {
     ];
 }
 
+/// Attempts to decode a raw Ethereum log into a [`MirrorEvent`].
+///
+/// Returns `Ok(None)` when the log's topic-0 is not a known `IMirror` event signature.
 pub fn try_extract_event(log: &Log) -> Result<Option<MirrorEvent>> {
     let Some(topic0) = log.topic0().filter(|&v| ALL.contains(v)) else {
         return Ok(None);
@@ -107,6 +114,10 @@ pub fn try_extract_event(log: &Log) -> Result<Option<MirrorEvent>> {
     Ok(Some(event))
 }
 
+/// Attempts to decode a raw Ethereum log into a [`MirrorRequestEvent`].
+///
+/// Returns `Ok(None)` when the log's topic-0 is not one of the request-type event signatures
+/// listed in [`signatures::REQUESTS`].
 pub fn try_extract_request_event(log: &Log) -> Result<Option<MirrorRequestEvent>> {
     if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
         return Ok(None);
@@ -119,6 +130,7 @@ pub fn try_extract_request_event(log: &Log) -> Result<Option<MirrorRequestEvent>
     Ok(Some(request_event))
 }
 
+/// Builder that subscribes to all `IMirror` events on a given Mirror contract.
 pub struct AllEventsBuilder<'a> {
     query: &'a MirrorQuery,
 }
@@ -128,6 +140,7 @@ impl<'a> AllEventsBuilder<'a> {
         Self { query }
     }
 
+    /// Subscribes to all `IMirror` event types and yields decoded [`MirrorEvent`] values.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<MirrorEvent>> + Unpin + use<>> {
@@ -160,6 +173,7 @@ impl<'a> AllEventsBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `StateChanged` events on a Mirror contract.
 pub struct StateChangedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::StateChanged>,
 }
@@ -171,6 +185,7 @@ impl<'a> StateChangedEventBuilder<'a> {
         }
     }
 
+    /// Subscribes to `StateChanged` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(StateChangedEvent, Log), Error>> + Unpin + use<>> {
@@ -183,6 +198,7 @@ impl<'a> StateChangedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `MessageQueueingRequested` events, optionally filtered by sender.
 pub struct MessageQueueingRequestedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::MessageQueueingRequested>,
     source: Option<ActorId>,
@@ -196,11 +212,13 @@ impl<'a> MessageQueueingRequestedEventBuilder<'a> {
         }
     }
 
+    /// Restricts the subscription to events whose `source` topic matches `source`.
     pub fn source(mut self, source: ActorId) -> Self {
         self.source = Some(source);
         self
     }
 
+    /// Subscribes to `MessageQueueingRequested` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<
@@ -219,6 +237,7 @@ impl<'a> MessageQueueingRequestedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `ReplyQueueingRequested` events, optionally filtered by sender.
 pub struct ReplyQueueingRequestedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::ReplyQueueingRequested>,
     source: Option<ActorId>,
@@ -232,11 +251,13 @@ impl<'a> ReplyQueueingRequestedEventBuilder<'a> {
         }
     }
 
+    /// Restricts the subscription to events whose `source` topic matches `source`.
     pub fn source(mut self, source: ActorId) -> Self {
         self.source = Some(source);
         self
     }
 
+    /// Subscribes to `ReplyQueueingRequested` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ReplyQueueingRequestedEvent, Log), Error>> + Unpin + use<>>
@@ -254,6 +275,7 @@ impl<'a> ReplyQueueingRequestedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `ValueClaimingRequested` events, optionally filtered by claimer.
 pub struct ValueClaimingRequestedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::ValueClaimingRequested>,
     source: Option<ActorId>,
@@ -267,11 +289,13 @@ impl<'a> ValueClaimingRequestedEventBuilder<'a> {
         }
     }
 
+    /// Restricts the subscription to events whose `source` topic matches `source`.
     pub fn source(mut self, source: ActorId) -> Self {
         self.source = Some(source);
         self
     }
 
+    /// Subscribes to `ValueClaimingRequested` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ValueClaimingRequestedEvent, Log), Error>> + Unpin + use<>>
@@ -289,6 +313,7 @@ impl<'a> ValueClaimingRequestedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `OwnedBalanceTopUpRequested` events on a Mirror contract.
 pub struct OwnedBalanceTopUpRequestedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::OwnedBalanceTopUpRequested>,
 }
@@ -300,6 +325,7 @@ impl<'a> OwnedBalanceTopUpRequestedEventBuilder<'a> {
         }
     }
 
+    /// Subscribes to `OwnedBalanceTopUpRequested` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<
@@ -314,6 +340,7 @@ impl<'a> OwnedBalanceTopUpRequestedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `ExecutableBalanceTopUpRequested` events on a Mirror contract.
 pub struct ExecutableBalanceTopUpRequestedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::ExecutableBalanceTopUpRequested>,
 }
@@ -325,6 +352,7 @@ impl<'a> ExecutableBalanceTopUpRequestedEventBuilder<'a> {
         }
     }
 
+    /// Subscribes to `ExecutableBalanceTopUpRequested` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<
@@ -339,6 +367,7 @@ impl<'a> ExecutableBalanceTopUpRequestedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to outgoing `Message` events, optionally filtered by destination.
 pub struct MessageEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::Message>,
     destination: Option<ActorId>,
@@ -352,11 +381,13 @@ impl<'a> MessageEventBuilder<'a> {
         }
     }
 
+    /// Restricts the subscription to events whose `destination` topic matches `destination`.
     pub fn with_destination(mut self, destination: ActorId) -> Self {
         self.destination = Some(destination);
         self
     }
 
+    /// Subscribes to `Message` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(MessageEvent, Log), Error>> + Unpin + use<>> {
@@ -373,6 +404,7 @@ impl<'a> MessageEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `MessageCallFailed` events on a Mirror contract.
 pub struct MessageCallFailedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::MessageCallFailed>,
     destination: Option<ActorId>,
@@ -386,6 +418,7 @@ impl<'a> MessageCallFailedEventBuilder<'a> {
         }
     }
 
+    /// Subscribes to `MessageCallFailed` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(MessageCallFailedEvent, Log), Error>> + Unpin + use<>>
@@ -403,6 +436,7 @@ impl<'a> MessageCallFailedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `Reply` events, optionally filtered by reply code.
 pub struct ReplyEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::Reply>,
     reply_code: Option<ReplyCode>,
@@ -416,11 +450,15 @@ impl<'a> ReplyEventBuilder<'a> {
         }
     }
 
+    /// Restricts the subscription to events whose `replyCode` topic matches `reply_code`.
+    ///
+    /// The four-byte encoded reply code is right-padded with zeros to 32 bytes (left-aligned) before use as a topic filter.
     pub fn reply_code(mut self, reply_code: ReplyCode) -> Self {
         self.reply_code = Some(reply_code);
         self
     }
 
+    /// Subscribes to `Reply` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ReplyEvent, Log), Error>> + Unpin + use<>> {
@@ -438,6 +476,7 @@ impl<'a> ReplyEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `ReplyCallFailed` events, optionally filtered by reply code.
 pub struct ReplyCallFailedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::ReplyCallFailed>,
     reply_code: Option<ReplyCode>,
@@ -451,11 +490,15 @@ impl<'a> ReplyCallFailedEventBuilder<'a> {
         }
     }
 
+    /// Restricts the subscription to events whose `replyCode` topic matches `reply_code`.
+    ///
+    /// The four-byte encoded reply code is right-padded with zeros to 32 bytes (left-aligned) before use as a topic filter.
     pub fn reply_code(mut self, reply_code: ReplyCode) -> Self {
         self.reply_code = Some(reply_code);
         self
     }
 
+    /// Subscribes to `ReplyCallFailed` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ReplyCallFailedEvent, Log), Error>> + Unpin + use<>>
@@ -474,6 +517,7 @@ impl<'a> ReplyCallFailedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `ValueClaimed` events on a Mirror contract.
 pub struct ValueClaimedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::ValueClaimed>,
 }
@@ -485,6 +529,7 @@ impl<'a> ValueClaimedEventBuilder<'a> {
         }
     }
 
+    /// Subscribes to `ValueClaimed` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ValueClaimedEvent, Log), Error>> + Unpin + use<>> {
@@ -497,6 +542,7 @@ impl<'a> ValueClaimedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `TransferLockedValueToInheritorFailed` events on a Mirror contract.
 pub struct TransferLockedValueToInheritorFailedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::TransferLockedValueToInheritorFailed>,
 }
@@ -508,6 +554,7 @@ impl<'a> TransferLockedValueToInheritorFailedEventBuilder<'a> {
         }
     }
 
+    /// Subscribes to `TransferLockedValueToInheritorFailed` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<
@@ -524,6 +571,7 @@ impl<'a> TransferLockedValueToInheritorFailedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `ReplyTransferFailed` events on a Mirror contract.
 pub struct ReplyTransferFailedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::ReplyTransferFailed>,
 }
@@ -535,6 +583,7 @@ impl<'a> ReplyTransferFailedEventBuilder<'a> {
         }
     }
 
+    /// Subscribes to `ReplyTransferFailed` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ReplyTransferFailedEvent, Log), Error>> + Unpin + use<>>
@@ -548,6 +597,7 @@ impl<'a> ReplyTransferFailedEventBuilder<'a> {
     }
 }
 
+/// Builder that subscribes to `ValueClaimFailed` events on a Mirror contract.
 pub struct ValueClaimFailedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::ValueClaimFailed>,
 }
@@ -559,6 +609,7 @@ impl<'a> ValueClaimFailedEventBuilder<'a> {
         }
     }
 
+    /// Subscribes to `ValueClaimFailed` events and yields decoded event–log pairs.
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ValueClaimFailedEvent, Log), Error>> + Unpin + use<>>

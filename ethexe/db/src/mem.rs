@@ -6,6 +6,10 @@ use dashmap::DashMap;
 use gprimitives::H256;
 use std::sync::Arc;
 
+/// In-memory database backend implementing both [`CASDatabase`] and [`KVDatabase`].
+///
+/// Uses a single shared [`DashMap`] for all storage, so cloned instances share the same
+/// underlying map. Intended for tests and mocks; data is lost when the last reference is dropped.
 #[derive(Debug, Default, Clone)]
 pub struct MemDb {
     // TODO: using Vec as key is not optimal, consider using to use another data structure.

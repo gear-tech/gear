@@ -27,6 +27,10 @@ use std::{
     hash::{DefaultHasher, Hash, Hasher},
 };
 
+/// Blanket storage trait required by [`DatabaseIterator`].
+///
+/// Combines read-only on-chain, block-meta, codes, MB, and program-state
+/// storage into one bound so iterator impls only need a single type parameter.
 pub trait DatabaseIteratorStorage:
     OnChainStorageRO + BlockMetaStorageRO + CodesStorageRO + MbStorageRO + Storage
 {
@@ -326,6 +330,7 @@ node! {
 }
 
 impl Node {
+    /// Converts the node into a `DatabaseIteratorError` if it is an `Error` variant.
     pub fn into_error(self) -> Option<DatabaseIteratorError> {
         match self {
             Node::Error(error) => Some(error),
@@ -340,42 +345,76 @@ impl From<MemoryPagesNode> for Node {
     }
 }
 
+/// Describes a missing database record encountered during iteration.
+///
+/// Emitted as `Node::Error` in place of the expected `Node` variant when a
+/// content-addressed lookup returns `None`.  Callers can collect these to
+/// identify gaps in the database without aborting the walk.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, derive_more::IsVariant)]
 pub enum DatabaseIteratorError {
     /* block */
+    /// Block header absent for the given block hash.
     NoBlockHeader(H256),
+    /// Block events absent for the given block hash.
     NoBlockEvents(H256),
+    /// Codes queue absent for the given block hash.
     NoBlockCodesQueue(H256),
 
     /* MB */
+    /// Compact MB record absent for the given MB hash.
     NoMb(H256),
+    /// Program states record absent for the given MB hash.
     NoMbProgramStates(H256),
+    /// Schedule record absent for the given MB hash.
     NoMbSchedule(H256),
+    /// Outcome (state transitions) absent for the given MB hash.
     NoMbOutcome(H256),
 
     /* memory */
+    /// Memory pages index absent for the given hash.
     NoMemoryPages(HashOf<MemoryPages>),
+    /// Memory pages region absent for the given hash.
     NoMemoryPagesRegion(HashOf<MemoryPagesRegion>),
+    /// Page data buffer absent for the given hash.
     NoPageData(HashOf<PageBuf>),
 
     /* code */
+    /// Code validity flag absent for the given code ID.
     NoCodeValid(CodeId),
+    /// Original WASM bytes absent for the given code ID.
     NoOriginalCode(CodeId),
+    /// Instrumented code absent for the given code ID.
     NoInstrumentedCode(CodeId),
+    /// Code metadata absent for the given code ID.
     NoCodeMetadata(CodeId),
 
     /* rest */
+    /// Message queue absent for the given hash.
     NoMessageQueue(HashOf<MessageQueue>),
+    /// Waitlist absent for the given hash.
     NoWaitlist(HashOf<Waitlist>),
+    /// Dispatch stash absent for the given hash.
     NoDispatchStash(HashOf<DispatchStash>),
+    /// Mailbox absent for the given hash.
     NoMailbox(HashOf<Mailbox>),
+    /// User mailbox absent for the given hash.
     NoUserMailbox(HashOf<UserMailbox>),
+    /// Allocations absent for the given hash.
     NoAllocations(HashOf<Allocations>),
+    /// Program state absent for the given state hash.
     NoProgramState(H256),
+    /// Payload absent for the given hash.
     NoPayload(HashOf<Payload>),
+    /// Code ID mapping absent for the given program actor ID.
     NoProgramCodeId(ActorId),
 }
 
+/// Breadth-first iterator that traverses all database records reachable from a starting [`Node`].
+///
+/// Each call to `next` yields one `Node`, expanding its children onto an internal queue.
+/// Already-visited nodes (identified by [`node_hash`]) are skipped to prevent cycles and
+/// duplicate visits.  Missing records are surfaced as `Node::Error` variants rather than
+/// silently omitted, so callers can detect gaps without stopping iteration.
 pub struct DatabaseIterator<S> {
     storage: S,
     stack: VecDeque<Node>,
@@ -411,6 +450,7 @@ impl<S> DatabaseIterator<S>
 where
     S: DatabaseIteratorStorage,
 {
+    /// Creates a new iterator starting from `node` with an empty visited set.
     pub fn new(storage: S, node: impl Into<Node>) -> Self {
         let mut this = Self {
             storage,
@@ -421,6 +461,11 @@ where
         this
     }
 
+    /// Creates a new iterator starting from `node`, pre-populating the visited set with `skip_nodes`.
+    ///
+    /// Use this when a prior walk has already covered certain nodes and a follow-up walk should
+    /// not revisit them.  Node identity values suitable for `skip_nodes` are produced by
+    /// [`node_hash`].
     pub fn with_skip_nodes(storage: S, node: impl Into<Node>, skip_nodes: HashSet<u64>) -> Self {
         let mut this = Self {
             storage,
@@ -860,6 +905,10 @@ where
     }
 }
 
+/// Returns a 64-bit identity hash for a `Node` used by [`DatabaseIterator`] to skip duplicates.
+///
+/// Computed with `DefaultHasher` over the node's `Hash` impl.  The value is not stable across
+/// Rust versions or processes; it is only meaningful within a single iterator session.
 pub fn node_hash(node: &Node) -> u64 {
     let mut hasher = DefaultHasher::new();
     node.hash(&mut hasher);

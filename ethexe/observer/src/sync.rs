@@ -30,12 +30,15 @@ use std::collections::HashMap;
 /// retries on the next chain head); `Fatal` propagates.
 #[derive(Debug, thiserror::Error)]
 pub enum SyncError {
+    /// Transient RPC or transport failure; the caller may retry on the next chain head.
     #[error("RPC error during sync: {0:?}")]
     RpcError(anyhow::Error),
+    /// Non-recoverable error; propagates and stops the sync loop.
     #[error(transparent)]
     Fatal(anyhow::Error),
 }
 
+/// Convenience alias for results that may fail with [`SyncError`].
 pub type SyncResult<T> = std::result::Result<T, SyncError>;
 
 type Result<T, E = anyhow::Error> = std::result::Result<T, E>;

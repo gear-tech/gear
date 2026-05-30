@@ -12,17 +12,23 @@ use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
+/// Maps each active program's [`ActorId`] to its current [`StateHashWithQueueSize`].
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 
+/// Metadata describing a single block in the GearExe chain.
 #[derive(Debug, Clone, Copy, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
+    /// Sequential block number (height) in the chain, starting from 0.
     pub height: u32,
+    /// Unix timestamp of the block in seconds.
     pub timestamp: u64,
+    /// Hash of the preceding block; `H256::zero()` for the genesis block.
     pub parent_hash: H256,
 }
 
 impl BlockHeader {
+    /// Constructs a deterministic placeholder header at the given `height` for testing.
     pub fn dummy(height: u32) -> Self {
         let mut parent_hash = [0; 32];
         parent_hash[..4].copy_from_slice(&height.to_le_bytes());
@@ -35,14 +41,19 @@ impl BlockHeader {
     }
 }
 
+/// Full block data including the block hash, header, and all on-chain events.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockData {
+    /// Cryptographic hash that uniquely identifies this block.
     pub hash: H256,
+    /// Block metadata (height, timestamp, parent hash).
     pub header: BlockHeader,
+    /// Ordered list of events emitted during this block.
     pub events: Vec<BlockEvent>,
 }
 
 impl BlockData {
+    /// Returns a [`SimpleBlockData`] containing only the hash and header, dropping the events.
     pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
             hash: self.hash,
@@ -51,12 +62,15 @@ impl BlockData {
     }
 }
 
+/// Lightweight block descriptor carrying only the hash and header, without events.
 #[derive(
     Debug, derive_more::Display, Copy, Clone, PartialEq, Eq, Encode, Decode, TypeInfo, Default,
 )]
 #[display("Block(hash: {hash}, height: {}, parent: {}, ts: {})", header.height, header.parent_hash, header.timestamp)]
 pub struct SimpleBlockData {
+    /// Cryptographic hash that uniquely identifies this block.
     pub hash: H256,
+    /// Block metadata (height, timestamp, parent hash).
     pub header: BlockHeader,
 }
 
@@ -66,6 +80,7 @@ pub enum PromisePolicy {
     /// Emits promises in execution process.
     Enabled,
     // Do not emit promises in execution process.
+    /// Does not emit promises during execution.
     #[default]
     Disabled,
 }
@@ -81,15 +96,20 @@ pub enum PromiseEmissionMode {
     ConsensusDriven,
 }
 
+/// Combines a program's state hash with the sizes of its canonical and injected message queues.
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
+    /// Hash of the program's current state.
     pub hash: H256,
+    /// Number of pending messages in the canonical (on-chain) queue.
     pub canonical_queue_size: u8,
+    /// Number of pending messages in the injected (cross-chain) queue.
     pub injected_queue_size: u8,
 }
 
 impl StateHashWithQueueSize {
+    /// Returns a zeroed instance with an empty state hash and no queued messages.
     pub fn zero() -> Self {
         Self {
             hash: H256::zero(),
@@ -99,19 +119,28 @@ impl StateHashWithQueueSize {
     }
 }
 
+/// Metadata about the Ethereum transaction that submitted a code blob.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct CodeBlobInfo {
+    /// Unix timestamp (in seconds) of the block containing the submission transaction.
     pub timestamp: u64,
+    /// Hash of the Ethereum transaction that carried the code blob.
     pub tx_hash: H256,
 }
 
+/// A WASM code blob paired with an unverified `CodeId`; the caller asserts consistency.
+///
+/// Use [`CodeAndId::from_unchecked`] to promote this to a verified [`CodeAndId`].
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 pub struct CodeAndIdUnchecked {
+    /// Raw WASM bytecode.
     #[debug("{:#x} bytes", code.len())]
     pub code: Vec<u8>,
+    /// Claimed identifier; not guaranteed to equal `blake2(code)` until verified.
     pub code_id: CodeId,
 }
 
+/// A WASM code blob whose `CodeId` is guaranteed to equal `blake2(code)`.
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 pub struct CodeAndId {
     #[debug("{:#x} bytes", code.len())]
@@ -120,15 +149,18 @@ pub struct CodeAndId {
 }
 
 impl CodeAndId {
+    /// Creates a `CodeAndId` by computing the `CodeId` from `blake2(code)`.
     pub fn new(code: Vec<u8>) -> Self {
         let code_id = CodeId::generate(&code);
         Self { code, code_id }
     }
 
+    /// Returns a reference to the raw WASM bytecode.
     pub fn code(&self) -> &[u8] {
         &self.code
     }
 
+    /// Returns the verified `CodeId` (blake2 hash of the code).
     pub fn code_id(&self) -> CodeId {
         self.code_id
     }
@@ -147,6 +179,7 @@ impl CodeAndId {
         Self { code, code_id }
     }
 
+    /// Converts into a [`CodeAndIdUnchecked`], relinquishing the consistency guarantee.
     pub fn into_unchecked(self) -> CodeAndIdUnchecked {
         CodeAndIdUnchecked {
             code: self.code,
@@ -160,8 +193,10 @@ impl CodeAndId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ProtocolTimelines {
     // The genesis timestamp of the GearExe network in seconds.
+    /// Unix timestamp (in seconds) at which the GearExe network was launched.
     pub genesis_ts: u64,
     // The duration of an era in seconds.
+    /// Duration of a single era in seconds.
     pub era: NonZeroU64,
     /// The election duration in seconds before the end of an era when the next set of validators elected.
     ///  (start of era)[ - - - - - - - - - - - - + - - - - ] (end of era)

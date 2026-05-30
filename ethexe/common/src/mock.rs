@@ -46,7 +46,13 @@ where
         .current()
 }
 
+/// Constructs a mock value of `Self` from the given `args`.
+///
+/// Implemented automatically for every type that satisfies `Arbitrary` via the
+/// blanket impl below. Explicit impls are provided for types that need custom
+/// behaviour (e.g. [`Promise`]).
 pub trait Mock<Args = ()> {
+    /// Returns a mock instance of `Self`.
     fn mock(args: Args) -> Self;
 }
 
@@ -60,6 +66,10 @@ where
     }
 }
 
+/// Parameters controlling how a [`BlockHeader`] mock is generated.
+///
+/// When `parent_hash` is `None` a random value is chosen; supply a concrete
+/// hash to produce a header that chains from a known predecessor.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BlockHeaderParams {
     parent_hash: Option<H256>,
@@ -79,6 +89,10 @@ impl From<H256> for BlockHeaderParams {
     }
 }
 
+/// Parameters controlling how a [`ChainCommitment`] mock is generated.
+///
+/// When `head` is `None` a random block hash is used; supply one to anchor the
+/// commitment to a known chain head.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ChainCommitmentParams {
     head: Option<H256>,
@@ -96,6 +110,10 @@ impl From<H256> for ChainCommitmentParams {
     }
 }
 
+/// Parameters controlling how a [`BlockChain`] mock is generated.
+///
+/// `len` is the number of non-genesis blocks; `validators` is the validator set
+/// written to the DB for each era that the generated blocks span.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BlockChainParams {
     len: u32,
@@ -117,6 +135,10 @@ impl From<(u32, ValidatorsVec)> for BlockChainParams {
     }
 }
 
+/// Parameters controlling how an [`AddressedInjectedTransaction`] mock is generated.
+///
+/// When `signer` is `None` a random secp256k1 private key is drawn; supply one
+/// to produce a transaction signed by a known key.
 #[derive(Debug, Clone, Default)]
 pub struct AddressedInjectedTransactionParams {
     signer: Option<PrivateKey>,
@@ -182,6 +204,7 @@ fn limited_bytes_strategy<const N: usize>(
         .boxed()
 }
 
+/// Returns a proptest strategy that generates an arbitrary [`ScheduledTask`] variant.
 pub fn scheduled_task_strategy() -> BoxedStrategy<ScheduledTask> {
     prop_oneof![
         (
@@ -219,6 +242,8 @@ pub fn scheduled_task_strategy() -> BoxedStrategy<ScheduledTask> {
     .boxed()
 }
 
+/// Returns a proptest strategy that generates an arbitrary [`Schedule`] (a `BTreeMap` of
+/// block-number to task sets).
 pub fn schedule_strategy() -> BoxedStrategy<Schedule> {
     collection::btree_map(
         any::<u32>(),
@@ -484,47 +509,66 @@ impl Mock<HashOf<InjectedTransaction>> for Promise {
     }
 }
 
+/// On-chain data available after a block has been synced from Ethereum.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncedBlockData {
+    /// The block header (height, timestamp, parent hash).
     pub header: BlockHeader,
+    /// Decoded on-chain events emitted in this block.
     pub events: Vec<BlockEvent>,
 }
 
+/// Data recorded after the block preparation phase has completed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedBlockData {
+    /// Queue of code IDs awaiting on-chain validation at this block.
     pub codes_queue: VecDeque<CodeId>,
+    /// Digest of the last batch commitment committed before this block.
     pub last_committed_batch: Digest,
+    /// Hash of the last committed micro-block at this block height.
     pub last_committed_mb: H256,
 }
 
+/// Complete mock representation of a single Ethereum block, combining both
+/// synced and preparation-phase data used by tests that drive the full pipeline.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockFullData {
+    /// Block hash.
     pub hash: H256,
+    /// Data available after the sync phase; `None` if not yet synced.
     pub synced: Option<SyncedBlockData>,
+    /// Data available after the preparation phase; `None` if not yet prepared.
     pub prepared: Option<PreparedBlockData>,
 }
 
 impl BlockFullData {
+    /// Returns the synced data. Panics if the block has not been synced.
     #[track_caller]
     pub fn as_synced(&self) -> &SyncedBlockData {
         self.synced.as_ref().expect("block not synced")
     }
 
+    /// Returns a mutable reference to the synced data. Panics if the block has not been synced.
     #[track_caller]
     pub fn as_synced_mut(&mut self) -> &mut SyncedBlockData {
         self.synced.as_mut().expect("block not synced")
     }
 
+    /// Returns the preparation-phase data. Panics if the block has not been prepared.
     #[track_caller]
     pub fn as_prepared(&self) -> &PreparedBlockData {
         self.prepared.as_ref().expect("block is not prepared")
     }
 
+    /// Returns a mutable reference to the preparation-phase data. Panics if the block has not been prepared.
     #[track_caller]
     pub fn as_prepared_mut(&mut self) -> &mut PreparedBlockData {
         self.prepared.as_mut().expect("block is not prepared")
     }
 
+    /// Constructs a [`SimpleBlockData`] from this block's hash and synced header.
+    ///
+    /// Panics if the block has not been synced.
     #[track_caller]
     pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
@@ -534,24 +578,33 @@ impl BlockFullData {
     }
 }
 
+/// Instrumented code together with its metadata, as stored after successful validation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstrumentedCodeData {
+    /// Gas-metered and stack-checked WASM code ready for execution.
     pub instrumented: InstrumentedCode,
+    /// Metadata associated with the code (e.g. limits, version).
     pub meta: CodeMetadata,
 }
 
+/// All data associated with a code blob in the mock database.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeData {
+    /// Raw WASM bytes as received from the beacon chain blob.
     pub original_bytes: Vec<u8>,
+    /// Ethereum transaction metadata for the blob submission: timestamp of the containing block and the transaction hash.
     pub blob_info: CodeBlobInfo,
+    /// Instrumented code and metadata; `None` if the code has not been validated yet.
     pub instrumented: Option<InstrumentedCodeData>,
 }
 
 impl CodeData {
+    /// Returns the instrumented code data. Panics if the code has not been instrumented.
     pub fn as_instrumented(&self) -> &InstrumentedCodeData {
         self.instrumented.as_ref().expect("code not instrumented")
     }
 
+    /// Returns a mutable reference to the instrumented code data. Panics if the code has not been instrumented.
     pub fn as_instrumented_mut(&mut self) -> &mut InstrumentedCodeData {
         self.instrumented.as_mut().expect("code not instrumented")
     }
@@ -562,6 +615,7 @@ impl CodeData {
 /// `mb_program_states` is left unwritten.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MockComputedMbData {
+    /// Program state hashes and queue sizes after this micro-block was computed.
     pub program_states: ProgramStates,
 }
 
@@ -588,6 +642,7 @@ pub struct MbFullData {
 }
 
 impl MbFullData {
+    /// Returns the computed MB data. Panics if this MB has not been marked as computed.
     #[track_caller]
     pub fn as_computed(&self) -> &MockComputedMbData {
         self.computed
@@ -595,6 +650,7 @@ impl MbFullData {
             .expect("MB not marked computed in this mock chain")
     }
 
+    /// Returns a mutable reference to the computed MB data. Panics if this MB has not been marked as computed.
     #[track_caller]
     pub fn as_computed_mut(&mut self) -> &mut MockComputedMbData {
         self.computed
@@ -603,14 +659,23 @@ impl MbFullData {
     }
 }
 
+/// In-memory mock of an entire Ethereum block chain with associated MB chain and code store.
+///
+/// Used in proptest and integration tests to populate a database via [`BlockChain::setup`]
+/// and then exercise the ethexe pipeline against a realistic, self-consistent state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockChain {
+    /// Ordered sequence of Ethereum blocks; `blocks[0]` is a genesis-parent sentinel.
     pub blocks: VecDeque<BlockFullData>,
     /// One MB per `blocks[i]`. `mbs[0]` is a sentinel — see [`MbFullData`].
     pub mbs: VecDeque<MbFullData>,
+    /// Code blobs keyed by code ID.
     pub codes: BTreeMap<CodeId, CodeData>,
+    /// Validator set written to the DB for every era spanned by the chain.
     pub validators: ValidatorsVec,
+    /// DB configuration written by [`BlockChain::setup`].
     pub config: DBConfig,
+    /// DB globals written by [`BlockChain::setup`].
     pub globals: DBGlobals,
 }
 
@@ -622,6 +687,7 @@ impl BlockChain {
         &self.mbs[idx]
     }
 
+    /// `mbs[idx]` mutable accessor. Panics on out-of-range.
     #[track_caller]
     pub fn mb_at_mut(&mut self, idx: usize) -> &mut MbFullData {
         &mut self.mbs[idx]
@@ -635,6 +701,8 @@ impl BlockChain {
 }
 
 impl BlockChain {
+    /// Writes all blocks, MB rows, codes, validators, config, and globals into `db`
+    /// and returns `self` unchanged so callers can chain further setup steps.
     #[track_caller]
     pub fn setup<DB>(self, db: &DB) -> Self
     where
@@ -866,6 +934,7 @@ impl Arbitrary for BlockChain {
 }
 
 impl SimpleBlockData {
+    /// Writes this block's header and an empty event list into `db`, marks it synced, and returns `self`.
     pub fn setup<DB>(self, db: &DB) -> Self
     where
         DB: OnChainStorageRW,
@@ -876,6 +945,9 @@ impl SimpleBlockData {
         self
     }
 
+    /// Returns a new [`SimpleBlockData`] that immediately follows this block.
+    ///
+    /// The hash is incremented by one and the timestamp advances by 10 units.
     pub fn next_block(self) -> Self {
         Self {
             hash: H256::from_low_u64_be(self.hash.to_low_u64_be() + 1),
@@ -889,6 +961,7 @@ impl SimpleBlockData {
 }
 
 impl BlockData {
+    /// Writes this block's header and events into `db`, marks it synced, and returns `self`.
     pub fn setup<DB>(self, db: &DB) -> Self
     where
         DB: OnChainStorageRW,

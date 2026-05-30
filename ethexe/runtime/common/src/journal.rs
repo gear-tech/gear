@@ -35,16 +35,28 @@ use gsys::GasMultiplier;
 pub const WAIT_UP_TO_SAFE_DURATION: u32 = 64;
 
 // Handles unprocessed journal notes during chunk processing.
+/// [`JournalHandler`] implementation used outside the runtime WASM to apply journal notes
+/// that cannot be handled inside the runtime (e.g. routing dispatches, updating waitlists).
 pub struct NativeJournalHandler<'a, S: Storage + ?Sized> {
+    /// The program whose message chunk is currently being processed.
     pub program_id: ActorId,
+    /// The type of the message being executed (canonical or injected).
     pub message_type: MessageType,
+    /// Whether the current execution was triggered by a `call_reply` RPC request.
     pub call_reply: bool,
+    /// Holds mutable access to per-program states and pending transitions.
     pub controller: TransitionController<'a, S>,
+    /// Tracks remaining gas budget for the entire block.
     pub gas_allowance_counter: &'a GasAllowanceCounter,
+    /// Gas budget assigned to this single execution chunk.
     pub chunk_gas_limit: u64,
+    /// Set to `true` when the block-level gas allowance is exhausted mid-chunk.
     pub out_of_gas: &'a mut bool,
+    /// Remaining count of outgoing messages allowed in this chunk.
     pub outgoing_messages_limiter: &'a mut u32,
+    /// Remaining byte budget for outgoing message payloads in this chunk.
     pub outgoing_messages_bytes_limiter: &'a mut u32,
+    /// Remaining count of call-reply messages allowed in this chunk.
     pub call_reply_limiter: &'a mut u32,
 }
 
@@ -482,23 +494,34 @@ impl<S: Storage + ?Sized> JournalHandler for NativeJournalHandler<'_, S> {
 }
 
 // Handles unprocessed journal notes during message processing in the runtime.
+/// Aggregated result produced by [`RuntimeJournalHandler`] for one execution pass.
+///
+/// Collects dispatch outcomes and gas-burn events so callers can apply
+/// cross-program effects (e.g. updating transitions) after the WASM run.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RuntimeQueueReport {
+    /// Dispatch outcomes recorded during the execution pass.
     pub dispatched: Vec<RuntimeDispatchReport>,
+    /// Gas-burn events recorded during the execution pass.
     pub gas_burned: Vec<RuntimeGasBurnReport>,
 }
 
 impl RuntimeQueueReport {
+    /// Merges `other` into `self` by appending all its dispatched and gas-burn records.
     pub fn extend(&mut self, other: Self) {
         self.dispatched.extend(other.dispatched);
         self.gas_burned.extend(other.gas_burned);
     }
 }
 
+/// Outcome record for a single dispatched message, produced by [`RuntimeJournalHandler`].
 #[derive(Clone, Debug)]
 pub struct RuntimeDispatchReport {
+    /// The identifier of the dispatched message.
     pub message_id: MessageId,
+    /// The actor that sent the message.
     pub source: ActorId,
+    /// The execution result of the dispatch.
     pub outcome: DispatchOutcome,
 }
 
@@ -512,10 +535,16 @@ impl PartialEq for RuntimeDispatchReport {
 
 impl Eq for RuntimeDispatchReport {}
 
+/// Gas-burn record for a single message, produced by [`RuntimeJournalHandler`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeGasBurnReport {
+    /// The identifier of the message that consumed gas.
     pub message_id: MessageId,
+    /// The amount of gas burned.
     pub amount: u64,
+    /// `true` when the burn is deducted from the program's `executable_balance`; `false` only for
+    /// panicked injected messages on their first execution attempt when `gas_burned` is at or
+    /// below `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`.
     pub charged_to_executable_balance: bool,
 }
 
@@ -569,18 +598,30 @@ fn dispatch_outcome_eq(left: &DispatchOutcome, right: &DispatchOutcome) -> bool 
     }
 }
 
+/// [`JournalHandler`] that runs inside the runtime WASM to handle journal notes immediately
+/// (page updates, allocations, dispatch outcomes, gas burns) and forwards the rest to
+/// [`NativeJournalHandler`] for post-execution processing.
 pub struct RuntimeJournalHandler<'s, S>
 where
     S: Storage,
 {
+    /// Content-addressed storage used to persist updated program state.
     pub storage: &'s S,
+    /// Mutable program state mutated in-place as journal notes are applied.
     pub program_state: &'s mut ProgramState,
+    /// Block-level gas allowance counter shared across all executions in the block.
     pub gas_allowance_counter: &'s mut GasAllowanceCounter,
+    /// Conversion factor from gas units to token value.
     pub gas_multiplier: &'s GasMultiplier,
+    /// Type of the message being executed.
     pub message_type: MessageType,
+    /// `true` for the first execution attempt of a message (affects injected-panic accounting).
     pub is_first_execution: bool,
+    /// Set to `true` when a `StopProcessing` note is encountered.
     pub stop_processing: bool,
+    /// Whether the current execution was triggered by a `call_reply` RPC request.
     pub call_reply: bool,
+    /// Per-chunk outgoing message and reply limits.
     pub limiter: &'s mut Limiter,
 }
 
@@ -588,6 +629,13 @@ impl<S> RuntimeJournalHandler<'_, S>
 where
     S: Storage,
 {
+    /// Processes a batch of journal notes, handling page/allocation/dispatch/gas-burn notes
+    /// in-place and returning the remainder for [`NativeJournalHandler`] to apply.
+    ///
+    /// Returns `(unhandled_notes, maybe_new_state_hash, report)`.  `maybe_new_state_hash`
+    /// is `Some` when at least one note was consumed by this handler (i.e. not forwarded to the
+    /// catch-all unhandled branch); this includes `StopProcessing` and gas-burn notes that may
+    /// not alter persistent `program_state` fields.
     // Returns unhandled journal notes, new program state hash, and runtime queue report
     pub fn handle_journal_with_report<I>(
         &mut self,

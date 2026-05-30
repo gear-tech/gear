@@ -87,7 +87,12 @@ mod private {
     impl<F> Sealed for &mut FuturesUnordered<F> {}
 }
 
+/// Extends `Option<F>` with a `.maybe()` combinator for use in `tokio::select!` arms.
+///
+/// When the option is `Some`, the inner future is driven to completion. When it is `None`,
+/// the resulting future stays pending forever, so the `select!` arm is silently skipped.
 pub trait OptionFuture<T>: private::Sealed {
+    /// Await the inner future if `Some`, otherwise remain pending indefinitely.
     async fn maybe(self) -> T;
 }
 
@@ -101,9 +106,19 @@ impl<F: Future> OptionFuture<F::Output> for Option<F> {
     }
 }
 
+/// Extends `&mut Option<S>` and `&mut FuturesUnordered<F>` with stream-polling combinators
+/// suitable for `tokio::select!` arms.
+///
+/// A `None` stream or an empty `FuturesUnordered` stays pending, so the owning `select!`
+/// arm is silently skipped rather than resolving or panicking.
 pub trait OptionStreamNext<T>: private::Sealed {
+    /// Poll the next item from an optional stream, yielding `None` when the stream ends.
+    ///
+    /// Panics if called on `&mut FuturesUnordered`; use [`maybe_next_some`](Self::maybe_next_some) instead.
     async fn maybe_next(self) -> Option<T>;
 
+    /// Poll the next item from an optional stream or `FuturesUnordered`, staying pending when
+    /// there are no items rather than returning `None`.
     async fn maybe_next_some(self) -> T;
 }
 

@@ -103,6 +103,7 @@ pub use rocks::RocksDatabase;
 #[cfg(feature = "mock")]
 pub use migrations::create_initialized_empty_memory_db;
 
+/// Computes the Blake2 hash of `data`, matching the key returned by [`CASDatabase::write`].
 pub fn hash(data: &[u8]) -> H256 {
     gear_core::utils::hash(data).into()
 }
@@ -143,11 +144,13 @@ pub trait KVDatabase: Send + Sync {
     /// Put (insert) value by key.
     fn put(&self, key: &[u8], data: Vec<u8>);
 
+    /// Iterate over all `(key, value)` pairs whose key starts with `prefix`.
     fn iter_prefix<'a>(
         &'a self,
         prefix: &'a [u8],
     ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a>;
 
+    /// Returns `true` if the database contains no entries.
     fn is_empty(&self) -> bool;
 }
 

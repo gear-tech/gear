@@ -121,6 +121,7 @@ pub use sync::SyncError;
 use sync::{ChainSync, SyncResult};
 
 mod sync;
+/// Utility types and traits for loading block data from the Ethereum chain.
 pub mod utils;
 
 #[cfg(test)]
@@ -132,12 +133,16 @@ type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription
 /// It is needed to measure time taken for syncing a block.
 type SyncFuture = future_timing::Timed<BoxFuture<'static, SyncResult<H256>>>;
 
+/// Events emitted by [`ObserverService`] as it tracks the Ethereum chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
+    /// A new chain head was received; contains the raw block data.
     Block(SimpleBlockData),
+    /// All blocks up to and including the given hash have been synced into the local database.
     BlockSynced(H256),
 }
 
+/// Configuration supplied to [`ObserverService::new`].
 pub struct ObserverConfig<'a> {
     /// Ethereum RPC endpoint.
     pub rpc: &'a str,
@@ -180,6 +185,11 @@ struct RuntimeConfig {
 }
 
 // TODO #4552: make tests for observer service
+/// Watches the Ethereum chain and surfaces each new head and completed back-fill as an [`ObserverEvent`].
+///
+/// Implements `futures::Stream<Item = Result<ObserverEvent>>`. Construct with [`ObserverService::new`]
+/// and poll via `StreamExt::next`. The stream never terminates on its own; subscription failures
+/// are retried with exponential backoff and recoverable RPC errors are skipped rather than propagated.
 pub struct ObserverService {
     provider: RootProvider,
     config: RuntimeConfig,
@@ -295,6 +305,10 @@ impl FusedStream for ObserverService {
 }
 
 impl ObserverService {
+    /// Creates a new `ObserverService`.
+    ///
+    /// Resolves the router address from the database config, queries the middleware address
+    /// from the Router contract, connects the alloy provider, and starts the block-header subscription.
     pub async fn new(db: Database, config: ObserverConfig<'_>) -> Result<Self> {
         let ObserverConfig {
             rpc,
@@ -342,14 +356,17 @@ impl ObserverService {
         })
     }
 
+    /// Returns a reference to the underlying alloy `RootProvider`.
     pub fn provider(&self) -> &RootProvider {
         &self.provider
     }
 
+    /// Returns a fresh [`EthereumBlockLoader`] bound to the configured router address.
     pub fn block_loader(&self) -> EthereumBlockLoader {
         EthereumBlockLoader::new(self.provider.clone(), self.config.router_address)
     }
 
+    /// Returns a fresh `RouterQuery` for read-only queries against the Router contract.
     pub fn router_query(&self) -> RouterQuery {
         RouterQuery::from_provider(self.config.router_address, self.provider.clone())
     }

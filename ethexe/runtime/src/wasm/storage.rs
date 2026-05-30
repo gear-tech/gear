@@ -17,6 +17,12 @@ use gear_core::{buffer::Payload, memory::PageBuf};
 use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
 use gprimitives::H256;
 
+/// Runtime interface implementation that routes storage and runtime operations through host-function imports.
+///
+/// Implements both [`Storage`] and [`RuntimeInterface`] by delegating every call to the
+/// corresponding `database_ri` / `promise_ri` host functions exposed by the ethexe executor.
+/// This is the concrete implementation used when the runtime WASM binary executes inside an
+/// ethexe node.
 #[derive(Debug, Clone)]
 pub struct NativeRuntimeInterface;
 

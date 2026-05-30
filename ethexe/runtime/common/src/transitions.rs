@@ -31,15 +31,23 @@ pub struct InBlockTransitions {
     program_creations: BTreeMap<ActorId, CodeId>,
 }
 
+/// Output of [`InBlockTransitions::finalize`]: the set of state transitions
+/// and updated metadata produced after processing all modifications in a block.
 #[derive(Debug, Clone, Default)]
 pub struct FinalizedBlockTransitions {
+    /// Non-noop state transitions to be committed on-chain, one per modified program.
     pub transitions: Vec<StateTransition>,
+    /// Latest program states (hash + queue sizes) after applying all block modifications.
     pub states: ProgramStates,
+    /// Carry-over task schedule with due tasks already consumed.
     pub schedule: Schedule,
+    /// Programs newly registered in this block, as `(ActorId, CodeId)` pairs.
     pub program_creations: Vec<(ActorId, CodeId)>,
 }
 
 impl InBlockTransitions {
+    /// Creates a new [`InBlockTransitions`] for the given block, seeded with parent-block program
+    /// states and the carried-over schedule.
     pub fn new(block_height: u32, states: ProgramStates, schedule: Schedule) -> Self {
         Self {
             block_height,
@@ -49,26 +57,33 @@ impl InBlockTransitions {
         }
     }
 
+    /// Returns `true` if `actor_id` is a known program (present in the current state map).
     pub fn is_program(&self, actor_id: &ActorId) -> bool {
         self.states.contains_key(actor_id)
     }
 
+    /// Returns the current `StateHashWithQueueSize` for `actor_id`, or `None` if unknown.
     pub fn state_of(&self, actor_id: &ActorId) -> Option<StateHashWithQueueSize> {
         self.states.get(actor_id).copied()
     }
 
+    /// Returns the number of programs tracked in the current state map.
     pub fn states_amount(&self) -> usize {
         self.states.len()
     }
 
+    /// Returns an iterator over all `(ActorId, StateHashWithQueueSize)` entries in the state map.
     pub fn states_iter(&self) -> Iter<'_, ActorId, StateHashWithQueueSize> {
         self.states.iter()
     }
 
+    /// Returns the `ActorId`s of all programs currently tracked.
     pub fn known_programs(&self) -> Vec<ActorId> {
         self.states.keys().copied().collect()
     }
 
+    /// Returns all outgoing messages queued across every in-progress transition, paired with the
+    /// sending program's `ActorId`.
     pub fn current_messages(&self) -> Vec<(ActorId, Message)> {
         self.modifications
             .iter()
@@ -76,6 +91,7 @@ impl InBlockTransitions {
             .collect()
     }
 
+    /// Returns the number of programs that have pending (non-finalized) modifications.
     pub fn modifications_len(&self) -> usize {
         self.modifications.len()
     }
@@ -90,6 +106,8 @@ impl InBlockTransitions {
         due.into_values().flatten().collect()
     }
 
+    /// Schedules `task` to fire `in_blocks` blocks from the current height and returns the
+    /// absolute block number at which it will execute.
     pub fn schedule_task(&mut self, in_blocks: NonZero<u32>, task: ScheduledTask) -> u32 {
         let scheduled_block = self.block_height + u32::from(in_blocks);
 
@@ -101,6 +119,8 @@ impl InBlockTransitions {
         scheduled_block
     }
 
+    /// Removes a previously scheduled `task` from block `expiry`. Returns an error if the block
+    /// or the specific task is not found in the schedule.
     pub fn remove_task(&mut self, expiry: u32, task: &ScheduledTask) -> Result<()> {
         let block_tasks = self
             .schedule
@@ -119,16 +139,22 @@ impl InBlockTransitions {
         Ok(())
     }
 
+    /// Registers a newly created program: inserts it into the state map with a zero state,
+    /// opens a pending modification entry for it, and records the `(actor_id, code_id)` pair.
     pub fn register_new(&mut self, actor_id: ActorId, code_id: CodeId) {
         self.states.insert(actor_id, StateHashWithQueueSize::zero());
         self.modifications.insert(actor_id, Default::default());
         self.program_creations.insert(actor_id, code_id);
     }
 
+    /// Returns the map of programs registered (created) during this block.
     pub fn registered_programs(&self) -> &BTreeMap<ActorId, CodeId> {
         &self.program_creations
     }
 
+    /// Updates the state hash and queue sizes for `actor_id` in the current block.
+    ///
+    /// Panics if `actor_id` is not a known program.
     pub fn modify_state(
         &mut self,
         actor_id: ActorId,
@@ -143,6 +169,8 @@ impl InBlockTransitions {
         })
     }
 
+    /// Applies a closure to the [`NonFinalTransition`] for `actor_id`, returning whatever the
+    /// closure returns. Panics if `actor_id` is not a known program.
     pub fn modify_transition<T>(
         &mut self,
         actor_id: ActorId,
@@ -151,6 +179,8 @@ impl InBlockTransitions {
         self.modify(actor_id, |_state, transition| f(transition))
     }
 
+    /// Records a value claim against `actor_id`, accumulating the claimed amount into
+    /// `value_to_receive` for the transition. Panics on overflow or unknown actor.
     pub fn claim_value(&mut self, actor_id: ActorId, claim: ValueClaim) {
         self.modify(actor_id, |_state, transition| {
             transition.value_to_receive = transition
@@ -164,6 +194,9 @@ impl InBlockTransitions {
         });
     }
 
+    /// Low-level accessor that gives the closure mutable access to both the current
+    /// `StateHashWithQueueSize` and the pending [`NonFinalTransition`] for `actor_id`.
+    /// Lazily creates the `NonFinalTransition` entry on first call. Panics if unknown actor.
     pub fn modify<T>(
         &mut self,
         actor_id: ActorId,
@@ -185,6 +218,8 @@ impl InBlockTransitions {
         f(initial_state, transition)
     }
 
+    /// Consumes this instance and produces [`FinalizedBlockTransitions`], discarding noop
+    /// modifications and collecting the rest into `StateTransition` entries ready for commitment.
     pub fn finalize(self) -> FinalizedBlockTransitions {
         let Self {
             states,
@@ -224,10 +259,13 @@ impl InBlockTransitions {
         }
     }
 
+    /// Returns the block height this instance was created for.
     pub fn block_height(&self) -> u32 {
         self.block_height
     }
 
+    /// Constructs an [`InBlockTransitions`] directly from its constituent parts.
+    /// Available only in tests and with the `mock` feature.
     #[cfg(any(test, feature = "mock"))]
     pub fn from_parts(
         block_height: u32,
@@ -245,27 +283,43 @@ impl InBlockTransitions {
         }
     }
 
+    /// Returns a mutable reference to the pending modifications map.
+    /// Available only in tests and with the `mock` feature.
     #[cfg(any(test, feature = "mock"))]
     pub fn modifications_mut(&mut self) -> &mut BTreeMap<ActorId, NonFinalTransition> {
         &mut self.modifications
     }
 
+    /// Returns a mutable reference to the block height.
+    /// Available only in tests and with the `mock` feature.
     #[cfg(any(test, feature = "mock"))]
     pub fn block_height_mut(&mut self) -> &mut u32 {
         &mut self.block_height
     }
 }
 
+/// Accumulated, not-yet-committed changes for a single program within one block.
+///
+/// Holds everything needed to decide whether a `StateTransition` should be emitted at
+/// finalization: whether the state hash changed, whether the program exited, and any
+/// value claims or outgoing messages produced during execution.
 #[derive(Debug, Default, Clone)]
 pub struct NonFinalTransition {
     initial_state: H256,
+    /// The program that inherits value when this program exits, if any.
     pub inheritor: Option<ActorId>,
+    /// Net value (in base units) to be transferred at finalization; negative means outgoing.
     pub value_to_receive: i128,
+    /// Value claims accumulated for this program during the block.
     pub claims: Vec<ValueClaim>,
+    /// Outgoing messages produced by this program during the block.
     pub messages: Vec<Message>,
 }
 
 impl NonFinalTransition {
+    /// Returns `true` when this transition carries no observable effect and can be omitted from
+    /// the committed batch: the program existed before, its state hash is unchanged, it did not
+    /// exit, and it has no value transfers, claims, or outgoing messages.
     pub fn is_noop(&self, current_state: H256) -> bool {
         // check if just created program (always op)
         !self.initial_state.is_zero()
@@ -275,11 +329,15 @@ impl NonFinalTransition {
             && (self.inheritor.is_none() && self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty())
     }
 
+    /// Returns the program's state hash at the start of the block (before any modifications).
+    /// Available only in tests and with the `mock` feature.
     #[cfg(any(test, feature = "mock"))]
     pub fn initial_state(&self) -> H256 {
         self.initial_state
     }
 
+    /// Constructs a [`NonFinalTransition`] with all fields specified explicitly.
+    /// Available only in tests and with the `mock` feature.
     #[cfg(any(test, feature = "mock"))]
     pub fn new(
         initial_state: H256,

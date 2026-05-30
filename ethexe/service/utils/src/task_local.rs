@@ -23,12 +23,14 @@ macro_rules! task_local {
     };
 }
 
+/// Task-local storage key providing mutable access to a value scoped to a closure or async task.
 pub struct LocalKey<T: 'static> {
     #[doc(hidden)]
     pub inner: thread::LocalKey<RefCell<Option<T>>>,
 }
 
 impl<T: 'static> LocalKey<T> {
+    /// Sets `value` as the task-local value, calls `f`, then returns the (possibly modified) value together with `f`'s return value.
     pub fn scope<F, R>(&'static self, value: T, f: F) -> (T, R)
     where
         F: FnOnce() -> R,
@@ -39,6 +41,7 @@ impl<T: 'static> LocalKey<T> {
         (value, res)
     }
 
+    /// Provides mutable access to the current task-local value. Panics if no value is set.
     pub fn with_mut<F, R>(&'static self, f: F) -> R
     where
         F: FnOnce(&mut T) -> R,
@@ -49,6 +52,7 @@ impl<T: 'static> LocalKey<T> {
         })
     }
 
+    /// Returns a future that polls `f` with the waker context and a mutable reference to the task-local value on each poll.
     pub fn poll_fn<F, R>(&'static self, mut f: F) -> impl Future<Output = R>
     where
         F: FnMut(&mut Context<'_>, &mut T) -> Poll<R>,
