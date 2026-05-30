@@ -20,30 +20,20 @@ if [ ! -f "$WORKSPACE_HACK" ]; then
 fi
 
 CFG="target.'cfg(not(any(target_arch = \"wasm32\", loom)))'"
+X86_64_LINUX_CFG="target.'cfg(all(target_arch = \"x86_64\", target_vendor = \"unknown\", target_os = \"linux\", target_env = \"gnu\", not(any(target_arch = \"wasm32\", loom))))'"
+AARCH64_LINUX_CFG="target.'cfg(all(target_arch = \"aarch64\", target_vendor = \"unknown\", target_os = \"linux\", target_env = \"gnu\", not(any(target_arch = \"wasm32\", loom))))'"
+AARCH64_MACOS_CFG="target.'cfg(all(target_arch = \"aarch64\", target_vendor = \"apple\", target_os = \"macos\", not(any(target_arch = \"wasm32\", loom))))'"
 
-# Replace:
-# - previously wrapped target dependency headers -> current cfg wrapper
-# - platform-specific target headers -> equivalent cfg(...) plus the cfg wrapper
-# - [dependencies.X] -> [target.'cfg(...)'.dependencies.X] (manual section)
-# - [build-dependencies.X] -> [target.'cfg(...)'.build-dependencies.X]
-# - [dependencies]    -> [target.'cfg(...)'.dependencies]    (hakari section)
-# - [build-dependencies] -> [target.'cfg(...)'.build-dependencies]
-#
-# Platform-specific sections are still wrapped because they otherwise leak the
-# workspace-hack dependency graph into loom builds on native hosts.
-# Idempotent: already-wrapped headers won't match the patterns.
+# Hakari currently emits only top-level dependency sections and exact platform
+# target sections. Wrap those sections so the workspace-hack graph is absent
+# from wasm32 and loom builds.
 sed -i.bak -E \
-    -e "s/^\[target\.'cfg\(all\(not\(target_arch = \"wasm32\"\), not\(loom\)\)\)'\./[${CFG}./" \
-    -e "s/^\[target\.'cfg\(not\(target_arch = \"wasm32\"\)\)'\./[${CFG}./" \
-    -e "s/^\[target\.x86_64-unknown-linux-gnu\.(dependencies|build-dependencies)([^]]*)\](.*)$/[target.'cfg(all(target_arch = \"x86_64\", target_vendor = \"unknown\", target_os = \"linux\", target_env = \"gnu\", not(any(target_arch = \"wasm32\", loom))))'.\1\2]\3/" \
-    -e "s/^\[target\.aarch64-unknown-linux-gnu\.(dependencies|build-dependencies)([^]]*)\](.*)$/[target.'cfg(all(target_arch = \"aarch64\", target_vendor = \"unknown\", target_os = \"linux\", target_env = \"gnu\", not(any(target_arch = \"wasm32\", loom))))'.\1\2]\3/" \
-    -e "s/^\[target\.aarch64-apple-darwin\.(dependencies|build-dependencies)([^]]*)\](.*)$/[target.'cfg(all(target_arch = \"aarch64\", target_vendor = \"apple\", target_os = \"macos\", not(any(target_arch = \"wasm32\", loom))))'.\1\2]\3/" \
-    -e "s/^\[dependencies\.([^]]+)\](.*)$/[${CFG}.dependencies.\1]\2/" \
-    -e "s/^\[dependencies\](.*)$/[${CFG}.dependencies]\1/" \
-    -e "s/^\[build-dependencies\.([^]]+)\](.*)$/[${CFG}.build-dependencies.\1]\2/" \
-    -e "s/^\[build-dependencies\](.*)$/[${CFG}.build-dependencies]\1/" \
+    -e "s/^\[(dependencies|build-dependencies)\]$/[${CFG}.\1]/" \
+    -e "s/^\[target\.x86_64-unknown-linux-gnu\.(dependencies|build-dependencies)\]$/[${X86_64_LINUX_CFG}.\1]/" \
+    -e "s/^\[target\.aarch64-unknown-linux-gnu\.(dependencies|build-dependencies)\]$/[${AARCH64_LINUX_CFG}.\1]/" \
+    -e "s/^\[target\.aarch64-apple-darwin\.(dependencies|build-dependencies)\]$/[${AARCH64_MACOS_CFG}.\1]/" \
     "$WORKSPACE_HACK"
 
 rm -f "${WORKSPACE_HACK}.bak"
 
-echo "Post-processed $WORKSPACE_HACK: all deps wrapped in cfg(not(any(target_arch = \"wasm32\", loom)))"
+echo "Post-processed $WORKSPACE_HACK: generated deps/build-deps wrapped for wasm32/loom"

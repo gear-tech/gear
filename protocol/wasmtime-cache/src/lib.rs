@@ -105,7 +105,7 @@ impl Cache {
         state: &mut CacheState,
         engine: &Engine,
         hash: u64,
-    ) -> WasmtimeResult<Option<ModuleFrom>> {
+    ) -> wasmtime::Result<Option<ModuleFrom>> {
         let Some(module) = state.modules.get(&hash) else {
             return Ok(None);
         };
