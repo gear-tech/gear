@@ -4,44 +4,16 @@
 //! # Ethexe Blob Loader
 //!
 //! Fetches Gear program code blobs posted to Ethereum as EIP-4844 blob transactions,
-//! decoding them from the beacon chain into raw WASM bytes for downstream validation.
-//!
-//! ## Responsibilities
-//!
-//! Given a set of [`CodeId`]s, the loader:
-//!
-//! 1. Looks up each code's [`CodeBlobInfo`] (which carries the originating `tx_hash`) from
-//!    the local database via [`Database`].
-//! 2. Fetches the transaction and its containing block through the execution-layer JSON-RPC.
-//! 3. Derives the beacon slot — using block timestamp and genesis time for real chains, or
-//!    block number directly when running against Anvil (`chain_id == 31337`).
-//! 4. Requests the blob sidecar from the beacon node at
-//!    `/eth/v1/beacon/blobs/{slot}` and decodes it with alloy's `SimpleCoder`.
-//! 5. Emits [`BlobLoaderEvent::BlobLoaded`] carrying a [`CodeAndIdUnchecked`] value.
-//!
-//! Code validation and instrumentation happen later in `ethexe-processor`; this crate
-//! emits unverified bytes only.
+//! decoding them from the beacon chain into raw WASM bytes. Emits unverified bytes only;
+//! code validation and instrumentation happen later in `ethexe-processor`.
 //!
 //! ## Role in the Stack
 //!
-//! ```text
-//! ethexe-service
-//!     └── BlobLoader (Box<dyn BlobLoaderService>)
-//!             │  load_codes(HashSet<CodeId>)
-//!             │
-//!             ├── local DB (CodesStorageRO / OnChainStorageRO)
-//!             │       └── if original_code present → emit immediately
-//!             │
-//!             └── ConsensusLayerBlobReader
-//!                     ├── EL JSON-RPC  (alloy RootProvider)
-//!                     └── Beacon REST  (reqwest → /eth/v1/beacon/blobs/{slot})
-//!                             └── BlobLoaderEvent::BlobLoaded(CodeAndIdUnchecked)
-//!                                     → ethexe-service → ethexe-processor (validate)
-//! ```
-//!
-//! `ethexe-service` constructs [`BlobLoader`] at startup, stores it as
+//! `ethexe-service` constructs a [`BlobLoader`] at startup, stores it as
 //! `Box<dyn BlobLoaderService>`, and drives it inside the main event loop, calling
 //! [`BlobLoaderService::load_codes`] whenever the observer reports new codes to fetch.
+//! The loader reads code locations from the local database (via the [`Database`] bound)
+//! and fetches blob data from the execution-layer JSON-RPC and beacon node.
 //!
 //! ## Public API
 //!
@@ -56,17 +28,10 @@
 //!
 //! ## Invariants
 //!
-//! - `attempts` is [`NonZero<u8>`](std::num::NonZero); the retry loop always sets `last_err`
-//!   before returning it.
 //! - In-flight [`CodeId`]s are tracked in a dedup set; calling [`BlobLoaderService::load_codes`]
 //!   with an already-pending id is a no-op.
-//! - If `original_code` is already present in the database the blob is emitted immediately
-//!   without a remote read.
 //! - The stream never terminates (`is_terminated` returns `false`). A read error is logged
 //!   and drops the pending future; the stream yields `Poll::Pending` rather than an error item.
-//! - The reader rejects empty blobs and blobs whose recomputed `CodeId`
-//!   does not match the expected one; if the same mismatching id is returned on a subsequent
-//!   attempt it is accepted as a last-resort fallback (tracked under issue #4995).
 
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},

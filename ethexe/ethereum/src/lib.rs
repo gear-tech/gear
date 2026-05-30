@@ -7,39 +7,15 @@
 //! ethexe Solidity contracts (Router, Mirror, WrappedVara, Middleware), built on the `alloy`
 //! client stack.
 //!
-//! ## Responsibilities
+//! Consumed by `ethexe-observer`, `ethexe-consensus`, `ethexe-cli`, `ethexe-service`, and
+//! `ethexe-sdk`; depends on `ethexe-common`, `gsigner`, and `gprimitives`. This is purely a
+//! client/binding layer: it does not execute Gear programs (`ethexe-processor`), watch the
+//! chain (`ethexe-observer`), implement consensus (`ethexe-consensus`), or persist data
+//! (`ethexe-db`).
 //!
-//! - Provides [`EthereumBuilder`] and [`Ethereum`] — the central connection object that wires a
-//!   signer, an EIP-1559/blob-gas-tuned provider, and resolves the on-chain router, wvara, and
-//!   middleware addresses.
-//! - Vends per-contract handles ([`router::Router`], [`mirror::Mirror`], [`wvara::WVara`],
-//!   [`middleware::Middleware`]) for submitting and querying transactions.
-//! - Exposes read-only query counterparts (`RouterQuery`, `MirrorQuery`, `WVaraQuery`,
-//!   `MiddlewareQuery`) and event-filter builders for each contract.
-//! - Provides [`TryGetReceipt`] — a receipt-retrieval trait that retries on null RPC responses,
-//!   extracts `MessageId` from logs, and surfaces revert reasons.
-//! - Contains [`deploy::EthereumDeployer`] for spinning up the full contract set in local/test
-//!   environments.
-//! - Re-exports `alloy::primitives` under [`primitives`] and exposes ABI bindings under [`abi`].
+//! ## Usage
 //!
-//! ## Role in the Stack
-//!
-//! ```text
-//! ethexe-observer  ──(ABI / event types)──┐
-//! ethexe-consensus ──(router types)───────┤
-//! ethexe-cli       ──(EthereumBuilder)────┤──▶  ethexe-ethereum  ──▶  Ethereum RPC
-//! ethexe-service   ──(Ethereum client)────┤         │
-//! ethexe-sdk       ──(contract wrappers)──┘         └──▶  ethexe-common (BlockHeader, Digest)
-//!                                                          gsigner / gprimitives (ActorId, H256)
-//! ```
-//!
-//! This crate does not execute Gear programs (see `ethexe-processor`), watch the chain as an event
-//! loop (see `ethexe-observer`), implement consensus logic (see `ethexe-consensus`), or persist
-//! data (see `ethexe-db`). It is purely a client/binding layer.
-//!
-//! ## Entry Points / Public API
-//!
-//! Build a client with [`EthereumBuilder`], then call methods on the returned [`Ethereum`] instance:
+//! Build a client with [`EthereumBuilder`], then call methods on the returned [`Ethereum`]:
 //!
 //! ```rust,no_run
 //! use ethexe_ethereum::{Ethereum, EthereumBuilder};
@@ -53,44 +29,39 @@
 //!     .build()
 //!     .await?;
 //!
-//! let router = ethereum.router();           // Router.sol write handle
-//! let _query = router.query();              // read-only views
+//! let router = ethereum.router(); // Router.sol write handle
 //! let mirror = ethereum.mirror(program_id); // per-program Mirror.sol handle
 //! mirror.send_message(payload, value).await?;
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! ## Key Types
+//! ## Public API
 //!
-//! | Type | Purpose |
+//! | Item | Purpose |
 //! |------|---------|
-//! | [`AlloyProvider`] | Type alias for the concrete alloy provider stack; returned by [`Ethereum::provider`] |
 //! | [`EthereumBuilder`] | Fluent builder: RPC URL, router address, signer, fee tuning |
 //! | [`Ethereum`] | Central connection; vends contract handles and block queries |
-//! | [`router::Router`] / `RouterQuery` | Router.sol: code validation, batch commitment, program creation |
-//! | [`mirror::Mirror`] / `MirrorQuery` | Mirror.sol: send/reply messages, claim value, top up balances |
-//! | [`wvara::WVara`] / `WVaraQuery` | WrappedVara ERC-20: transfer, approve, mint, balance queries |
-//! | [`middleware::Middleware`] / `MiddlewareQuery` | Validator election/permissions contract |
+//! | [`AlloyProvider`] | Concrete alloy provider stack; returned by [`Ethereum::provider`] |
+//! | [`router::Router`] | Router.sol: code validation, batch commitment, program creation |
+//! | [`mirror::Mirror`] | Mirror.sol: send/reply messages, claim value, top up balances |
+//! | [`wvara::WVara`] | WrappedVara ERC-20: transfer, approve, mint, balance queries |
+//! | [`middleware::Middleware`] | Validator election/permissions contract |
 //! | [`TryGetReceipt`] | Retry-aware receipt retrieval with log parsing and revert detection |
-//! | [`IntoBlockId`] | Convert `H256` / `u32` / `u64` into `alloy::eips::BlockId` |
+//! | [`IntoBlockId`] | Convert `H256` / `u32` / `u64` into a block id |
+//! | [`deploy::EthereumDeployer`] | Deploy the full contract set in local/test environments |
+//! | [`primitives`] / [`abi`] | Re-exported `alloy::primitives`; generated ABI bindings |
+//!
+//! Each contract handle also vends a read-only query counterpart (`RouterQuery`, `MirrorQuery`,
+//! `WVaraQuery`, `MiddlewareQuery`) and event-filter builders.
 //!
 //! ## Invariants
 //!
 //! - [`EthereumBuilder::build`] errors if `signer` or `sender_address` are not set.
-//! - [`Ethereum::middleware`] panics if the middleware address is zero — this happens when the
-//!   contract set was deployed without the `with_middleware` flag on [`deploy::EthereumDeployer`].
-//! - [`TryGetReceipt::try_get_receipt`] retries up to 20 times (100 ms apart) only while the RPC
-//!   returns a null response; any other error breaks the loop immediately.
-//! - [`TryGetReceipt::try_get_message_send_receipt`] requires a `MessageQueueingRequested` log in
-//!   the receipt or returns an error.
-//! - The EIP-712 permit deadline is set to `latest_block.timestamp + PERMIT_DEADLINE_OFFSET`
-//!   (300 s).
-//!
-//! ## Testing
-//!
-//! [`deploy::EthereumDeployer`] is documented as a test/local-deployment helper. Integration tests
-//! in `ethexe-service` drive it against Anvil (a local Ethereum node) with mock contracts.
+//! - [`Ethereum::middleware`] panics if the middleware address is zero, which happens when the
+//!   contract set was deployed without the middleware flag on [`deploy::EthereumDeployer`].
+//! - [`TryGetReceipt::try_get_message_send_receipt`] requires a `MessageQueueingRequested` log
+//!   in the receipt or returns an error.
 
 #![allow(dead_code, clippy::new_without_default)]
 

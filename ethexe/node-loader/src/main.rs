@@ -5,77 +5,42 @@
 //!
 //! Load generator and fuzzing harness for local `ethexe` deployments.
 //!
-//! ## Purpose
-//!
-//! `ethexe-node-loader` drives an already-running ethexe node under sustained,
-//! mixed traffic for local development and failure reproduction. It talks to an
-//! Ethereum RPC endpoint (via [`ethexe-ethereum`]) and one or more ethexe RPC
-//! nodes (via [`ethexe-sdk`]); it does not start a node, run validators, or
-//! deploy the Router contract — all of those must exist beforehand.
+//! It drives an already-running ethexe node under sustained, mixed traffic for
+//! local development and failure reproduction, talking to an Ethereum RPC endpoint
+//! (via [`ethexe-ethereum`]) and one or more ethexe RPC nodes (via [`ethexe-sdk`]).
+//! It does not start a node, run validators, or deploy the Router contract — all of
+//! those must exist beforehand.
 //!
 //! ## Modes
 //!
-//! ```text
-//! ethexe-node-loader
-//!     ├── load  — parallel worker pool; randomized upload/create/send/reply/claim batches
-//!     ├── fuzz  — deploys demo syscall contract; sends randomized command sequences
-//!     └── dump  — writes a generated Gear WASM module for a fixed seed to disk
-//! ```
+//! The CLI selects one of three modes via [`Params`]:
 //!
-//! - **load** — [`BatchPool`] maintains one [`Ethereum`] client per funded worker
-//!   account. A block subscription drives event collection so the loader tracks
-//!   created programs, mailbox state, and reply outcomes across batches.
-//!   [`WorkloadPolicy`] controls the operation mix; [`ValuePolicy`] caps value
-//!   attached to messages and worker top-ups.
+//! - `load` — a parallel worker pool issuing randomized upload/create/send/reply/claim
+//!   batches. [`BatchPool`] keeps one [`Ethereum`] client per funded worker account
+//!   and tracks created programs, mailbox state, and reply outcomes across batches.
+//! - `fuzz` — deploys the demo syscall ("mega") contract once, then repeatedly sends
+//!   it randomized command sequences.
+//! - `dump` — materializes a deterministic Gear WASM module for a fixed seed to disk,
+//!   useful for reproducing generation-based failures offline.
 //!
-//! - **fuzz** — deploys the demo syscall ("mega") contract once, then repeatedly
-//!   sends it randomized command sequences produced by `fuzz::run_fuzz`.
+//! ## Public API
 //!
-//! - **dump** — calls `utils::dump_with_seed` to materialize a deterministic WASM
-//!   module; useful for reproducing generation-based failures offline.
-//!
-//! ## Entry Point
-//!
-//! `main` parses CLI arguments via `args::parse_cli_params`, dispatches on
-//! [`Params`], and returns when the run completes or a SIGINT/SIGTERM arrives.
-//!
-//! Load mode follows this setup sequence:
-//!
-//! 1. Validate worker count, private-key count, ethexe node URLs, and router
-//!    address.
-//! 2. Create the deployer [`Ethereum`] client and deploy (or reuse) the
-//!    `send_message` multicall helper.
-//! 3. Initialize one [`Ethereum`] client per worker, funding each to
-//!    `worker_mint_amount` WVARA and granting Router/multicall approvals via
-//!    `WorkerFundingPlan`.
-//! 4. Start the block listener (`utils::listen_blocks`) and [`BatchPool::run`]
-//!    concurrently; drain in-flight work on shutdown signal.
-//!
-//! ## Key Types
-//!
-//! - [`Params`] — top-level CLI mode selector: `Dump { seed }`, `Load`, `Fuzz`.
-//! - `LoadParams` — full configuration for load mode (node URL, worker count,
-//!   batch size, key material, value/workload knobs).
-//! - [`BatchPool`] — owns the per-worker client pool; `run(config, shutdown_rx)`
-//!   drives continuous batch execution.
-//! - [`LoadRunConfig`] — per-run parameters threaded into `BatchPool::run`.
-//! - [`WorkloadPolicy`] — controls the ratio of program-creation to message sends.
-//! - [`ValuePolicy`] — budget caps for message values and worker top-ups.
-//! - `WorkerFundingPlan` — per-worker decision record (mint amount, approval flags)
-//!   computed before the run starts.
+//! | Item | Purpose |
+//! |------|---------|
+//! | [`Params`] | Top-level CLI mode selector: `Dump { seed }`, `Load`, `Fuzz`. |
+//! | [`LoadParams`] | Full configuration for load mode (node URL, worker count, batch size, key material, value/workload knobs). |
+//! | [`BatchPool`] | Owns the per-worker client pool; `run(config, shutdown_rx)` drives continuous batch execution. |
+//! | [`LoadRunConfig`] | Per-run parameters threaded into [`BatchPool::run`]. |
+//! | [`WorkloadPolicy`] | Controls the ratio of program-creation to message sends. |
+//! | [`ValuePolicy`] | Budget caps for message values and worker top-ups. |
 //!
 //! ## Invariants
 //!
 //! - `workers` must be greater than zero; validated before any network calls.
 //! - When worker private keys are supplied their count must equal `workers`;
 //!   otherwise Anvil-mnemonic derivation is used as a fallback.
-//! - A worker whose address equals the deployer address skips self-approval but
-//!   still approves the multicall contract.
-//! - Worker mint amount priority: explicit `--mint-amount` override > policy
-//!   total-top-up budget (floored at `MIN_POLICY_WORKER_MINT_AMOUNT`) >
-//!   `DEFAULT_WORKER_MINT_AMOUNT`.
-//! - Shutdown listens for both SIGINT and SIGTERM so `docker stop` triggers a
-//!   clean drain rather than a hard kill.
+//! - Shutdown listens for both SIGINT and SIGTERM so `docker stop` triggers a clean
+//!   drain rather than a hard kill.
 
 use crate::{
     abi::deploy_send_message_multicall,

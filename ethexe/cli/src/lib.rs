@@ -4,79 +4,44 @@
 //! # ethexe-cli
 //!
 //! Command-line entrypoint for operating Vara.eth (ethexe) nodes. This crate contains no
-//! business logic — it parses arguments, loads configuration, and delegates all real work to
-//! the underlying service and library crates.
-//!
-//! ## Responsibilities
-//!
-//! At startup the binary:
-//!
-//! 1. Parses the top-level CLI through [`Cli`].
-//! 2. Loads `./.ethexe.toml` (or a custom path from `--cfg`; `--cfg none` disables file
-//!    loading).
-//! 3. Merges file-based configuration with CLI flags, with CLI values taking priority via the
-//!    `MergeParams` trait.
-//! 4. Dispatches to the chosen command group.
-//!
-//! The `node` and `ethereum` parameter sections are mandatory; configuration construction
-//! fails early if either is absent.
+//! business logic: it parses arguments, loads configuration, merges file-based config with CLI
+//! flags (CLI wins), and delegates all real work to the underlying service and library crates.
 //!
 //! ## Role in the Stack
 //!
-//! `ethexe-cli` sits at the top of the ethexe workspace. It depends on:
-//!
-//! - `ethexe-service` — the main orchestrator; the CLI builds its `Config` and calls into it
-//!   for the `run` subcommand.
-//! - `ethexe-compute`, `ethexe-network`, `ethexe-malachite`, `ethexe-prometheus`,
-//!   `ethexe-rpc`, `ethexe-ethereum`, `ethexe-db`, `ethexe-processor`,
-//!   `ethexe-runtime-common` — each configurable through the corresponding `Params` section.
-//!
-//! No other ethexe crate depends on `ethexe-cli`; it is a leaf binary.
+//! `ethexe-cli` is a leaf binary at the top of the ethexe workspace; no other ethexe crate
+//! depends on it. It builds an `ethexe_service::config::Config` and calls into `ethexe-service`
+//! for the `run` subcommand, drawing configuration sections from `ethexe-compute`,
+//! `ethexe-network`, `ethexe-malachite`, `ethexe-prometheus`, `ethexe-rpc`, `ethexe-ethereum`,
+//! `ethexe-db`, `ethexe-processor`, and `ethexe-runtime-common`.
 //!
 //! ## Entry Point
 //!
-//! [`Cli`] is the only public item exported from the crate. `main.rs` is two lines:
+//! [`Cli`] is the only public item exported from the crate. [`Cli::run`] is the single entry
+//! point, and [`Cli::DEFAULT_PARAMS_PATH`] (`"./.ethexe.toml"`) is the default config location.
 //!
 //! ```rust,no_run
 //! use clap::Parser;
 //! use ethexe_cli::Cli;
 //!
 //! fn main() -> anyhow::Result<()> {
-//!     let cli = Cli::parse();
-//!     cli.run()
+//!     Cli::parse().run()
 //! }
 //! ```
 //!
 //! ## Command Groups
 //!
-//! | Subcommand    | Purpose                                              |
-//! |---------------|------------------------------------------------------|
-//! | `run`         | Launch the full ethexe service stack                 |
-//! | `key`         | Keystore manipulation (generate, inspect keypairs)   |
-//! | `tx`          | Submit Ethereum and injected transactions            |
-//! | `check`       | Verify the ethexe database for integrity/correctness |
-//! | `dump`        | State dump operations for re-genesis                 |
-//! | `malachite`   | Malachite-consensus helpers (e.g. peer-id derivation)|
+//! | Subcommand  | Purpose                                              |
+//! |-------------|------------------------------------------------------|
+//! | `run`       | Launch the full ethexe service stack                 |
+//! | `key`       | Keystore manipulation (generate, inspect keypairs)   |
+//! | `tx`        | Submit Ethereum and injected transactions            |
+//! | `check`     | Verify the ethexe database for integrity/correctness |
+//! | `dump`      | State dump operations for re-genesis                 |
+//! | `malachite` | Malachite-consensus helpers (e.g. peer-id derivation)|
 //!
-//! ## Key Types
-//!
-//! - [`Cli`] — top-level clap parser; holds an optional `--cfg` path and the selected
-//!   `command`; [`Cli::run`] is the single public entry point.
-//! - `DEFAULT_PARAMS_PATH` — compile-time constant `"./.ethexe.toml"` for the default config
-//!   location.
-//!
-//! ## Configuration Model
-//!
-//! The `Params` struct is deserialized from TOML (`#[serde(deny_unknown_fields)]`) and also
-//! populated by clap. Optional sections — `node`, `ethereum`, `network`, `malachite`, `rpc`,
-//! `prometheus` — mirror the sub-crate configs. `Params::into_config()` produces the
-//! `ethexe_service::config::Config` consumed by the service.
-//!
-//! ## Logging
-//!
-//! Logging is initialised per command via an internal helper that configures
-//! `tracing-subscriber` with a caller-supplied default level and `RUST_LOG` override support.
-//! Verbose Cranelift/Wasmtime logs are unconditionally suppressed.
+//! The `node` and `ethereum` configuration sections are mandatory; configuration construction
+//! fails early if either is absent.
 
 use anyhow::{Context, Result};
 use clap::Parser;

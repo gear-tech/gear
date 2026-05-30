@@ -4,87 +4,38 @@
 //! # Vara.eth service
 //!
 //! Top-level orchestrator for an ethexe node. Constructs every subservice from a
-//! single [`Config`] and drives them through one async event loop.
-//!
-//! ## Responsibilities
-//!
-//! This crate owns the full node lifecycle: it builds all subservices in
-//! [`Service::new`], optionally runs a fast-sync pass, then enters
-//! [`Service::run`] — a `tokio::select!` loop that polls each subservice as a
-//! [`futures::Stream`] and routes the resulting [`Event`] variants to the
-//! appropriate recipients.
-//!
-//! The crate does **not** implement computation, consensus, networking, or RPC
-//! itself; those responsibilities live in `ethexe-compute`, `ethexe-consensus`,
-//! `ethexe-malachite`, `ethexe-network`, `ethexe-rpc`, and the other subservice
-//! crates. This crate only wires them together.
+//! single [`Config`] and drives them through one async event loop. The crate does
+//! not implement computation, consensus, networking, or RPC itself; it only wires
+//! those subservices together.
 //!
 //! ## Role in the stack
 //!
-//! ```text
-//! ethexe-cli  (binary — parses CLI args, calls Service::new / Service::run)
-//!     │
-//!     └─► ethexe-service  (this crate — orchestrates all subservices)
-//!             ├── ethexe-observer      (Ethereum block observation)
-//!             ├── ethexe-blob-loader   (EIP-4844 code blob loading)
-//!             ├── ethexe-compute       (block/program computation)
-//!             ├── ethexe-consensus     (validator state machine, optional)
-//!             ├── ethexe-malachite     (BFT block-ordering engine — always running)
-//!             ├── ethexe-network       (libp2p P2P networking, optional)
-//!             ├── ethexe-rpc           (JSON-RPC server, optional)
-//!             └── ethexe-prometheus    (metrics, optional)
-//! ```
+//! `ethexe-cli` parses CLI args and calls [`Service::new`] then [`Service::run`].
+//! This crate builds and orchestrates the subservice crates: `ethexe-observer`,
+//! `ethexe-blob-loader`, `ethexe-compute`, `ethexe-consensus`, `ethexe-malachite`,
+//! `ethexe-network`, `ethexe-rpc`, and `ethexe-prometheus`.
 //!
-//! ## Entry points / Public API
+//! ## Public API
 //!
-//! - [`Service::new`] — builds the full service from a [`Config`]. Opens
-//!   `RocksDatabase`, queries the Router for genesis hash and validator set,
-//!   constructs every subservice, and returns a ready-to-run [`Service`].
-//! - [`Service::run`] — runs optional fast-sync then the main event loop until
-//!   an error or shutdown signal is received.
-//! - [`Service::install_shutdown_channel`] — returns a `oneshot::Sender<()>` that
-//!   breaks the loop and awaits [`MalachiteService::shutdown`] before `run`
-//!   returns, freeing the RocksDB advisory lock and libp2p listener.
-//! - [`Service::configure_dev_environment`] — spawns Anvil, imports dev keys,
-//!   deploys contracts, and funds accounts; intended for local development only.
-//!
-//! ## Key types
-//!
-//! - [`Service`] — the top-level orchestrator; owns the database and every
-//!   subservice; built via `new`, run via `run`.
-//! - [`Event`] — unifies the eight subservice event streams into one enum so the
-//!   run loop can dispatch with a single `select!`; each variant wraps the
-//!   corresponding subservice event type.
-//! - [`config::Config`] — full node configuration consumed by [`Service::new`];
-//!   sections cover node, Ethereum, Malachite, network, Prometheus, and RPC.
-//! - [`config::ConfigPublicKey`] — `Enabled(PublicKey)` / `Random` / `Disabled`;
-//!   resolves the validator key and determines whether the node runs as a
-//!   validator.
+//! | Item | Purpose |
+//! |------|---------|
+//! | [`Service`] | Top-level orchestrator; owns the database and every subservice. |
+//! | [`Service::new`] | Builds the full service from a [`Config`]. |
+//! | [`Service::run`] | Runs optional fast-sync then the main event loop until error or shutdown. |
+//! | [`Service::install_shutdown_channel`] | Returns a `oneshot::Sender<()>` that triggers graceful teardown. |
+//! | [`Service::configure_dev_environment`] | Spawns Anvil, imports dev keys, deploys contracts; local development only. |
+//! | [`Event`] | Unifies the subservice event streams into one enum for the run loop. |
+//! | [`config::Config`] | Full node configuration consumed by [`Service::new`]. |
+//! | [`config::ConfigPublicKey`] | Resolves the validator key and whether the node runs as a validator. |
 //!
 //! ## Invariants
 //!
-//! - **Validator gating**: `consensus` is `None` for connect (non-validator)
-//!   nodes; all `ConsensusService` calls are guarded by `if let Some(c)`.
-//! - **Malachite/compute quarantine agreement**: `MalachiteConfig::canonical_quarantine`
-//!   must match `Config::node::canonical_quarantine` or consensus deadlocks.
-//! - **Genesis hash**: the Router must return a non-zero genesis block hash before
-//!   startup; [`Service::new`] bails otherwise.
-//! - **Validator table completeness**: every on-chain validator address must have
-//!   an entry in the Malachite public-keys table supplied via configuration, or
-//!   `new` returns an error.
-//! - **`MbComputed` ordering**: the compact MB block is persisted to the database
-//!   before [`ComputeEvent::MbComputed`] is emitted; `latest_computed_mb_hash`
-//!   advances monotonically by height and never retreats.
-//! - **Graceful shutdown**: `MalachiteService::shutdown` must complete before the
-//!   process exits; a plain `JoinHandle::abort` does not guarantee WAL flush or
-//!   lock release.
-//!
-//! ## Testing
-//!
-//! Integration tests in `src/tests` use the private `TestEnv` / `new_from_parts`
-//! harness. Each test node constructs a [`Service`] against an in-memory database
-//! and an Anvil-backed or mock Ethereum environment, then observes behavior
-//! through `TestingEvent` streams that mirror the internal [`Event`] flow.
+//! - The Router must return a non-zero genesis block hash before startup, or
+//!   [`Service::new`] errors.
+//! - Every on-chain validator address must have an entry in the Malachite
+//!   public-keys table supplied via configuration, or [`Service::new`] errors.
+//! - `MalachiteService::shutdown` must complete before the process exits;
+//!   [`Service::install_shutdown_channel`] guarantees this on graceful teardown.
 //!
 //! ```rust,no_run
 //! use ethexe_service::{Service, config::Config};

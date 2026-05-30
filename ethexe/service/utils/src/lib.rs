@@ -3,54 +3,32 @@
 
 //! # ethexe-service-utils
 //!
-//! Async-runtime helpers that make `tokio::select!`-style event loops cleaner when
-//! service branches are optional or conditionally present.
+//! Async-runtime helpers that keep `tokio::select!`-style event loops clean when
+//! service branches are optional or conditionally present. No ethexe domain logic.
 //!
-//! ## Responsibilities
-//!
-//! Three focused primitives, no ethexe domain logic:
-//!
-//! - **Optional-branch adapters** — [`OptionFuture`] and [`OptionStreamNext`] let an
-//!   `Option<Future>` or `&mut Option<Stream>` sit in a `select!` arm without special
-//!   casing: a `None` variant stays pending forever rather than resolving or panicking.
-//! - **Named restartable timer** — [`Timer`] wraps `tokio::time::Sleep` and carries
-//!   arbitrary data `T`; it resolves to that data when the deadline elapses and stays
-//!   pending until restarted with `start`.
-//! - **Mutable task-local storage** — the [`task_local!`] macro declares a
-//!   `static LocalKey<T>` that behaves like `tokio::task_local!` but permits mutable
-//!   access via [`LocalKey::with_mut`] and returns the stored value out of the scope.
-//!
-//! ## Role in the Stack
-//!
-//! This crate has no dependency on any other ethexe crate. It is consumed by:
-//!
-//! - `ethexe-service` — imports [`OptionFuture`] and [`OptionStreamNext`] in its main
-//!   service `select!` loop to drive optional subsystems (consensus, network, RPC,
-//!   Prometheus) without conditional branches.
-//! - `ethexe-network` — uses [`task_local!`] in its database-sync request handler for
-//!   mutable per-task state.
+//! It depends on no other ethexe crate. `ethexe-service` uses [`OptionFuture`] and
+//! [`OptionStreamNext`] to drive optional subsystems (consensus, network, RPC,
+//! Prometheus) in its main `select!` loop; `ethexe-network` uses [`task_local!`]
+//! for mutable per-task state in its database-sync handler.
 //!
 //! ## Public API
 //!
 //! | Item | Kind | Notes |
 //! |------|------|-------|
-//! | [`OptionFuture`] | sealed trait | `.maybe()` on `Option<F: Future>` |
+//! | [`OptionFuture`] | sealed trait | `.maybe()` on `Option<F: Future>`; a `None` stays pending forever |
 //! | [`OptionStreamNext`] | sealed trait | `.maybe_next()` / `.maybe_next_some()` on `&mut Option<S>` and `&mut FuturesUnordered<F>` |
-//! | [`Timer`] | struct | `new` / `new_from_secs` / `new_from_millis`; `start` / `stop` / `started` |
-//! | [`LocalKey`] | struct | `scope` / `with_mut` / `poll_fn` |
-//! | `task_local!` | macro | declares a `static LocalKey<T>` |
+//! | [`Timer`] | struct | named restartable timer carrying data `T`; `new` / `new_from_secs` / `new_from_millis`, `start` / `stop` / `started` |
+//! | [`LocalKey`] | struct | mutable task-local; `scope` / `with_mut` / `poll_fn` |
+//! | [`task_local!`] | macro | declares a `static LocalKey<T>`, like `tokio::task_local!` but mutable |
 //!
-//! Both traits are sealed: only the impls provided in this crate satisfy them.
-//!
-//! Calling `maybe_next` (not `maybe_next_some`) on a `&mut FuturesUnordered` panics by
-//! design — only `maybe_next_some` is supported for that type.
+//! Both traits are sealed: only the impls in this crate satisfy them. Calling
+//! `maybe_next` (not `maybe_next_some`) on a `&mut FuturesUnordered` panics by design.
 //!
 //! ## Usage
 //!
 //! ```rust,no_run
 //! use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _, Timer};
 //!
-//! // Bring traits into scope as `_` (they are sealed; only their methods matter).
 //! // Optional services stay pending when absent; present ones yield events normally.
 //! tokio::select! {
 //!     event = consensus.maybe_next_some() => handle(event),
@@ -60,8 +38,7 @@
 //!
 //! // Timer: arm with data, await, rearm.
 //! let mut t: Timer<u32> = Timer::new_from_secs("retry", 5);
-//! t.start(42);
-//! // resolves to 42 after 5 s; pending again until start() is called
+//! t.start(42); // resolves to 42 after 5 s; pending again until start() is called
 //! ```
 #![allow(async_fn_in_trait)]
 

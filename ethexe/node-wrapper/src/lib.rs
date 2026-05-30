@@ -6,46 +6,28 @@
 //! A test and development harness that spawns a local `Vara.eth` (`ethexe`) node as a child
 //! OS process and exposes its RPC endpoints to the caller.
 //!
-//! ## Purpose
+//! It locates the `ethexe` binary, runs it in `--dev` mode (which starts an internal Anvil
+//! instance and deploys the required Ethereum contracts), and returns a handle to the node's
+//! JSON-RPC and backing Ethereum RPC endpoints. On drop, [`VaraEthInstance`] tears down the
+//! whole process group, including the internal Anvil process.
 //!
-//! This crate locates the `ethexe` binary on `$PATH` (or a caller-supplied path), spawns it
-//! with `["run", "--dev", "--no-network"]`, and returns a handle that gives access to the
-//! node's JSON-RPC and backing Ethereum RPC endpoints. The `--dev` flag causes the node to
-//! start an internal Anvil instance and deploy the required Ethereum smart-contracts; this
-//! crate does not deploy contracts directly.
-//!
-//! On drop, [`VaraEthInstance`] sends `SIGTERM` to the entire process group so the internally-
-//! spawned Anvil process is also torn down.
-//!
-//! ## Role in the Stack
-//!
-//! ```text
-//! ethexe-sdk
-//!     └── ethexe-node-wrapper   (spawns & manages child process)
-//!             └── ethexe binary (ethexe-cli / ethexe-service)
-//!                     └── Anvil (Ethereum dev node, started by --dev flag)
-//! ```
-//!
-//! This crate depends on [`ethexe-rpc`] (client feature) for the JSON-RPC client traits used
-//! to query the running node and on `ethexe-common` for shared address types.
+//! Consumed by `ethexe-sdk`. Depends on [`ethexe-rpc`] (client feature) for the JSON-RPC
+//! client traits and on `ethexe-common` for shared address types.
 //!
 //! ## Public API
 //!
 //! | Item | Description |
 //! |------|-------------|
-//! | [`VaraEth`] | Builder: configure binary path, block time, RPC port, startup timeout, extra args, then call `spawn_immediate` or `spawn_ready`. |
-//! | [`VaraEthInstance`] | Handle to a running node. Provides `router_address`, `ws_client`, `http_client`, `ws_endpoint`, `http_endpoint`, `ethereum_ws_endpoint`, `ethereum_http_endpoint`. Closes the node on drop. |
-//! | [`Error`] | `thiserror` error enum covering `BinaryNotFound`, `Spawn`, `Timeout`, `BuildHttpClient`, `BuildWsClient`, `QueryRouterAddress`. |
+//! | [`VaraEth`] | Builder: configure binary path, block time, RPC port, startup timeout, and extra args, then call [`VaraEth::spawn_immediate`] or [`VaraEth::spawn_ready`]. |
+//! | [`VaraEthInstance`] | Handle to a running node, exposing `router_address`, `ws_client`, `http_client`, and the WS/HTTP endpoints for both the node and its Ethereum RPC. Closes the node on drop. |
+//! | [`Error`] | Error enum covering binary lookup, spawn, startup timeout, client construction, and router-address query failures. |
 //!
 //! ## Key Invariants
 //!
-//! - RPC is always enabled; default port is `9944`.
-//! - The Ethereum RPC endpoint is always `127.0.0.1:8545` (the Anvil default used by
-//!   `ethexe run --dev`).
-//! - `spawn_ready` polls the WebSocket endpoint and returns [`Error::Timeout`] if the node
-//!   does not answer within the configured startup timeout (default 5 s).
-//! - The child process is placed in its own process group on spawn so that the drop-time group
-//!   kill reaches the internal Anvil process.
+//! - RPC is always enabled; the default node port is `9944` and the Ethereum RPC endpoint is
+//!   `127.0.0.1:8545` (the Anvil default used by `ethexe run --dev`).
+//! - [`VaraEth::spawn_ready`] returns [`Error::Timeout`] if the node does not answer within the
+//!   configured startup timeout (default 5 s); [`VaraEth::spawn_immediate`] returns at once.
 //!
 //! ## Usage
 //!
