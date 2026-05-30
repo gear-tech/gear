@@ -68,18 +68,26 @@
 
 extern crate alloc;
 
+/// Validation request/reply messages and timeline helpers for the 2-of-3 batch commitment protocol.
 pub mod consensus;
+/// Storage trait abstractions (`*StorageRO` / `*StorageRW`) and block-metadata types; concrete backends live in `ethexe-db`.
 pub mod db;
+/// On-chain event model: `BlockEvent` (Mirror/Router variants) and the `WVaraEvent` token-event type.
 pub mod events;
+/// Protocol commitment types (`BatchCommitment`, `ChainCommitment`, `CodeCommitment`, etc.) and `StateTransition`.
 pub mod gear;
 mod hash;
+/// Injected transactions, promises, and receipts for inbound cross-chain messaging.
 pub mod injected;
+/// Sequencer block-payload shape (`Transactions`, `Transaction`) consumed by the compute layer.
 pub mod malachite;
+/// Validator network messages (`ValidatorMessage` and signed/verified variants).
 pub mod network;
 mod primitives;
 mod utils;
 mod validators;
 
+/// Test helpers and proptest fixtures (enabled by the `mock` feature).
 #[cfg(feature = "mock")]
 pub mod mock;
 
@@ -88,6 +96,7 @@ pub use gsigner::{
     SignedData, SignedMessage, ToDigest, VerifiedData,
 };
 pub use validators::{EmptyValidatorsError, ValidatorsVec};
+/// secp256k1 crypto re-exports from `gsigner` for use without the full `gsigner` dependency surface.
 pub mod ecdsa {
     pub use gsigner::secp256k1::{
         ContractSignature, PrivateKey, PublicKey, Signature, SignedData, SignedMessage,
@@ -115,7 +124,11 @@ pub const DEFAULT_COMMITMENT_DELAY_LIMIT: core::num::NonZero<u8> =
 pub const MAX_TOUCHED_PROGRAMS_PER_MB: u32 = 128;
 
 // Soft limits for one MB processing. Stops execution if any of them is exceeded.
+/// Maximum number of outgoing messages produced by a single MB before execution stops.
 pub const OUTGOING_MESSAGES_SOFT_LIMIT: u32 = 128;
+/// Maximum total byte size of outgoing messages produced by a single MB before execution stops.
 pub const OUTGOING_MESSAGES_BYTES_SOFT_LIMIT: u32 = 32 * 1024;
+/// Maximum number of call-reply messages produced by a single MB before execution stops.
 pub const CALL_REPLY_SOFT_LIMIT: u32 = 4;
+/// Maximum number of program state modifications allowed per MB; half of [`MAX_TOUCHED_PROGRAMS_PER_MB`].
 pub const PROGRAM_MODIFICATIONS_SOFT_LIMIT: u32 = MAX_TOUCHED_PROGRAMS_PER_MB / 2;

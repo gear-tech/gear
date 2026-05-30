@@ -8,6 +8,11 @@ use gear_core::{
 };
 
 // TODO: impl Codec for CodeError, so could be thrown to host via memory.
+/// Validates and instruments raw WASM bytecode for use as a Gear program on the Ethereum execution layer.
+///
+/// Applies gas-metering rules and structural limits from the default [`Schedule`], then returns the
+/// instrumented code together with its metadata. Returns `None` if the input or instrumented output
+/// exceeds the schedule's `code_len` limit, or if validation/instrumentation fails.
 pub fn instrument_code(original_code: Vec<u8>) -> Option<(InstrumentedCode, CodeMetadata)> {
     log::debug!("Runtime::instrument_code(..)");
 

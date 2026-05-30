@@ -9,14 +9,17 @@ interface::declare! {
     pub(super) fn ext_allocator_malloc_version_1(size: i32) -> *mut u8;
 }
 
+/// Frees a previously allocated block of memory via the host allocator syscall.
 pub fn free(ptr: *mut u8) {
     unsafe { sys::ext_allocator_free_version_1(ptr) }
 }
 
+/// Allocates `size` bytes via the host allocator syscall and returns a raw pointer to the block.
 pub fn malloc(size: usize) -> *mut u8 {
     unsafe { sys::ext_allocator_malloc_version_1(size as _) }
 }
 
+/// Global allocator that delegates all allocations to the host runtime via `malloc` and `free`.
 pub struct RuntimeAllocator;
 
 unsafe impl GlobalAlloc for RuntimeAllocator {

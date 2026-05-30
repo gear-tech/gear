@@ -44,6 +44,7 @@ impl TypeInfo for ValidatorsVec {
     }
 }
 
+/// Error returned when attempting to construct a [`ValidatorsVec`] from an empty collection.
 #[derive(Debug, Display)]
 #[display("ValidatorsVec cannot be created from an empty collection")]
 pub struct EmptyValidatorsError;

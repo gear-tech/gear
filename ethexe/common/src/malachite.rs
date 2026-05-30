@@ -51,6 +51,7 @@ pub struct ProgressTasksLimits {}
 #[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ProcessQueuesLimits {
+    /// Maximum gas the executor may consume while draining message queues in this block.
     pub gas_allowance: u64,
 }
 
@@ -74,6 +75,7 @@ impl Transaction {
 pub struct Transactions(pub Vec<Transaction>);
 
 impl Transactions {
+    /// Wraps an ordered list of transactions into a [`Transactions`] block payload.
     pub fn new(transactions: Vec<Transaction>) -> Self {
         Self(transactions)
     }

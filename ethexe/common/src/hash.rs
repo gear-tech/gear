@@ -28,6 +28,10 @@ fn shortname<T: Any>() -> &'static str {
         .expect("name is empty")
 }
 
+/// A typed wrapper around [`H256`] that carries phantom type information about what was hashed.
+///
+/// The phantom type `T` prevents accidentally mixing hashes of different content types at
+/// compile time. Serialization, encoding, and ordering ignore `T` and operate on the raw hash.
 #[derive(Encode, Decode, TypeInfo, derive_more::Into, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(transparent))]
@@ -102,6 +106,7 @@ impl<T> HashOf<T> {
         self.hash
     }
 
+    /// Returns a [`HashOf<T>`] whose underlying hash is all zeros.
     pub fn zero() -> Self {
         Self {
             hash: H256::zero(),
@@ -109,6 +114,7 @@ impl<T> HashOf<T> {
         }
     }
 
+    /// Returns a [`HashOf<T>`] with a cryptographically random underlying hash.
     #[cfg(feature = "mock")]
     pub fn random() -> Self {
         Self {
@@ -124,6 +130,8 @@ impl<T> Default for HashOf<T> {
     }
 }
 
+/// An optional typed hash: a newtype over `Option<HashOf<T>>` that represents a hash which may
+/// be absent (e.g., a parent pointer for the genesis block or an unset field).
 #[derive(
     Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::From, derive_more::Display,
 )]
@@ -157,30 +165,37 @@ impl<T> Hash for MaybeHashOf<T> {
 }
 
 impl<T> MaybeHashOf<T> {
+    /// Returns a [`MaybeHashOf<T>`] with no hash present.
     pub const fn empty() -> Self {
         Self(None)
     }
 
+    /// Returns `true` if no hash is present.
     pub const fn is_empty(&self) -> bool {
         self.0.is_none()
     }
 
+    /// Constructs a [`MaybeHashOf<T>`] from an `Option<HashOf<T>>`.
     pub fn from_inner(inner: Option<HashOf<T>>) -> Self {
         Self(inner)
     }
 
+    /// Returns the contained `Option<HashOf<T>>`.
     pub fn to_inner(self) -> Option<HashOf<T>> {
         self.0
     }
 
+    /// Applies `f` to the inner [`HashOf<T>`] if present, returning `None` otherwise.
     pub fn map<U>(&self, f: impl FnOnce(HashOf<T>) -> U) -> Option<U> {
         self.to_inner().map(f)
     }
 
+    /// Applies `f` to the inner hash if present; returns `U::default()` when absent.
     pub fn map_or_default<U: Default>(&self, f: impl FnOnce(HashOf<T>) -> U) -> U {
         self.map(f).unwrap_or_default()
     }
 
+    /// Applies a fallible `f` to the inner hash if present; returns `Ok(U::default())` when absent.
     pub fn try_map_or_default<U: Default>(
         &self,
         f: impl FnOnce(HashOf<T>) -> Result<U>,
@@ -188,6 +203,7 @@ impl<T> MaybeHashOf<T> {
         self.map(f).unwrap_or_else(|| Ok(Default::default()))
     }
 
+    /// Replaces `self` with `other` if `other` is `Some`; leaves `self` unchanged when `other` is `None`.
     pub fn replace(&mut self, other: Option<Self>) {
         if let Some(other) = other {
             *self = other;

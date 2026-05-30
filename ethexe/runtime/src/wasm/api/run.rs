@@ -4,6 +4,10 @@
 use crate::wasm::storage::NativeRuntimeInterface;
 use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, process_queue};
 
+/// Processes the program message queue for one block, returning execution journals and total gas spent.
+///
+/// Delegates to [`process_queue`] with a [`NativeRuntimeInterface`] instance, then
+/// logs each resulting journal note at debug level.
 pub fn run(ctx: ProcessQueueContext) -> (ProgramJournals, u64) {
     log::debug!("You're calling 'run(..)'");
 

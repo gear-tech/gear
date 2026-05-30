@@ -30,10 +30,17 @@ const LOGS_CHUNK_SIZE: u64 = 256;
 /// Maximum number of in-flight log chunk requests issued by [`alloy::contract::ChunkedEvent`].
 const LOGS_MAX_CONCURRENCY: usize = 8;
 
+/// A block selector for Ethereum RPC queries.
+///
+/// Wraps the three addressing modes accepted by the observer: a specific block hash,
+/// the chain head, or the latest finalized block.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::From)]
 pub enum BlockId {
+    /// A block identified by its 32-byte hash.
     Hash(H256),
+    /// The latest (head) block as reported by the provider.
     Latest,
+    /// The latest finalized block as reported by the provider.
     Finalized,
 }
 
@@ -47,15 +54,30 @@ impl BlockId {
     }
 }
 
+/// Abstracts fetching Ethereum block data (headers and decoded events) from a provider.
 #[allow(async_fn_in_trait)]
 pub trait BlockLoader {
+    /// Fetches the minimal block descriptor (hash + header) for a single block selector.
     async fn load_simple(&self, block: BlockId) -> Result<SimpleBlockData>;
 
+    /// Fetches the full [`BlockData`] for a block identified by hash.
+    ///
+    /// If `header` is `None` the implementation also fetches the header from the provider;
+    /// if a pre-fetched header is supplied it is used directly to save a round-trip.
     async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData>;
 
+    /// Fetches full [`BlockData`] for every block whose height falls within `range`.
+    ///
+    /// Returns a map keyed by block hash. An empty range returns an empty map without
+    /// making any RPC calls.
     async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>>;
 }
 
+/// alloy-backed [`BlockLoader`] that fetches block headers and router/mirror logs from Ethereum.
+///
+/// Logs are retrieved using alloy's chunked-event helper, which splits a block range into
+/// windows of at most `logs_chunk_size` blocks and issues up to `logs_max_concurrency`
+/// concurrent requests, falling back to per-block queries on failure.
 #[derive(Debug, Clone)]
 pub struct EthereumBlockLoader {
     provider: RootProvider,
@@ -65,6 +87,7 @@ pub struct EthereumBlockLoader {
 }
 
 impl EthereumBlockLoader {
+    /// Creates a new loader with default chunk and concurrency settings.
     pub fn new(provider: RootProvider, router_address: Address) -> Self {
         Self {
             provider,
@@ -74,11 +97,13 @@ impl EthereumBlockLoader {
         }
     }
 
+    /// Overrides the number of blocks per log-fetch window (default [`LOGS_CHUNK_SIZE`]).
     pub fn with_logs_chunk_size(mut self, chunk_size: u64) -> Self {
         self.logs_chunk_size = chunk_size;
         self
     }
 
+    /// Overrides the maximum number of concurrent log-chunk requests (default [`LOGS_MAX_CONCURRENCY`]).
     pub fn with_logs_max_concurrency(mut self, max_concurrency: usize) -> Self {
         self.logs_max_concurrency = max_concurrency;
         self

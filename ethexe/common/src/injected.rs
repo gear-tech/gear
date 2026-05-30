@@ -30,10 +30,16 @@ pub const MAX_INJECTED_TX_SALT_SIZE: usize = 32;
 /// always admissible.
 pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB: usize = 127 * 1024;
 
+/// Outcome returned by a node when it receives a [`SignedInjectedTransaction`].
+///
+/// Callers use this to decide whether to keep a promise subscription open:
+/// only `Accept` guarantees a future reply.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 pub enum InjectedTransactionAcceptance {
+    /// Transaction was accepted into the local mempool for the first time.
     Accept,
+    /// Transaction was rejected and will not be executed; no promise will follow.
     Reject { reason: String },
 }
 
@@ -48,17 +54,24 @@ impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
     }
 }
 
+/// An [`InjectedTransaction`] bundled with its ECDSA signature and sender address.
 pub type SignedInjectedTransaction = SignedMessage<InjectedTransaction>;
 
+/// A [`SignedInjectedTransaction`] paired with the validator it is directed to.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct AddressedInjectedTransaction {
     /// Address of validator the transaction intended for
     pub recipient: Address,
+    /// The signed transaction payload addressed to `recipient`.
     pub tx: SignedInjectedTransaction,
 }
 
+/// A cross-chain message injected from Ethereum into the Gear runtime.
+///
+/// The `MessageId` derived from this transaction equals its hash (`tx_hash`).
+/// Use [`InjectedTransaction::to_message_id`] to obtain it.
 /// IMPORTANT: message id == tx hash.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
@@ -175,7 +188,9 @@ impl ToDigest for Promise {
 /// The hashes of [`Promise`] parts.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct CompactPromise {
+    /// Hash of the [`InjectedTransaction`] this promise corresponds to.
     pub tx_hash: HashOf<InjectedTransaction>,
+    /// `blake2b` hash of the full [`ReplyInfo`] body.
     pub reply_hash: HashOf<ReplyInfo>,
 }
 
@@ -198,7 +213,12 @@ mod sealed {
     impl Sealed for super::CompactPromise {}
 }
 
+/// Sealed marker trait implemented by [`Promise`] and [`CompactPromise`].
+///
+/// Provides uniform access to the originating transaction hash regardless of
+/// which promise representation is stored in a [`Receipt`].
 pub trait PromiseKind: sealed::Sealed {
+    /// Returns the hash of the [`InjectedTransaction`] this promise covers.
     fn tx_hash(&self) -> HashOf<InjectedTransaction>;
 }
 
@@ -230,12 +250,14 @@ impl PromiseKind for CompactPromise {
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Receipt<P> {
+    /// The transaction was executed and a reply promise is available.
     Promise(P),
     /// No promise, transaction wasn't executed.
     Purged(PurgedTransaction),
 }
 
 impl<P: PromiseKind> Receipt<P> {
+    /// Returns the hash of the [`InjectedTransaction`] this receipt covers.
     pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
         match self {
             Self::Promise(promise) => promise.tx_hash(),
@@ -315,6 +337,10 @@ pub enum TryFillPromiseResult {
 }
 
 impl UnfilledPromiseReceipt {
+    /// Attempts to upgrade this receipt to a [`SignedTxReceipt`] using the full `promise` body.
+    ///
+    /// Returns [`TryFillPromiseResult::HashesMismatch`] if `promise` does not match the stored
+    /// compact hashes; returns [`TryFillPromiseResult::Filled`] on success.
     pub fn try_fill_with(self, promise: Promise) -> TryFillPromiseResult {
         if self.0 != promise.to_compact() {
             return TryFillPromiseResult::HashesMismatch(self);
@@ -332,7 +358,9 @@ impl UnfilledPromiseReceipt {
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[display("Injected transaction wasn't executed: tx_hash={tx_hash}, reason={reason}")]
 pub struct PurgedTransaction {
+    /// Hash of the transaction that was not executed.
     pub tx_hash: HashOf<InjectedTransaction>,
+    /// Reason the transaction was dropped without execution.
     pub reason: TransactionPurgedReason,
 }
 
@@ -366,6 +394,7 @@ pub enum TransactionPurgedReason {
 }
 
 impl TransactionPurgedReason {
+    /// Returns the `#[repr(u8)]` discriminant of this variant, used in digest hashing.
     pub fn variant_index(&self) -> u8 {
         *self as u8
     }

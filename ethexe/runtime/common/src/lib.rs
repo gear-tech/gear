@@ -102,6 +102,7 @@ mod transitions;
 // TODO: consider format.
 /// Version of the runtime.
 pub const VERSION: u32 = 1;
+/// Unique identifier for this runtime variant, used to distinguish runtime instances.
 pub const RUNTIME_ID: u32 = 1;
 
 /// Maximum number of outgoing messages per execution of one dispatch.
@@ -115,27 +116,49 @@ pub const MAX_OUTGOING_MESSAGES_BYTES_PER_RUN: u32 = 4 * 1024;
 /// Maximum number of call replies per process_queue run.
 pub const MAX_CALL_REPLIES_PER_RUN: u32 = 1;
 
+/// Ordered journal output from a single [`process_queue`] run.
+///
+/// Each entry is `(journal_notes, message_type, is_call_reply)` where `journal_notes` are the
+/// unhandled [`JournalNote`]s for one dispatch, `message_type` identifies whether the dispatch
+/// came from the canonical or injected queue, and `is_call_reply` marks call-reply dispatches.
 pub type ProgramJournals = Vec<(Vec<JournalNote>, MessageType, bool)>;
 
 /// Context passed to the runtime in order to
 /// run message queue processing for specified program.
 #[derive(Debug, Encode, Decode)]
 pub struct ProcessQueueContext {
+    /// The program whose queue is being processed.
     pub program_id: ActorId,
+    /// Content-addressed root of the program's current state in storage.
     pub state_root: H256,
+    /// Whether to process the canonical or injected message queue.
     pub queue_type: MessageType,
+    /// Gas-instrumented WASM code for the program.
     pub instrumented_code: InstrumentedCode,
+    /// Metadata describing the code (exports, instrumentation status, etc.).
     pub code_metadata: CodeMetadata,
+    /// Block-level gas budget counter; decremented as dispatches are executed.
     pub gas_allowance: GasAllowanceCounter,
+    /// Block metadata (height, timestamp, etc.) available to the program during execution.
     pub block_info: BlockInfo,
+    /// Controls whether reply promises are published for injected dispatches.
     pub promise_policy: PromisePolicy,
 }
 
+/// Seam between portable runtime logic and the embedding environment.
+///
+/// Extends [`Storage`] with host services that are environment-specific: lazy-page
+/// initialization, randomness provision, state-hash notification, and promise publishing.
+/// Implementors supply the concrete [`LazyPagesInterface`] type used during WASM execution.
 pub trait RuntimeInterface: Storage {
+    /// The lazy-pages backend used to demand-page WASM program memory during execution.
     type LazyPages: LazyPagesInterface + 'static;
 
+    /// Initializes lazy-pages protection for the current WASM program before execution starts.
     fn init_lazy_pages(&self);
+    /// Returns `(random_seed_bytes, block_number)` for use as randomness inside a program.
     fn random_data(&self) -> (Vec<u8>, u32);
+    /// Notifies the environment that the program's state hash has been updated to `state_hash`.
     fn update_state_hash(&self, state_hash: &H256);
     /// Publish a promise produced during execution to the compute service layer.
     /// The implementation is expected to forward it to external subscribers.
@@ -149,11 +172,18 @@ pub trait RuntimeInterface: Storage {
 /// along with writing the updated state to the storage.
 /// By design updates are stored in-memory inside the [`InBlockTransitions`].
 pub struct TransitionController<'a, S: Storage + ?Sized> {
+    /// Read/write access to the content-addressed program state storage.
     pub storage: &'a S,
+    /// In-block accumulator of per-program state-hash and queue-size changes.
     pub transitions: &'a mut InBlockTransitions,
 }
 
 impl<S: Storage + ?Sized> TransitionController<'_, S> {
+    /// Reads the current [`ProgramState`] for `program_id`, passes it to `f` together with
+    /// the storage and transitions, then writes the modified state back to storage and records
+    /// the new state hash and queue sizes in [`InBlockTransitions`].
+    ///
+    /// Panics if `program_id` is not tracked in `transitions` or its state cannot be read from storage.
     pub fn update_state<T>(
         &mut self,
         program_id: ActorId,
@@ -187,6 +217,11 @@ impl<S: Storage + ?Sized> TransitionController<'_, S> {
     }
 }
 
+/// Dequeues and executes all pending dispatches for one program within the block's gas budget.
+///
+/// Returns the accumulated [`ProgramJournals`] and the total gas spent. This is the
+/// legacy entry point that discards the detailed [`RuntimeQueueReport`]; prefer
+/// [`process_queue_with_report`] when the report is needed.
 pub fn process_queue<RI>(ctx: ProcessQueueContext, ri: &RI) -> (ProgramJournals, u64)
 where
     RI: RuntimeInterface + 'static,
@@ -196,6 +231,12 @@ where
     (journals, gas_spent)
 }
 
+/// Dequeues and executes all pending dispatches for one program within the block's gas budget,
+/// returning a detailed execution report alongside the journals and gas spent.
+///
+/// Iterates the queue indicated by `ctx.queue_type`, processes each dispatch with the
+/// configured [`BlockConfig`], applies journal notes via [`RuntimeJournalHandler`], and stops
+/// early on a `StopProcessing` note or when per-run limits are exceeded.
 pub fn process_queue_with_report<RI>(
     mut ctx: ProcessQueueContext,
     ri: &RI,
@@ -513,6 +554,9 @@ where
         .unwrap_or_else(|err| unreachable!("{err}"))
 }
 
+/// Packs two `u32` values into a single `i64` for WASM FFI return-value passing.
+///
+/// The `high` word occupies bits 32–63 and `low` occupies bits 0–31 of the result.
 pub const fn pack_u32_to_i64(low: u32, high: u32) -> i64 {
     let mut result = 0u64;
     result |= (high as u64) << 32;
@@ -520,6 +564,7 @@ pub const fn pack_u32_to_i64(low: u32, high: u32) -> i64 {
     result as i64
 }
 
+/// Unpacks an `i64` produced by [`pack_u32_to_i64`] back into `(low, high)` `u32` words.
 pub const fn unpack_i64_to_u32(val: i64) -> (u32, u32) {
     let val = val as u64;
     let high = (val >> 32) as u32;

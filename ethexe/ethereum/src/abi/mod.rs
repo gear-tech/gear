@@ -10,6 +10,7 @@ pub use middleware_abi::IMiddleware;
 pub use mirror_abi::IMirror;
 pub use router_abi::{Gear, IRouter};
 
+/// ABI bindings for the `Gear` library contract, generated from `abi/Gear.json`.
 pub mod gear_abi {
     alloy::sol!(
         #[sol(rpc)]
@@ -19,6 +20,7 @@ pub mod gear_abi {
     );
 }
 
+/// ABI bindings for the `IMiddleware` interface, generated from `abi/Middleware.json`.
 pub mod middleware_abi {
     alloy::sol!(
         #[sol(rpc)]
@@ -127,6 +129,7 @@ pub mod symbiotic_abi {
         "abi/SlasherFactory.json"
     );
 
+    /// ABI bindings for the `DefaultStakerRewardsFactory` contract.
     pub mod staker_rewards_factory {
         alloy::sol!(
             #[sol(rpc)]
@@ -135,6 +138,7 @@ pub mod symbiotic_abi {
         );
     }
 
+    /// ABI bindings for the `DefaultStakerRewards` contract.
     pub mod staker_rewards {
         alloy::sol!(
             #[sol(rpc)]
@@ -144,6 +148,7 @@ pub mod symbiotic_abi {
     }
 }
 
+/// Conversion utilities between Gear/Ethereum primitive types and `alloy` primitive types.
 pub mod utils {
     use alloy::{
         primitives::{FixedBytes, Uint},
@@ -154,8 +159,11 @@ pub mod utils {
 
     pub use alloy::primitives::Bytes;
 
+    /// A 32-byte fixed-length array as used in Solidity `bytes32`.
     pub type Bytes32 = FixedBytes<32>;
+    /// A 256-bit unsigned integer as used in Solidity `uint256`.
     pub type Uint256 = Uint<256, 4>;
+    /// A 48-bit unsigned integer as used in Solidity `uint48`.
     pub type Uint48 = Uint<48, 1>;
 
     sol! {
@@ -170,59 +178,72 @@ pub mod utils {
         }
     }
 
+    /// Converts a `ActorId` to an Ethereum address by taking the lower 20 bytes.
     pub fn actor_id_to_address_lossy(actor_id: ActorId) -> alloy::primitives::Address {
         actor_id.to_address_lossy().to_fixed_bytes().into()
     }
 
+    /// Converts an Ethereum address to an `ActorId` by zero-extending to 32 bytes.
     pub fn address_to_actor_id(address: alloy::primitives::Address) -> ActorId {
         (*address.into_word()).into()
     }
 
+    /// Converts a `Bytes32` value to a `CodeId`.
     pub fn bytes32_to_code_id(bytes: Bytes32) -> CodeId {
         bytes.0.into()
     }
 
+    /// Converts a `Bytes32` value to an `H256`.
     pub fn bytes32_to_h256(bytes: Bytes32) -> H256 {
         bytes.0.into()
     }
 
+    /// Converts a `Bytes32` value to a `MessageId`.
     pub fn bytes32_to_message_id(bytes: Bytes32) -> MessageId {
         bytes.0.into()
     }
 
+    /// Converts a `CodeId` to a `Bytes32` value.
     pub fn code_id_to_bytes32(code_id: CodeId) -> Bytes32 {
         code_id.into_bytes().into()
     }
 
+    /// Converts a `MessageId` to a `Bytes32` value.
     pub fn message_id_to_bytes32(message_id: MessageId) -> Bytes32 {
         message_id.into_bytes().into()
     }
 
+    /// Converts an `H256` value to a `Bytes32`.
     pub fn h256_to_bytes32(h256: H256) -> Bytes32 {
         h256.0.into()
     }
 
+    /// Converts a `u64` to a `Uint48`, clamping to `Uint48::MAX` if the value exceeds 48 bits.
     pub fn u64_to_uint48_lossy(value: u64) -> Uint48 {
         Uint48::try_from(value).unwrap_or(Uint48::MAX)
     }
 
+    /// Converts a `Uint48` to a `u64`.
     pub fn uint48_to_u64(value: Uint48) -> u64 {
         let [limb] = value.into_limbs();
         limb
     }
 
+    /// Converts a `Uint256` to a `u128`, discarding the upper 128 bits.
     pub fn uint256_to_u128_lossy(value: Uint256) -> u128 {
         let [low, high, ..] = value.into_limbs();
 
         ((high as u128) << 64) | (low as u128)
     }
 
+    /// Converts a `gprimitives::U256` to an `alloy` `Uint256` via little-endian byte representation.
     pub fn u256_to_uint256(value: U256) -> Uint256 {
         let mut bytes = [0u8; Uint256::BYTES];
         value.to_little_endian(&mut bytes);
         Uint256::from_le_bytes(bytes)
     }
 
+    /// Converts an `alloy` `Uint256` to a `gprimitives::U256` via little-endian byte representation.
     pub fn uint256_to_u256(value: Uint256) -> U256 {
         let bytes: [u8; Uint256::BYTES] = value.to_le_bytes();
         U256::from_little_endian(&bytes)

@@ -25,6 +25,13 @@ use gear_core_errors::{ExtError, ReplyCode};
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError};
 use gprimitives::{ActorId, MessageId, ReservationId};
 
+/// Externalities implementation for the ethexe runtime.
+///
+/// Wraps [`core_processor::Ext`] and delegates all standard syscalls to it,
+/// while explicitly panicking on syscalls that are unavailable in the ethexe
+/// context (signals, reservations, `wait`, `random`, `create_program`).
+/// Delayed `wake` (non-zero `delay`) is also rejected because ethexe does not
+/// support deferred waking.
 pub struct Ext<RI: RuntimeInterface> {
     core: CoreExt<RI::LazyPages>,
 }

@@ -50,18 +50,24 @@ pub struct EthereumDeployer {
     verifiable_secret_sharing_commitment: Option<Vec<u8>>,
 }
 
+/// Customizable parameters controlling which contracts to deploy and their timeline configuration.
 #[derive(Debug, Copy, Clone)]
 pub struct ContractsDeploymentParams {
     // whether to deploy middleware contract
+    /// Whether to deploy the Middleware contract alongside the Router.
     pub with_middleware: bool,
 
     // customizable timelines
+    /// Duration of a validator era in seconds.
     pub era_duration: u64,
+    /// Duration of the validator election period in seconds.
     pub election_duration: u64,
 }
 
+/// Configuration for a Symbiotic operator, used when registering an operator in the middleware.
 #[derive(Debug)]
 pub struct SymbioticOperatorConfig {
+    /// Amount of collateral the operator stakes, in the smallest token unit.
     pub stake: U256,
 }
 
@@ -104,31 +110,39 @@ impl EthereumDeployer {
         })
     }
 
+    /// Enables Middleware contract deployment. Mirrors [`ContractsDeploymentParams::with_middleware`].
     pub fn with_middleware(mut self) -> Self {
         self.params.with_middleware = true;
         self
     }
 
+    /// Sets the era duration (in seconds) passed to the Router initializer.
     pub fn with_era_duration(mut self, era_duration: u64) -> Self {
         self.params.era_duration = era_duration;
         self
     }
 
+    /// Sets the election duration (in seconds) passed to the Router initializer.
     pub fn with_election_duration(mut self, election_duration: u64) -> Self {
         self.params.election_duration = election_duration;
         self
     }
 
+    /// Replaces all deployment parameters at once with the given [`ContractsDeploymentParams`].
     pub fn with_params(mut self, new_params: ContractsDeploymentParams) -> Self {
         self.params = new_params;
         self
     }
 
+    /// Sets the validator set that will be registered in the Router on deployment.
     pub fn with_validators(mut self, validators: ValidatorsVec) -> Self {
         self.validators = validators;
         self
     }
 
+    /// Provides the serialized VSS commitment passed to the Router initializer.
+    ///
+    /// When not set, an empty byte slice is passed.
     pub fn with_verifiable_secret_sharing_commitment(
         mut self,
         verifiable_secret_sharing_commitment: Vec<u8>,
@@ -137,6 +151,7 @@ impl EthereumDeployer {
         self
     }
 
+    /// Deploys all configured contracts and returns an initialized [`Ethereum`] instance.
     pub async fn deploy(mut self) -> Result<Ethereum> {
         self.deploy_contracts().await?;
         self.ethereum.initialize_addresses().await?;

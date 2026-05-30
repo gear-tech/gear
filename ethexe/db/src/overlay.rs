@@ -7,12 +7,18 @@ use gear_core::utils;
 use gprimitives::H256;
 use std::{collections::HashSet, sync::Arc};
 
+/// A [`CASDatabase`] that layers an in-memory [`MemDb`] over a persistent backend.
+///
+/// Reads are served from the in-memory layer first; writes always go to the in-memory layer only,
+/// leaving the backing database unmodified. Useful for staging content-addressed writes before
+/// deciding whether to commit them.
 pub struct CASOverlay {
     db: Box<dyn CASDatabase>,
     mem: MemDb,
 }
 
 impl CASOverlay {
+    /// Creates a new overlay backed by `db`.
     pub fn new(db: Box<dyn CASDatabase>) -> Self {
         Self {
             db,
@@ -42,6 +48,13 @@ impl CASDatabase for CASOverlay {
     }
 }
 
+/// A [`KVDatabase`] that layers an in-memory [`MemDb`] over a persistent backend, with
+/// explicit key erasure tracking.
+///
+/// Reads check the in-memory layer first; keys removed via [`KVDatabase::take`] are recorded in
+/// `erased_keys` so that subsequent reads do not fall through to the backing store. Writes
+/// (`put`) clear the erasure mark for the key and write only to memory, leaving the backing
+/// database unmodified.
 pub struct KVOverlay {
     db: Box<dyn KVDatabase>,
     mem: MemDb,
@@ -49,6 +62,7 @@ pub struct KVOverlay {
 }
 
 impl KVOverlay {
+    /// Creates a new overlay backed by `db`.
     pub fn new(db: Box<dyn KVDatabase>) -> Self {
         Self {
             db,

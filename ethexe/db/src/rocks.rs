@@ -108,6 +108,10 @@ impl KVDatabase for RocksDatabase {
     }
 }
 
+/// [`Iterator`] over RocksDB entries whose keys begin with a given byte prefix.
+///
+/// Yields `(key, value)` pairs in lexicographic order and stops as soon as a key
+/// that does not start with the prefix is encountered or the underlying iterator is exhausted.
 pub struct PrefixIterator<'a> {
     prefix: &'a [u8],
     prefix_iter: DBIteratorWithThreadMode<'a, DB>,

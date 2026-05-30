@@ -12,6 +12,10 @@ interface::declare! {
     pub(super) fn ext_logging_max_level_v1() -> i32;
 }
 
+/// Emits a log record through the host logging interface.
+///
+/// Converts `level` and the target/message slices into the representation expected by the
+/// `ext_logging_log_v1` host function and delegates to it.
 pub fn log(level: Level, target: &str, message: &[u8]) {
     let level = level as usize as i32;
     let target = utils::repr_ri_slice(target);
@@ -22,6 +26,10 @@ pub fn log(level: Level, target: &str, message: &[u8]) {
     }
 }
 
+/// Returns the maximum log level accepted by the host, as a `LevelFilter`.
+///
+/// Calls `ext_logging_max_level_v1` and maps its integer return value to the corresponding
+/// `log::LevelFilter` variant, treating any value above 4 as `Trace`.
 pub fn max_level() -> LevelFilter {
     match unsafe { sys::ext_logging_max_level_v1() } {
         0 => LevelFilter::Off,
@@ -33,9 +41,14 @@ pub fn max_level() -> LevelFilter {
     }
 }
 
+/// A `log::Log` implementation that forwards records to the host via [`log`] and [`max_level`].
 pub struct RuntimeLogger;
 
 impl RuntimeLogger {
+    /// Registers `RuntimeLogger` as the global logger and sets the max level from the host.
+    ///
+    /// Registering the logger is idempotent: `log::set_logger` returns an error on repeated calls,
+    /// which is silently ignored. The max level is refreshed from the host on every call.
     pub fn init() {
         static LOGGER: RuntimeLogger = RuntimeLogger;
         let _ = log::set_logger(&LOGGER);

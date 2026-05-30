@@ -19,6 +19,14 @@ use ethexe_runtime_common::{RUNTIME_ID, ScheduleRestorer, state::Storage};
 use futures::{TryStreamExt, stream::FuturesUnordered};
 use gprimitives::{CodeId, H256};
 
+/// Bring a [`RawDatabase`] up to [`LATEST_VERSION`], running any required migrations, and
+/// return a typed [`Database`] handle.
+///
+/// If the KV store is empty the database is bootstrapped from scratch via [`initialize_empty_db`].
+/// If it already contains data, the stored version is read and any pending migration steps are
+/// applied before the configuration is validated against the live Ethereum RPC.  Returns an error
+/// if the version cannot be reached, if migration fails, or if the config does not match what was
+/// recorded at first-time initialization.
 pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Database> {
     log::info!("Initializing database to version {LATEST_VERSION}...");
 
@@ -72,6 +80,13 @@ async fn validate_db(config: InitConfig, db: &RawDatabase) -> Result<()> {
     Ok(())
 }
 
+/// Perform a first-time initialization of a freshly empty [`RawDatabase`].
+///
+/// Connects to the Ethereum RPC specified in `config`, reads the Router contract's genesis-block
+/// info and timeline parameters, optionally imports pre-genesis program state via
+/// [`GenesisInitializer`], writes the genesis block record, and persists both [`DBConfig`] and
+/// [`DBGlobals`] so the database is ready for normal operation.  The function is also called by
+/// the `"mock"` feature helper `create_initialized_empty_memory_db`.
 pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result<()> {
     let provider = RootProvider::connect(&config.ethereum_rpc).await?;
     let chain_id = provider.get_chain_id().await?;
