@@ -719,7 +719,7 @@ impl EthexeExternalities {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EmptyMempool, MalachiteEvent};
+    use crate::{MalachiteEvent, mempool::EmptyMempool};
     use ethexe_common::{
         BlockHeader,
         db::{BlockMetaStorageRW, OnChainStorageRW},
@@ -1077,11 +1077,8 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Mempool for ForgetTracker {
-        fn insert(
-            &self,
-            _tx: SignedInjectedTransaction,
-        ) -> Result<(), crate::mempool::MempoolInsertError> {
-            Ok(())
+        fn insert(&self, _tx: SignedInjectedTransaction) -> crate::mempool::TxInsertionStatus {
+            crate::mempool::TxInsertionStatus::Inserted
         }
 
         fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
@@ -1351,11 +1348,11 @@ mod tests {
         )
         .unwrap();
 
-        mempool.insert(valid.clone()).unwrap();
-        assert!(matches!(
+        mempool.insert(valid.clone());
+        assert_eq!(
             mempool.insert(value_tx.clone()),
-            Err(crate::mempool::MempoolInsertError::NonZeroValue)
-        ));
+            crate::mempool::TxInsertionStatus::NonZeroValue,
+        );
         assert_eq!(mempool.len(), 1);
 
         let (ext, _rx) = make_externalities_with_pool(db, mempool);
@@ -1422,14 +1419,12 @@ mod tests {
         let push_start = MAX_TOUCHED_PROGRAMS_PER_MB / 2 + 1;
         let push_end = MAX_TOUCHED_PROGRAMS_PER_MB + 1;
         for i in push_start..push_end {
-            mempool
-                .insert(signed_injected_tx(
-                    &pk,
-                    ActorId::from(i as u64),
-                    chain.blocks[9].hash,
-                    i as u8,
-                ))
-                .unwrap();
+            mempool.insert(signed_injected_tx(
+                &pk,
+                ActorId::from(i as u64),
+                chain.blocks[9].hash,
+                i as u8,
+            ));
         }
 
         let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
@@ -1576,7 +1571,7 @@ mod tests {
                 },
             )
             .unwrap();
-            mempool.insert(tx).unwrap();
+            mempool.insert(tx);
         }
         assert_eq!(mempool.len(), 3);
 
