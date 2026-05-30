@@ -66,6 +66,10 @@ interface IRouter {
          *         This extra fee is paid in WVARA ERC20 token.
          */
         uint256 requestCodeValidationExtraFee;
+        /**
+         * @notice The version of the protocol, used by nodes.
+         */
+        uint256 protocolVersion;
     }
 
     /**
@@ -116,6 +120,11 @@ interface IRouter {
          * @dev This contains information about the available codes and programs.
          */
         Gear.ProtocolData protocolData;
+        /**
+         * @notice The version of the protocol, used by nodes.
+         * @dev This contains the version of the protocol, which can be used by nodes.
+         */
+        uint256 protocolVersion;
     }
 
     /* # Events */
@@ -142,6 +151,13 @@ interface IRouter {
      *                     chain commitment's MB head.
      */
     event EBCommitted(bytes32 ethBlockHash);
+
+    /**
+     * @notice Emitted when the protocol version is changed.
+     * @dev This is an *informational* event, signaling that the protocol version has been changed.
+     * @param newProtocolVersion The new version of the protocol.
+     */
+    event ProtocolVersionChanged(uint256 newProtocolVersion);
 
     /**
      * @notice Emitted when a code, previously requested for validation, receives validation results, so its `Gear.CodeState` changed.
@@ -471,6 +487,12 @@ interface IRouter {
     function requestCodeValidationExtraFee() external view returns (uint256);
 
     /**
+     * @dev Returns the current protocol version.
+     * @return protocolVersion The current protocol version.
+     */
+    function protocolVersion() external view returns (uint256);
+
+    /**
      * @dev Returns the timelines.
      * @return timelines The timelines.
      */
@@ -501,6 +523,13 @@ interface IRouter {
      * @param newExtraFee The new extra fee for requesting code validation on behalf of someone else.
      */
     function setRequestCodeValidationExtraFee(uint256 newExtraFee) external;
+
+    /**
+     * @dev Sets the version of the protocol, used by nodes.
+     *      Emits `ProtocolVersionChanged` event.
+     * @param newProtocolVersion The new version of the protocol.
+     */
+    function setProtocolVersion(uint256 newProtocolVersion) external;
 
     /**
      * @dev Pauses the contract.

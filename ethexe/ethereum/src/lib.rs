@@ -229,6 +229,9 @@ pub struct Ethereum {
 }
 
 impl Ethereum {
+    /// Client protocol version.
+    pub const CLIENT_PROTOCOL_VERSION: u64 = 1;
+
     /// Default Ethereum RPC.
     pub const DEFAULT_ETHEREUM_RPC: &str = "ws://localhost:8545";
     /// Default Ethereum router contract address.
@@ -277,6 +280,14 @@ impl Ethereum {
         let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         let router = router_address.into();
         let (wvara, middleware) = if initialize_addresses {
+            let protocol_version = router_query.protocol_version().await?;
+            if protocol_version != Self::CLIENT_PROTOCOL_VERSION {
+                return Err(anyhow!(
+                    "Client protocol version mismatch. Expected {client_protocol_version}, got {protocol_version}. \
+                    Please make sure to use compatible version of Ethereum client with `Router` contract.",
+                    client_protocol_version = Self::CLIENT_PROTOCOL_VERSION,
+                ));
+            }
             (
                 router_query.wvara_address().await?.into(),
                 router_query.middleware_address().await?.into(),

@@ -48,6 +48,8 @@ contract Router is
     bytes32 private constant REQUEST_CODE_VALIDATION_ON_BEHALF_TYPEHASH =
         0x375d2ef9b9e33c640a295f53873dc74833c3d019f349464ce2fe8899962b8097;
 
+    uint256 private constant PROTOCOL_VERSION = 1;
+
     /**
      * @custom:oz-upgrades-unsafe-allow constructor
      */
@@ -121,6 +123,8 @@ contract Router is
             block.timestamp
         );
         // forge-lint: disable-end(block-timestamp)
+
+        setProtocolVersion(PROTOCOL_VERSION);
     }
 
     /**
@@ -190,6 +194,7 @@ contract Router is
         uint256 decimalsFactor = 10 ** IWrappedVara(router.implAddresses.wrappedVara).decimals();
         router.protocolData.requestCodeValidationBaseFee = DEFAULT_REQUEST_CODE_VALIDATION_BASE_FEE * decimalsFactor;
         router.protocolData.requestCodeValidationExtraFee = DEFAULT_REQUEST_CODE_VALIDATION_EXTRA_FEE * decimalsFactor;
+        setProtocolVersion(PROTOCOL_VERSION);
     }
 
     /**
@@ -218,7 +223,8 @@ contract Router is
             validatedCodesCount: router.protocolData.validatedCodesCount,
             maxValidators: router.protocolData.maxValidators,
             requestCodeValidationBaseFee: router.protocolData.requestCodeValidationBaseFee,
-            requestCodeValidationExtraFee: router.protocolData.requestCodeValidationExtraFee
+            requestCodeValidationExtraFee: router.protocolData.requestCodeValidationExtraFee,
+            protocolVersion: router.protocolVersion
         });
     }
 
@@ -456,6 +462,14 @@ contract Router is
     }
 
     /**
+     * @dev Returns the current protocol version.
+     * @return protocolVersion The current protocol version.
+     */
+    function protocolVersion() external view returns (uint256) {
+        return _router().protocolVersion;
+    }
+
+    /**
      * @dev Returns the timelines.
      * @return timelines The timelines.
      */
@@ -495,6 +509,17 @@ contract Router is
      */
     function setRequestCodeValidationExtraFee(uint256 newExtraFee) external onlyOwner {
         _router().protocolData.requestCodeValidationExtraFee = newExtraFee;
+    }
+
+    /**
+     * @dev Sets the version of the protocol, used by nodes.
+     *      Emits `ProtocolVersionChanged` event.
+     * @param newProtocolVersion The new version of the protocol.
+     */
+    function setProtocolVersion(uint256 newProtocolVersion) public onlyOwner {
+        _router().protocolVersion = newProtocolVersion;
+
+        emit ProtocolVersionChanged(newProtocolVersion);
     }
 
     /**

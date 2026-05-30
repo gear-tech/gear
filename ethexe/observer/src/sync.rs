@@ -16,14 +16,18 @@ use anyhow::{Context as _, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
     db::{GlobalsStorageRO, GlobalsStorageRW, OnChainStorageRO, OnChainStorageRW},
-    events::{BlockEvent, RouterEvent, router::CodeValidationRequestedEvent},
+    events::{
+        BlockEvent, RouterEvent,
+        router::{CodeValidationRequestedEvent, ProtocolVersionChangedEvent},
+    },
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{
+    Ethereum,
     middleware::{ElectionProvider, MiddlewareQuery},
     router::RouterQuery,
 };
-use gprimitives::H256;
+use gprimitives::{H256, U256};
 use std::collections::HashMap;
 
 /// Outcome of one chain-sync attempt. `RpcError` is recoverable (caller
@@ -32,6 +36,10 @@ use std::collections::HashMap;
 pub enum SyncError {
     #[error("RPC error during sync: {0:?}")]
     RpcError(anyhow::Error),
+    #[error(
+        "Client protocol version mismatch. Expected {expected}, got {got}. Please make sure to use compatible version of Ethereum client with `Router` contract."
+    )]
+    ProtocolVersionMismatch { expected: U256, got: U256 },
     #[error(transparent)]
     Fatal(anyhow::Error),
 }
@@ -107,7 +115,7 @@ impl ChainSync {
         &self,
         block: &SimpleBlockData,
         mut blocks_data: HashMap<H256, BlockData>,
-    ) -> Result<Vec<SimpleBlockData>> {
+    ) -> SyncResult<Vec<SimpleBlockData>> {
         let mut chain = Vec::new();
 
         let mut current_block_hash = block.hash;
@@ -132,16 +140,32 @@ impl ChainSync {
             }
 
             for event in block_data.events.iter() {
-                if let &BlockEvent::Router(RouterEvent::CodeValidationRequested(
-                    CodeValidationRequestedEvent {
-                        code_id,
-                        timestamp,
-                        tx_hash,
-                    },
-                )) = event
-                {
-                    self.db
-                        .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });
+                match *event {
+                    BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                        CodeValidationRequestedEvent {
+                            code_id,
+                            timestamp,
+                            tx_hash,
+                        },
+                    )) => {
+                        self.db
+                            .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });
+                    }
+                    BlockEvent::Router(RouterEvent::ProtocolVersionChanged(
+                        ProtocolVersionChangedEvent {
+                            new_protocol_version,
+                        },
+                    )) => {
+                        let client_protocol_version: U256 =
+                            Ethereum::CLIENT_PROTOCOL_VERSION.into();
+                        if new_protocol_version != client_protocol_version {
+                            return Err(SyncError::ProtocolVersionMismatch {
+                                expected: client_protocol_version,
+                                got: new_protocol_version,
+                            });
+                        }
+                    }
+                    _ => {}
                 }
             }
 

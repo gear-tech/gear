@@ -37,7 +37,7 @@ use alloy::{
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::Metadata,
 };
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
@@ -60,7 +60,7 @@ use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
 };
 use ethexe_observer::{
-    ObserverConfig, ObserverEvent, ObserverService,
+    ObserverConfig, ObserverEvent, ObserverService, SyncError,
     utils::{BlockId, BlockLoader},
 };
 use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeInfo};
@@ -669,22 +669,36 @@ impl Service {
         let mut network_injected_txs: HashMap<_, Vec<oneshot::Sender<_>>> = HashMap::new();
 
         loop {
-            let event: Event = tokio::select! {
-                event = compute.select_next_some() => event?.into(),
-                event = consensus.maybe_next_some() => event?.into(),
-                event = malachite.maybe_next_some() => event?.into(),
-                event = network.maybe_next_some() => event.into(),
-                event = observer.select_next_some() => event?.into(),
-                event = blob_loader.select_next_some() => event?.into(),
-                event = rpc.maybe_next_some() => event.into(),
-                event = prometheus.maybe_next_some() => event.into(),
+            let event: Option<Event> = tokio::select! {
+                event = compute.select_next_some() => Some(event?.into()),
+                event = consensus.maybe_next_some() => Some(event?.into()),
+                event = malachite.maybe_next_some() => Some(event?.into()),
+                event = network.maybe_next_some() => Some(event.into()),
+                event = observer.select_next_some() => match event {
+                    Ok(event) => Some(event.into()),
+                    Err(err) => {
+                        if matches!(err.downcast_ref::<SyncError>(), Some(SyncError::ProtocolVersionMismatch { .. })) {
+                            log::info!("Observer requested graceful shutdown: {err:#}");
+                            None
+                        } else {
+                            return Err(err);
+                        }
+                    }
+                },
+                event = blob_loader.select_next_some() => Some(event?.into()),
+                event = rpc.maybe_next_some() => Some(event.into()),
+                event = prometheus.maybe_next_some() => Some(event.into()),
                 _ = rpc_handle.as_mut().maybe() => {
-                    bail!("`RPCWorker` has terminated, shutting down...")
+                    return Err(anyhow!("`RPCWorker` has terminated, shutting down..."));
                 }
                 _ = async { shutdown_rx.as_mut().unwrap().await }, if shutdown_rx.is_some() => {
                     log::info!("Graceful shutdown requested");
-                    break;
+                    None
                 }
+            };
+
+            let Some(event) = event else {
+                break;
             };
 
             log::trace!("Primary service produced event, start handling: {event:?}");

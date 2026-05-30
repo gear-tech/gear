@@ -908,6 +908,15 @@ impl RouterQuery {
         Ok(extra_fee.try_into().expect("infallible"))
     }
 
+    pub async fn protocol_version(&self) -> Result<u64> {
+        self.instance
+            .protocolVersion()
+            .call()
+            .await
+            .map(|res| res.to())
+            .map_err(Into::into)
+    }
+
     pub async fn timelines(&self) -> Result<Timelines> {
         self.instance
             .timelines()

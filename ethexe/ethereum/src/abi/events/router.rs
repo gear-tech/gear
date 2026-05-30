@@ -24,6 +24,14 @@ impl From<IRouter::EBCommitted> for EBCommittedEvent {
     }
 }
 
+impl From<IRouter::ProtocolVersionChanged> for ProtocolVersionChangedEvent {
+    fn from(value: IRouter::ProtocolVersionChanged) -> Self {
+        Self {
+            new_protocol_version: uint256_to_u256(value.newProtocolVersion),
+        }
+    }
+}
+
 impl From<IRouter::CodeGotValidated> for CodeGotValidatedEvent {
     fn from(value: IRouter::CodeGotValidated) -> Self {
         Self {
