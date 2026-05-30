@@ -9,11 +9,8 @@ use sp_wasm_interface::{
     wasmtime::{AsContext, AsContextMut, Val},
 };
 
-pub fn init(
-    sandbox_backend: gear_sandbox_host::sandbox::SandboxBackend,
-    store_clear_counter_limit: Option<u32>,
-) {
-    context::init(sandbox_backend, store_clear_counter_limit);
+pub fn init(sandbox_backend: gear_sandbox_host::sandbox::SandboxBackend) {
+    context::init(sandbox_backend);
 }
 
 struct RuntimeInterfaceContext<'a, 'b> {

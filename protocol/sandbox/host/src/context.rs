@@ -3,10 +3,7 @@
 
 #![allow(missing_docs)]
 
-use core::{
-    cell::RefCell,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use core::{cell::RefCell, sync::atomic::Ordering};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     panic::{self, AssertUnwindSafe},
@@ -24,17 +21,8 @@ pub use sp_wasm_interface_common::{HostPointer, Pointer, ReturnValue, Value, Wor
 static SANDBOX_BACKEND_TYPE: sandbox_env::AtomicSandboxBackend =
     sandbox_env::AtomicSandboxBackend::new(sandbox_env::SandboxBackend::Wasmtime);
 
-const DEFAULT_SANDBOX_STORE_CLEAR_COUNTER_LIMIT: u32 = 50;
-
-static SANDBOX_STORE_CLEAR_COUNTER_LIMIT: AtomicU32 =
-    AtomicU32::new(DEFAULT_SANDBOX_STORE_CLEAR_COUNTER_LIMIT);
-
-pub fn init(sandbox_backend: sandbox_env::SandboxBackend, store_clear_counter_limit: Option<u32>) {
+pub fn init(sandbox_backend: sandbox_env::SandboxBackend) {
     SANDBOX_BACKEND_TYPE.store(sandbox_backend, Ordering::SeqCst);
-    SANDBOX_STORE_CLEAR_COUNTER_LIMIT.store(
-        store_clear_counter_limit.unwrap_or(DEFAULT_SANDBOX_STORE_CLEAR_COUNTER_LIMIT),
-        Ordering::SeqCst,
-    );
 }
 
 pub struct Sandboxes {
@@ -60,14 +48,6 @@ impl Sandboxes {
 
         &mut self.store
     }
-
-    pub fn clear(&mut self, counter: &mut u32) {
-        if *counter >= SANDBOX_STORE_CLEAR_COUNTER_LIMIT.load(Ordering::SeqCst) {
-            *counter = 0;
-            self.store.clear();
-        }
-        *counter += 1;
-    }
 }
 
 impl Default for Sandboxes {
@@ -79,7 +59,6 @@ impl Default for Sandboxes {
 #[derive(Default)]
 struct ThreadState {
     sandboxes: Sandboxes,
-    clear_counter: u32,
 }
 
 thread_local! {
@@ -333,7 +312,6 @@ pub fn memory_grow(supervisor_context: impl SupervisorContext, memory_idx: u32, 
 
 pub fn memory_new(supervisor_context: impl SupervisorContext, initial: u32, maximum: u32) -> u32 {
     with_thread_state(|state| {
-        state.sandboxes.clear(&mut state.clear_counter);
         state
             .sandboxes
             .get(supervisor_context.data_ptr())

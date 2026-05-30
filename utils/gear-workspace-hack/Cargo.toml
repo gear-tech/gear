@@ -262,6 +262,7 @@ const-hex = { version = "1", features = ["core-error", "serde"] }
 cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
 crc32fast = { version = "1" }
 crossbeam-channel = { version = "0.5" }
+crossbeam-epoch = { version = "0.9" }
 crossbeam-utils = { version = "0.8" }
 crunchy = { version = "0.2", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["getrandom", "std"] }
@@ -322,6 +323,7 @@ impl-serde = { version = "0.4" }
 indexmap = { version = "2", features = ["serde"] }
 ipnet = { version = "2" }
 itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
@@ -497,6 +499,7 @@ wasmtime-internal-core = { version = "44", default-features = false, features = 
 wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
 winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
+zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
@@ -551,6 +554,7 @@ const-hex = { version = "1", features = ["core-error", "serde"] }
 cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
 crc32fast = { version = "1" }
 crossbeam-channel = { version = "0.5" }
+crossbeam-epoch = { version = "0.9" }
 crossbeam-utils = { version = "0.8" }
 crunchy = { version = "0.2", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["getrandom", "std"] }
@@ -613,6 +617,7 @@ impl-serde = { version = "0.4" }
 indexmap = { version = "2", features = ["serde"] }
 ipnet = { version = "2" }
 itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
@@ -793,10 +798,10 @@ wasmtime-internal-core = { version = "44", default-features = false, features = 
 wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
 winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
+zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -819,7 +824,6 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc
 unicode-normalization = { version = "0.1" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -842,7 +846,6 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -865,7 +868,6 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.build-dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -888,7 +890,6 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-apple-darwin.dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -909,7 +910,6 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-apple-darwin.build-dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }

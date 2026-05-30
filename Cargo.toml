@@ -180,6 +180,7 @@ primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
 prometheus = { version = "0.14.0", default-features = false }
 proptest = "1.5.0"
+criterion = { version = "0.7", features = ["html_reports"] }
 quick-xml = "0.28"
 quote = { version = "1.0.36", default-features = false }
 rand = { version = "0.8", default-features = false }

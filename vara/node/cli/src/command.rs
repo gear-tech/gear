@@ -119,13 +119,10 @@ macro_rules! unwrap_client {
 pub fn run() -> sc_cli::Result<()> {
     let cli = Cli::from_args();
 
-    gear_runtime_interface::sandbox_init(
-        match cli.run.sandbox_backend {
-            SandboxBackend::Wasmtime => gear_runtime_interface::SandboxBackend::Wasmtime,
-            SandboxBackend::Wasmi => gear_runtime_interface::SandboxBackend::Wasmi,
-        },
-        cli.run.sandbox_store_clear_counter_limit.into(),
-    );
+    gear_runtime_interface::sandbox_init(match cli.run.sandbox_backend {
+        SandboxBackend::Wasmtime => gear_runtime_interface::SandboxBackend::Wasmtime,
+        SandboxBackend::Wasmi => gear_runtime_interface::SandboxBackend::Wasmi,
+    });
 
     let old_base = BasePath::from_project("", "", "gear-node");
     let new_base = BasePath::from_project("", "", &Cli::executable_name());
