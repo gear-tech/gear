@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2022-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::cargo_toolchain::Toolchain;
 use anyhow::{Context, Result, anyhow, ensure};
@@ -40,6 +25,7 @@ impl CargoCommand {
         let toolchain = Toolchain::try_from_rustup().expect("Failed to resolve toolchain version");
         let rustc_version = rustc_version::version().expect("Failed to get rustc version");
         let linker_plugin_lto = rustc_version.major == 1 && rustc_version.minor >= 91;
+        let allow_undefined = rustc_version.major == 1 && rustc_version.minor >= 96;
 
         let mut rustc_flags = vec!["-Clink-arg=--import-memory"];
 
@@ -53,6 +39,14 @@ impl CargoCommand {
                 // -C linker-plugin-lto causes conflict: https://github.com/rust-lang/rust/issues/130604
                 "-C",
                 "linker-plugin-lto",
+            ]);
+        }
+
+        if allow_undefined {
+            rustc_flags.extend_from_slice(&[
+                // -C link-arg fixes this: https://github.com/rust-lang/rust/pull/149868
+                "-C",
+                "link-arg=--allow-undefined",
             ]);
         }
 

@@ -16,7 +16,7 @@ anyhow.workspace = true
 futures.workspace = true
 gprimitives = { workspace = true, features = ["serde", "ethexe"] }
 ethexe-db.workspace = true
-ethexe-processor.workspace = true
+ethexe-processor = { workspace = true, optional = true }
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["cors"] }
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
@@ -34,6 +34,7 @@ metrics-derive.workspace = true
 gear-workspace-hack.workspace = true
 thiserror.workspace = true
 scopeguard.workspace = true
+moka = {workspace = true, features = ["sync"]}
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["client"] }
@@ -44,4 +45,6 @@ tracing-subscriber.workspace = true
 ethexe-db = {workspace = true, features = ["mock"]}
 
 [features]
+default = ["server"]
 client = ["jsonrpsee/client"]
+server = ["dep:ethexe-processor", "jsonrpsee/server", "hyper/server"]

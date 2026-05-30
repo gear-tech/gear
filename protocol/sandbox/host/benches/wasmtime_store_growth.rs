@@ -6,8 +6,8 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use gear_sandbox_env::{EnvironmentDefinition, Instantiate};
 use gear_sandbox_host::{
-    error::Result,
-    sandbox::{GuestEnvironment, SandboxBackend, SandboxComponents, SupervisorContext},
+    context::{HostResult, SupervisorContext, SupervisorContextDispatcher, SupervisorFuncIndex},
+    sandbox::{GuestEnvironment, SandboxBackend, SandboxComponents},
 };
 use parity_scale_codec::Encode;
 use sp_wasm_interface_common::{Pointer, WordSize};
@@ -38,13 +38,8 @@ impl ResetPolicy {
 struct NoopSupervisor;
 
 impl SupervisorContext for NoopSupervisor {
-    fn invoke(
-        &mut self,
-        _invoke_args_ptr: Pointer<u8>,
-        _invoke_args_len: WordSize,
-        _func_idx: gear_sandbox_host::sandbox::SupervisorFuncIndex,
-    ) -> Result<i64> {
-        Ok(0)
+    fn data_ptr(&self) -> *const () {
+        self as *const _ as *const ()
     }
 
     fn read_memory_into(
@@ -70,6 +65,21 @@ impl SupervisorContext for NoopSupervisor {
 
     fn deallocate_memory(&mut self, _ptr: Pointer<u8>) -> std::result::Result<(), String> {
         Ok(())
+    }
+}
+
+impl SupervisorContextDispatcher for NoopSupervisor {
+    fn dispatch_thunk_id(&self) -> u32 {
+        0
+    }
+
+    fn invoke(
+        &mut self,
+        _invoke_args_ptr: Pointer<u8>,
+        _invoke_args_len: WordSize,
+        _func_idx: SupervisorFuncIndex,
+    ) -> HostResult<i64> {
+        Ok(0)
     }
 }
 
@@ -99,7 +109,7 @@ fn bench_wasmtime_store_growth(c: &mut Criterion) {
 }
 
 struct BenchState {
-    store: SandboxComponents<()>,
+    store: SandboxComponents,
     env_def: Vec<u8>,
     supervisor: NoopSupervisor,
 }
@@ -134,7 +144,7 @@ impl BenchState {
                 &mut self.supervisor,
             )
             .unwrap_or_else(|_| panic!("failed to instantiate empty wasm"));
-        let instance_idx = instance.register(&mut self.store, ());
+        let instance_idx = instance.register(&mut self.store, self.supervisor.dispatch_thunk_id());
         black_box(instance_idx);
 
         if let ResetPolicy::Every(clear_every) = reset_policy

@@ -1,27 +1,7 @@
-/*
- * This file is part of Gear.
- *
- * Copyright (C) 2022-2025 Gear Technologies Inc.
- * SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- */
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{
-    common::Error,
-    signal::{ExceptionInfo, UserSignalHandler},
-};
+use crate::signal::{ExceptionInfo, UserSignalHandler};
 use cfg_if::cfg_if;
 use nix::{
     libc::{c_void, siginfo_t},
@@ -101,6 +81,22 @@ where
 {
     unsafe {
         let addr = (*info).si_addr();
+
+        // Classify the fault before doing anything that is not
+        // async-signal-safe. If the address is outside the WASM memory
+        // lazy-pages currently manages on this thread, this is not a
+        // lazy-pages page fault: the interrupted code may hold the
+        // allocator or logger lock, so only async-signal-safe work is
+        // allowed. Forward it without touching thread-locals or logging.
+        if !crate::active_wasm_region_contains(addr as usize) {
+            old_sig_handler(sig, info, ucontext);
+            return;
+        }
+
+        // The fault is inside managed WASM memory: the thread was
+        // executing WASM and holds no allocator/logger lock, so the
+        // processing below (thread-local access, logging, page loading)
+        // is safe in this context.
         let is_write = ucontext_get_write(ucontext as *mut _);
         let exc_info = ExceptionInfo {
             fault_addr: addr as *mut _,
@@ -108,15 +104,12 @@ where
         };
 
         if let Err(err) = H::handle(exc_info) {
-            let old_sig_handler_works = match err {
-                Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet => {
-                    old_sig_handler(sig, info, ucontext)
-                }
-                _ => false,
-            };
-            if !old_sig_handler_works {
-                panic!("Signal handler failed: {err}");
-            }
+            // The fault is inside managed WASM memory (classified above) but
+            // `H::handle` could not service it — a lazy-pages invariant
+            // violation, not a foreign fault. Panic: this thread was
+            // executing WASM, so the panic runs safely and its backtrace
+            // points at the bug.
+            panic!("Signal handler failed: {err}");
         }
     }
 }
@@ -245,21 +238,19 @@ where
     Ok(())
 }
 
-unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) -> bool {
-    if let Some(old_sig_handler) = OLD_SIG_HANDLER.get() {
-        match old_sig_handler {
-            SigHandler::SigDfl | SigHandler::SigIgn => false,
-            SigHandler::Handler(func) => {
-                func(sig);
-                true
-            }
-            SigHandler::SigAction(func) => {
-                func(sig, info, ucontext);
-                true
-            }
+unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) {
+    match OLD_SIG_HANDLER.get() {
+        Some(SigHandler::Handler(func)) => func(sig),
+        Some(SigHandler::SigAction(func)) => func(sig, info, ucontext),
+        // No chainable previous handler exists: `SigDfl`/`SigIgn` carry no
+        // function to call, and `None` means nothing was captured at install
+        // time. Restore the default disposition so the re-executed faulting
+        // instruction is terminated by the kernel's default action. The
+        // disposition MUST be reset first: `SA_NODEFER` would otherwise
+        // re-enter this handler on every re-fault, looping forever.
+        Some(SigHandler::SigDfl | SigHandler::SigIgn) | None => {
+            unsafe { libc::signal(sig, libc::SIG_DFL) };
         }
-    } else {
-        false
     }
 }
 

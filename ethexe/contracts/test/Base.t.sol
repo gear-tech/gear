@@ -200,8 +200,9 @@ contract Base is POCBaseTest {
         uint48 _timestamp,
         bool revertExpected
     ) internal {
-        Gear.ChainCommitment memory _chainCommitment =
-            Gear.ChainCommitment({transitions: _transactions, head: keccak256("head")});
+        Gear.ChainCommitment memory _chainCommitment = Gear.ChainCommitment({
+            transitions: _transactions, head: keccak256("head"), lastAdvancedEthBlock: bytes32(0)
+        });
 
         Gear.ChainCommitment[] memory _chainCommitments = new Gear.ChainCommitment[](1);
         _chainCommitments[0] = _chainCommitment;
@@ -332,7 +333,9 @@ contract Base is POCBaseTest {
             );
         }
 
-        return Gear.chainCommitmentHash(keccak256(abi.encodePacked(_transitionsHashes)), _commitment.head);
+        return Gear.chainCommitmentHash(
+            keccak256(abi.encodePacked(_transitionsHashes)), _commitment.head, _commitment.lastAdvancedEthBlock
+        );
     }
 
     function codeCommitmentsHash(Gear.CodeCommitment[] memory _commitments) internal pure returns (bytes32) {

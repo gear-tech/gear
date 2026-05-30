@@ -1,29 +1,14 @@
-// This file is part of Gear.
-
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Wasmtime specific impls for sandbox
 
 use super::SupervisorFuncIndex;
 use crate::{
+    context::{SupervisorContext, SupervisorContextDispatcher},
     error::{self, Error},
     sandbox::{
         BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
-        SupervisorContext,
     },
     store_refcell,
     util::MemoryTransfer,
@@ -37,15 +22,17 @@ use wasmtime::{AsContextMut, Engine, ExternType, Linker, MemoryType, Module, Val
 type Store = wasmtime::Store<Option<FuncEnv>>;
 pub type StoreRefCell = store_refcell::StoreRefCell<Store>;
 
-environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
+environmental::environmental!(SupervisorContextStore: trait SupervisorContextDispatcher);
 
 pub struct FuncEnv {
     store: Weak<StoreRefCell>,
-    gas_global: wasmtime::Global,
+    // Gas global is absent for non-instrumented modules used in tests and benchmarks.
+    // It is only required by v2 host function dispatch.
+    gas_global: Option<wasmtime::Global>,
 }
 
 impl FuncEnv {
-    pub fn new(store: Weak<StoreRefCell>, gas_global: wasmtime::Global) -> Self {
+    pub fn new(store: Weak<StoreRefCell>, gas_global: Option<wasmtime::Global>) -> Self {
         Self { store, gas_global }
     }
 }
@@ -252,7 +239,7 @@ pub fn instantiate(
     context: &Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
 ) -> Result<SandboxInstance, InstantiationError> {
     let mut store = context.store().borrow_mut();
 
@@ -386,7 +373,9 @@ fn dispatch_function_v2(
             SupervisorContextStore::with(|supervisor_context| {
                 let func_env = caller.data().as_ref().expect("func env should be set");
                 let store_ref_cell = func_env.store.upgrade().expect("store should be alive");
-                let gas_global = func_env.gas_global;
+                let gas_global = func_env
+                    .gas_global
+                    .ok_or_else(|| host_trap(format!("Failed to get {GLOBAL_NAME_GAS} global")))?;
 
                 let gas = gas_global.get(caller.as_context_mut());
                 let store_ctx_mut = caller.as_context_mut();
@@ -438,7 +427,7 @@ fn dispatch_function_v2(
 
 fn dispatch_common(
     supervisor_func_index: SupervisorFuncIndex,
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
     invoke_args_data: Vec<u8>,
 ) -> Result<Vec<u8>, wasmtime::Error> {
     // Move serialized arguments inside the memory, invoke dispatch thunk and
@@ -508,7 +497,7 @@ pub fn invoke(
     store: &Rc<StoreRefCell>,
     export_name: &str,
     args: &[Value],
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
 ) -> Result<Option<Value>, Error> {
     let function = instance
         .get_func(&mut *store.borrow_mut(), export_name)
@@ -521,9 +510,7 @@ pub fn invoke(
 
     // Init func env
     {
-        let gas_global = instance
-            .get_global(&mut *store.borrow_mut(), GLOBAL_NAME_GAS)
-            .ok_or_else(|| Error::Sandbox("Failed to get gas global".into()))?;
+        let gas_global = instance.get_global(&mut *store.borrow_mut(), GLOBAL_NAME_GAS);
 
         store
             .borrow_mut()

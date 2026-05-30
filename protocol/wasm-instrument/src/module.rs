@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{
     borrow::Cow,
@@ -1441,22 +1426,34 @@ impl Module {
         })
     }
 
+    /// Strips all non-name WASM custom sections from the module.
+    ///
+    /// The `name` section is **preserved** to keep Wasmer/Wasmtime trap
+    /// backtraces readable in production logs. This differs from
+    /// `wasm_optimizer::Optimizer::strip_custom_sections`, which clears both.
+    ///
+    /// Non-name custom sections (`sails:idl`, `producers`, etc.) are not consumed
+    /// at sandbox execution time; IDL readers pull from `OriginalCode`.
+    pub fn strip_custom_sections(&mut self) {
+        self.custom_sections = None;
+    }
+
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let mut module = wasm_encoder::Module::new();
 
         if let Some(crate_section) = &self.type_section {
             let mut encoder_section = wasm_encoder::TypeSection::new();
-            for func_type in crate_section.clone() {
+            for func_type in crate_section {
                 encoder_section
                     .ty()
-                    .func_type(&RoundtripReencoder.func_type(func_type)?);
+                    .func_type(&RoundtripReencoder.func_type(func_type.clone())?);
             }
             module.section(&encoder_section);
         }
 
         if let Some(crate_section) = &self.import_section {
             let mut encoder_section = wasm_encoder::ImportSection::new();
-            for import in crate_section.clone() {
+            for import in crate_section {
                 import.reencode(&mut encoder_section)?;
             }
             module.section(&encoder_section);
@@ -1688,5 +1685,47 @@ mod tests {
         let parsed_module_bytes = Module::new(&module_bytes).unwrap().serialize().unwrap();
         let parsed_wat = wasmprinter::print_bytes(&parsed_module_bytes).unwrap();
         assert_eq!(wat, parsed_wat);
+    }
+
+    #[test]
+    fn strip_custom_sections_clears_custom_but_keeps_name() {
+        let mut builder = ModuleBuilder::default();
+        builder.push_custom_section("sails:idl", [0xAA, 0xBB, 0xCC]);
+        builder.push_custom_section("producers", [0xDE, 0xAD]);
+        let mut module = builder.build();
+        // Simulate a preserved name section.
+        module.name_section = Some(Vec::new());
+
+        module.strip_custom_sections();
+
+        assert!(
+            module.custom_sections.is_none(),
+            "custom_sections must be cleared"
+        );
+        assert!(
+            module.name_section.is_some(),
+            "name_section must be preserved across strip"
+        );
+
+        // Round-trip through serialize/parse: non-name custom sections must not
+        // reappear in the serialized bytes.
+        let bytes = module.serialize().unwrap();
+        let reparsed = Module::new(&bytes).unwrap();
+        assert!(
+            reparsed
+                .custom_sections
+                .as_ref()
+                .is_none_or(|cs| cs.is_empty()),
+            "serialized module must not contain non-name custom sections after strip"
+        );
+    }
+
+    #[test]
+    fn strip_custom_sections_on_empty_module_is_noop() {
+        let mut module = ModuleBuilder::default().build();
+        // No custom sections, no name section: must not panic, stays None.
+        assert!(module.custom_sections.is_none());
+        module.strip_custom_sections();
+        assert!(module.custom_sections.is_none());
     }
 }

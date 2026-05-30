@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Node-scoped parameters shared across `run`, `key`, `tx`, and `check`.
 
@@ -24,7 +9,7 @@ use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD, MAX_BATCH_SIZE_LIMIT},
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, MAX_BATCH_SIZE_LIMIT},
     gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
 };
 use ethexe_processor::DEFAULT_CHUNK_SIZE;
@@ -32,6 +17,13 @@ use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
 use tempfile::TempDir;
+
+/// Default delay before the coordinator starts aggregating a batch
+/// commitment, in milliseconds.
+const DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS: u64 = 0;
+
+/// Default threshold for the coordinator to force a checkpoint commitment when the uncommitted chain gets too long.
+const DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD: NonZero<u32> = NonZero::new(500).unwrap();
 
 #[static_init::dynamic(drop, lazy)]
 static mut TMP_DB: Option<TempDir> = None;
@@ -103,15 +95,37 @@ pub struct NodeParams {
     #[serde(rename = "canonical-quarantine")]
     pub canonical_quarantine: Option<u8>,
 
+    /// See `MalachiteConfig::post_quarantine_delay`. Default 1.
+    #[arg(long)]
+    #[serde(rename = "post-quarantine-delay")]
+    pub post_quarantine_delay: Option<u32>,
+
     /// Do P2P database synchronization before the main loop
     #[arg(long, default_value = "false")]
     #[serde(default, rename = "fast-sync")]
     pub fast_sync: bool,
 
-    /// Threshold for producer to submit commitment despite of no transitions
+    /// Coordinator-side delay (milliseconds) between observing a new
+    /// Ethereum chain head and starting batch aggregation. Buys time for
+    /// participants to receive the same head and lets the previous MB
+    /// finish executing.
     #[arg(long)]
-    #[serde(default, rename = "chain-deepness-threshold")]
-    pub chain_deepness_threshold: Option<u32>,
+    #[serde(default, rename = "coordinator-aggregation-delay-ms")]
+    pub coordinator_aggregation_delay_ms: Option<u64>,
+
+    /// Force a checkpoint chain commitment when the producer's
+    /// `last_advanced_eth_block` runs ahead of the on-chain
+    /// `last_committed_eb` by more than this many Eth blocks.
+    #[arg(long)]
+    #[serde(default, rename = "uncommitted-chain-len-threshold")]
+    pub uncommitted_chain_len_threshold: Option<NonZero<u32>>,
+
+    /// Coordinator-local: how many Ethereum blocks the resulting
+    /// `BatchCommitment` stays valid past its target block. Encoded into
+    /// `BatchCommitment::expiry`. Default 16.
+    #[arg(long)]
+    #[serde(default, rename = "commitment-delay-limit")]
+    pub commitment_delay_limit: Option<NonZero<u8>>,
 
     /// Path to genesis state dump file (.blob or .json) for initial chain state.
     #[arg(long)]
@@ -161,15 +175,25 @@ impl NodeParams {
                 .unwrap_or(DEFAULT_BATCH_SIZE_LIMIT)
                 .min(MAX_BATCH_SIZE_LIMIT),
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
+            post_quarantine_delay: self
+                .post_quarantine_delay
+                .unwrap_or(ethexe_malachite::MalachiteConfig::DEFAULT_POST_QUARANTINE_DELAY),
             dev: self.dev,
             pre_funded_accounts: self
                 .pre_funded_accounts
                 .unwrap_or(Self::DEFAULT_PRE_FUNDED_ACCOUNTS)
                 .get(),
             fast_sync: self.fast_sync,
-            chain_deepness_threshold: self
-                .chain_deepness_threshold
-                .unwrap_or(DEFAULT_CHAIN_DEEPNESS_THRESHOLD),
+            coordinator_aggregation_delay: std::time::Duration::from_millis(
+                self.coordinator_aggregation_delay_ms
+                    .unwrap_or(DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS),
+            ),
+            uncommitted_chain_len_threshold: self
+                .uncommitted_chain_len_threshold
+                .unwrap_or(DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD),
+            commitment_delay_limit: self
+                .commitment_delay_limit
+                .unwrap_or(ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT),
             genesis_state_dump: self.genesis_state_dump,
         })
     }
@@ -247,12 +271,19 @@ impl MergeParams for NodeParams {
             block_gas_limit: self.block_gas_limit.or(with.block_gas_limit),
             batch_size_limit: self.batch_size_limit.or(with.batch_size_limit),
             canonical_quarantine: self.canonical_quarantine.or(with.canonical_quarantine),
+            post_quarantine_delay: self.post_quarantine_delay.or(with.post_quarantine_delay),
 
             fast_sync: self.fast_sync || with.fast_sync,
 
-            chain_deepness_threshold: self
-                .chain_deepness_threshold
-                .or(with.chain_deepness_threshold),
+            coordinator_aggregation_delay_ms: self
+                .coordinator_aggregation_delay_ms
+                .or(with.coordinator_aggregation_delay_ms),
+
+            uncommitted_chain_len_threshold: self
+                .uncommitted_chain_len_threshold
+                .or(with.uncommitted_chain_len_threshold),
+
+            commitment_delay_limit: self.commitment_delay_limit.or(with.commitment_delay_limit),
 
             genesis_state_dump: self.genesis_state_dump.or(with.genesis_state_dump),
         }
