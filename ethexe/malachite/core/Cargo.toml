@@ -22,6 +22,7 @@ malachitebft-sync.workspace = true
 malachitebft-test.workspace = true
 
 # Async + utilities
+advisory-lock.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
