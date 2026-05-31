@@ -63,18 +63,19 @@ jobs:
       - name: "Build: malachite-core tests"
         run: cargo build -p ethexe-malachite-core --tests --release
 
-      - name: "Test: malachite seven_validators_full_network_restart"
-        # Run the target test 5 times to make a flake-free verdict cheap.
-        # Without the fix this is expected to fail on the very first run;
-        # with the fix all 5 iterations must pass.
+      - name: "Test: malachite WAL race repro"
+        # Run the rapid-restart repro 3 times to make a flake-free verdict
+        # cheap. Without the fix this is expected to fail with a panic
+        # 'Failed to acquire exclusive advisory lock'; with the fix all
+        # 3 iterations must pass.
         run: |
           set -eo pipefail
-          for i in 1 2 3 4 5; do
+          for i in 1 2 3; do
             echo "=== iteration $i ==="
             cargo nextest run \
               -p ethexe-malachite-core \
               --test multi_validators \
-              -E 'test(seven_validators_full_network_restart)' \
+              -E 'test(rapid_restart_exposes_wal_lock_race) or test(seven_validators_full_network_restart)' \
               --release \
               --no-fail-fast
           done

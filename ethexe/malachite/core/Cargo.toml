@@ -50,6 +50,7 @@ rocksdb.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
+advisory-lock.workspace = true
 proptest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }

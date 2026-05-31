@@ -649,3 +649,66 @@ proptest! {
         run_churn_scenario(events);
     }
 }
+
+// --------------------------------------------------------------------
+// CI-PROOF REPRO of the WAL advisory-lock race in
+// `MalachiteService::shutdown`.
+//
+// 3 validators × N cycles. Each cycle:
+//   - start the cohort, let the WAL pre_start arm
+//   - shutdown the cohort
+//   - immediately try to acquire flock on every consensus.wal from
+//     a fresh fd
+//
+// The post-condition of `MalachiteService::shutdown().await` is that
+// every file lock held by the service is released by the time it
+// returns. Without the fix, the upstream WAL writer std::thread
+// (`arc-malachitebft-engine::wal::thread`) is still alive after the
+// engine actor's `JoinHandle` resolves and continues to hold flock
+// on `consensus.wal` for an unbounded amount of time; the probe
+// here fails with `FileLockError`.
+//
+// This test is intentionally not the final shape of the suite; the
+// production fix lives in `MalachiteService::shutdown` on a sister
+// branch. Drop this test once the diagnosis is on record.
+// --------------------------------------------------------------------
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn rapid_restart_exposes_wal_lock_race() {
+    use advisory_lock::{AdvisoryFileLock, FileLockMode};
+    use std::fs::OpenOptions;
+
+    init_tracing();
+    let setups = make_validators(3);
+    let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
+    let wal_paths: Vec<std::path::PathBuf> = setups
+        .iter()
+        .map(|s| s.home.path().join("malachite").join("consensus.wal"))
+        .collect();
+
+    for cycle in 0..50 {
+        let mut services = Vec::with_capacity(3);
+        for (i, setup) in setups.iter().enumerate() {
+            services.push(start_service(setup, &setups, i, Arc::clone(&exts[i])).await);
+        }
+        // Let the WAL actor's pre_start run and the writer std::thread arm.
+        sleep(Duration::from_millis(10)).await;
+        for svc in services {
+            svc.shutdown().await;
+        }
+        // No await between here and the lock probe — we want to catch
+        // the race window the moment shutdown returns.
+        for (i, p) in wal_paths.iter().enumerate() {
+            let f = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(p)
+                .expect("WAL exists after the engine has written to it");
+            AdvisoryFileLock::try_lock(&f, FileLockMode::Exclusive).unwrap_or_else(|e| {
+                panic!(
+                    "cycle {cycle} v{i}: WAL still flocked after \
+                     MalachiteService::shutdown().await returned: {e:?}"
+                )
+            });
+        }
+    }
+}
