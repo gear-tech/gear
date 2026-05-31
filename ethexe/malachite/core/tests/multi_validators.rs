@@ -383,6 +383,15 @@ async fn three_validators_make_progress() {
 /// rebuild them on the same home dirs, run another ~20s. All
 /// validators must continue from where they left off — finalized
 /// heights must remain gap-free across the restart boundary.
+///
+/// CI-PROOF VARIANT: we restart the cohort *several times back-to-back
+/// with no inter-cohort sleep* before continuing the test, so the
+/// WAL advisory-lock race in `MalachiteService::shutdown` (the WAL
+/// writer std::thread outlives the engine actor's join handle and may
+/// still hold `flock` on `consensus.wal` after `shutdown().await`)
+/// is reliably surfaced. This is intentionally not the final shape
+/// of the test; the production fix lives in
+/// `MalachiteService::shutdown`.
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn seven_validators_full_network_restart() {
     let setups = make_validators(7);
@@ -402,11 +411,20 @@ async fn seven_validators_full_network_restart() {
         svc.shutdown().await;
     }
 
-    // Give the OS a moment to release the listening sockets before
-    // the second cohort comes up on the same home dirs. RocksDB
-    // locks are released by `shutdown().await`; sockets need a
-    // bit more.
-    sleep(Duration::from_secs(2)).await;
+    // Repro: rapid restart cycles on the same home dirs, no sleep
+    // between shutdown and the next `new()`. Without the fix, the
+    // WAL writer thread is still holding the advisory lock on
+    // `consensus.wal` when the next cohort's `new()` runs.
+    for _ in 0..2 {
+        let mut churn = Vec::with_capacity(7);
+        for (i, setup) in setups.iter().enumerate() {
+            let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
+            churn.push(svc);
+        }
+        for svc in churn {
+            svc.shutdown().await;
+        }
+    }
 
     // ---- second run on the SAME home dirs -------------------------
     let mut services2 = Vec::with_capacity(7);
