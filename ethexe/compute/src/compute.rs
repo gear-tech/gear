@@ -444,7 +444,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::MockProcessor;
+    use crate::tests::{MockProcessor, proptest_config};
     use ethexe_common::{
         BlockHeader, CodeAndIdUnchecked, DEFAULT_BLOCK_GAS_LIMIT, PrivateKey, SignedMessage,
         db::*,
@@ -454,12 +454,13 @@ mod tests {
             router::ProgramCreatedEvent,
         },
         injected::{InjectedTransaction, SignedInjectedTransaction},
-        malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction},
+        malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
     };
     use ethexe_processor::{Processor, ValidCodeInfo};
     use ethexe_runtime_common::RUNTIME_ID;
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::{ActorId, CodeId, MessageId};
+    use proptest::prelude::*;
 
     fn dummy_txs(db: &Database, tag: u8) -> Transactions {
         // Tag-derived AdvanceTillEthereumBlock makes each block's
@@ -544,6 +545,36 @@ mod tests {
                 db.mb_meta(*hash).computed,
                 "MB at height {i} should be computed"
             );
+        }
+    }
+
+    proptest! {
+        #![proptest_config(proptest_config(64))]
+
+        #[test]
+        fn collect_uncomputed_chain_returns_oldest_first(chain_len in 2u64..=16) {
+            let db = Database::memory();
+            let mut hashes = Vec::with_capacity(chain_len as usize);
+            let mut parent = H256::zero();
+
+            for i in 1..=chain_len {
+                let mb_hash = H256::from_low_u64_be(0xB000 + i);
+                seed_mb(&db, mb_hash, parent, i, dummy_txs(&db, i as u8));
+                hashes.push(mb_hash);
+                parent = mb_hash;
+            }
+
+            db.mutate_mb_meta(hashes[0], |meta| {
+                meta.computed = true;
+            });
+
+            let collected = collect_uncomputed_chain(&db, *hashes.last().unwrap())
+                .unwrap()
+                .into_iter()
+                .map(|(mb_hash, _)| mb_hash)
+                .collect::<Vec<_>>();
+
+            prop_assert_eq!(collected, hashes[1..].to_vec());
         }
     }
 
