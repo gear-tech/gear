@@ -1299,6 +1299,16 @@ mod tests {
         }
 
         #[test]
+        fn malformed_after_section_errors() {
+            let mut wasm = make_wasm_with_custom_sections(&[("sails:idl", b"hello idl")]);
+            wasm.extend_from_slice(b"trailing junk");
+
+            let result = get_custom_section_data(&wasm, "sails:idl");
+
+            assert!(result.is_err());
+        }
+
+        #[test]
         fn empty_input() {
             let result = get_custom_section_data(b"", "sails:idl");
 

@@ -532,13 +532,16 @@ pub fn get_custom_section_data<'a>(
     wasm: &'a [u8],
     section_name: &str,
 ) -> Result<Option<&'a [u8]>, wasmparser::BinaryReaderError> {
+    let mut section_data = None;
+
     for payload in wasmparser::Parser::new(0).parse_all(wasm) {
         if let Payload::CustomSection(section) = payload?
             && section.name() == section_name
+            && section_data.is_none()
         {
-            return Ok(Some(section.data()));
+            section_data = Some(section.data());
         }
     }
 
-    Ok(None)
+    Ok(section_data)
 }
