@@ -5840,6 +5840,7 @@ dependencies = [
  "moka",
  "ntest",
  "parity-scale-codec",
+ "proptest",
  "scopeguard",
  "serde",
  "sp-core",
