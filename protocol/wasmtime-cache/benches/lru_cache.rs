@@ -11,9 +11,9 @@ const BIG_WASM: &[u8] = include_bytes!(concat!(
 ));
 
 fn create_engine() -> Engine {
-    let cache_dir = tempfile::tempdir().expect("temp dir is created");
+    let cache_dir = tempfile::tempdir().expect("temp dir is created").keep();
     let mut cache = CacheConfig::new();
-    cache.with_directory(cache_dir.path().join("wasmtime-cache"));
+    cache.with_directory(cache_dir.join("wasmtime-cache"));
     let cache = Cache::new(cache).expect("cache config is valid");
 
     let mut config = Config::new();

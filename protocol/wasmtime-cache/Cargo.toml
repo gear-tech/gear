@@ -17,11 +17,15 @@ workspace = true
 tracing.workspace = true
 lru.workspace = true
 wasmtime.workspace = true
+gear-core.workspace = true
 gear-workspace-hack.workspace = true
 
-[dev-dependencies]
+[target.'cfg(not(loom))'.dev-dependencies]
 criterion.workspace = true
 tempfile.workspace = true
+
+[target.'cfg(loom)'.dev-dependencies]
+loom.workspace = true
 
 [[bench]]
 name = "lru_cache"

@@ -231,6 +231,7 @@ tap = "1.0.1"
 ntest = "0.9.3"
 dashmap = "5.5.3"
 delegate = "0.13.5"
+moka = "0.12.15"
 
 # metrics
 metrics = "0.24.0"
@@ -567,6 +568,7 @@ nix = "0.26.4" # gear-lazy-pages
 ipc-channel = "0.19.0" # lazy-pages-fuzzer
 itertools = { version = "0.13", default-features = false } # sdk/wasm-builder
 libp2p = "=0.51.4" # vara/sdk/gcli (same version as sc-consensus)
+loom = "0.7.2" # protocol/wasmtime-cache
 mimalloc = { version = "0.1.46", default-features = false } # vara/node/cli
 nacl = "0.5.3" # vara/sdk/gcli
 libfuzzer-sys = "0.4" # vara/tools/runtime-fuzzer/fuzz
@@ -604,6 +606,7 @@ ip_network = "0.4.1" # ethexe/network
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(fuzz)',
+    'cfg(loom)',
     'cfg(substrate_runtime)',
 ] }
 

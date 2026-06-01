@@ -5598,6 +5598,7 @@ dependencies = [
  "metrics",
  "metrics-derive",
  "ntest",
+ "proptest",
  "thiserror 2.0.17",
  "tokio",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5692,6 +5693,7 @@ dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
+ "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-malachite-core",
@@ -5703,7 +5705,6 @@ dependencies = [
  "parity-scale-codec",
  "proptest",
  "tempfile",
- "thiserror 2.0.17",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -5919,6 +5920,7 @@ dependencies = [
  "jsonrpsee",
  "metrics",
  "metrics-derive",
+ "moka",
  "ntest",
  "parity-scale-codec",
  "scopeguard",
@@ -7057,6 +7059,7 @@ dependencies = [
  "pallet-sudo",
  "parity-scale-codec",
  "parking_lot 0.12.5",
+ "pathdiff",
  "sc-block-builder",
  "sc-client-api",
  "sc-proposer-metrics",
@@ -7756,7 +7759,9 @@ name = "gear-wasmtime-cache"
 version = "1.10.0"
 dependencies = [
  "criterion",
+ "gear-core",
  "gear-workspace-hack",
+ "loom",
  "lru 0.16.3",
  "tempfile",
  "tracing",
@@ -8165,6 +8170,21 @@ dependencies = [
  "num-format",
  "pallet-staking",
  "sp-staking",
+]
+
+[[package]]
+name = "generator"
+version = "0.8.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52f04ae4152da20c76fe800fa48659201d5cf627c5149ca0b707b69d7eef6cf9"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "log",
+ "rustversion",
+ "windows-link",
+ "windows-result 0.4.1",
 ]
 
 [[package]]
@@ -11272,6 +11292,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "loom"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "419e0dc8046cb947daa77eb95ae174acfbddb7673b4151f56d1eed8e93fbfaca"
+dependencies = [
+ "cfg-if",
+ "generator",
+ "scoped-tls",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "lru"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11735,9 +11768,9 @@ dependencies = [
 
 [[package]]
 name = "moka"
-version = "0.12.12"
+version = "0.12.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3dec6bd31b08944e08b58fd99373893a6c17054d6f3ea5006cc894f4f4eee2a"
+checksum = "957228ad12042ee839f93c8f257b62b4c0ab5eaae1d4fa60de53b27c9d7c5046"
 dependencies = [
  "crossbeam-channel",
  "crossbeam-epoch",
@@ -21410,6 +21443,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d1043d8214f791817bab27572aaa8af63732e11bf84aa21a45a78d6c317ae0e"
 dependencies = [
  "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "windows-result"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7781fa89eaf60850ac3d2da7af8e5242a5ea78d1a11c49bf2910bb5a73853eb5"
+dependencies = [
+ "windows-link",
 ]
 
 [[package]]
