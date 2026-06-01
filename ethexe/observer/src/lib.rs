@@ -12,19 +12,17 @@
 //!
 //! ## Public API
 //!
-//! | Item | Description |
-//! |------|-------------|
-//! | [`ObserverService`] | Stream of chain-head and sync events; implements `futures::Stream<Item = Result<ObserverEvent>>` and `FusedStream` |
-//! | [`ObserverService::new`] | Async constructor that connects the provider and starts the header subscription |
-//! | [`ObserverService::provider`] | Borrows the underlying `alloy` `RootProvider` |
-//! | [`ObserverService::block_loader`] | Returns a fresh [`EthereumBlockLoader`] bound to the configured router address |
-//! | [`ObserverService::router_query`] | Returns a fresh `RouterQuery` for read-only contract queries |
-//! | [`ObserverConfig`] | Constructor input: Ethereum RPC URL and optional max sync depth |
-//! | [`ObserverEvent`] | Stream item: `Block` on a new head, `BlockSynced` after back-fill |
-//! | [`SyncError`] | Error classifier: `RpcError` (recoverable, skipped) vs `Fatal` (propagated) |
-//! | [`utils::BlockLoader`] | Trait abstracting block-data loading from Ethereum |
-//! | [`utils::BlockId`] | Block selector for `BlockLoader::load_simple`: `Hash(H256)`, `Latest`, `Finalized` |
-//! | [`utils::EthereumBlockLoader`] | alloy-backed [`utils::BlockLoader`] impl |
+//! - [`ObserverService`] — Stream of chain-head and sync events; implements `futures::Stream<Item = Result<ObserverEvent>>` and `FusedStream`
+//! - [`ObserverService::new`] — Async constructor that connects the provider and starts the header subscription
+//! - [`ObserverService::provider`] — Borrows the underlying `alloy` `RootProvider`
+//! - [`ObserverService::block_loader`] — Returns a fresh [`EthereumBlockLoader`] bound to the configured router address
+//! - [`ObserverService::router_query`] — Returns a fresh `RouterQuery` for read-only contract queries
+//! - [`ObserverConfig`] — Constructor input: Ethereum RPC URL and optional max sync depth
+//! - [`ObserverEvent`] — Stream item: `Block` on a new head, `BlockSynced` after back-fill
+//! - [`SyncError`] — Error classifier: `RpcError` (recoverable, skipped) vs `Fatal` (propagated)
+//! - [`utils::BlockLoader`] — Trait abstracting block-data loading from Ethereum
+//! - [`utils::BlockId`] — Block selector for `BlockLoader::load_simple`: `Hash(H256)`, `Latest`, `Finalized`
+//! - [`utils::EthereumBlockLoader`] — alloy-backed [`utils::BlockLoader`] impl
 //!
 //! ## Invariants
 //!

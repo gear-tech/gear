@@ -21,17 +21,15 @@
 //!
 //! ## Public API
 //!
-//! | Module | Purpose |
-//! |--------|---------|
-//! | [`consensus`] | Validation request/reply messages and timeline helpers for the batch commitment protocol. |
-//! | [`db`] | `*StorageRO` / `*StorageRW` trait abstractions and block-metadata types. |
-//! | [`events`] | On-chain event model: `BlockEvent` (Mirror/Router variants) and `WVaraEvent`. |
-//! | [`gear`] | Protocol commitments ([`gear::BatchCommitment`] and siblings) and [`gear::StateTransition`]. |
-//! | [`injected`] | Injected transactions, promises, and receipts for inbound cross-chain messaging. |
-//! | [`malachite`] | Sequencer block-payload shape ([`malachite::Transactions`], `Transaction`). |
-//! | [`network`] | Validator network messages (`ValidatorMessage` and signed/verified variants). |
-//! | [`ecdsa`] | secp256k1 re-exports from `gsigner`. |
-//! | [`mock`] | Test helpers and proptest fixtures (feature `mock`). |
+//! - [`consensus`] — Validation request/reply messages and timeline helpers for the batch commitment protocol.
+//! - [`db`] — `*StorageRO` / `*StorageRW` trait abstractions and block-metadata types.
+//! - [`events`] — On-chain event model: `BlockEvent` (Mirror/Router variants) and `WVaraEvent`.
+//! - [`gear`] — Protocol commitments ([`gear::BatchCommitment`] and siblings) and [`gear::StateTransition`].
+//! - [`injected`] — Injected transactions, promises, and receipts for inbound cross-chain messaging.
+//! - [`malachite`] — Sequencer block-payload shape ([`malachite::Transactions`], `Transaction`).
+//! - [`network`] — Validator network messages (`ValidatorMessage` and signed/verified variants).
+//! - [`ecdsa`] — secp256k1 re-exports from `gsigner`.
+//! - [`mock`] — Test helpers and proptest fixtures (feature `mock`).
 //!
 //! Flattened crate-root re-exports include [`HashOf`], [`MaybeHashOf`],
 //! [`BlockHeader`], [`SimpleBlockData`], [`BlockData`], [`ValidatorsVec`],

@@ -16,18 +16,16 @@
 //!
 //! ## Public API
 //!
-//! | Item | Kind | Purpose |
-//! |---|---|---|
-//! | [`MalachiteService`] | struct | Public facade; `Stream` + driver methods |
-//! | [`MalachiteEvent`] | enum | Output event: proposal, finalization, purged txs |
-//! | [`CommitCertificate`] | struct | BFT commit proof attached to `BlockFinalized` |
-//! | [`MalachiteConfig`] | struct | Service configuration |
-//! | [`ValidatorEntry`] | struct | Single entry in the validator set |
-//! | [`Mempool`] | trait | Producer-side injected-tx source |
-//! | [`InjectedTxMempool`] | struct | Real mempool implementation |
-//! | [`EmptyMempool`] | struct | No-op mempool (non-producing nodes) |
-//! | [`TxValidityChecker`] | struct | Per-tx validity against the MB world |
-//! | [`TxValidity`] | enum | Validity verdict: `Valid`, `Duplicate`, `Outdated`, … |
+//! - [`MalachiteService`] (struct) — Public facade; `Stream` + driver methods
+//! - [`MalachiteEvent`] (enum) — Output event: proposal, finalization, purged txs
+//! - [`CommitCertificate`] (struct) — BFT commit proof attached to `BlockFinalized`
+//! - [`MalachiteConfig`] (struct) — Service configuration
+//! - [`ValidatorEntry`] (struct) — Single entry in the validator set
+//! - [`Mempool`] (trait) — Producer-side injected-tx source
+//! - [`InjectedTxMempool`] (struct) — Real mempool implementation
+//! - [`EmptyMempool`] (struct) — No-op mempool (non-producing nodes)
+//! - [`TxValidityChecker`] (struct) — Per-tx validity against the MB world
+//! - [`TxValidity`] (enum) — Validity verdict: `Valid`, `Duplicate`, `Outdated`, …
 //!
 //! Driver methods on [`MalachiteService`]: `receive_injected_transaction`,
 //! `receive_new_chain_head`, `receive_eb_prepared`, `shutdown`.

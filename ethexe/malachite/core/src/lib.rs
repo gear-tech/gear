@@ -33,17 +33,15 @@
 //!
 //! ## Public API
 //!
-//! | Item | Description |
-//! |------|-------------|
-//! | [`Externalities`] | Async application callbacks: `process_mb_proposal`, `process_mb_finalized`, `build_block_above`, `validate_block_above`. |
-//! | [`BlockPayload`] | Marker trait for the payload: `Clone + Encode + Decode + Send + Sync + 'static` (blanket impl). |
-//! | [`MalachiteService`] | Running service; owns the swarm and store. Implements `Stream<Item = anyhow::Error>` and [`MService`]. `update_validators` rotates the active validator set, taking effect at the next height boundary. |
-//! | [`MService`] | Supertrait bound implemented by [`MalachiteService`]. |
-//! | [`Block`] | Service-level block envelope: `{ parent_hash: H256, height: u64, payload: P, reserved: [u8; 64] }`. |
-//! | [`ValidatorEntry`] | Validator set member: `public_key` + `voting_power`, used in [`MalachiteConfig`] and `update_validators`. |
-//! | [`MalachiteConfig`] | Node configuration: validator secret, validator set, `persistent_peers`, propose timeout, [`NodeRole`], `listen_addr`, and `base` project directory. |
-//! | [`CommitCertificate`] | Finalization certificate delivered with `process_mb_finalized`. |
-//! | [`libp2p_peer_id`] | Derive a [`PeerId`] from a validator secret offline, to build the `/p2p/<peer-id>` suffix of each persistent-peer multiaddr. |
+//! - [`Externalities`] — Async application callbacks: `process_mb_proposal`, `process_mb_finalized`, `build_block_above`, `validate_block_above`.
+//! - [`BlockPayload`] — Marker trait for the payload: `Clone + Encode + Decode + Send + Sync + 'static` (blanket impl).
+//! - [`MalachiteService`] — Running service; owns the swarm and store. Implements `Stream<Item = anyhow::Error>` and [`MService`]. `update_validators` rotates the active validator set, taking effect at the next height boundary.
+//! - [`MService`] — Supertrait bound implemented by [`MalachiteService`].
+//! - [`Block`] — Service-level block envelope: `{ parent_hash: H256, height: u64, payload: P, reserved: [u8; 64] }`.
+//! - [`ValidatorEntry`] — Validator set member: `public_key` + `voting_power`, used in [`MalachiteConfig`] and `update_validators`.
+//! - [`MalachiteConfig`] — Node configuration: validator secret, validator set, `persistent_peers`, propose timeout, [`NodeRole`], `listen_addr`, and `base` project directory.
+//! - [`CommitCertificate`] — Finalization certificate delivered with `process_mb_finalized`.
+//! - [`libp2p_peer_id`] — Derive a [`PeerId`] from a validator secret offline, to build the `/p2p/<peer-id>` suffix of each persistent-peer multiaddr.
 //!
 //! ## Caller invariants
 //!

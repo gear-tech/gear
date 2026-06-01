@@ -17,19 +17,17 @@
 //!
 //! ## Public API
 //!
-//! | Item | Description |
-//! |------|-------------|
-//! | [`CASDatabase`] | Content-addressable backend trait (`write(&[u8]) -> H256`, `read`, `contains`) |
-//! | [`KVDatabase`] | Key-value backend trait (`get`/`put`/`contains`/`iter_prefix`/`take`) |
-//! | [`Database`] | Typed domain database; primary handle held by services |
-//! | [`RawDatabase`] | Un-typed `{ kv, cas }` pairing used during construction |
-//! | [`RocksDatabase`] | Persistent backend (`RocksDatabase::open(path)`) |
-//! | [`MemDb`] | In-memory backend for tests |
-//! | [`hash`] | Blake2 hash helper; matches the key returned by `CASDatabase::write` |
-//! | [`initialize_db`] | Versioned DB bring-up and migration entry point |
-//! | [`dump`] | State dump for re-genesis |
-//! | [`iterator`] / [`visitor`] | Graph traversal over the content-addressed state |
-//! | [`verifier`] | DB integrity verification backing `ethexe check` |
+//! - [`CASDatabase`] — Content-addressable backend trait (`write(&[u8]) -> H256`, `read`, `contains`)
+//! - [`KVDatabase`] — Key-value backend trait (`get`/`put`/`contains`/`iter_prefix`/`take`)
+//! - [`Database`] — Typed domain database; primary handle held by services
+//! - [`RawDatabase`] — Un-typed `{ kv, cas }` pairing used during construction
+//! - [`RocksDatabase`] — Persistent backend (`RocksDatabase::open(path)`)
+//! - [`MemDb`] — In-memory backend for tests
+//! - [`hash`] — Blake2 hash helper; matches the key returned by `CASDatabase::write`
+//! - [`initialize_db`] — Versioned DB bring-up and migration entry point
+//! - [`dump`] — State dump for re-genesis
+//! - [`iterator`] / [`visitor`] — Graph traversal over the content-addressed state
+//! - [`verifier`] — DB integrity verification backing `ethexe check`
 //!
 //! Versioned initialization and migrations go through [`initialize_db`], [`GenesisInitializer`],
 //! [`InitConfig`], and [`VERSION`]. Under `feature = "mock"`, `create_initialized_empty_memory_db`

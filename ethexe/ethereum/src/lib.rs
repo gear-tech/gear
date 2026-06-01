@@ -37,19 +37,17 @@
 //!
 //! ## Public API
 //!
-//! | Item | Purpose |
-//! |------|---------|
-//! | [`EthereumBuilder`] | Fluent builder: RPC URL, router address, signer, fee tuning |
-//! | [`Ethereum`] | Central connection; vends contract handles and block queries |
-//! | [`AlloyProvider`] | Concrete alloy provider stack; returned by [`Ethereum::provider`] |
-//! | [`router::Router`] | Router.sol: code validation, batch commitment, program creation |
-//! | [`mirror::Mirror`] | Mirror.sol: send/reply messages, claim value, top up balances |
-//! | [`wvara::WVara`] | WrappedVara ERC-20: transfer, approve, mint, balance queries |
-//! | [`middleware::Middleware`] | Validator election/permissions contract |
-//! | [`TryGetReceipt`] | Retry-aware receipt retrieval with log parsing and revert detection |
-//! | [`IntoBlockId`] | Convert `H256` / `u32` / `u64` into a block id |
-//! | [`deploy::EthereumDeployer`] | Deploy the full contract set in local/test environments |
-//! | [`primitives`] / [`abi`] | Re-exported `alloy::primitives`; generated ABI bindings |
+//! - [`EthereumBuilder`] — Fluent builder: RPC URL, router address, signer, fee tuning
+//! - [`Ethereum`] — Central connection; vends contract handles and block queries
+//! - [`AlloyProvider`] — Concrete alloy provider stack; returned by [`Ethereum::provider`]
+//! - [`router::Router`] — Router.sol: code validation, batch commitment, program creation
+//! - [`mirror::Mirror`] — Mirror.sol: send/reply messages, claim value, top up balances
+//! - [`wvara::WVara`] — WrappedVara ERC-20: transfer, approve, mint, balance queries
+//! - [`middleware::Middleware`] — Validator election/permissions contract
+//! - [`TryGetReceipt`] — Retry-aware receipt retrieval with log parsing and revert detection
+//! - [`IntoBlockId`] — Convert `H256` / `u32` / `u64` into a block id
+//! - [`deploy::EthereumDeployer`] — Deploy the full contract set in local/test environments
+//! - [`primitives`] / [`abi`] — Re-exported `alloy::primitives`; generated ABI bindings
 //!
 //! Each contract handle also vends a read-only query counterpart (`RouterQuery`, `MirrorQuery`,
 //! `WVaraQuery`, `MiddlewareQuery`); `Router`, `Mirror`, and `WVara` additionally vend

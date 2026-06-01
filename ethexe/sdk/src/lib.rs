@@ -19,13 +19,11 @@
 //!
 //! ## Public API
 //!
-//! | Item | Purpose |
-//! |------|---------|
-//! | [`VaraEthApi`] | SDK root; built with `VaraEthApi::new`. Factory methods `mirror`, `router`, `wrapped_vara` return scoped wrappers. |
-//! | [`Mirror`] | Per-program operations: `send_message`, `send_reply`, `send_message_injected`, `wait_for_reply`, `claim_value`, `state`, `calculate_reply_for_handle`, plus `*_with_receipt` variants. |
-//! | [`Router`] | Router-contract and global queries: `request_code_validation`, `create_program`, validator queries, `code_state`, `program_ids`, `storage_view`. |
-//! | [`WVara`] | WrappedVara ERC20 queries and transfers, plus `mint` and `events`. |
-//! | [`VaraEth`], [`VaraEthInstance`], [`Error`] | Re-exported from `ethexe-node-wrapper`; spawn and manage a local ethexe node process and obtain its RPC endpoints. |
+//! - [`VaraEthApi`] — SDK root; built with `VaraEthApi::new`. Factory methods `mirror`, `router`, `wrapped_vara` return scoped wrappers.
+//! - [`Mirror`] — Per-program operations: `send_message`, `send_reply`, `send_message_injected`, `wait_for_reply`, `claim_value`, `state`, `calculate_reply_for_handle`, plus `*_with_receipt` variants.
+//! - [`Router`] — Router-contract and global queries: `request_code_validation`, `create_program`, validator queries, `code_state`, `program_ids`, `storage_view`.
+//! - [`WVara`] — WrappedVara ERC20 queries and transfers, plus `mint` and `events`.
+//! - [`VaraEth`], [`VaraEthInstance`], [`Error`] — Re-exported from `ethexe-node-wrapper`; spawn and manage a local ethexe node process and obtain its RPC endpoints.
 //!
 //! ## Usage example
 //!

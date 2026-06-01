@@ -13,13 +13,11 @@
 //!
 //! ## Public API
 //!
-//! | Item | Kind | Notes |
-//! |------|------|-------|
-//! | [`OptionFuture`] | sealed trait | `.maybe()` on `Option<F: Future>`; a `None` stays pending forever |
-//! | [`OptionStreamNext`] | sealed trait | `.maybe_next()` / `.maybe_next_some()` on `&mut Option<S>` and `&mut FuturesUnordered<F>` |
-//! | [`Timer`] | struct | named restartable timer carrying data `T`; `new` / `new_from_secs` / `new_from_millis`, `start` / `stop` / `started` |
-//! | [`LocalKey`] | struct | mutable task-local; `scope` / `with_mut` / `poll_fn` |
-//! | [`task_local!`] | macro | declares a `static LocalKey<T>`, like `tokio::task_local!` but mutable |
+//! - [`OptionFuture`] (sealed trait) — `.maybe()` on `Option<F: Future>`; a `None` stays pending forever
+//! - [`OptionStreamNext`] (sealed trait) — `.maybe_next()` / `.maybe_next_some()` on `&mut Option<S>` and `&mut FuturesUnordered<F>`
+//! - [`Timer`] (struct) — named restartable timer carrying data `T`; `new` / `new_from_secs` / `new_from_millis`, `start` / `stop` / `started`
+//! - [`LocalKey`] (struct) — mutable task-local; `scope` / `with_mut` / `poll_fn`
+//! - [`task_local!`] (macro) — declares a `static LocalKey<T>`, like `tokio::task_local!` but mutable
 //!
 //! Both traits are sealed: only the impls in this crate satisfy them. Calling
 //! `maybe_next` (not `maybe_next_some`) on a `&mut FuturesUnordered` panics by design.

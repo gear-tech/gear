@@ -20,14 +20,12 @@
 //!
 //! ## Public API
 //!
-//! | Item | Purpose |
-//! |------|---------|
-//! | [`ConsensusService`] | The crate's entire input/output surface: a `Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static`. Inputs arrive through its `receive_*` methods. |
-//! | [`ConsensusEvent`] | Output stream items: [`PublishMessage`](ConsensusEvent::PublishMessage), [`CommitmentSubmitted`](ConsensusEvent::CommitmentSubmitted), and [`Warning`](ConsensusEvent::Warning). |
-//! | [`CommitmentSubmitted`] | Informational payload for a batch that landed on-chain; consumed via `Display`. |
-//! | [`ValidatorService`] | Concrete [`ConsensusService`] a validator node runs; built via `ValidatorService::new`. |
-//! | [`ValidatorConfig`] | Per-node configuration (`pub_key`, `signatures_threshold`, `router_address`, batch and delay limits). |
-//! | [`BatchCommitter`] | Trait abstracting submission of a signed batch to the Router; implemented by the `ethexe-ethereum` router wrapper. |
+//! - [`ConsensusService`] — The crate's entire input/output surface: a `Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static`. Inputs arrive through its `receive_*` methods.
+//! - [`ConsensusEvent`] — Output stream items: [`PublishMessage`](ConsensusEvent::PublishMessage), [`CommitmentSubmitted`](ConsensusEvent::CommitmentSubmitted), and [`Warning`](ConsensusEvent::Warning).
+//! - [`CommitmentSubmitted`] — Informational payload for a batch that landed on-chain; consumed via `Display`.
+//! - [`ValidatorService`] — Concrete [`ConsensusService`] a validator node runs; built via `ValidatorService::new`.
+//! - [`ValidatorConfig`] — Per-node configuration (`pub_key`, `signatures_threshold`, `router_address`, batch and delay limits).
+//! - [`BatchCommitter`] — Trait abstracting submission of a signed batch to the Router; implemented by the `ethexe-ethereum` router wrapper.
 //!
 //! Inputs ([`ConsensusService`] methods):
 //!

@@ -17,14 +17,12 @@
 //!
 //! ## Public API
 //!
-//! | Item | Role |
-//! |---|---|
-//! | [`BlobLoaderService`] | Trait stored by `ethexe-service`; a fused stream of fetched code blobs driven via `load_codes` |
-//! | [`BlobLoader`] | Concrete implementation; constructed with `BlobLoader::new(db, cfg).await` |
-//! | [`ConsensusLayerConfig`] | RPC endpoints (`ethereum_rpc`, `ethereum_beacon_rpc`), `beacon_block_time`, retry `attempts` |
-//! | [`BlobLoaderEvent`] | Output event; the only variant is `BlobLoaded(CodeAndIdUnchecked)` |
-//! | [`BlobLoaderError`] | Public error: `Transport` or `CodeBlobInfoNotFound(CodeId)` |
-//! | [`Database`] | Blanket-implemented marker bound: `CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static` |
+//! - [`BlobLoaderService`] — Trait stored by `ethexe-service`; a fused stream of fetched code blobs driven via `load_codes`
+//! - [`BlobLoader`] — Concrete implementation; constructed with `BlobLoader::new(db, cfg).await`
+//! - [`ConsensusLayerConfig`] — RPC endpoints (`ethereum_rpc`, `ethereum_beacon_rpc`), `beacon_block_time`, retry `attempts`
+//! - [`BlobLoaderEvent`] — Output event; the only variant is `BlobLoaded(CodeAndIdUnchecked)`
+//! - [`BlobLoaderError`] — Public error: `Transport` or `CodeBlobInfoNotFound(CodeId)`
+//! - [`Database`] — Blanket-implemented marker bound: `CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static`
 //!
 //! ## Invariants
 //!
