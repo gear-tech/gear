@@ -25,6 +25,7 @@ impl CargoCommand {
         let toolchain = Toolchain::try_from_rustup().expect("Failed to resolve toolchain version");
         let rustc_version = rustc_version::version().expect("Failed to get rustc version");
         let linker_plugin_lto = rustc_version.major == 1 && rustc_version.minor >= 91;
+        let allow_undefined = rustc_version.major == 1 && rustc_version.minor >= 96;
 
         let mut rustc_flags = vec!["-Clink-arg=--import-memory", "-Clink-arg=--allow-undefined"];
 
@@ -38,6 +39,14 @@ impl CargoCommand {
                 // -C linker-plugin-lto causes conflict: https://github.com/rust-lang/rust/issues/130604
                 "-C",
                 "linker-plugin-lto",
+            ]);
+        }
+
+        if allow_undefined {
+            rustc_flags.extend_from_slice(&[
+                // -C link-arg fixes this: https://github.com/rust-lang/rust/pull/149868
+                "-C",
+                "link-arg=--allow-undefined",
             ]);
         }
 

@@ -42,7 +42,17 @@ ISOLATED_CORE=$(get_isolated_cores | cut -d " " -f1)
 # List of one-time extrinsics to benchmark.
 # They are retrieved automatically from the pallet_gear benchmarks file by their `r` component range 0..1,
 # which defines them as one-time extrinsics.
-mapfile -t ONE_TIME_EXTRINSICS < <(cat "vara/pallets/gear/src/benchmarking/mod.rs" | grep "0 .. 1;" -B 1 | grep -E "{$" | awk '{print $1}')
+PALLET_GEAR_BENCHMARKS_FILE="vara/pallets/gear/src/benchmarking/mod.rs"
+if [ ! -f "$PALLET_GEAR_BENCHMARKS_FILE" ]; then
+  echo "[-] Cannot find pallet_gear benchmarks file: $PALLET_GEAR_BENCHMARKS_FILE"
+  exit 1
+fi
+
+mapfile -t ONE_TIME_EXTRINSICS < <(grep "0 .. 1;" -B 1 "$PALLET_GEAR_BENCHMARKS_FILE" | grep -E "{$" | awk '{print $1}')
+if [ "${#ONE_TIME_EXTRINSICS[@]}" -eq 0 ]; then
+  echo "[-] Failed to discover one-time pallet_gear extrinsics from $PALLET_GEAR_BENCHMARKS_FILE"
+  exit 1
+fi
 
 while getopts 'bmfps:c:v' flag; do
   case "${flag}" in
@@ -135,6 +145,8 @@ else
   echo "[+] Benchmarking ${#PALLETS[@]} Gear pallets by excluding ${#EXCLUDED_PALLETS[@]} from ${#ALL_PALLETS[@]}."
 fi
 
+TASKSET_CMD=""
+
 # Populate TASKSET_CMD with taskset command if isolated core is set.
 if [ -n "$ISOLATED_CORE" ]; then
   echo "[+] Running benches on isolated core: $ISOLATED_CORE"
@@ -148,15 +160,16 @@ rm -f $ERR_FILE
 
 WEIGHTS_OUTPUT="scripts/benchmarking/weights-output"
 # Delete the weights output folders before each run.
-rm -R ${WEIGHTS_OUTPUT}
+rm -rf "${WEIGHTS_OUTPUT}"
 # Create the weights output folders.
-mkdir ${WEIGHTS_OUTPUT}
+mkdir -p "${WEIGHTS_OUTPUT}"
 
 STORAGE_OUTPUT="scripts/benchmarking/rocksdb_weights.rs"
 rm -f ${STORAGE_OUTPUT}
 
 MACHINE_OUTPUT="scripts/benchmarking/machine_benchmark_result.txt"
 rm -f $MACHINE_OUTPUT
+PALLET_GEAR_ONETIME_BENCHMARKED=false
 
 # Benchmark each pallet.
 for PALLET in "${PALLETS[@]}"; do
@@ -170,7 +183,7 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 
   # Run multithreaded benchmarks (pallet_gear_builtin) on fixed 4 cores.
-  if [ -n "$INSTANCE_TYPE" ] && [ "$PALLET" == "pallet_gear_builtin" ]
+  if [ "$PALLET" == "pallet_gear_builtin" ]
   then
     PREV_TASKSET_CMD=$TASKSET_CMD
     TASKSET_CMD="taskset -c 2,3,4,5"
@@ -250,7 +263,7 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 
   # If the pallet is pallet_gear, benchmark the one-time extrinsics.
-  if [ "$PALLET" == "pallet_gear" ] && [ -n "$ONE_TIME_EXTRINSICS" ]
+  if [ "$PALLET" == "pallet_gear" ] && [ "${#ONE_TIME_EXTRINSICS[@]}" -gt 0 ]
   then
     echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
     echo "[+] Running one-time extrinsics: $(IFS=', ' ; echo "${ONE_TIME_EXTRINSICS[*]}")"
@@ -272,6 +285,8 @@ for PALLET in "${PALLETS[@]}"; do
     if [ $? -ne 0 ]; then
       echo "$OUTPUT" >> "$ERR_FILE"
       echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
+    else
+      PALLET_GEAR_ONETIME_BENCHMARKED=true
     fi
   fi
 
@@ -312,8 +327,10 @@ else
   unset storage_folder
 fi
 
-# Merge pallet_gear weights.
-./scripts/benchmarking/merge_outputs.sh
+# Merge pallet_gear one-time weights if the one-time benchmark ran.
+if [ "$PALLET_GEAR_ONETIME_BENCHMARKED" = true ]; then
+  ./scripts/benchmarking/merge_outputs.sh
+fi
 
 # Check if the error file exists.
 if [ -f "$ERR_FILE" ]; then
