@@ -17,204 +17,204 @@ publish = false
 # they have features like `runtime-benchmarks` and `try-runtime`
 # so we cannot, for example, run `cargo build -p gear-cli` without `--all-features`
 
-[dependencies.frame-executive]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.frame-executive]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.frame-support]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.frame-support]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 features = ["experimental"]
 
-[dependencies.frame-try-runtime]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.frame-try-runtime]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-authority-discovery]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-authority-discovery]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-authorship]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-authorship]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-babe]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-babe]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-bags-list]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-bags-list]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-balances]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-balances]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-bounties]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-bounties]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-child-bounties]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-child-bounties]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-conviction-voting]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-conviction-voting]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-election-provider-multi-phase]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-election-provider-multi-phase]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-grandpa]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-grandpa]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-identity]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-identity]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-im-online]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-im-online]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-multisig]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-multisig]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-nomination-pools]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-nomination-pools]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-offences]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-offences]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-preimage]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-preimage]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-proxy]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-proxy]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-ranked-collective]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-ranked-collective]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-referenda]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-referenda]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-scheduler]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-scheduler]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-session]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-session]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["historical", "std"]
 
-[dependencies.pallet-sudo]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-sudo]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-timestamp]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-timestamp]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-transaction-payment]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-transaction-payment]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-treasury]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-treasury]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-utility]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-utility]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-vesting]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-vesting]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-whitelist]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-whitelist]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[dependencies.sc-client-db]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.sc-client-db]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["rocksdb", "test-helpers"]
 
-[dependencies.sc-service]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.sc-service]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 features = ["test-helpers"]
 
 ### BEGIN HAKARI SECTION
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies]
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -499,7 +499,7 @@ winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
 
-[target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
+[target.'cfg(not(any(target_arch = "wasm32", loom)))'.build-dependencies]
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -795,12 +795,13 @@ winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
 
-[target.x86_64-unknown-linux-gnu.dependencies]
+[target.'cfg(all(target_arch = "x86_64", target_vendor = "unknown", target_os = "linux", target_env = "gnu", not(any(target_arch = "wasm32", loom))))'.dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
@@ -817,13 +818,15 @@ rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
+zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
-[target.x86_64-unknown-linux-gnu.build-dependencies]
+[target.'cfg(all(target_arch = "x86_64", target_vendor = "unknown", target_os = "linux", target_env = "gnu", not(any(target_arch = "wasm32", loom))))'.build-dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
@@ -840,13 +843,15 @@ rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
+zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
-[target.aarch64-unknown-linux-gnu.dependencies]
+[target.'cfg(all(target_arch = "aarch64", target_vendor = "unknown", target_os = "linux", target_env = "gnu", not(any(target_arch = "wasm32", loom))))'.dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
@@ -863,13 +868,15 @@ rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
+zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
-[target.aarch64-unknown-linux-gnu.build-dependencies]
+[target.'cfg(all(target_arch = "aarch64", target_vendor = "unknown", target_os = "linux", target_env = "gnu", not(any(target_arch = "wasm32", loom))))'.build-dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
@@ -886,13 +893,15 @@ rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
+zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
-[target.aarch64-apple-darwin.dependencies]
+[target.'cfg(all(target_arch = "aarch64", target_vendor = "apple", target_os = "macos", not(any(target_arch = "wasm32", loom))))'.dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
@@ -907,13 +916,15 @@ security-framework-sys = { version = "2", features = ["OSX_10_14"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
+zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
-[target.aarch64-apple-darwin.build-dependencies]
+[target.'cfg(all(target_arch = "aarch64", target_vendor = "apple", target_os = "macos", not(any(target_arch = "wasm32", loom))))'.build-dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
@@ -928,5 +939,6 @@ security-framework-sys = { version = "2", features = ["OSX_10_14"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
+zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
 ### END HAKARI SECTION
