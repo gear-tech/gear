@@ -522,3 +522,23 @@ pub fn get_code_type_sections_sizes(
         type_section: type_section_size,
     })
 }
+
+/// Extract data of a custom section by name from raw WASM bytes.
+///
+/// Returns `Ok(Some(data))` if the section is found, `Ok(None)` if the WASM
+/// is valid but the section is not present, and `Err` if the WASM is malformed.
+/// The error preserves the underlying parser diagnostic.
+pub fn get_custom_section_data<'a>(
+    wasm: &'a [u8],
+    section_name: &str,
+) -> Result<Option<&'a [u8]>, wasmparser::BinaryReaderError> {
+    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+        if let Payload::CustomSection(section) = payload?
+            && section.name() == section_name
+        {
+            return Ok(Some(section.data()));
+        }
+    }
+
+    Ok(None)
+}
