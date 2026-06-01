@@ -18,17 +18,46 @@
 
 use std::{path::Path, sync::Arc, time::Duration};
 
+use async_trait::async_trait;
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
     db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
+    injected::{PurgedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
-    EmptyMempool, MalachiteConfig, MalachiteEvent, MalachiteService, ValidatorEntry,
+    MalachiteConfig, MalachiteEvent, MalachiteService, Mempool, TxInsertionStatus, ValidatorEntry,
 };
 use futures::StreamExt as _;
 use gprimitives::H256;
 use gsigner::{Signer, schemes::secp256k1::Secp256k1};
+
+/// Test-local no-op mempool. The crate's own [`EmptyMempool`] is not part
+/// of the public API on purpose — production should never assemble a
+/// `MalachiteService` around a pool that swallows transactions.
+#[derive(Clone, Default)]
+struct EmptyMempool;
+
+#[async_trait]
+impl Mempool for EmptyMempool {
+    fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
+        TxInsertionStatus::Inserted
+    }
+
+    fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
+        Vec::new()
+    }
+
+    async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+        Vec::new()
+    }
+
+    async fn forget(&self, _committed: &[SignedInjectedTransaction]) {}
+
+    async fn wait_for_new_tx(&self) {
+        std::future::pending().await
+    }
+}
 
 /// Push synthetic linear Ethereum chain headers into the DB and
 /// return blocks oldest-first. Headers are deterministic per `seed`,

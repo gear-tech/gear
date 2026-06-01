@@ -60,10 +60,7 @@ mod tx_validity;
 
 pub use crate::{
     config::{MalachiteConfig, ValidatorEntry},
-    mempool::{
-        DEFAULT_POOL_CAPACITY, EmptyMempool, InjectedTxMempool, Mempool, MempoolInsertError,
-        classify_insert_outcome,
-    },
+    mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
@@ -143,7 +140,6 @@ fn _api_shape(
     _ev: MalachiteEvent,
     _block: Transactions,
     _cert: CommitCertificate,
-    _mp: EmptyMempool,
     _cfg: MalachiteConfig,
     _tx: ethexe_common::injected::SignedInjectedTransaction,
 ) {
