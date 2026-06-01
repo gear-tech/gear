@@ -12,7 +12,8 @@
 //!
 //! ## Public API
 //!
-//! - [`ObserverService`] — Stream of chain-head and sync events; implements `futures::Stream<Item = Result<ObserverEvent>>` and `FusedStream`
+//! - [`ObserverService`] — Stream of chain-head and sync events; implements `futures::Stream<Item = Result<ObserverEvent>>` and
+//!   `FusedStream`
 //! - [`ObserverService::new`] — Async constructor that connects the provider and starts the header subscription
 //! - [`ObserverService::provider`] — Borrows the underlying `alloy` `RootProvider`
 //! - [`ObserverService::block_loader`] — Returns a fresh [`EthereumBlockLoader`] bound to the configured router address
