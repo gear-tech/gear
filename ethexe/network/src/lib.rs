@@ -1,54 +1,22 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! # ethexe-network
+//! Networking stack for `ethexe`.
 //!
-//! libp2p networking stack for the `ethexe` Ethereum execution layer. It wires a
-//! single libp2p swarm into one [`NetworkService`] that implements
-//! `futures::Stream<Item = NetworkEvent>`, yielding already-validated high-level
-//! events to the caller: validator gossip, public promise (tx-receipt) gossip,
-//! and point-to-point injected-transaction delivery. (db-sync runs through the
-//! separate [`db_sync::Handle`].)
+//! This crate wires together the libp2p swarm used by the execution layer and
+//! exposes it as a single [`NetworkService`] stream. The service combines:
 //!
-//! ## Role in the stack
+//! - peer management and connection caps;
+//! - Kademlia-backed validator discovery;
+//! - gossipsub topics for validator messages and public promises;
+//! - request/response database synchronization;
+//! - private injected-transaction delivery to validators;
+//! - peer scoring and temporary peer blocking.
 //!
-//! `ethexe-service` is the only direct consumer: it feeds the service new chain
-//! heads via [`NetworkService::set_chain_head`], drains the event stream, and routes
-//! each [`NetworkEvent`] onward (validator messages to `ethexe-consensus`, tx
-//! receipts to `ethexe-rpc`). `ethexe-cli` uses [`DEFAULT_LISTEN_PORT`] when
-//! building network parameters.
-//!
-//! ## Public API
-//!
-//! Construct the service with [`NetworkService::new`], passing a [`NetworkConfig`]
-//! (static, usually from CLI flags) and a [`NetworkRuntimeConfig`] (runtime
-//! dependencies).
-//!
-//! | Item | Purpose |
-//! |------|---------|
-//! | [`NetworkService`] | Owns the swarm; a `Stream` + `FusedStream` of [`NetworkEvent`] |
-//! | [`NetworkService::new`] | Build and start the swarm |
-//! | [`NetworkService::set_chain_head`] | Refresh the validator snapshot after a new block |
-//! | [`NetworkService::publish_message`] | Gossip a validator-signed message |
-//! | [`NetworkService::publish_tx_receipt`] | Gossip a signed promise |
-//! | [`NetworkService::send_injected_transaction`] | Private delivery to a validator |
-//! | [`NetworkService::db_sync_handle`] | Return a cloneable [`db_sync::Handle`] |
-//! | [`NetworkService::local_peer_id`] | Return the local libp2p `PeerId` |
-//! | [`NetworkEvent`] | Emitted events |
-//! | [`NetworkConfig`] | Static config: keys, `router_address` (namespaces topics), addresses, [`TransportType`]; `new_local`/`new_test` constructors |
-//! | [`NetworkRuntimeConfig`] | Runtime deps: block header, validators, signers, [`db_sync::ExternalDataProvider`], database |
-//! | [`TransportType`] | `Default` (production) or `Test` (in-memory, for unit tests) |
-//! | [`db_sync::Handle`] | Cloneable handle for issuing `db_sync::Request`s |
-//! | [`db_sync::ExternalDataProvider`] | Caller-supplied async lookups used to validate and serve inbound db-sync requests |
-//!
-//! ## Invariants
-//!
-//! - The networking identity is distinct from the validator key; validator identity
-//!   is handled separately and may be absent on non-validator nodes.
-//! - Bootstrap addresses must carry an embedded `PeerId`, or [`NetworkService::new`]
-//!   returns an error.
-//! - [`NetworkService::set_chain_head`] must be called on every chain-head change to
-//!   keep validator-message verification and discovery in sync with the current era.
+//! [`NetworkService`] is the main integration point used by higher-level
+//! services. It owns the swarm, emits validated [`NetworkEvent`] items, and
+//! hands out protocol-specific handles such as [`db_sync::Handle`] for
+//! database synchronization and a peer-scoring handle for internal use.
 
 pub mod db_sync;
 mod gossipsub;

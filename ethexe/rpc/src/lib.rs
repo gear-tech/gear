@@ -1,33 +1,37 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! # ethexe-rpc
+//! Vara.eth RPC client and server APIs.
 //!
-//! JSON-RPC 2.0 server and client APIs for an ethexe (Vara.eth) node. Exposes Ethereum
-//! block data, WASM code blobs, and program state to external callers, and bridges
-//! injected-transaction submission back to the main service. It reads `ethexe-db` and
-//! writes only injected-transaction promise/receipt caches; its sole outbound action is
-//! emitting [`RpcEvent::InjectedTransaction`] for the main service to handle.
+//! The crate provide both client and server APIs for the Vara.eth node.
 //!
-//! ## Role in the Stack
+//! ## Crate modules
+//! The crate has the following structure:
+//! - `apis` - provides the RPC available APIs
+//!     - `block` - Ethereum blocks API
+//!     - `code` - WASM codes API
+//!     - `injected` - API for communication with node via [`ethexe_common::injected::InjectedTransaction`]
+//!     - `program` - WASM programs API (state, queue, mailbox, reply calculations)
+//!     - `dev` - the development API (available only in development builds)
+//! - `errors` - provides helpers function for building the [`jsonrpsee::types::ErrorObject`]
+//! - `metrics` - provides metrics for the RPC server
 //!
-//! `ethexe-service` constructs an [`RpcServer`], calls [`RpcServer::run_server`], then polls
-//! the returned [`RpcService`] stream for [`RpcEvent`]s and feeds results back via
-//! [`RpcService::receive_computed_promise`] and [`RpcService::receive_tx_receipt`]. The typed
-//! clients (behind the `client` feature) are consumed by `ethexe-cli`, `ethexe-sdk`, and test
-//! tooling.
+//! ## Design notes
+//! By design the RPC server has no write access to the node database. So it must be just
+//! a read-only proxy for the external users.
 //!
-//! ## Public API
+//! ## Features
+//! The following features are available:
+//! - `client` - enables the client APIs generate from [`jsonrpsee::proc_macros::rpc`] macro.
+//! - `server` - enables the RPC server implementation.
 //!
-//! | Item | Feature | Description |
-//! |------|---------|-------------|
-//! | [`RpcServer`] | `server` | Owns config + DB; `new(config, db)` then `run_server()` starts the endpoint. |
-//! | [`RpcConfig`] | `server` | Listen address, CORS, gas allowance, program-processing chunk size, dev-API flag. |
-//! | [`RpcService`] | `server` | `Stream<Item = RpcEvent>` the main service polls; accepts promise/receipt results from the service and forwards them to JSON-RPC subscribers. |
-//! | [`RpcEvent`] | `server` | Outbound work items; currently only `InjectedTransaction`. |
-//! | [`DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER`] | always | Default gas-limit multiplier (10). |
-//! | [`BlockClient`], [`CodeClient`], [`ProgramClient`], [`InjectedClient`], [`DevClient`] | `client` | Generated typed clients. |
-//! | [`FullProgramState`], [`CalculateReplyForHandleResult`] | `client` | Result types re-exported for client callers. |
+//! ### RPC server configuration details
+//! The RPC server is configured from [`RpcConfig`]. It provides the following configuration:
+//! - [`RpcConfig::listen_addr`] - the address of RPC server running on
+//! - [`RpcConfig::cors`] - the list of allowed CORS origins
+//! - [`RpcConfig::gas_allowance`] - the gas allowance for program reply calculation
+//! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
+//! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
 
 #[cfg(feature = "client")]
 pub use crate::apis::{

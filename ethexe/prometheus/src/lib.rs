@@ -1,62 +1,19 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! # Ethexe Prometheus
+//! Prometheus integration for the ethexe node.
 //!
-//! Prometheus metrics exporter for the ethexe node.
+//! This crate exposes the metrics endpoint used by the node and keeps a small
+//! set of liveness gauges in sync with the contents of the local database.
+//! It also acts as a bridge between the HTTP exporter and subsystems that own
+//! metrics registries outside of the global recorder, such as libp2p.
 //!
-//! Exposes a `/metrics` HTTP endpoint, keeps liveness gauges ([`LivenessMetrics`])
-//! in sync with the local [`ethexe_db::Database`], and merges output from the global
-//! `metrics` recorder with text supplied by external subsystems (notably libp2p)
-//! into a single response.
-//!
-//! ## Role in the stack
-//!
-//! A leaf crate that reads from [`ethexe_db`] and `ethexe_common`. It is consumed by
-//! `ethexe-service`, which owns a [`PrometheusService`], polls it as a stream, and
-//! answers [`PrometheusEvent::CollectMetrics`] with libp2p metrics text; and by
-//! `ethexe-cli`, which builds [`PrometheusConfig`] from CLI parameters.
-//!
-//! ## Public API
-//!
-//! | Item | Purpose |
-//! |------|---------|
-//! | [`PrometheusService`] | `Stream` (and `FusedStream`) of [`PrometheusEvent`] over the background HTTP server task |
-//! | [`PrometheusService::new`] | Single construction point: installs the recorder, inits gauges, spawns the server |
-//! | [`PrometheusEvent`] | `CollectMetrics` (request extra registry text via a oneshot) or `ServerClosed` |
-//! | [`PrometheusConfig`] | `name` (exported as the global `node` label) and listen `addr` |
-//! | [`LivenessMetrics`] | Gauges under the `ethexe_liveness` scope, derived from the latest committed MB |
-//! | [`UNBOUNDED_CHANNELS_COUNTER`] / [`UNBOUNDED_CHANNELS_SIZE`] | Statics for instrumenting unbounded mpsc channels across the workspace |
-//!
-//! ```rust,no_run
-//! use ethexe_prometheus::{PrometheusConfig, PrometheusEvent, PrometheusService};
-//! use futures::StreamExt as _;
-//!
-//! # async fn example(db: ethexe_db::Database) -> anyhow::Result<()> {
-//! let config = PrometheusConfig {
-//!     name: "node-1".into(),
-//!     addr: "127.0.0.1:9635".parse()?,
-//! };
-//! let mut prometheus = PrometheusService::new(config, db)?;
-//!
-//! while let Some(event) = prometheus.next().await {
-//!     match event {
-//!         PrometheusEvent::CollectMetrics { libp2p_metrics } => {
-//!             let _ = libp2p_metrics.send(String::new());
-//!         }
-//!         PrometheusEvent::ServerClosed(_) => break,
-//!     }
-//! }
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! ## Invariants
-//!
-//! - At most one [`PrometheusService`] per process: a second [`PrometheusService::new`]
-//!   fails because the global recorder is already installed.
-//! - `is_terminated` reports `true` only after `ServerClosed` has been yielded to the
-//!   consumer, not merely when the task finishes.
+//! [`PrometheusService`] runs an HTTP server and yields [`PrometheusEvent`]s to
+//! the parent service. When `/metrics` is requested, the service:
+//! - refreshes liveness gauges derived from the latest committed MB,
+//! - renders metrics from the global `metrics` recorder,
+//! - asks the parent service for extra registry dumps,
+//! - merges everything into a single Prometheus text response.
 
 use anyhow::{Context as _, Result};
 use ethexe_common::db::{BlockMetaStorageRO, GlobalsStorageRO, MbStorageRO, OnChainStorageRO};

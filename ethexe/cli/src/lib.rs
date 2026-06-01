@@ -1,42 +1,21 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! # ethexe-cli
+//! Command-line entrypoint for operating Vara.eth nodes.
 //!
-//! Command-line entrypoint for operating Vara.eth (ethexe) nodes. This crate contains no
-//! business logic: it parses arguments, loads configuration, merges file-based config with CLI
-//! flags (CLI wins), and delegates all real work to the underlying service and library crates.
+//! The crate glues together the configuration model from the `params` module and the
+//! executable workflows from the `commands` module.
+//! At startup the binary:
+//! - parses the top-level CLI with [`Cli`]
+//! - optionally loads `./.ethexe.toml` or a custom file passed through `--cfg`
+//! - merges CLI flags over file-based configuration
+//! - dispatches to one of the supported command groups
 //!
-//! ## Role in the Stack
-//!
-//! `ethexe-cli` is a leaf binary at the top of the ethexe workspace; no other ethexe crate
-//! depends on it. It builds an `ethexe_service::config::Config` and calls into `ethexe-service`
-//! for the `run` subcommand.
-//!
-//! ## Entry Point
-//!
-//! [`Cli`] is the only public item exported from the crate. [`Cli::run`] is the single entry
-//! point, and the default config path is [`Cli::DEFAULT_PARAMS_PATH`].
-//!
-//! ```rust,no_run
-//! use clap::Parser;
-//! use ethexe_cli::Cli;
-//!
-//! fn main() -> anyhow::Result<()> {
-//!     Cli::parse().run()
-//! }
-//! ```
-//!
-//! ## Command Groups
-//!
-//! | Subcommand  | Purpose                                              |
-//! |-------------|------------------------------------------------------|
-//! | `run`       | Launch the full ethexe service stack                 |
-//! | `key`       | Keystore manipulation (generate, inspect keypairs)   |
-//! | `tx`        | Submit Ethereum and injected transactions            |
-//! | `check`     | Verify the ethexe database for integrity/correctness |
-//! | `dump`      | State dump operations for re-genesis                 |
-//! | `malachite` | Malachite-consensus helpers (e.g. peer-id derivation)|
+//! The main command groups are:
+//! - `RunCommand` for launching the service stack
+//! - `KeyCommand` for key-store management
+//! - `TxCommand` for Ethereum and injected transaction flows
+//! - `CheckCommand` for database verification
 
 use anyhow::{Context, Result};
 use clap::Parser;

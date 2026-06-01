@@ -1,45 +1,25 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! # ethexe-node-loader
+//! Load generator and fuzzing harness for local `ethexe` nodes.
 //!
-//! Load generator and fuzzing harness for local `ethexe` deployments.
+//! `ethexe-node-loader` is a binary crate used during local development to put
+//! an `ethexe` deployment under sustained, mixed traffic. The loader operates in
+//! three modes:
 //!
-//! It drives an already-running ethexe node under sustained, mixed traffic for
-//! local development and failure reproduction, talking to an Ethereum RPC endpoint
-//! (via `ethexe-ethereum`) and one or more ethexe RPC nodes (via `ethexe-sdk`).
-//! It does not start a node, run validators, or deploy the Router contract — all of
-//! those must exist beforehand.
+//! - `load`: continuously creates randomized batches that upload code, create
+//!   programs, send messages, send replies, and claim value;
+//! - `fuzz`: deploys the demo syscall contract and repeatedly sends randomized
+//!   command sequences to it;
+//! - `dump`: materializes a generated Gear WASM module for a fixed seed to help
+//!   with reproducing failures.
 //!
-//! ## Modes
-//!
-//! The CLI selects one of three modes via `Params`:
-//!
-//! - `load` — a parallel worker pool issuing randomized upload/create/send/reply/claim
-//!   batches. `BatchPool` keeps one `Ethereum` client per funded worker account.
-//! - `fuzz` — deploys the demo syscall ("mega") contract once, then repeatedly sends
-//!   it randomized command sequences.
-//! - `dump` — materializes a deterministic Gear WASM module for a fixed seed to disk,
-//!   useful for reproducing generation-based failures offline.
-//!
-//! ## Public API
-//!
-//! | Item | Purpose |
-//! |------|---------|
-//! | `Params` | Top-level CLI mode selector: `Dump { seed }`, `Load`, `Fuzz`. |
-//! | `LoadParams` | Full configuration for load mode (node URL, worker count, batch size, key material, value/workload knobs). |
-//! | `BatchPool` | Owns the per-worker client pool; `run(config, shutdown_rx)` drives continuous batch execution. |
-//! | `LoadRunConfig` | Per-run parameters threaded into `BatchPool::run`. |
-//! | `WorkloadPolicy` | Controls the ratio of program-creation to message sends. |
-//! | `ValuePolicy` | Budget caps for message values and worker top-ups. |
-//!
-//! ## Invariants
-//!
-//! - `workers` must be greater than zero; validated before any network calls.
-//! - When worker private keys are supplied their count must equal `workers`;
-//!   otherwise Anvil-mnemonic derivation is used as a fallback.
-//! - Shutdown listens for both SIGINT and SIGTERM so `docker stop` triggers a clean
-//!   drain rather than a hard kill.
+//! In load mode, the crate either uses explicitly supplied worker private keys
+//! or derives worker accounts from the standard Anvil mnemonic, funds them
+//! through the configured deployer account, deploys a multicall helper contract,
+//! and then keeps a pool of worker tasks running in parallel. A block
+//! subscription drives event collection so the loader can keep track of created
+//! programs, mailbox state, and reply outcomes between batches.
 
 use crate::{
     abi::deploy_send_message_multicall,
