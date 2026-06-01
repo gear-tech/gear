@@ -129,26 +129,15 @@ impl TransactionsRelayer {
 
         tracing::trace!(%tx_hash, "Broadcast transaction, waiting for first acceptance");
 
-        // Priority: Accept > AlreadyPooled > Reject. `AlreadyPooled` means
-        // the promise will fire, so a racing `Reject` from a different
-        // validator must not bury it.
-        let mut already_pooled: Option<InjectedTransactionAcceptance> = None;
         let mut last_reject: Option<InjectedTransactionAcceptance> = None;
         while let Some(result) = response_futures.next().await {
             match result {
                 Ok(InjectedTransactionAcceptance::Accept) => {
                     return Ok(InjectedTransactionAcceptance::Accept);
                 }
-                Ok(acceptance @ InjectedTransactionAcceptance::AlreadyPooled { .. }) => {
-                    already_pooled = Some(acceptance);
-                }
                 Ok(rejection) => last_reject = Some(rejection),
                 Err(_) => {}
             }
-        }
-
-        if let Some(acceptance) = already_pooled {
-            return Ok(acceptance);
         }
 
         last_reject.map(Ok).unwrap_or_else(|| {

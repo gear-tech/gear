@@ -80,7 +80,7 @@ where
 {
     /// Consumes a `LiveState` and creates a new `LiveState` for the previous block.
     ///
-    /// Useful for opertations like when you want to execute a block, but also need the state of the
+    /// Useful for operations like when you want to execute a block, but also need the state of the
     /// block *before* it.
     pub async fn prev_block_live_state(self) -> sc_cli::Result<LiveState<Block>> {
         // We want to execute the block `block`, therefore need the state of the block *before* it.
