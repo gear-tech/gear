@@ -153,6 +153,9 @@ async fn collect_until_finalized(
             Ok(Some(Ok(MalachiteEvent::BlockProposal { .. }))) => {
                 // ignored — the test is keyed on finalized heights
             }
+            Ok(Some(Ok(MalachiteEvent::PurgedTransactions { .. }))) => {
+                // ignore
+            }
             Ok(Some(Err(e))) => panic!("service error: {e}"),
             Ok(None) | Err(_) => break,
         }
