@@ -23,7 +23,6 @@
 //! - [`ValidatorEntry`] (struct) — Single entry in the validator set
 //! - [`Mempool`] (trait) — Producer-side injected-tx source
 //! - [`InjectedTxMempool`] (struct) — Real mempool implementation
-//! - `EmptyMempool` (struct) — No-op mempool (non-producing nodes)
 //! - [`TxValidityChecker`] (struct) — Per-tx validity against the MB world
 //! - [`TxValidity`] (enum) — Validity verdict: `Valid`, `Duplicate`, `Outdated`, …
 //!
