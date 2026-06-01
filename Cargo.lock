@@ -13068,6 +13068,7 @@ dependencies = [
  "jsonrpsee",
  "log",
  "pallet-gear-rpc-runtime-api",
+ "parity-scale-codec",
  "sc-client-api",
  "sc-rpc",
  "serde",

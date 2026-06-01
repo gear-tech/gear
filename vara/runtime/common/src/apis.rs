@@ -190,10 +190,6 @@ macro_rules! impl_runtime_apis_plus_common {
 				fn read_metahash(program_id: H256, gas_allowance: Option<u64>,) -> Result<H256, Vec<u8>> {
 					Gear::read_metahash(program_id, gas_allowance)
 				}
-
-				fn read_wasm_custom_section(code_id: H256, section_name: Vec<u8>) -> Result<Option<Vec<u8>>, Vec<u8>> {
-					Gear::read_wasm_custom_section(code_id, section_name)
-				}
 			}
 
 			#[cfg(feature = "runtime-benchmarks")]

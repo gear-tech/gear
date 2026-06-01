@@ -21,7 +21,8 @@ use jsonrpsee::{
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
-use sc_client_api::BlockchainEvents;
+use parity_scale_codec::DecodeAll;
+use sc_client_api::{Backend as ClientBackend, BlockchainEvents, StorageProvider};
 use sc_rpc::SubscriptionTaskExecutor;
 use sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
@@ -192,7 +193,7 @@ impl<C, P> Gear<C, P> {
     }
 }
 
-impl<Client, Block> Gear<Client, Block>
+impl<Client, Block, Backend> Gear<Client, (Block, Backend)>
 where
     Block: BlockT,
     Client: 'static + ProvideRuntimeApi<Block>,
@@ -265,6 +266,13 @@ where
     }
 }
 
+fn original_code_storage_key(code_id: H256) -> StorageKey {
+    let mut key = twox_128(b"GearProgram").to_vec();
+    key.extend_from_slice(&twox_128(b"OriginalCodeStorage"));
+    key.extend_from_slice(code_id.as_bytes());
+    StorageKey(key)
+}
+
 /// Error type of this RPC api.
 pub enum Error {
     /// The transaction was not decodable.
@@ -283,10 +291,16 @@ impl From<Error> for i64 {
 }
 
 #[async_trait]
-impl<C, Block> GearApiServer<<Block as BlockT>::Hash, Result<u64, Vec<u8>>> for Gear<C, Block>
+impl<C, Block, Backend> GearApiServer<<Block as BlockT>::Hash, Result<u64, Vec<u8>>>
+    for Gear<C, (Block, Backend)>
 where
     Block: BlockT,
-    C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockchainEvents<Block>,
+    Backend: ClientBackend<Block> + 'static,
+    C: 'static
+        + ProvideRuntimeApi<Block>
+        + HeaderBackend<Block>
+        + BlockchainEvents<Block>
+        + StorageProvider<Block, Backend>,
     C::Api: GearRuntimeApi<Block>,
     <Block as BlockT>::Hash: serde::Serialize,
 {
@@ -656,26 +670,31 @@ where
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Option<Bytes>> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+        let storage_key = original_code_storage_key(code_id);
+        let Some(storage_data) = self.client.storage(at_hash, &storage_key).map_err(|e| {
+            ErrorObject::owned(
+                8000,
+                "WASM custom section storage read error",
+                Some(e.to_string()),
+            )
+        })?
+        else {
+            return Ok(None);
+        };
 
-        if self.get_api_version(at_hash)? < 3 {
-            return Err(ErrorObject::owned(
-                9000,
-                "WASM custom section runtime API is unavailable",
-                None::<String>,
-            ));
-        }
+        let mut encoded_code = storage_data.0.as_slice();
+        let original_code = Vec::<u8>::decode_all(&mut encoded_code).map_err(|e| {
+            ErrorObject::owned(
+                8000,
+                "WASM custom section storage decode error",
+                Some(e.to_string()),
+            )
+        })?;
 
-        self.client
-            .runtime_api()
-            .read_wasm_custom_section(at_hash, code_id, section_name.into_bytes())
-            .map_err(runtime_error_into_rpc_error)?
-            .map(|section| section.map(Bytes))
+        gear_core::code::get_custom_section_data(&original_code, &section_name)
+            .map(|section| section.map(|section| Bytes(section.to_vec())))
             .map_err(|e| {
-                ErrorObject::owned(
-                    9000,
-                    "WASM custom section read error",
-                    Some(String::from_utf8_lossy(&e).into_owned()),
-                )
+                ErrorObject::owned(8000, "WASM custom section read error", Some(e.to_string()))
             })
     }
 
