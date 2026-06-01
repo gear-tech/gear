@@ -39,7 +39,6 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
     "gear-runtime-primitives",
     "gear-sandbox-env",
     "gear-wasm-instrument",
-    "gear-wasmtime-cache",
     "gsdk-codegen",
     "gsys",
     "gbuiltin-bls381",
