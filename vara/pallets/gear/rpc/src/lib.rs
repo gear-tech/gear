@@ -278,6 +278,8 @@ fn pallet_storage_prefix(storage: &[u8]) -> Vec<u8> {
     key
 }
 
+// GearProgram storage maps use Identity hasher for H256/CodeId keys, so the
+// map key suffix is the raw 32 bytes. Revisit this if the storage hasher changes.
 fn storage_map_key(mut key: Vec<u8>, code_id: H256) -> StorageKey {
     key.extend_from_slice(code_id.as_bytes());
     StorageKey(key)
