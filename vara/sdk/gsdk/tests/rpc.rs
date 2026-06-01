@@ -347,7 +347,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     let reply_info = api
         .calculate_reply_for_handle(pid, message_in.encode(), 100_000_000_000, 0)
         .await?;
-    let raw_reply_info: ReplyInfo = api
+    let raw_reply_info: serde_json::Value = api
         .rpc()
         .request(
             "gear_calculateReplyForHandle",
@@ -373,7 +373,16 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
             code: ReplyCode::Success(SuccessReplyReason::Manual)
         }
     );
-    assert_eq!(raw_reply_info, reply_info);
+    assert_eq!(
+        raw_reply_info,
+        serde_json::json!({
+            "payload": format!("0x{}", hex::encode(message_out.encode())),
+            "value": 0,
+            "code": {
+                "Success": "Manual"
+            }
+        })
+    );
     assert_eq!(reply_result.reply, reply_info);
     assert!(reply_result.messages.is_empty());
 

@@ -30,6 +30,32 @@ use sp_runtime::traits::Block as BlockT;
 use sp_storage::StorageKey;
 use std::{collections::BTreeSet, future::Future, pin::Pin, sync::Arc};
 
+/// Legacy reply information returned by `gear_calculateReplyForHandle`.
+///
+/// This preserves the historical JSON shape where `code` is serialized by
+/// serde as an enum, for example `{ "Success": "Manual" }`. The newer
+/// `gear_calculateReplyForHandleResult` endpoint intentionally returns
+/// `gear_core::rpc::ReplyInfo`, where `code` is a 0x-prefixed byte string.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LegacyReplyInfo {
+    /// Payload of the reply.
+    pub payload: Bytes,
+    /// Value attached to the reply.
+    pub value: u128,
+    /// Reply code of the reply.
+    pub code: ReplyCode,
+}
+
+impl From<ReplyInfo> for LegacyReplyInfo {
+    fn from(reply: ReplyInfo) -> Self {
+        Self {
+            payload: Bytes(reply.payload),
+            value: reply.value,
+            code: reply.code,
+        }
+    }
+}
+
 /// Subscription item describing programs whose states changed within a block.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(bound = "BlockHash: serde::Serialize")]
@@ -56,7 +82,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         gas_limit: u64,
         value: RpcValue,
         at: Option<BlockHash>,
-    ) -> RpcResult<ReplyInfo>;
+    ) -> RpcResult<LegacyReplyInfo>;
 
     #[method(name = "gear_calculateReplyForHandleResult")]
     fn calculate_reply_for_handle_result(
@@ -276,16 +302,36 @@ where
         gas_limit: u64,
         value: RpcValue,
     ) -> RpcResult<CalculateReplyForHandleResult> {
+        let api_version = self.get_api_version(at_hash)?;
+
         self.run_with_api_copy(|api| {
-            api.calculate_reply_for_handle_result(
-                at_hash,
-                origin,
-                destination,
-                payload,
-                gas_limit,
-                value.0,
-                self.allowance_multiplier,
-            )
+            if api_version < 3 {
+                api.calculate_reply_for_handle(
+                    at_hash,
+                    origin,
+                    destination,
+                    payload,
+                    gas_limit,
+                    value.0,
+                    self.allowance_multiplier,
+                )
+                .map(|reply| {
+                    reply.map(|reply| CalculateReplyForHandleResult {
+                        reply,
+                        messages: Vec::new(),
+                    })
+                })
+            } else {
+                api.calculate_reply_for_handle_result(
+                    at_hash,
+                    origin,
+                    destination,
+                    payload,
+                    gas_limit,
+                    value.0,
+                    self.allowance_multiplier,
+                )
+            }
         })
     }
 
@@ -297,7 +343,7 @@ where
         payload: Vec<u8>,
         gas_limit: u64,
         value: RpcValue,
-    ) -> RpcResult<ReplyInfo> {
+    ) -> RpcResult<LegacyReplyInfo> {
         self.run_with_api_copy(|api| {
             api.calculate_reply_for_handle(
                 at_hash,
@@ -309,6 +355,7 @@ where
                 self.allowance_multiplier,
             )
         })
+        .map(Into::into)
     }
 }
 
@@ -345,7 +392,7 @@ where
         gas_limit: u64,
         value: RpcValue,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> RpcResult<ReplyInfo> {
+    ) -> RpcResult<LegacyReplyInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         self.inner_calculate_reply_for_handle(
