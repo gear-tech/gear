@@ -5714,6 +5714,7 @@ dependencies = [
 name = "ethexe-malachite-core"
 version = "1.10.0"
 dependencies = [
+ "advisory-lock",
  "anyhow",
  "arc-malachitebft-app",
  "arc-malachitebft-app-channel",
