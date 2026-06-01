@@ -3,7 +3,7 @@
 
 //! # Ethexe Consensus
 //!
-//! Turns finalized Sequencer Block state transitions into on-chain batch commitments
+//! Turns finalized Malachite block (MB) state transitions into on-chain batch commitments
 //! posted to the Ethereum Router contract. Each Ethereum block one validator is elected
 //! coordinator: it aggregates outcomes into a batch, collects threshold signatures, and
 //! submits the batch; every other validator participates by re-deriving and signing it.
@@ -11,8 +11,8 @@
 //!
 //! ## Role in the Stack
 //!
-//! `ethexe-service` is the sole consumer: it constructs a [`ValidatorService`] and drives
-//! it as a `Pin<Box<dyn ConsensusService>>`. Inputs arrive from `ethexe-observer` (chain
+//! `ethexe-service` is the sole consumer: it constructs a [`ValidatorService`] and polls
+//! it as a [`ConsensusService`]. Inputs arrive from `ethexe-observer` (chain
 //! heads), `ethexe-compute` (prepared blocks), and `ethexe-network` (validation requests
 //! and replies). Commitments leave through the [`BatchCommitter`] trait into
 //! `ethexe-ethereum`. State is read via the [`Database`](ethexe_db::Database) handle.
@@ -24,7 +24,7 @@
 //! |------|---------|
 //! | [`ConsensusService`] | The crate's entire input/output surface: a `Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static`. Inputs arrive through its `receive_*` methods. |
 //! | [`ConsensusEvent`] | Output stream items: [`PublishMessage`](ConsensusEvent::PublishMessage), [`CommitmentSubmitted`](ConsensusEvent::CommitmentSubmitted), and [`Warning`](ConsensusEvent::Warning). |
-//! | [`CommitmentSubmitted`] | Informational payload for a batch that landed on-chain (block hash, batch digest, submission tx hash). |
+//! | [`CommitmentSubmitted`] | Informational payload for a batch that landed on-chain; consumed via `Display`. |
 //! | [`ValidatorService`] | Concrete [`ConsensusService`] a validator node runs; built via `ValidatorService::new`. |
 //! | [`ValidatorConfig`] | Per-node configuration (`pub_key`, `signatures_threshold`, `router_address`, batch and delay limits). |
 //! | [`BatchCommitter`] | Trait abstracting submission of a signed batch to the Router; implemented by the `ethexe-ethereum` router wrapper. |
@@ -39,7 +39,6 @@
 //!
 //! ## Invariants
 //!
-//! - A new chain head always restarts the service for that head, discarding any in-progress commitment work for the previous one.
 //! - Exactly one coordinator is elected per Ethereum block, deterministically from the block timestamp.
 //! - `commitment_delay_limit` is a per-node configuration value, not a protocol constant.
 

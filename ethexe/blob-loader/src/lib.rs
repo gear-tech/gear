@@ -11,7 +11,7 @@
 //!
 //! `ethexe-service` constructs a [`BlobLoader`] at startup, stores it as
 //! `Box<dyn BlobLoaderService>`, and drives it inside the main event loop, calling
-//! [`BlobLoaderService::load_codes`] whenever the observer reports new codes to fetch.
+//! [`BlobLoaderService::load_codes`] whenever the compute service emits `RequestLoadCodes`.
 //! The loader reads code locations from the local database (via the [`Database`] bound)
 //! and fetches blob data from the execution-layer JSON-RPC and beacon node.
 //!
@@ -19,7 +19,7 @@
 //!
 //! | Item | Role |
 //! |---|---|
-//! | [`BlobLoaderService`] | Trait stored by `ethexe-service`; a fused stream plus `load_codes`, `into_box`, `pending_codes_len` |
+//! | [`BlobLoaderService`] | Trait stored by `ethexe-service`; a fused stream of fetched code blobs driven via `load_codes` |
 //! | [`BlobLoader`] | Concrete implementation; constructed with `BlobLoader::new(db, cfg).await` |
 //! | [`ConsensusLayerConfig`] | RPC endpoints (`ethereum_rpc`, `ethereum_beacon_rpc`), `beacon_block_time`, retry `attempts` |
 //! | [`BlobLoaderEvent`] | Output event; the only variant is `BlobLoaded(CodeAndIdUnchecked)` |
@@ -28,10 +28,8 @@
 //!
 //! ## Invariants
 //!
-//! - In-flight [`CodeId`]s are tracked in a dedup set; calling [`BlobLoaderService::load_codes`]
-//!   with an already-pending id is a no-op.
-//! - The stream never terminates (`is_terminated` returns `false`). A read error is logged
-//!   and drops the pending future; the stream yields `Poll::Pending` rather than an error item.
+//! - Calling [`BlobLoaderService::load_codes`] with an already-pending [`CodeId`] is a no-op.
+//! - The stream never terminates; a failed fetch is logged and silently dropped (no error item).
 
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},

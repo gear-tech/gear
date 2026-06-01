@@ -6,12 +6,10 @@
 //! A test and development harness that spawns a local `Vara.eth` (`ethexe`) node as a child
 //! OS process and exposes its RPC endpoints to the caller.
 //!
-//! It locates the `ethexe` binary, runs it in `--dev` mode (which starts an internal Anvil
-//! instance and deploys the required Ethereum contracts), and returns a handle to the node's
-//! JSON-RPC and backing Ethereum RPC endpoints. On drop, [`VaraEthInstance`] tears down the
-//! whole process group, including the internal Anvil process.
+//! It locates the `ethexe` binary, runs it in `--dev` mode, and returns a handle to the node's
+//! JSON-RPC and backing Ethereum RPC endpoints. [`VaraEthInstance`] closes the node on drop.
 //!
-//! Consumed by `ethexe-sdk`. Depends on [`ethexe-rpc`] (client feature) for the JSON-RPC
+//! Consumed by `ethexe-sdk`. Depends on `ethexe-rpc` (client feature) for the JSON-RPC
 //! client traits and on `ethexe-common` for shared address types.
 //!
 //! ## Public API
@@ -28,23 +26,6 @@
 //!   `127.0.0.1:8545` (the Anvil default used by `ethexe run --dev`).
 //! - [`VaraEth::spawn_ready`] returns [`Error::Timeout`] if the node does not answer within the
 //!   configured startup timeout (default 5 s); [`VaraEth::spawn_immediate`] returns at once.
-//!
-//! ## Usage
-//!
-//! ```rust,no_run
-//! use ethexe_node_wrapper::VaraEth;
-//!
-//! async fn do_some_stuff() {
-//!     let veth = VaraEth::new().spawn_ready().await.unwrap();
-//!
-//!     let http_endpoint = veth.http_endpoint();
-//!     let router = veth.router_address().await.unwrap();
-//!
-//!     println!("Vara.eth running at: {http_endpoint}");
-//!     println!("Router address: {router}");
-//!     // `veth` drops here — node and its internal Anvil are shut down.
-//! }
-//! ```
 
 #![warn(missing_docs, unreachable_pub)]
 

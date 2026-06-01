@@ -11,8 +11,8 @@
 //! [`MalachiteEvent`]s.
 //!
 //! `ethexe-service` constructs the service at startup and is the sole consumer of
-//! its output [`Stream`] of [`MalachiteEvent`]; `ethexe-observer` feeds in the
-//! latest Ethereum chain head via `receive_new_chain_head`.
+//! its output `Stream` of [`MalachiteEvent`]; it calls `receive_new_chain_head`
+//! on each `ObserverEvent::BlockSynced`.
 //!
 //! ## Public API
 //!
@@ -25,22 +25,15 @@
 //! | [`ValidatorEntry`] | struct | Single entry in the validator set |
 //! | [`Mempool`] | trait | Producer-side injected-tx source |
 //! | [`InjectedTxMempool`] | struct | Real mempool implementation |
-//! | [`EmptyMempool`] | struct | No-op mempool for full nodes |
+//! | [`EmptyMempool`] | struct | No-op mempool (non-producing nodes) |
 //! | [`TxValidityChecker`] | struct | Per-tx validity against the MB world |
 //! | [`TxValidity`] | enum | Validity verdict: `Valid`, `Duplicate`, `Outdated`, … |
 //!
 //! Driver methods on [`MalachiteService`]: `receive_injected_transaction`,
 //! `receive_new_chain_head`, `receive_eb_prepared`, `shutdown`.
 //!
-//! [`MalachiteEvent`] has three variants: `BlockProposal` (a sequencer block was
-//! persisted), `BlockFinalized` (the block reached BFT commit, carrying the
-//! aggregated `cert`), and `PurgedTransactions` (txs removed from the mempool
-//! after finalization).
-//!
-//! A non-`Valid` [`TxValidity`] verdict distinguishes "drop from pool" (e.g.
-//! `Duplicate`, `Outdated`) from "keep, may become valid later" (e.g.
-//! `NotOnCurrentBranch`, `UnknownDestination`). The validator rejects an entire
-//! MB if any of its transactions is not `Valid`.
+//! [`TxValidity`] gates inclusion: a producer drops any non-`Valid` tx when
+//! building an MB, and a validator rejects an entire MB that contains one.
 //!
 //! ## Caller Invariants
 //!
@@ -53,7 +46,8 @@
 //! - Tendermint's quorum threshold is `> 2/3` of total voting power across the
 //!   validator list.
 //! - Peer discovery is disabled: every `persistent_peers` multiaddr must include a
-//!   `/p2p/<peer_id>` suffix, and every validator must be listed.
+//!   `/p2p/<peer_id>` suffix, and every validator must be listed or transitively
+//!   reachable through a listed peer.
 //! - `Drop` is best-effort; call `shutdown().await` before an immediate restart so
 //!   RocksDB locks and sockets release.
 

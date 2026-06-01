@@ -9,9 +9,9 @@
 //! can plug in without touching BFT plumbing.
 //!
 //! `ethexe-malachite` is the only direct consumer: it supplies the [`Externalities`]
-//! implementation and re-exports [`MalachiteService`] to the rest of the ethexe stack.
-//! Block delivery happens exclusively through async [`Externalities`] callbacks; the
-//! service itself is a `Stream` that yields only fatal `anyhow::Error`s.
+//! implementation and wraps [`MalachiteService`] in its own facade exposed to the rest
+//! of the ethexe stack. Block delivery happens exclusively through async
+//! [`Externalities`] callbacks.
 //!
 //! ## Usage
 //!
@@ -38,10 +38,10 @@
 //! | [`Externalities`] | Async application callbacks: `process_mb_proposal`, `process_mb_finalized`, `build_block_above`, `validate_block_above`. |
 //! | [`BlockPayload`] | Marker trait for the payload: `Clone + Encode + Decode + Send + Sync + 'static` (blanket impl). |
 //! | [`MalachiteService`] | Running service; owns the swarm and store. Implements `Stream<Item = anyhow::Error>` and [`MService`]. `update_validators` rotates the active validator set, taking effect at the next height boundary. |
-//! | [`MService`] | Dyn-compatible facade trait for [`MalachiteService`]. |
+//! | [`MService`] | Supertrait bound implemented by [`MalachiteService`]. |
 //! | [`Block`] | Service-level block envelope: `{ parent_hash: H256, height: u64, payload: P, reserved: [u8; 64] }`. |
 //! | [`ValidatorEntry`] | Validator set member: `public_key` + `voting_power`, used in [`MalachiteConfig`] and `update_validators`. |
-//! | [`MalachiteConfig`] | Node configuration: validator secret, validator set, peer addresses, propose timeout, [`NodeRole`], `listen_addr`, and `base` project directory. |
+//! | [`MalachiteConfig`] | Node configuration: validator secret, validator set, `persistent_peers`, propose timeout, [`NodeRole`], `listen_addr`, and `base` project directory. |
 //! | [`CommitCertificate`] | Finalization certificate delivered with `process_mb_finalized`. |
 //! | [`libp2p_peer_id`] | Derive a [`PeerId`] from a validator secret offline, to build the `/p2p/<peer-id>` suffix of each persistent-peer multiaddr. |
 //!
@@ -57,10 +57,8 @@
 //!   surfaces on the [`MalachiteService`] stream and the consensus loop aborts rather
 //!   than skipping the callback.
 //!
-//! The service guarantees a strictly linearised block stream: a block is proposed only
-//! after every ancestor returned successfully, finalized only after it was proposed and
-//! all ancestors finalized, and built/validated only above a finalized parent (or above
-//! `H256::zero()` for genesis).
+//! The service guarantees a strictly linearised block stream: each block is delivered
+//! only after every ancestor was processed and finalized in order.
 
 mod config;
 mod externalities;

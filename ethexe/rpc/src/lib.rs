@@ -5,10 +5,9 @@
 //!
 //! JSON-RPC 2.0 server and client APIs for an ethexe (Vara.eth) node. Exposes Ethereum
 //! block data, WASM code blobs, and program state to external callers, and bridges
-//! injected-transaction submission back to the main service.
-//!
-//! The server is a read-only proxy over `ethexe-db`: its sole outbound action is emitting
-//! [`RpcEvent::InjectedTransaction`] for the main service to handle.
+//! injected-transaction submission back to the main service. It reads `ethexe-db` and
+//! writes only injected-transaction promise/receipt caches; its sole outbound action is
+//! emitting [`RpcEvent::InjectedTransaction`] for the main service to handle.
 //!
 //! ## Role in the Stack
 //!
@@ -23,47 +22,12 @@
 //! | Item | Feature | Description |
 //! |------|---------|-------------|
 //! | [`RpcServer`] | `server` | Owns config + DB; `new(config, db)` then `run_server()` starts the endpoint. |
-//! | [`RpcConfig`] | `server` | Listen address, CORS, gas allowance, chunk size, dev-API flag. |
-//! | [`RpcService`] | `server` | `Stream<Item = RpcEvent>` the main service polls; pushes results back to subscribers. |
+//! | [`RpcConfig`] | `server` | Listen address, CORS, gas allowance, program-processing chunk size, dev-API flag. |
+//! | [`RpcService`] | `server` | `Stream<Item = RpcEvent>` the main service polls; accepts promise/receipt results from the service and forwards them to JSON-RPC subscribers. |
 //! | [`RpcEvent`] | `server` | Outbound work items; currently only `InjectedTransaction`. |
 //! | [`DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER`] | always | Default gas-limit multiplier (10). |
 //! | [`BlockClient`], [`CodeClient`], [`ProgramClient`], [`InjectedClient`], [`DevClient`] | `client` | Generated typed clients. |
 //! | [`FullProgramState`], [`CalculateReplyForHandleResult`] | `client` | Result types re-exported for client callers. |
-//!
-//! ## API Groups
-//!
-//! Five API groups are served over HTTP and WebSocket: `block` (headers, decoded events),
-//! `code` (raw and instrumented WASM blobs), `program` (state, queue, waitlist, mailbox, reply
-//! calculation), `injected` (transaction submission and receipts), and the dev-only `dev`
-//! (enabled only when [`RpcConfig`]'s `with_dev_api` is set, i.e. `ethexe run --dev`).
-//!
-//! ## Invariants
-//!
-//! - All database access is read-only; the server never mutates `ethexe-db` state.
-//! - The `dev` API is constructed only when `with_dev_api` is true; enabling it in
-//!   non-development deployments is unsupported.
-//!
-//! ## Usage Example
-//!
-//! ```rust,no_run
-//! use ethexe_rpc::{RpcConfig, RpcEvent, RpcServer};
-//! use std::net::SocketAddr;
-//!
-//! # async fn example(db: ethexe_db::Database) -> anyhow::Result<()> {
-//! let config = RpcConfig {
-//!     listen_addr: "127.0.0.1:9944".parse::<SocketAddr>()?,
-//!     cors: None,
-//!     gas_allowance: 1_000_000_000,
-//!     chunk_size: 4,
-//!     with_dev_api: false,
-//! };
-//! let (handle, mut rpc_service) = RpcServer::new(config, db).run_server().await?;
-//! // Drive the event stream; forward injected transactions to the node's injected-tx pool.
-//! // Push results back with rpc_service.receive_computed_promise(promise)
-//! // and rpc_service.receive_tx_receipt(receipt).
-//! # Ok(())
-//! # }
-//! ```
 
 #[cfg(feature = "client")]
 pub use crate::apis::{

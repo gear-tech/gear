@@ -7,17 +7,16 @@
 //!
 //! It drives an already-running ethexe node under sustained, mixed traffic for
 //! local development and failure reproduction, talking to an Ethereum RPC endpoint
-//! (via [`ethexe-ethereum`]) and one or more ethexe RPC nodes (via [`ethexe-sdk`]).
+//! (via `ethexe-ethereum`) and one or more ethexe RPC nodes (via `ethexe-sdk`).
 //! It does not start a node, run validators, or deploy the Router contract — all of
 //! those must exist beforehand.
 //!
 //! ## Modes
 //!
-//! The CLI selects one of three modes via [`Params`]:
+//! The CLI selects one of three modes via `Params`:
 //!
 //! - `load` — a parallel worker pool issuing randomized upload/create/send/reply/claim
-//!   batches. [`BatchPool`] keeps one [`Ethereum`] client per funded worker account
-//!   and tracks created programs, mailbox state, and reply outcomes across batches.
+//!   batches. `BatchPool` keeps one `Ethereum` client per funded worker account.
 //! - `fuzz` — deploys the demo syscall ("mega") contract once, then repeatedly sends
 //!   it randomized command sequences.
 //! - `dump` — materializes a deterministic Gear WASM module for a fixed seed to disk,
@@ -27,12 +26,12 @@
 //!
 //! | Item | Purpose |
 //! |------|---------|
-//! | [`Params`] | Top-level CLI mode selector: `Dump { seed }`, `Load`, `Fuzz`. |
-//! | [`LoadParams`] | Full configuration for load mode (node URL, worker count, batch size, key material, value/workload knobs). |
-//! | [`BatchPool`] | Owns the per-worker client pool; `run(config, shutdown_rx)` drives continuous batch execution. |
-//! | [`LoadRunConfig`] | Per-run parameters threaded into [`BatchPool::run`]. |
-//! | [`WorkloadPolicy`] | Controls the ratio of program-creation to message sends. |
-//! | [`ValuePolicy`] | Budget caps for message values and worker top-ups. |
+//! | `Params` | Top-level CLI mode selector: `Dump { seed }`, `Load`, `Fuzz`. |
+//! | `LoadParams` | Full configuration for load mode (node URL, worker count, batch size, key material, value/workload knobs). |
+//! | `BatchPool` | Owns the per-worker client pool; `run(config, shutdown_rx)` drives continuous batch execution. |
+//! | `LoadRunConfig` | Per-run parameters threaded into `BatchPool::run`. |
+//! | `WorkloadPolicy` | Controls the ratio of program-creation to message sends. |
+//! | `ValuePolicy` | Budget caps for message values and worker top-ups. |
 //!
 //! ## Invariants
 //!

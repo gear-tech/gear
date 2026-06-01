@@ -20,9 +20,8 @@
 //! ```rust,no_run
 //! use ethexe_ethereum::{Ethereum, EthereumBuilder};
 //!
-//! # async fn example() -> anyhow::Result<()> {
+//! # async fn example(signer: gsigner::secp256k1::Signer, sender: gsigner::secp256k1::Address) -> anyhow::Result<()> {
 //! let ethereum = EthereumBuilder::default()
-//!     .rpc_url("ws://localhost:8545")
 //!     .router_address(Ethereum::DEFAULT_ROUTER_ADDRESS.into())
 //!     .signer(signer)
 //!     .sender_address(sender)
@@ -30,8 +29,8 @@
 //!     .await?;
 //!
 //! let router = ethereum.router(); // Router.sol write handle
-//! let mirror = ethereum.mirror(program_id); // per-program Mirror.sol handle
-//! mirror.send_message(payload, value).await?;
+//! let mirror = ethereum.mirror(Default::default()); // per-program Mirror.sol handle
+//! mirror.send_message(vec![], 0).await?;
 //! # Ok(())
 //! # }
 //! ```
@@ -53,7 +52,8 @@
 //! | [`primitives`] / [`abi`] | Re-exported `alloy::primitives`; generated ABI bindings |
 //!
 //! Each contract handle also vends a read-only query counterpart (`RouterQuery`, `MirrorQuery`,
-//! `WVaraQuery`, `MiddlewareQuery`) and event-filter builders.
+//! `WVaraQuery`, `MiddlewareQuery`); `Router`, `Mirror`, and `WVara` additionally vend
+//! event-filter builders.
 //!
 //! ## Invariants
 //!

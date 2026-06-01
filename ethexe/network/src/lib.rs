@@ -7,14 +7,15 @@
 //! single libp2p swarm into one [`NetworkService`] that implements
 //! `futures::Stream<Item = NetworkEvent>`, yielding already-validated high-level
 //! events to the caller: validator gossip, public promise (tx-receipt) gossip,
-//! db-sync request/response, and point-to-point injected-transaction delivery.
+//! and point-to-point injected-transaction delivery. (db-sync runs through the
+//! separate [`db_sync::Handle`].)
 //!
 //! ## Role in the stack
 //!
 //! `ethexe-service` is the only direct consumer: it feeds the service new chain
 //! heads via [`NetworkService::set_chain_head`], drains the event stream, and routes
 //! each [`NetworkEvent`] onward (validator messages to `ethexe-consensus`, tx
-//! receipts to `ethexe-compute`). `ethexe-cli` uses [`DEFAULT_LISTEN_PORT`] when
+//! receipts to `ethexe-rpc`). `ethexe-cli` uses [`DEFAULT_LISTEN_PORT`] when
 //! building network parameters.
 //!
 //! ## Public API
@@ -33,15 +34,12 @@
 //! | [`NetworkService::send_injected_transaction`] | Private delivery to a validator |
 //! | [`NetworkService::db_sync_handle`] | Return a cloneable [`db_sync::Handle`] |
 //! | [`NetworkService::local_peer_id`] | Return the local libp2p `PeerId` |
-//! | [`NetworkEvent`] | Emitted events; all gossip variants are signature-verified before emission |
-//! | [`NetworkConfig`] | Static config: keys, `router_address` (namespaces topics), addresses, [`TransportType`] |
+//! | [`NetworkEvent`] | Emitted events |
+//! | [`NetworkConfig`] | Static config: keys, `router_address` (namespaces topics), addresses, [`TransportType`]; `new_local`/`new_test` constructors |
 //! | [`NetworkRuntimeConfig`] | Runtime deps: block header, validators, signers, [`db_sync::ExternalDataProvider`], database |
-//! | [`TransportType`] | `Default` (QUIC + TCP + DNS + TLS + yamux) or `Test` (in-memory, for unit tests) |
+//! | [`TransportType`] | `Default` (production) or `Test` (in-memory, for unit tests) |
 //! | [`db_sync::Handle`] | Cloneable handle for issuing `db_sync::Request`s |
 //! | [`db_sync::ExternalDataProvider`] | Caller-supplied async lookups used to validate and serve inbound db-sync requests |
-//!
-//! [`NetworkConfig`] offers `new_local` (localhost QUIC) and `new_test` (in-memory
-//! transport) constructors.
 //!
 //! ## Invariants
 //!

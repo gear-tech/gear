@@ -5,9 +5,9 @@
 //!
 //! Shared vocabulary crate for the ethexe execution layer: block model, on-chain
 //! events, validator commitments, injected transactions, storage trait abstractions,
-//! and protocol constants. It defines shapes and trait interfaces only — concrete
-//! implementations live in `ethexe-db`, `ethexe-observer`, `ethexe-processor`, and
-//! peers. Being `no_std`-compatible, it links into both the WASM runtime
+//! and protocol constants. It defines shapes and trait interfaces only — the
+//! concrete storage backends live in `ethexe-db`. Being `no_std`-compatible, it
+//! links into both the WASM runtime
 //! (`ethexe-runtime`) and the native node binary.
 //!
 //! ## Role in the stack
@@ -23,7 +23,7 @@
 //!
 //! | Module | Purpose |
 //! |--------|---------|
-//! | [`consensus`] | Validation request/reply messages and timeline helpers for the 2-of-3 batch commitment protocol. |
+//! | [`consensus`] | Validation request/reply messages and timeline helpers for the batch commitment protocol. |
 //! | [`db`] | `*StorageRO` / `*StorageRW` trait abstractions and block-metadata types. |
 //! | [`events`] | On-chain event model: `BlockEvent` (Mirror/Router variants) and `WVaraEvent`. |
 //! | [`gear`] | Protocol commitments ([`gear::BatchCommitment`] and siblings) and [`gear::StateTransition`]. |
@@ -61,7 +61,6 @@
 //!
 //! - [`ValidatorsVec`] cannot be constructed from an empty collection; `try_from`
 //!   returns [`EmptyValidatorsError`] on empty input.
-//! - [`HashOf`] requires a non-empty type name at construction time.
 //! - [`DEFAULT_COMMITMENT_DELAY_LIMIT`] is a coordinator-local knob, not a protocol
 //!   constant — each coordinator selects its own value.
 

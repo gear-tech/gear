@@ -15,7 +15,7 @@
 //! | Item | Description |
 //! |------|-------------|
 //! | [`ObserverService`] | Stream of chain-head and sync events; implements `futures::Stream<Item = Result<ObserverEvent>>` and `FusedStream` |
-//! | [`ObserverService::new`] | Async constructor: resolves the router address, queries the middleware address on-chain, connects the provider, and starts the header subscription |
+//! | [`ObserverService::new`] | Async constructor that connects the provider and starts the header subscription |
 //! | [`ObserverService::provider`] | Borrows the underlying `alloy` `RootProvider` |
 //! | [`ObserverService::block_loader`] | Returns a fresh [`EthereumBlockLoader`] bound to the configured router address |
 //! | [`ObserverService::router_query`] | Returns a fresh `RouterQuery` for read-only contract queries |
@@ -23,13 +23,13 @@
 //! | [`ObserverEvent`] | Stream item: `Block` on a new head, `BlockSynced` after back-fill |
 //! | [`SyncError`] | Error classifier: `RpcError` (recoverable, skipped) vs `Fatal` (propagated) |
 //! | [`utils::BlockLoader`] | Trait abstracting block-data loading from Ethereum |
+//! | [`utils::BlockId`] | Block selector for `BlockLoader::load_simple`: `Hash(H256)`, `Latest`, `Finalized` |
 //! | [`utils::EthereumBlockLoader`] | alloy-backed [`utils::BlockLoader`] impl |
 //!
 //! ## Invariants
 //!
 //! - The stream never terminates: `FusedStream::is_terminated` always returns `false`.
-//! - Back-fill stops at the database watermark, so the synced set must be contiguous
-//!   from genesis.
+//! - Back-fill stops at the database watermark, connecting each new head to the existing synced chain.
 //! - `max_sync_depth` defaults to `u32::MAX` when `None` is passed in [`ObserverConfig`].
 //!
 //! ## Usage

@@ -4,9 +4,7 @@
 //! # Ethexe Processor
 //!
 //! Low-level execution engine that runs Gear programs inside the ethexe node. It
-//! embeds a pre-compiled `ethexe_runtime` WASM artifact and runs it in `wasmtime`
-//! with host functions for database access, lazy pages, sandboxed nested WASM,
-//! promise publishing, allocation, and logging.
+//! embeds a pre-compiled `ethexe_runtime` WASM artifact and runs it in `wasmtime`.
 //!
 //! ## Role in the stack
 //!
@@ -14,15 +12,15 @@
 //! code and execute blocks; `ethexe-rpc` obtains an [`OverlaidProcessor`] via
 //! [`Processor::overlaid`] for read-only reply queries. The processor itself is
 //! never polled as a stream and emits no events. It builds on `ethexe-runtime`
-//! (the embedded WASM), `ethexe-db` (the [`Database`] and its overlay), and
-//! `ethexe-runtime-common` (transition controller and [`FinalizedBlockTransitions`]).
+//! (the embedded WASM), `ethexe-db` (the `Database` and its overlay), and
+//! `ethexe-runtime-common` (transition controller and `FinalizedBlockTransitions`).
 //!
 //! ## Public API
 //!
 //! | Method | Purpose |
 //! |--------|---------|
 //! | [`Processor::process_code`] | Validate a WASM blob and, on match, instrument it into a [`ProcessedCodeInfo`]. |
-//! | [`Processor::process_programs`] | Execute an ethexe block from [`ExecutableData`], returning [`FinalizedBlockTransitions`]. |
+//! | [`Processor::process_programs`] | Execute an ethexe block from [`ExecutableData`], returning `FinalizedBlockTransitions`. |
 //! | [`Processor::overlaid`] | Wrap `self` into an [`OverlaidProcessor`] over a copy-on-write DB. |
 //! | [`OverlaidProcessor::execute_for_reply`] | Simulate one incoming message and return its reply. |
 //!
@@ -38,17 +36,16 @@
 //! - [`ProcessorConfig`] — single knob `chunk_size`; default is
 //!   [`DEFAULT_CHUNK_SIZE`] (16).
 //! - [`ProcessedCodeInfo`] — result of [`Processor::process_code`]; its `valid` field
-//!   holds a [`ValidCodeInfo`] on success, or `None` on hash mismatch (not an error).
+//!   holds a [`ValidCodeInfo`] on success, or `None` if the code id does not match the
+//!   hash or the code fails instrumentation (not an error in either case).
 //! - [`ProcessorError`] / [`ExecuteForReplyError`] — the two public error types.
-//! - [`BoundPromiseSink`] — receives promises emitted during the injected-queue pass.
+//! - [`BoundPromiseSink`] — receives promises emitted during queue execution.
 //! - [`InstanceError`] — error from instantiating or calling the runtime WASM.
 //!
 //! ## Invariants
 //!
 //! - **Determinism** — block execution is a deterministic function of its inputs, so
 //!   every node executing the same block arrives at the same state hashes.
-//! - **CAS-only writes** — the processor writes only to content-addressed storage and
-//!   never modifies key-value storage from [`Database`].
 
 pub use host::InstanceError;
 pub use promise::BoundPromiseSink;

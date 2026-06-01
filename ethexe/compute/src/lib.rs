@@ -10,11 +10,11 @@
 //! ## Role in the stack
 //!
 //! `ethexe-service` drives this crate: it calls [`ComputeService::prepare_block`] and
-//! [`ComputeService::compute_mb`], polls the [`futures::Stream`](ComputeService) impl, and
+//! [`ComputeService::compute_mb`], polls [`ComputeService`] (a `futures::Stream`), and
 //! routes each [`ComputeEvent`] onward to consensus, network, or the blob loader.
 //! `ethexe-db` is the only storage layer compute reads from and writes to. Execution is
 //! abstracted behind [`ProcessorExt`]; the production impl delegates to `ethexe-processor`'s
-//! [`Processor`]. `ethexe-blob-loader` is not a direct dependency: when preparation discovers
+//! `Processor`. `ethexe-blob-loader` is not a direct dependency: when preparation discovers
 //! codes of unknown validity it yields [`ComputeEvent::RequestLoadCodes`] and the service
 //! layer feeds bytes back through [`ComputeService::process_code`].
 //!
@@ -27,7 +27,7 @@
 //! | [`ComputeService::with_promise_mode`] | Constructor allowing `AlwaysEmit` mode for RPC nodes replaying the chain. |
 //! | [`ComputeService::process_code`] | Queue a code blob for validation, instrumentation, and DB persistence. |
 //! | [`ComputeService::prepare_block`] | Queue a synced Eth block for preparation (walks ancestors, requests codes). |
-//! | [`ComputeService::compute_mb`] | Queue a finalised MB for execution (walks uncomputed ancestors first). |
+//! | [`ComputeService::compute_mb`] | Queue a finalised MB with a `PromisePolicy` for execution (walks uncomputed ancestors first). |
 //! | [`ComputeEvent`] | Stream output: `RequestLoadCodes`, `CodeProcessed`, `BlockPrepared`, `MbComputed`, `Promise`. |
 //! | [`ComputeError`] | Pipeline error set; the `Processor` variant is transparent over `ProcessorError`. |
 //! | [`ProcessorExt`] | Execution backend abstraction: `process_programs` and `process_code`. |

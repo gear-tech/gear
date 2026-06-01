@@ -11,14 +11,12 @@
 //!
 //! `ethexe-cli` is a leaf binary at the top of the ethexe workspace; no other ethexe crate
 //! depends on it. It builds an `ethexe_service::config::Config` and calls into `ethexe-service`
-//! for the `run` subcommand, drawing configuration sections from `ethexe-compute`,
-//! `ethexe-network`, `ethexe-malachite`, `ethexe-prometheus`, `ethexe-rpc`, `ethexe-ethereum`,
-//! `ethexe-db`, `ethexe-processor`, and `ethexe-runtime-common`.
+//! for the `run` subcommand.
 //!
 //! ## Entry Point
 //!
 //! [`Cli`] is the only public item exported from the crate. [`Cli::run`] is the single entry
-//! point, and [`Cli::DEFAULT_PARAMS_PATH`] (`"./.ethexe.toml"`) is the default config location.
+//! point, and the default config path is [`Cli::DEFAULT_PARAMS_PATH`].
 //!
 //! ```rust,no_run
 //! use clap::Parser;
@@ -39,9 +37,6 @@
 //! | `check`     | Verify the ethexe database for integrity/correctness |
 //! | `dump`      | State dump operations for re-genesis                 |
 //! | `malachite` | Malachite-consensus helpers (e.g. peer-id derivation)|
-//!
-//! The `node` and `ethereum` configuration sections are mandatory; configuration construction
-//! fails early if either is absent.
 
 use anyhow::{Context, Result};
 use clap::Parser;
