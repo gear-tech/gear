@@ -46,6 +46,10 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> ErrorObjectOwned {
     ErrorObject::owned(8000, "Runtime error", Some(format!("{err:?}")))
 }
 
+const GEAR_PROGRAM_PALLET: &[u8] = b"GearProgram";
+const PROGRAM_STORAGE: &[u8] = b"ProgramStorage";
+const ORIGINAL_CODE_STORAGE: &[u8] = b"OriginalCodeStorage";
+
 #[rpc(server)]
 pub trait GearApi<BlockHash, ResponseType> {
     #[method(name = "gear_calculateReplyForHandle")]
@@ -168,6 +172,7 @@ pub struct Gear<C, P> {
     max_batch_size: u64,
     subscription_executor: SubscriptionTaskExecutor,
     program_storage_prefix: Vec<u8>,
+    original_code_storage_prefix: Vec<u8>,
     _marker: std::marker::PhantomData<P>,
 }
 
@@ -179,8 +184,8 @@ impl<C, P> Gear<C, P> {
         max_batch_size: u64,
         subscription_executor: SubscriptionTaskExecutor,
     ) -> Self {
-        let mut program_storage_prefix = twox_128(b"GearProgram").to_vec();
-        program_storage_prefix.extend_from_slice(&twox_128(b"ProgramStorage"));
+        let program_storage_prefix = pallet_storage_prefix(PROGRAM_STORAGE);
+        let original_code_storage_prefix = pallet_storage_prefix(ORIGINAL_CODE_STORAGE);
 
         Self {
             client,
@@ -188,6 +193,7 @@ impl<C, P> Gear<C, P> {
             max_batch_size,
             subscription_executor,
             program_storage_prefix,
+            original_code_storage_prefix,
             _marker: Default::default(),
         }
     }
@@ -266,9 +272,13 @@ where
     }
 }
 
-fn original_code_storage_key(code_id: H256) -> StorageKey {
-    let mut key = twox_128(b"GearProgram").to_vec();
-    key.extend_from_slice(&twox_128(b"OriginalCodeStorage"));
+fn pallet_storage_prefix(storage: &[u8]) -> Vec<u8> {
+    let mut key = twox_128(GEAR_PROGRAM_PALLET).to_vec();
+    key.extend_from_slice(&twox_128(storage));
+    key
+}
+
+fn storage_map_key(mut key: Vec<u8>, code_id: H256) -> StorageKey {
     key.extend_from_slice(code_id.as_bytes());
     StorageKey(key)
 }
@@ -670,7 +680,7 @@ where
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Option<Bytes>> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
-        let storage_key = original_code_storage_key(code_id);
+        let storage_key = storage_map_key(self.original_code_storage_prefix.clone(), code_id);
         let Some(storage_data) = self.client.storage(at_hash, &storage_key).map_err(|e| {
             ErrorObject::owned(
                 8000,
@@ -682,8 +692,8 @@ where
             return Ok(None);
         };
 
-        let mut encoded_code = storage_data.0.as_slice();
-        let original_code = Vec::<u8>::decode_all(&mut encoded_code).map_err(|e| {
+        let mut original_code_cursor = storage_data.0.as_slice();
+        let original_code = Vec::<u8>::decode_all(&mut original_code_cursor).map_err(|e| {
             ErrorObject::owned(
                 8000,
                 "WASM custom section storage decode error",
