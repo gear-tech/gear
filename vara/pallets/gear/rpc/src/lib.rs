@@ -141,6 +141,14 @@ pub trait GearApi<BlockHash, ResponseType> {
     #[method(name = "gear_readMetahash")]
     fn read_metahash(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<H256>;
 
+    #[method(name = "gear_readWasmCustomSection")]
+    fn read_wasm_custom_section(
+        &self,
+        code_id: H256,
+        section_name: String,
+        at: Option<BlockHash>,
+    ) -> RpcResult<Option<Bytes>>;
+
     #[subscription(
         name = "gear_subscribeProgramStateChanges",
         item = ProgramStateChange<BlockHash>,
@@ -639,6 +647,36 @@ where
                 api.read_metahash(at_hash, program_id, Some(self.allowance_multiplier))
             })
         }
+    }
+
+    fn read_wasm_custom_section(
+        &self,
+        code_id: H256,
+        section_name: String,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<Option<Bytes>> {
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        if self.get_api_version(at_hash)? < 3 {
+            return Err(ErrorObject::owned(
+                9000,
+                "WASM custom section runtime API is unavailable",
+                None::<String>,
+            ));
+        }
+
+        self.client
+            .runtime_api()
+            .read_wasm_custom_section(at_hash, code_id, section_name.into_bytes())
+            .map_err(runtime_error_into_rpc_error)?
+            .map(|section| section.map(Bytes))
+            .map_err(|e| {
+                ErrorObject::owned(
+                    9000,
+                    "WASM custom section read error",
+                    Some(String::from_utf8_lossy(&e).into_owned()),
+                )
+            })
     }
 
     fn subscribe_program_state_changes(

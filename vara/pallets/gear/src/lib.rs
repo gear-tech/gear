@@ -677,6 +677,21 @@ pub mod pallet {
             Self::read_metahash_impl(program_id.cast(), gas_allowance).map_err(String::into_bytes)
         }
 
+        pub fn read_wasm_custom_section(
+            code_id: H256,
+            section_name: Vec<u8>,
+        ) -> Result<Option<Vec<u8>>, Vec<u8>> {
+            let section_name =
+                sp_std::str::from_utf8(&section_name).map_err(|e| e.to_string().into_bytes())?;
+            let Some(original_code) = T::CodeStorage::get_original_code(code_id.cast()) else {
+                return Ok(None);
+            };
+
+            gear_core::code::get_custom_section_data(&original_code, section_name)
+                .map(|section| section.map(Vec::from))
+                .map_err(|e| e.to_string().into_bytes())
+        }
+
         #[cfg(not(test))]
         pub fn calculate_gas_info(
             source: H256,

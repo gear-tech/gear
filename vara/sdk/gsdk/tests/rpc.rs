@@ -98,7 +98,7 @@ async fn test_read_wasm_custom_section() -> Result<()> {
     "#;
     let wasm = wat::parse_str(wat_code).unwrap();
 
-    let upload = api.upload_code(wasm.clone()).await?;
+    let upload = api.upload_code(wasm).await?;
     let upload_block_hash = upload.block_hash;
     let code_id = upload.value;
 

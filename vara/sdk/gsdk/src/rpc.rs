@@ -247,11 +247,7 @@ impl Api {
         self.rpc()
             .request(
                 "gear_readWasmCustomSection",
-                rpc_params![
-                    H256(code_id.into()),
-                    section_name.as_ref().to_string(),
-                    block_hash
-                ],
+                rpc_params![H256(code_id.into()), section_name.as_ref(), block_hash],
             )
             .await
             .map_err(Into::into)

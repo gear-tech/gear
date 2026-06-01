@@ -12,7 +12,7 @@ use sp_runtime::traits::Block as BlockT;
 use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
-    #[api_version(2)]
+    #[api_version(3)]
     pub trait GearApi {
         #[allow(clippy::too_many_arguments)]
         fn calculate_reply_for_handle(origin: H256, destination: H256, payload: Vec<u8>, gas_limit: u64, value: u128, allowance_multiplier: u64) -> Result<ReplyInfo, Vec<u8>>;
@@ -29,6 +29,8 @@ sp_api::decl_runtime_apis! {
         fn read_state_using_wasm(program_id: H256, payload: Vec<u8>, fn_name: Vec<u8>, wasm: Vec<u8>, argument: Option<Vec<u8>>, allowance_multiplier: Option<u64>) -> Result<Vec<u8>, Vec<u8>>;
 
         fn read_metahash(program_id: H256, allowance_multiplier: Option<u64>) -> Result<H256, Vec<u8>>;
+
+        fn read_wasm_custom_section(code_id: H256, section_name: Vec<u8>) -> Result<Option<Vec<u8>>, Vec<u8>>;
 
         // DEPRECATED APIS
 
