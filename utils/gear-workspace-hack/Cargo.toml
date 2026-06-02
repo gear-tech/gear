@@ -259,9 +259,11 @@ clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
+core2 = { git = "https://github.com/bbqsrc/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7", default-features = false, features = ["std"] }
 cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
 crc32fast = { version = "1" }
 crossbeam-channel = { version = "0.5" }
+crossbeam-epoch = { version = "0.9" }
 crossbeam-utils = { version = "0.8" }
 crunchy = { version = "0.2", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["getrandom", "std"] }
@@ -548,9 +550,11 @@ clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
+core2 = { git = "https://github.com/bbqsrc/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7", default-features = false, features = ["std"] }
 cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
 crc32fast = { version = "1" }
 crossbeam-channel = { version = "0.5" }
+crossbeam-epoch = { version = "0.9" }
 crossbeam-utils = { version = "0.8" }
 crunchy = { version = "0.2", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["getrandom", "std"] }
@@ -796,7 +800,6 @@ x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [target.'cfg(all(target_arch = "x86_64", target_vendor = "unknown", target_os = "linux", target_env = "gnu", not(any(target_arch = "wasm32", loom))))'.dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -821,7 +824,6 @@ unicode-normalization = { version = "0.1" }
 zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
 [target.'cfg(all(target_arch = "x86_64", target_vendor = "unknown", target_os = "linux", target_env = "gnu", not(any(target_arch = "wasm32", loom))))'.build-dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -846,7 +848,6 @@ unicode-normalization = { version = "0.1" }
 zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
 [target.'cfg(all(target_arch = "aarch64", target_vendor = "unknown", target_os = "linux", target_env = "gnu", not(any(target_arch = "wasm32", loom))))'.dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -871,7 +872,6 @@ unicode-normalization = { version = "0.1" }
 zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
 [target.'cfg(all(target_arch = "aarch64", target_vendor = "unknown", target_os = "linux", target_env = "gnu", not(any(target_arch = "wasm32", loom))))'.build-dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -896,7 +896,6 @@ unicode-normalization = { version = "0.1" }
 zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
 [target.'cfg(all(target_arch = "aarch64", target_vendor = "apple", target_os = "macos", not(any(target_arch = "wasm32", loom))))'.dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -919,7 +918,6 @@ unicode-normalization = { version = "0.1" }
 zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
 [target.'cfg(all(target_arch = "aarch64", target_vendor = "apple", target_os = "macos", not(any(target_arch = "wasm32", loom))))'.build-dependencies]
-crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
