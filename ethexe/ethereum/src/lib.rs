@@ -1,6 +1,66 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+//! # ethexe-ethereum
+//!
+//! Ethereum contract-interaction layer for the ethexe system: typed Rust wrappers around the
+//! ethexe Solidity contracts (Router, Mirror, WrappedVara, Middleware), built on the `alloy`
+//! client stack.
+//!
+//! Consumed by `ethexe-observer`, `ethexe-consensus`, `ethexe-cli`, `ethexe-service`, and
+//! `ethexe-sdk`; depends on `ethexe-common`, `gsigner`, and `gprimitives`. This is purely a
+//! client/binding layer: it does not execute Gear programs (`ethexe-processor`), watch the
+//! chain (`ethexe-observer`), implement consensus (`ethexe-consensus`), or persist data
+//! (`ethexe-db`).
+//!
+//! ## Usage
+//!
+//! Build a client with [`EthereumBuilder`], then call methods on the returned [`Ethereum`]:
+//!
+//! ```rust,no_run
+//! use ethexe_ethereum::{Ethereum, EthereumBuilder};
+//!
+//! # async fn example(signer: gsigner::secp256k1::Signer, sender: gsigner::secp256k1::Address) -> anyhow::Result<()> {
+//! let ethereum = EthereumBuilder::default()
+//!     .router_address(Ethereum::DEFAULT_ROUTER_ADDRESS.into())
+//!     .signer(signer)
+//!     .sender_address(sender)
+//!     .build()
+//!     .await?;
+//!
+//! let router = ethereum.router(); // Router.sol write handle
+//! let mirror = ethereum.mirror(Default::default()); // per-program Mirror.sol handle
+//! mirror.send_message(vec![], 0).await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Public API
+//!
+//! - [`EthereumBuilder`] — Fluent builder: RPC URL, router address, signer, fee tuning
+//! - [`Ethereum`] — Central connection; vends contract handles and block queries
+//! - [`AlloyProvider`] — Concrete alloy provider stack; returned by [`Ethereum::provider`]
+//! - [`router::Router`] — Router.sol: code validation, batch commitment, program creation
+//! - [`mirror::Mirror`] — Mirror.sol: send/reply messages, claim value, top up balances
+//! - [`wvara::WVara`] — WrappedVara ERC-20: transfer, approve, mint, balance queries
+//! - [`middleware::Middleware`] — Validator election/permissions contract
+//! - [`TryGetReceipt`] — Retry-aware receipt retrieval with log parsing and revert detection
+//! - [`IntoBlockId`] — Convert `H256` / `u32` / `u64` into a block id
+//! - [`deploy::EthereumDeployer`] — Deploy the full contract set in local/test environments
+//! - [`primitives`] / [`abi`] — Re-exported `alloy::primitives`; generated ABI bindings
+//!
+//! Each contract handle also vends a read-only query counterpart (`RouterQuery`, `MirrorQuery`,
+//! `WVaraQuery`, `MiddlewareQuery`); `Router`, `Mirror`, and `WVara` additionally vend
+//! event-filter builders.
+//!
+//! ## Invariants
+//!
+//! - [`EthereumBuilder::build`] errors if `signer` or `sender_address` are not set.
+//! - [`Ethereum::middleware`] panics if the middleware address is zero, which happens when the
+//!   contract set was deployed without the middleware flag on [`deploy::EthereumDeployer`].
+//! - [`TryGetReceipt::try_get_message_send_receipt`] requires a `MessageQueueingRequested` log
+//!   in the receipt or returns an error.
+
 #![allow(dead_code, clippy::new_without_default)]
 
 use crate::{
