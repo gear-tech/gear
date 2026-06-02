@@ -15,6 +15,7 @@ use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, SimpleBlockData,
     consensus::{BatchCommitmentValidationRequest, VerifiedValidationRequest},
+    ecdsa::PublicKey,
     network::ValidatorMessage,
 };
 use futures::{FutureExt, future::BoxFuture};
@@ -27,6 +28,7 @@ pub struct Participant {
     ctx: ValidatorContext,
     block: SimpleBlockData,
     coordinator: Address,
+    pub_key: PublicKey,
     state: State,
 }
 
@@ -74,7 +76,7 @@ impl StateHandler for Participant {
                 Ok(ValidationStatus::Accepted(digest)) => {
                     let signature = self.ctx.core.signer.sign_for_contract_digest(
                         self.ctx.core.router_address,
-                        self.ctx.core.pub_key,
+                        self.pub_key,
                         digest,
                         None,
                     )?;
@@ -97,11 +99,11 @@ impl StateHandler for Participant {
                         payload: reply,
                     };
 
-                    let reply =
-                        self.ctx
-                            .core
-                            .signer
-                            .signed_data(self.ctx.core.pub_key, reply, None)?;
+                    let reply = self
+                        .ctx
+                        .core
+                        .signer
+                        .signed_data(self.pub_key, reply, None)?;
 
                     self.ctx
                         .output(ConsensusEvent::PublishMessage(reply.into()));
@@ -127,6 +129,7 @@ impl Participant {
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         coordinator: Address,
+        pub_key: PublicKey,
     ) -> Result<ValidatorState> {
         let mut earlier_validation_request = None;
         ctx.pending_events.retain(|event| match event {
@@ -147,6 +150,7 @@ impl Participant {
             ctx,
             block,
             coordinator,
+            pub_key,
             state: State::WaitingForValidationRequest,
         };
 

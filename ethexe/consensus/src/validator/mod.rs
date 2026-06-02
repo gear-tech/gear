@@ -27,6 +27,7 @@ use crate::{
         core::{MiddlewareWrapper, ValidatorCore},
         idle::Idle,
         participant::Participant,
+        watcher::Watcher,
     },
 };
 use anyhow::Result;
@@ -58,6 +59,7 @@ mod coordinator;
 mod core;
 mod idle;
 mod participant;
+mod watcher;
 
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
@@ -67,8 +69,8 @@ pub struct ValidatorService {
 
 /// Configuration parameters for the validator service.
 pub struct ValidatorConfig {
-    /// ECDSA public key of this validator
-    pub pub_key: PublicKey,
+    /// ECDSA public key of this validator, or `None` for watcher-only nodes.
+    pub pub_key: Option<PublicKey>,
     /// ECDSA multi-signature threshold
     // TODO #4637: threshold should be a ratio (and maybe also a block dependent value)
     pub signatures_threshold: u64,
@@ -163,7 +165,10 @@ impl ValidatorService {
 
 impl ConsensusService for ValidatorService {
     fn role(&self) -> String {
-        format!("Validator ({:?})", self.context().core.pub_key.to_address())
+        match self.context().core.pub_key {
+            Some(key) => format!("Validator ({:?})", key.to_address()),
+            None => "Watcher".to_string(),
+        }
     }
 
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
@@ -292,6 +297,7 @@ enum ValidatorState {
     CoordinatorBoot(CoordinatorBoot),
     Coordinator(Coordinator),
     Participant(Participant),
+    Watcher(Watcher),
 }
 
 macro_rules! delegate_call {
@@ -301,6 +307,7 @@ macro_rules! delegate_call {
             ValidatorState::CoordinatorBoot(s) => s.$func($( $arg ),*),
             ValidatorState::Coordinator(s) => s.$func($( $arg ),*),
             ValidatorState::Participant(s) => s.$func($( $arg ),*),
+            ValidatorState::Watcher(s) => s.$func($( $arg ),*),
         }
     };
 }
@@ -426,4 +433,108 @@ impl ValidatorContext {
 struct ValidatorMetrics {
     /// The last block number validator signed batch commitment for.
     pub last_signed_commitment_block_number: metrics::Gauge,
+}
+
+#[cfg(test)]
+#[allow(private_interfaces)] // ValidatorContext is intentionally crate-private; test helpers reach into it.
+pub(super) mod test_support {
+    //! Shared scaffolding for state-machine tests under `validator/`.
+    //!
+    //! Builds a minimal but real [`ValidatorContext`] — real DB, real signer,
+    //! real `BatchCommitmentManager`, no-op committer — so individual state
+    //! tests (Watcher, Participant, etc.) can exercise their poll behavior
+    //! without bringing up an end-to-end service.
+
+    use super::{
+        BatchLimits, MiddlewareWrapper, ValidatorContext, ValidatorCore, ValidatorMetrics,
+        batch::BatchCommitmentManager, core::BatchCommitter,
+    };
+    use crate::ConsensusEvent;
+    use anyhow::Result;
+    use async_trait::async_trait;
+    use ethexe_common::{
+        Address,
+        db::ConfigStorageRO,
+        ecdsa::{ContractSignature, PublicKey},
+        gear::BatchCommitment,
+    };
+    use ethexe_db::Database;
+    use ethexe_ethereum::middleware::{ElectionProvider, MockElectionProvider};
+    use futures::stream::FuturesUnordered;
+    use gprimitives::H256;
+    use gsigner::secp256k1::Signer;
+    use std::{collections::VecDeque, num::NonZero, time::Duration};
+
+    /// No-op [`BatchCommitter`] for tests — never actually submits anything.
+    #[derive(Clone)]
+    pub struct NoopCommitter;
+
+    #[async_trait]
+    impl BatchCommitter for NoopCommitter {
+        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+            Box::new(self.clone())
+        }
+
+        async fn commit(
+            self: Box<Self>,
+            _batch: BatchCommitment,
+            _signatures: Vec<ContractSignature>,
+        ) -> Result<H256> {
+            Ok(H256::zero())
+        }
+    }
+
+    /// Build a [`ValidatorContext`] backed by `db`. `pub_key = None` selects
+    /// the watcher path through [`super::idle::Idle::maybe_advance_to_role`].
+    pub fn test_context(db: Database, pub_key: Option<PublicKey>) -> ValidatorContext {
+        let timelines = db.config().timelines;
+
+        let election = MockElectionProvider::new();
+        let middleware =
+            MiddlewareWrapper::from_inner(Box::new(election) as Box<dyn ElectionProvider>);
+        let batch_manager =
+            BatchCommitmentManager::new(BatchLimits::default(), db.clone(), middleware);
+
+        ValidatorContext {
+            core: ValidatorCore {
+                signatures_threshold: 1,
+                router_address: Address::default(),
+                pub_key,
+                timelines,
+                signer: Signer::memory(),
+                db,
+                committer: Box::new(NoopCommitter),
+                batch_manager,
+                metrics: ValidatorMetrics::default(),
+                commitment_delay_limit: NonZero::new(1).expect("1 != 0"),
+                coordinator_aggregation_delay: Duration::ZERO,
+            },
+            pending_events: VecDeque::new(),
+            output: VecDeque::new(),
+            tasks: FuturesUnordered::new(),
+        }
+    }
+
+    /// Drain all `Warning` events currently buffered in `ctx.output`,
+    /// returning their formatted strings in queue order.
+    pub fn drain_warnings(ctx: &mut ValidatorContext) -> Vec<String> {
+        let mut warnings = Vec::new();
+        ctx.output.retain(|event| match event {
+            ConsensusEvent::Warning(s) => {
+                warnings.push(s.clone());
+                false
+            }
+            _ => true,
+        });
+        warnings
+    }
+
+    /// Drain any `PublishMessage` events — used to assert that signing-only
+    /// paths (Coordinator, Participant) did NOT fire from a non-signing state.
+    pub fn count_publish_messages(ctx: &ValidatorContext) -> usize {
+        ctx.output
+            .iter()
+            .filter(|e| matches!(e, ConsensusEvent::PublishMessage(_)))
+            .count()
+    }
 }

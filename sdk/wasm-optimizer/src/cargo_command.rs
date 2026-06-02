@@ -27,7 +27,10 @@ impl CargoCommand {
         let linker_plugin_lto = rustc_version.major == 1 && rustc_version.minor >= 91;
         let allow_undefined = rustc_version.major == 1 && rustc_version.minor >= 96;
 
-        let mut rustc_flags = vec!["-Clink-arg=--import-memory"];
+        let mut rustc_flags = vec![
+            "-Clink-arg=--import-memory",
+            "-Clink-arg=--import-undefined",
+        ];
 
         if linker_plugin_lto {
             rustc_flags.extend_from_slice(&[

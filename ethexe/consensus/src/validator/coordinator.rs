@@ -18,7 +18,7 @@ use anyhow::{Context as _, Result, anyhow, ensure};
 use derive_more::Display;
 use ethexe_common::{
     Address, SimpleBlockData, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
-    gear::BatchCommitment, network::ValidatorMessage,
+    ecdsa::PublicKey, gear::BatchCommitment, network::ValidatorMessage,
 };
 use futures::{FutureExt, future::BoxFuture};
 use gsigner::secp256k1::Secp256k1SignerExt;
@@ -42,6 +42,7 @@ pub struct CoordinatorBoot {
     ctx: ValidatorContext,
     block: SimpleBlockData,
     validators: ValidatorsVec,
+    pub_key: PublicKey,
     /// `Some` while we're either sleeping or awaiting the batch builder.
     pending: Option<BoxFuture<'static, Result<Option<BatchCommitment>>>>,
 }
@@ -59,6 +60,7 @@ impl CoordinatorBoot {
         ctx: ValidatorContext,
         block: SimpleBlockData,
         validators: ValidatorsVec,
+        pub_key: PublicKey,
     ) -> Result<ValidatorState> {
         let delay = ctx.core.coordinator_aggregation_delay;
         let batch_manager = ctx.core.batch_manager.clone();
@@ -75,6 +77,7 @@ impl CoordinatorBoot {
             ctx,
             block,
             validators,
+            pub_key,
             pending: Some(pending),
         }
         .into())
@@ -113,7 +116,13 @@ impl StateHandler for CoordinatorBoot {
                 Ok((Poll::Ready(()), next))
             }
             Poll::Ready(Ok(Some(batch))) => {
-                let next = Coordinator::create(self.ctx, self.validators, batch, self.block)?;
+                let next = Coordinator::create(
+                    self.ctx,
+                    self.validators,
+                    batch,
+                    self.block,
+                    self.pub_key,
+                )?;
                 Ok((Poll::Ready(()), next))
             }
         }
@@ -128,6 +137,7 @@ impl StateHandler for CoordinatorBoot {
 pub struct Coordinator {
     ctx: ValidatorContext,
     validators: BTreeSet<Address>,
+    pub_key: PublicKey,
     multisigned_batch: MultisignedBatchCommitment,
 }
 
@@ -174,6 +184,7 @@ impl Coordinator {
         validators: ValidatorsVec,
         batch: BatchCommitment,
         block: SimpleBlockData,
+        pub_key: PublicKey,
     ) -> Result<ValidatorState> {
         debug_assert_eq!(batch.block_hash, block.hash, "Block hash mismatch");
         ensure!(
@@ -190,7 +201,7 @@ impl Coordinator {
             batch,
             &ctx.core.signer,
             ctx.core.router_address,
-            ctx.core.pub_key,
+            pub_key,
         )?;
 
         ctx.core
@@ -210,16 +221,14 @@ impl Coordinator {
         let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
         let message = ValidatorMessage { era_index, payload };
 
-        let validation_request = ctx
-            .core
-            .signer
-            .signed_data(ctx.core.pub_key, message, None)?;
+        let validation_request = ctx.core.signer.signed_data(pub_key, message, None)?;
 
         ctx.output(ConsensusEvent::PublishMessage(validation_request.into()));
 
         Ok(Self {
             ctx,
             validators: validators.into_iter().collect(),
+            pub_key,
             multisigned_batch,
         }
         .into())
