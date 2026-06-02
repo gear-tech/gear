@@ -277,7 +277,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 700_000_000, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 70_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -8487,7 +8487,7 @@ fn test_create_program_with_value_lt_ed() {
 // then it has on it's balance. Such message send will end up without any error/trap. So all in all execution will end
 // up successfully with messages sent from program with total value more than was provided to the program.
 //
-// Again init message won't be added to the queue, because of the check here (https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364).
+// Again init message won't be added to the queue, because of the check here (https://github.com/gear-tech/gear/blob/master/vara/pallets/gear/src/manager.rs#L351-L364).
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_exceeding_value() {
@@ -16428,8 +16428,8 @@ fn check_changed_pages_in_storage() {
                 i32.store
             )
 
-            (data $digits (i32.const 0x10000) "0123456789")
-            (data $company (i32.const 0x70001) "GEAR TECH")
+            (data $.rodata.00001 (i32.const 0x10000) "0123456789")
+            (data $.rodata.00002 (i32.const 0x70001) "GEAR TECH")
         )
     "#;
 
@@ -17143,7 +17143,7 @@ pub(crate) mod utils {
     #[track_caller]
     pub(super) fn assert_total_dequeued(expected: u32) {
         System::events().iter().for_each(|e| {
-            log::debug!("Event: {:?}", e);
+            log::debug!("Event: {e:?}");
         });
 
         let actual_dequeued: u32 = System::events()
@@ -17924,7 +17924,7 @@ pub(crate) mod utils {
     }
 
     pub(super) fn parse_wat(source: &str) -> Vec<u8> {
-        let code = wat::parse_str(source).expect("failed to parse module");
+        let code = wat::parse_str(source).unwrap_or_else(|e| panic!("failed to parse module: {e}"));
         wasmparser::validate(&code).expect("failed to validate module");
         code
     }

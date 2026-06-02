@@ -3,48 +3,65 @@
 
 //! # ethexe-malachite-core
 //!
-//! Application-agnostic Malachite BFT consensus service.
+//! Application-agnostic Malachite BFT consensus service used by `ethexe-malachite`.
+//! Wraps the upstream `malachitebft-app-channel` engine, owns the libp2p swarm and the
+//! persistent BFT-side state, and exposes a minimal trait-based API so any application
+//! can plug in without touching BFT plumbing.
 //!
-//! Wraps the upstream `malachitebft-app-channel` engine, owns the
-//! libp2p swarm and the persistent BFT-side state, and exposes a
-//! minimal trait-based API so any application can plug in:
+//! `ethexe-malachite` is the only direct consumer: it supplies the [`Externalities`]
+//! implementation and wraps [`MalachiteService`] in its own facade exposed to the rest
+//! of the ethexe stack. Block delivery happens exclusively through async
+//! [`Externalities`] callbacks.
 //!
-//! - [`BlockPayload`] — marker trait the application's payload type
-//!   must satisfy (`Clone + Encode + Decode + Send + Sync + 'static`,
-//!   covered by a blanket impl). The service wraps the payload into
-//!   [`Block`] itself (adds `parent_hash`, `height`, `reserved`) and
-//!   computes the canonical [`H256`] block hash via Blake2b-256.
-//! - [`Externalities`] — async callbacks the service invokes to
-//!   process proposals, mark them finalized, build new ones (when
-//!   proposer), and validate incoming proposals. These callbacks are
-//!   the application's only signal that a block exists — the service
-//!   no longer exposes a separate event stream.
+//! ## Usage
 //!
-//! ## Strict ordering guarantees
+//! Construct the service with [`MalachiteService::new`](MalachiteService), then poll it
+//! as a `Stream`:
 //!
-//! The service exists to keep the application out of the BFT
-//! plumbing entirely. To make that possible it commits to:
+//! ```rust,no_run
+//! # use ethexe_malachite_core::{MalachiteConfig, MalachiteService, Externalities, BlockPayload};
+//! # use std::sync::Arc;
+//! async fn start<P: BlockPayload, EXT: Externalities<P>>(
+//!     config: MalachiteConfig,
+//!     ext: Arc<EXT>,
+//! ) -> MalachiteService<P, EXT> {
+//!     MalachiteService::<P, EXT>::new(config, ext)
+//!         .await
+//!         .expect("service starts")
+//! }
+//! ```
 //!
-//! - `process_mb_proposal(block_hash, block)` is called as soon as a
-//!   proposal has been assembled and validated, but only after every
-//!   ancestor of `block_hash` has already returned successfully from
-//!   a previous `process_mb_proposal` call;
-//! - `process_mb_finalized(block_hash, cert)` is called only after
-//!   `block_hash` was processed as a proposal and every ancestor was
-//!   already finalized;
-//! - `build_block_above` / `validate_block_above` are called only
-//!   after the parent block is finalized (or `parent_hash == H256::zero()`
-//!   for the genesis block).
+//! ## Public API
 //!
-//! These invariants make the application a pure consumer of a
-//! linearised block stream.
+//! - [`Externalities`] — Async application callbacks: `process_mb_proposal`, `process_mb_finalized`, `build_block_above`,
+//!   `validate_block_above`.
+//! - [`BlockPayload`] — Marker trait for the payload: `Clone + Encode + Decode + Send + Sync + 'static` (blanket impl).
+//! - [`MalachiteService`] — Running service; owns the swarm and store. Implements `Stream<Item = anyhow::Error>` and
+//!   [`MService`]. `update_validators` rotates the active validator set, taking effect at the next height boundary.
+//! - [`MService`] — Supertrait bound implemented by [`MalachiteService`].
+//! - [`Block`] — Service-level block envelope: `{ parent_hash: H256, height: u64, payload: P, reserved: [u8; 64] }`.
+//! - [`ValidatorEntry`] — Validator set member: `public_key` + `voting_power`, used in [`MalachiteConfig`] and
+//!   `update_validators`.
+//! - [`MalachiteConfig`] — Node configuration: validator secret, validator set, `persistent_peers`, propose timeout,
+//!   [`NodeRole`], `listen_addr`, and `base` project directory.
+//! - [`CommitCertificate`] — Finalization certificate delivered with `process_mb_finalized`.
+//! - [`libp2p_peer_id`] — Derive a [`PeerId`] from a validator secret offline, to build the `/p2p/<peer-id>` suffix of each
+//!   persistent-peer multiaddr.
 //!
-//! The service's [`Stream`] impl carries only fatal app-task errors
-//! (one terminating `anyhow::Error` per failure) — successful events
-//! reach the application exclusively through the [`Externalities`]
-//! callbacks.
+//! ## Caller invariants
 //!
-//! [`Stream`]: futures::Stream
+//! - `listen_addr` must be set explicitly; [`MalachiteConfig::DEFAULT_LISTEN_ADDR`] is
+//!   available but is not applied by any struct-level default.
+//! - `base` must be a persistent path: the service writes `<base>/malachite/` (store and
+//!   WAL) on first run and resumes from it on restart; a transient path loses BFT state.
+//! - Every persistent-peer multiaddr must include a `/p2p/<peer-id>` suffix (see
+//!   [`libp2p_peer_id`]).
+//! - Returning `Err` from a proposal or finalization callback is fatal: the error
+//!   surfaces on the [`MalachiteService`] stream and the consensus loop aborts rather
+//!   than skipping the callback.
+//!
+//! The service guarantees a strictly linearised block stream: each block is delivered
+//! only after every ancestor was processed and finalized in order.
 
 mod config;
 mod externalities;

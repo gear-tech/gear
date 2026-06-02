@@ -44,7 +44,7 @@ use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedCompactPromise},
+    injected::{AddressedInjectedTransaction, SignedCompactTxReceipt},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -91,7 +91,7 @@ pub enum NetworkEvent {
     /// A validator-signed message from the validator gossipsub topic.
     ValidatorMessage(VerifiedValidatorMessage),
     /// A public promise observed on the promise gossipsub topic.
-    PromiseMessage(SignedCompactPromise),
+    TxReceiptMessage(SignedCompactTxReceipt),
     /// Validator discovery learned or refreshed the network identity of the
     /// given validator address.
     ValidatorIdentityUpdated(Address),
@@ -550,11 +550,11 @@ impl NetworkService {
                             .verify_validator_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Promise(compact_promise) => {
+                    gossipsub::Message::TxReceipt(receipt) => {
                         // FIXME: previous era validators are ignored
-                        let (acceptance, promise) =
-                            self.validator_topic.verify_promise(source, compact_promise);
-                        (acceptance, promise.map(NetworkEvent::PromiseMessage))
+                        let (acceptance, receipt) =
+                            self.validator_topic.verify_receipt(source, receipt);
+                        (acceptance, receipt.map(NetworkEvent::TxReceiptMessage))
                     }
                 })
             }
@@ -675,11 +675,8 @@ impl NetworkService {
     }
 
     /// Publish a signed promise to the public promise gossipsub topic.
-    pub fn publish_promise(&mut self, compact_promise: SignedCompactPromise) {
-        self.swarm
-            .behaviour_mut()
-            .gossipsub
-            .publish(compact_promise)
+    pub fn publish_tx_receipt(&mut self, receipt: SignedCompactTxReceipt) {
+        self.swarm.behaviour_mut().gossipsub.publish(receipt)
     }
 }
 

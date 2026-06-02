@@ -3,8 +3,10 @@
 set -e
 
 SCRIPTS_BENCHMARKING_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPTS_BENCHMARKING_DIR/../.." && pwd)"
 WEIGHTS_OUTPUT_DIR="$SCRIPTS_BENCHMARKING_DIR/weights-output"
-PALLETS_DIR="$(cd "$SCRIPTS_BENCHMARKING_DIR/../.." && pwd)/pallets"
+PALLETS_DIR="$REPO_ROOT/vara/pallets"
+VARA_WEIGHTS_DIR="$REPO_ROOT/vara/runtime/vara/src/weights"
 
 if [ -d "$WEIGHTS_OUTPUT_DIR" ]; then
     echo "[+] Applying weights from $WEIGHTS_OUTPUT_DIR"
@@ -31,7 +33,7 @@ for f in "$WEIGHTS_OUTPUT_DIR"/pallet_gear*; do
 done
 
 echo "[+] Moving substrate pallets weights to their respective directories"
-mv "$WEIGHTS_OUTPUT_DIR"/* "$SCRIPTS_BENCHMARKING_DIR/../../runtime/vara/src/weights"
+mv "$WEIGHTS_OUTPUT_DIR"/* "$VARA_WEIGHTS_DIR"
 
 echo "[+] Done applying weights. Removing (empty) weights-output directory"
 rm -r "$WEIGHTS_OUTPUT_DIR"

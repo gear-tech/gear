@@ -22,10 +22,10 @@ pub fn spawn_pending_subscriber<F>(
         let _guard = scopeguard::guard(tx_hash, on_finish);
 
         // Waiting for the first one: promise, timeout_err, client disconnect error.
-        let promise = tokio::select! {
+        let receipt = tokio::select! {
             result = receiver => match result {
-                Ok(promise_result) => match promise_result {
-                    Ok(promise) => promise,
+                Ok(receipt_result) => match receipt_result {
+                    Ok(receipt) => receipt,
                     Err(_err) => {
                         unreachable!("promise sender is owned by the server; it cannot be dropped before this point");
                     }
@@ -41,7 +41,7 @@ pub fn spawn_pending_subscriber<F>(
             }
         };
 
-        match SubscriptionMessage::from_json(&promise) {
+        match SubscriptionMessage::from_json(&receipt) {
             Ok(message) => {
                 if let Err(err) = sink.send(message).await {
                     trace!("failed to send promise, client disconnected: err={err}");
@@ -49,9 +49,9 @@ pub fn spawn_pending_subscriber<F>(
             }
             Err(err) => {
                 error!(
-                    ?promise,
+                    ?receipt,
                     ?err,
-                    "serialization error: failed create `SubscriptionMessage` from promise; this must never happen"
+                    "serialization error: failed to create `SubscriptionMessage` from receipt; this must never happen"
                 );
             }
         }

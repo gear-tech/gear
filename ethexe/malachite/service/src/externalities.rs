@@ -719,10 +719,11 @@ impl EthexeExternalities {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EmptyMempool, MalachiteEvent};
+    use crate::{MalachiteEvent, mempool::EmptyMempool};
     use ethexe_common::{
         BlockHeader,
         db::{BlockMetaStorageRW, OnChainStorageRW},
+        injected::PurgedTransaction,
         malachite::{ProcessQueuesLimits, ProgressTasksLimits},
     };
 
@@ -1076,13 +1077,14 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Mempool for ForgetTracker {
-        fn insert(
-            &self,
-            _tx: SignedInjectedTransaction,
-        ) -> Result<(), crate::mempool::MempoolInsertError> {
-            Ok(())
+        fn insert(&self, _tx: SignedInjectedTransaction) -> crate::mempool::TxInsertionStatus {
+            crate::mempool::TxInsertionStatus::Inserted
         }
-        fn set_chain_head(&self, _head: SimpleBlockData) {}
+
+        fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
+            Vec::new()
+        }
+
         async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
             Vec::new()
         }
@@ -1329,7 +1331,7 @@ mod tests {
 
         let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
         // Drive validity-window GC.
-        mempool.set_chain_head(head);
+        let _ = mempool.set_chain_head(head);
 
         let pk = ethexe_common::PrivateKey::random();
         let valid = signed_injected_tx(&pk, dest, chain.blocks[9].hash, 0);
@@ -1345,11 +1347,11 @@ mod tests {
         )
         .unwrap();
 
-        mempool.insert(valid.clone()).unwrap();
-        assert!(matches!(
+        mempool.insert(valid.clone());
+        assert_eq!(
             mempool.insert(value_tx.clone()),
-            Err(crate::mempool::MempoolInsertError::NonZeroValue)
-        ));
+            crate::mempool::TxInsertionStatus::NonZeroValue,
+        );
         assert_eq!(mempool.len(), 1);
 
         let (ext, _rx) = make_externalities_with_pool(db, mempool);
@@ -1409,21 +1411,19 @@ mod tests {
 
         let head = chain.blocks[10].to_simple();
         let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
-        mempool.set_chain_head(head);
+        let _ = mempool.set_chain_head(head);
         let pk = ethexe_common::PrivateKey::random();
         // Push 50 txs targeting the upper half of destinations (the ones
         // NOT pre-touched by EB events).
         let push_start = MAX_TOUCHED_PROGRAMS_PER_MB / 2 + 1;
         let push_end = MAX_TOUCHED_PROGRAMS_PER_MB + 1;
         for i in push_start..push_end {
-            mempool
-                .insert(signed_injected_tx(
-                    &pk,
-                    ActorId::from(i as u64),
-                    chain.blocks[9].hash,
-                    i as u8,
-                ))
-                .unwrap();
+            mempool.insert(signed_injected_tx(
+                &pk,
+                ActorId::from(i as u64),
+                chain.blocks[9].hash,
+                i as u8,
+            ));
         }
 
         let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
@@ -1552,7 +1552,7 @@ mod tests {
         db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
 
         let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
-        mempool.set_chain_head(head);
+        let _ = mempool.set_chain_head(head);
         let pk = ethexe_common::PrivateKey::random();
         // Each tx carries the maximum-size payload; the pool is loaded
         // with enough of them that two fit but three don't.
@@ -1570,7 +1570,7 @@ mod tests {
                 },
             )
             .unwrap();
-            mempool.insert(tx).unwrap();
+            mempool.insert(tx);
         }
         assert_eq!(mempool.len(), 3);
 

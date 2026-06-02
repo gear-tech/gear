@@ -12,7 +12,7 @@ use ethexe_common::{
     db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedPromise,
+        SignedInjectedTransaction, SignedTxReceipt,
     },
 };
 use ethexe_db::Database;
@@ -52,11 +52,11 @@ impl InjectedServer for InjectedApi {
         self.send_transaction_and_watch(pending, transaction).await
     }
 
-    async fn get_transaction_promise(
+    async fn get_transaction_receipt(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> RpcResult<Option<SignedPromise>> {
-        self.get_transaction_promise(tx_hash).await
+    ) -> RpcResult<Option<SignedTxReceipt>> {
+        self.get_transaction_receipt(tx_hash).await
     }
 
     async fn get_transactions(
@@ -119,14 +119,6 @@ impl InjectedApi {
                     self.manager.cancel_registration(tx_hash);
                 })?
             }
-            InjectedTransactionAcceptance::AlreadyPooled { reason } => {
-                // Promise will fire normally; keep the subscription so a
-                // retry / duplicate submit doesn't lose the reply.
-                tracing::debug!(%tx_hash, reason, "watch: retaining subscription on duplicate");
-                pending.accept().await.inspect_err(|_err| {
-                    self.manager.cancel_registration(tx_hash);
-                })?
-            }
             InjectedTransactionAcceptance::Reject { reason } => {
                 self.manager.cancel_registration(tx_hash);
                 return Err(reason.into());
@@ -142,31 +134,14 @@ impl InjectedApi {
         Ok(())
     }
 
-    async fn get_transaction_promise(
+    async fn get_transaction_receipt(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> RpcResult<Option<SignedPromise>> {
-        let Some(promise) = self.db.promise(tx_hash) else {
-            trace!(?tx_hash, "promise not found for injected transaction");
-            return Ok(None);
-        };
-
-        let Some(compact) = self.db.compact_promise(tx_hash) else {
-            trace!(
-                ?tx_hash,
-                "compact promise not found for injected transaction"
-            );
-            return Ok(None);
-        };
-
-        match compact.restore(promise) {
-            Ok(message) => Ok(Some(message)),
-            Err(err) => {
-                trace!(
-                    ?tx_hash,
-                    ?err,
-                    "failed to build signed promise from parts for injected transaction"
-                );
+    ) -> RpcResult<Option<SignedTxReceipt>> {
+        match self.db.receipt(tx_hash) {
+            Some(receipt) => Ok(Some(receipt)),
+            None => {
+                trace!(?tx_hash, "receipt not found for injected transaction");
                 Ok(None)
             }
         }
@@ -196,7 +171,12 @@ impl InjectedApi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{PrivateKey, db::InjectedStorageRW, mock::Mock};
+    use ethexe_common::{
+        Address, PrivateKey, SignedMessage, ValidatorsVec,
+        db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRW, SetGlobals},
+        injected::{Promise, Receipt},
+        mock::Mock,
+    };
 
     fn make_signed_tx() -> SignedInjectedTransaction {
         SignedInjectedTransaction::create(PrivateKey::random(), InjectedTransaction::mock(()))
@@ -206,6 +186,26 @@ mod tests {
     fn make_injected_api(db: Database) -> InjectedApi {
         let (sender, _receiver) = mpsc::unbounded_channel();
         InjectedApi::new(db, sender)
+    }
+
+    fn set_current_validators(db: &Database, validators: Vec<Address>) {
+        db.set_validators(
+            0,
+            ValidatorsVec::try_from(validators).expect("validators must be non-empty"),
+        );
+    }
+
+    fn set_validators(db: &Database, era: u64, validators: Vec<Address>) {
+        db.set_validators(
+            era,
+            ValidatorsVec::try_from(validators).expect("validators must be non-empty"),
+        );
+    }
+
+    fn set_current_era(db: &Database, era: u64) {
+        let mut globals = db.globals().clone();
+        globals.latest_synced_eb.header.timestamp = era;
+        db.set_globals(globals);
     }
 
     #[tokio::test]
@@ -268,5 +268,70 @@ mod tests {
 
         let result = api.get_transactions(ids).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_receipt_returns_stored_receipt() {
+        let db = Database::memory();
+        let api = make_injected_api(db);
+
+        let tx_hash = make_signed_tx().data().to_hash();
+        let promise = Promise::mock(tx_hash);
+        let compact_receipt =
+            SignedMessage::create(PrivateKey::random(), Receipt::Promise(promise.to_compact()))
+                .expect("creating signed receipt succeeds");
+        set_current_validators(&api.db, vec![compact_receipt.address()]);
+
+        api.on_computed_promise(promise.clone());
+        api.on_tx_receipt(compact_receipt.into());
+
+        let receipt = api
+            .get_transaction_receipt(tx_hash)
+            .await
+            .expect("RPC result succeeds")
+            .expect("receipt is stored");
+
+        assert_eq!(receipt.data(), &Receipt::Promise(promise));
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_receipt_keeps_previous_era_cached_receipt() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx_hash = make_signed_tx().data().to_hash();
+        let promise = Promise::mock(tx_hash);
+        let receipt: SignedTxReceipt =
+            SignedMessage::create(PrivateKey::random(), Receipt::Promise(promise.clone()))
+                .expect("creating signed receipt succeeds")
+                .into();
+
+        set_validators(&db, 0, vec![receipt.address()]);
+        set_validators(&db, 1, vec![Address::from(1)]);
+        set_current_era(&db, 1);
+        db.set_receipt(&receipt);
+
+        let result = api
+            .get_transaction_receipt(tx_hash)
+            .await
+            .expect("RPC result succeeds");
+
+        assert_eq!(result, Some(receipt));
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_receipt_ignores_unsigned_promise_body() {
+        let db = Database::memory();
+        let api = make_injected_api(db);
+
+        let tx_hash = make_signed_tx().data().to_hash();
+        api.on_computed_promise(Promise::mock(tx_hash));
+
+        let receipt = api
+            .get_transaction_receipt(tx_hash)
+            .await
+            .expect("RPC result succeeds");
+
+        assert_eq!(receipt, None);
     }
 }

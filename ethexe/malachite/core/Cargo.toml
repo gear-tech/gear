@@ -22,6 +22,7 @@ malachitebft-sync.workspace = true
 malachitebft-test.workspace = true
 
 # Async + utilities
+advisory-lock.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
@@ -50,6 +51,7 @@ rocksdb.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
+advisory-lock.workspace = true
 proptest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }

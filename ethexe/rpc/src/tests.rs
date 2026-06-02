@@ -6,17 +6,16 @@ use crate::{
     RpcService,
 };
 use ethexe_common::{
-    ecdsa::PrivateKey,
+    SignedMessage, ValidatorsVec,
+    db::OnChainStorageRW,
+    ecdsa::{PrivateKey, PublicKey},
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, Promise, SignedCompactPromise},
+    injected::{AddressedInjectedTransaction, Promise, Receipt, SignedCompactTxReceipt},
     mock::Mock,
 };
 use ethexe_db::Database;
 use futures::StreamExt;
-use gear_core::{
-    message::{ReplyCode, SuccessReplyReason},
-    rpc::ReplyInfo,
-};
+use gear_core::message::{ReplyCode, SuccessReplyReason};
 use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
@@ -26,13 +25,27 @@ use tokio::task::{JoinHandle, JoinSet};
 struct MockService {
     rpc: RpcService,
     handle: ServerHandle,
+    validator_key: PrivateKey,
 }
 
 impl MockService {
     /// Creates a new mock service which runs an RPC server listening on the given address.
     pub async fn new(listen_addr: SocketAddr) -> Self {
-        let (handle, rpc) = start_new_server(listen_addr).await;
-        Self { rpc, handle }
+        let db = Database::memory();
+        let validator_key = PrivateKey::random();
+        let validator_address = PublicKey::from(&validator_key).to_address();
+        db.set_validators(
+            0,
+            ValidatorsVec::try_from(vec![validator_address])
+                .expect("test validator set must be non-empty"),
+        );
+
+        let (handle, rpc) = start_new_server(listen_addr, db).await;
+        Self {
+            rpc,
+            handle,
+            validator_key,
+        }
     }
 
     pub fn injected_api(&self) -> InjectedApi {
@@ -52,9 +65,9 @@ impl MockService {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
                         for tx in tx_batch.drain(..) {
-                            let (promise, compact) = Self::create_promise_for(tx);
+                            let (promise, receipt) = self.create_promise_for(tx);
                             self.rpc.receive_computed_promise(promise);
-                            self.rpc.receive_compact_promise(compact);
+                            self.rpc.receive_tx_receipt(receipt);
                         }
                     },
                     _ = self.handle.clone().stopped() => {
@@ -71,23 +84,22 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: AddressedInjectedTransaction) -> (Promise, SignedCompactPromise) {
-        let promise = Promise {
-            tx_hash: tx.tx.data().to_hash(),
-            reply: ReplyInfo {
-                payload: vec![],
-                value: 0,
-                code: ReplyCode::Success(SuccessReplyReason::Manual),
-            },
-        };
-        let compact = SignedCompactPromise::create_from_promise(PrivateKey::random(), &promise)
-            .expect("Signing compact promise will succeed");
-        (promise, compact)
+    fn create_promise_for(
+        &self,
+        tx: AddressedInjectedTransaction,
+    ) -> (Promise, SignedCompactTxReceipt) {
+        let promise = Promise::mock(tx.tx.data().to_hash());
+        let receipt = SignedMessage::create(
+            self.validator_key.clone(),
+            Receipt::Promise(promise.to_compact()),
+        )
+        .unwrap();
+        (promise, receipt.into())
     }
 }
 
 /// Starts a new RPC server listening on the given address.
-async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService) {
+async fn start_new_server(listen_addr: SocketAddr, db: Database) -> (ServerHandle, RpcService) {
     let rpc_config = RpcConfig {
         listen_addr,
         cors: None,
@@ -95,7 +107,7 @@ async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService)
         chunk_size: 2,
         with_dev_api: false,
     };
-    RpcServer::new(rpc_config, Database::memory())
+    RpcServer::new(rpc_config, db)
         .run_server()
         .await
         .expect("RPC Server will start successfully")
@@ -135,14 +147,15 @@ async fn test_cleanup_promise_subscribers() {
                 .expect("Subscription will be created");
 
             subscribers.spawn(async move {
-                let promise = sub
+                let receipt = sub
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
 
@@ -163,14 +176,15 @@ async fn test_cleanup_promise_subscribers() {
                 .expect("Subscription will be created");
 
             subscribers.spawn(async move {
-                let promise = subscription
+                let receipt = subscription
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
             });
@@ -226,14 +240,15 @@ async fn test_concurrent_multiple_clients() {
                     .await
                     .expect("Subscription will be created");
 
-                let promise = subscription
+                let receipt = subscription
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
 

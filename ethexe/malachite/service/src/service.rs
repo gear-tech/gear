@@ -193,10 +193,14 @@ impl MalachiteService {
 
     /// Hand an injected transaction to the mempool. The local
     /// producer pulls from the same pool when assembling the next MB.
+    ///
+    /// Every outcome — including rejecting ones — is a
+    /// [`crate::mempool::TxInsertionStatus`] value; group membership is
+    /// queried via [`crate::mempool::TxInsertionStatus::is_accepted`].
     pub fn receive_injected_transaction(
         &self,
         tx: SignedInjectedTransaction,
-    ) -> Result<(), crate::mempool::MempoolInsertError> {
+    ) -> crate::mempool::TxInsertionStatus {
         self.mempool.insert(tx)
     }
 
@@ -233,7 +237,20 @@ impl MalachiteService {
         // invariant #2 in the doc above.
         self.chain_head_notify.notify_one();
         if advanced {
-            self.mempool.set_chain_head(head);
+            // let eb_hash = head.hash;
+            let purged_txs = self.mempool.set_chain_head(head);
+            if !purged_txs.is_empty() {
+                let event = MalachiteEvent::PurgedTransactions {
+                    eb_hash: head.hash,
+                    transactions: purged_txs,
+                };
+                if let Err(err) = self.externalities.event_tx.send(Ok(event)) {
+                    tracing::error!(
+                        event = ?err.0,
+                        "malachite-service: event_tx channel closed, failed to send purged transactions event"
+                    );
+                };
+            }
         }
         self.externalities.drain_pending_events();
     }

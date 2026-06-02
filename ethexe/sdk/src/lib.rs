@@ -6,7 +6,57 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! Vara.ETH SDK.
+//! # ethexe-sdk
+//!
+//! Rust client SDK for the Vara.ETH execution layer — Gear programs running on Ethereum via
+//! ethexe. It bundles an ethexe JSON-RPC WebSocket client with an Ethereum contract client
+//! behind a single [`VaraEthApi`] handle.
+//!
+//! This is a thin, `std`-only convenience layer for external consumers: it holds no execution,
+//! consensus, or storage logic and delegates to `ethexe-ethereum`, `ethexe-rpc`, and
+//! `ethexe-node-wrapper`. The primary in-workspace consumer is `ethexe-node-loader`, which
+//! builds [`VaraEthApi`] clients for integration and fuzz testing.
+//!
+//! ## Public API
+//!
+//! - [`VaraEthApi`] — SDK root; built with `VaraEthApi::new`. Factory methods `mirror`, `router`, `wrapped_vara` return scoped
+//!   wrappers.
+//! - [`Mirror`] — Per-program operations: `send_message`, `send_reply`, `send_message_injected`, `wait_for_reply`, `claim_value`,
+//!   `state`, `calculate_reply_for_handle`, plus `*_with_receipt` variants.
+//! - [`Router`] — Router-contract and global queries: `request_code_validation`, `create_program`, validator queries,
+//!   `code_state`, `program_ids`, `storage_view`.
+//! - [`WVara`] — WrappedVara ERC20 queries and transfers, plus `mint` and `events`.
+//! - [`VaraEth`], [`VaraEthInstance`], [`Error`] — Re-exported from `ethexe-node-wrapper`; spawn and manage a local ethexe node
+//!   process and obtain its RPC endpoints.
+//!
+//! ## Usage example
+//!
+//! ```rust,no_run
+//! use ethexe_sdk::VaraEthApi;
+//!
+//! // `eth_client` is an `ethexe_ethereum::Ethereum`; `rpc_url` is the node's WS endpoint.
+//! let api = VaraEthApi::new(&rpc_url, eth_client).await?;
+//!
+//! let (_, code_id) = api.router().request_code_validation(wasm).await?;
+//! api.router().wait_for_code_validation(code_id).await?;
+//!
+//! let (_, program_id) = api
+//!     .router()
+//!     .create_program_with_executable_balance(code_id, salt, None, balance)
+//!     .await?;
+//! let mirror = api.mirror(program_id);
+//! let (_, message_id) = mirror.send_message(payload, value).await?;
+//! let reply = mirror.wait_for_reply(message_id).await?;
+//! # anyhow::Ok(())
+//! ```
+//!
+//! ## Invariants
+//!
+//! - [`Mirror`] and [`Router`] borrow `&VaraEthApi` and cannot outlive the handle they were
+//!   created from.
+//! - Injected transactions must carry zero value; a non-zero value is a hard error at call time.
+//! - Most methods are `async` and return `anyhow::Result`, assuming a live RPC WebSocket and a
+//!   reachable Ethereum endpoint.
 
 pub use crate::{api::VaraEthApi, mirror::Mirror, router::Router, wvara::WVara};
 

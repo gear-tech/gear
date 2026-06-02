@@ -7,7 +7,7 @@
 use crate::{gossipsub::MessageAcceptance, peer_score, validator::list::ValidatorListSnapshot};
 use ethexe_common::{
     Address, HashOf,
-    injected::{InjectedTransaction, SignedCompactPromise},
+    injected::{InjectedTransaction, SignedCompactTxReceipt},
     network::VerifiedValidatorMessage,
 };
 use libp2p::PeerId;
@@ -78,7 +78,7 @@ enum VerifyMessageError {
 }
 
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
-enum VerifyPromiseError {
+enum VerifyTxReceiptError {
     #[display("unknown validator: address={address}, tx_hash={tx_hash}")]
     UnknownValidator {
         address: Address,
@@ -270,30 +270,30 @@ impl ValidatorTopic {
         }
     }
 
-    fn inner_verify_promise(
+    fn inner_verify_receipt(
         &self,
         _source: PeerId,
-        compact_promise: SignedCompactPromise,
-    ) -> Result<SignedCompactPromise, VerifyPromiseError> {
-        let address = compact_promise.address();
+        receipt: SignedCompactTxReceipt,
+    ) -> Result<SignedCompactTxReceipt, VerifyTxReceiptError> {
+        let address = receipt.address();
         if !self.snapshot.contains(address) {
-            return Err(VerifyPromiseError::UnknownValidator {
+            return Err(VerifyTxReceiptError::UnknownValidator {
                 address,
-                tx_hash: compact_promise.data().tx_hash,
+                tx_hash: receipt.data().tx_hash(),
             });
         }
 
-        Ok(compact_promise)
+        Ok(receipt)
     }
 
     // FIXME: messages from previous era validators are ignored
-    pub fn verify_promise(
+    pub fn verify_receipt(
         &self,
         source: PeerId,
-        compact_promise: SignedCompactPromise,
-    ) -> (MessageAcceptance, Option<SignedCompactPromise>) {
-        match self.inner_verify_promise(source, compact_promise) {
-            Ok(compact_promise) => (MessageAcceptance::Accept, Some(compact_promise)),
+        receipt: SignedCompactTxReceipt,
+    ) -> (MessageAcceptance, Option<SignedCompactTxReceipt>) {
+        match self.inner_verify_receipt(source, receipt) {
+            Ok(receipt) => (MessageAcceptance::Accept, Some(receipt)),
             Err(err) => {
                 log::trace!("failed to verify compact promise: {err}");
                 (MessageAcceptance::Ignore, None)
@@ -313,8 +313,8 @@ mod tests {
     use assert_matches::assert_matches;
     use ethexe_common::{
         consensus::BatchCommitmentValidationRequest,
-        gear_core::{message::ReplyCode, rpc::ReplyInfo},
-        injected::{Promise, SignedPromise},
+        ecdsa::PublicKey,
+        injected::{Promise, Receipt},
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
@@ -359,20 +359,20 @@ mod tests {
             .into_verified()
     }
 
-    fn signed_promise() -> SignedCompactPromise {
+    fn signer_with_pubkey() -> (PublicKey, Signer) {
         let signer = Signer::memory();
-        let pub_key = signer.generate().unwrap();
-        let promise = Promise {
-            tx_hash: Default::default(),
-            reply: ReplyInfo {
-                payload: vec![],
-                value: 0,
-                code: ReplyCode::Unsupported,
-            },
-        };
+        (signer.generate().unwrap(), signer)
+    }
 
-        let signed: SignedPromise = signer.signed_message(pub_key, promise, None).unwrap();
-        SignedCompactPromise::from_signed_promise(&signed)
+    fn signed_promise_receipt(
+        signer: &Signer,
+        public_key: PublicKey,
+        promise: Promise,
+    ) -> SignedCompactTxReceipt {
+        signer
+            .signed_message(public_key, Receipt::Promise(promise.to_compact()), None)
+            .unwrap()
+            .into()
     }
 
     /// Buckets a message era can fall into relative to the snapshot era.
@@ -732,37 +732,41 @@ mod tests {
     #[test]
     fn verify_promise_unknown_validator() {
         let topic = new_topic(nonempty![Address::default()]);
-        let promise = signed_promise();
+
+        let (pubkey, signer) = signer_with_pubkey();
+        let promise = Promise::mock(());
+        let receipt = signed_promise_receipt(&signer, pubkey, promise.clone());
+
         let peer_id = PeerId::random();
 
         let err = topic
-            .inner_verify_promise(peer_id, promise.clone())
+            .inner_verify_receipt(peer_id, receipt.clone())
             .unwrap_err();
-        assert_eq!(
-            err,
-            VerifyPromiseError::UnknownValidator {
-                address: promise.address(),
-                tx_hash: promise.data().tx_hash,
-            }
-        );
 
-        let (acceptance, promise) = topic.verify_promise(peer_id, promise);
+        let VerifyTxReceiptError::UnknownValidator { address, tx_hash } = err;
+        assert_eq!(address, receipt.address());
+        assert_eq!(tx_hash, receipt.data().tx_hash());
+
+        let (acceptance, receipt) = topic.verify_receipt(peer_id, receipt);
         assert_matches!(acceptance, MessageAcceptance::Ignore);
-        assert_eq!(promise, None);
+        assert_eq!(receipt, None);
     }
 
     #[tokio::test]
     async fn verify_promise_ok() {
-        let promise = signed_promise();
-        let topic = new_topic(nonempty![promise.address()]);
+        let (pubkey, signer) = signer_with_pubkey();
+        let promise = Promise::mock(());
+        let receipt = signed_promise_receipt(&signer, pubkey, promise);
+
+        let topic = new_topic(nonempty![receipt.address()]);
         let peer_id = PeerId::random();
 
         topic
-            .inner_verify_promise(peer_id, promise.clone())
+            .inner_verify_receipt(peer_id, receipt.clone())
             .unwrap();
 
-        let (acceptance, returned_promise) = topic.verify_promise(peer_id, promise.clone());
+        let (acceptance, returned_receipt) = topic.verify_receipt(peer_id, receipt.clone());
         assert_matches!(acceptance, MessageAcceptance::Accept);
-        assert_eq!(returned_promise, Some(promise));
+        assert_eq!(returned_receipt, Some(receipt));
     }
 }

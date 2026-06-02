@@ -129,76 +129,121 @@ pub(crate) trait SubService: Unpin + Send + 'static {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{CodeAndIdUnchecked, db::*, mock::*};
+    use crate::tests::{
+        MockProcessor, block_chain_strategy, next_compute_event, proptest_config, run_async_test,
+    };
+    use ethexe_common::{
+        BlockHeader, CodeAndIdUnchecked,
+        db::{
+            BlockMetaStorageRO, CodesStorageRO, CompactMb, MbStorageRO, MbStorageRW,
+            OnChainStorageRW,
+        },
+        malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
+        mock::Tap,
+    };
     use ethexe_db::Database as DB;
-    use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
-    use gprimitives::CodeId;
+    use gprimitives::{CodeId, H256};
+    use proptest::{collection, prelude::*};
 
-    /// Test ComputeService block preparation functionality
-    #[tokio::test]
-    async fn prepare_block() {
-        gear_utils::init_default_logger();
+    fn seed_mb(db: &DB, mb_hash: H256, gas_allowance: u64) {
+        let eth_block_hash = H256::from_low_u64_be(0xEB00);
+        db.set_block_header(
+            eth_block_hash,
+            BlockHeader {
+                height: 1,
+                timestamp: 1,
+                parent_hash: H256::zero(),
+            },
+        );
+        db.set_block_events(eth_block_hash, &[]);
 
-        let db = DB::memory();
-        let mut service = ComputeService::new_mock_processor(db.clone());
+        let transactions_hash = db.set_transactions(Transactions::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                block_hash: eth_block_hash,
+            },
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits { gas_allowance },
+            },
+        ]));
 
-        let chain = BlockChain::mock(1).setup(&db);
-        let block = chain.blocks[1].to_simple().next_block().setup(&db);
-
-        // Request block preparation
-        service.prepare_block(block.hash);
-
-        // Poll service to process the preparation request
-        let event = service.next().await.unwrap().unwrap();
-        assert_eq!(event, ComputeEvent::BlockPrepared(block.hash));
-
-        // Verify block is marked as prepared in DB
-        assert!(db.block_meta(block.hash).prepared);
+        db.set_mb_compact_block(
+            mb_hash,
+            CompactMb {
+                parent: H256::zero(),
+                height: 1,
+                transactions_hash,
+            },
+        );
     }
 
-    /// Test ComputeService code processing functionality
-    #[tokio::test]
-    async fn process_code() {
-        gear_utils::init_default_logger();
+    proptest! {
+        #![proptest_config(proptest_config(64))]
 
-        let code = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // Simple WASM header
-        let code_id = CodeId::generate(&code);
+        #[test]
+        fn prepare_block(chain in block_chain_strategy(1)) {
+            gear_utils::init_default_logger();
 
-        let db = DB::memory();
-        let processor = MockProcessor::with_default_valid_code()
-            .tap_mut(|p| p.process_codes_result.as_mut().unwrap().code_id = code_id);
-        let mut service = ComputeService::new(db.clone(), processor.clone());
+            run_async_test(async move {
+                let db = DB::memory();
+                let mut service = ComputeService::new_mock_processor(db.clone());
 
-        // Create test code
+                let chain = chain.setup(&db);
+                let block = chain.blocks[1].to_simple().next_block().setup(&db);
 
-        let code_and_id = CodeAndIdUnchecked { code, code_id };
+                service.prepare_block(block.hash);
 
-        // Verify code is not yet in DB
-        assert!(db.code_valid(code_id).is_none());
-
-        // Request code processing
-        service.process_code(code_and_id);
-
-        // Poll service to process the code
-        let event = service.next().await.unwrap().unwrap();
-
-        // Should receive CodeProcessed event with correct code_id
-        match event {
-            ComputeEvent::CodeProcessed(processed_code_id) => {
-                assert_eq!(processed_code_id, code_id);
-            }
-            _ => panic!("Expected CodeProcessed event"),
+                let event = next_compute_event(&mut service).await;
+                assert_eq!(event, ComputeEvent::BlockPrepared(block.hash));
+                assert!(db.block_meta(block.hash).prepared);
+            });
         }
 
-        // Verify that the processor was called for non-validated code
-        assert_eq!(
-            processor.process_code_call_count(),
-            1,
-            "Processor should be called for non-validated code"
-        );
+        #[test]
+        fn compute_mb(gas_allowance in 1u64..=1_000_000) {
+            gear_utils::init_default_logger();
 
-        // Verify code is now marked as valid in DB
-        assert_eq!(db.code_valid(code_id), Some(true));
+            run_async_test(async move {
+                let db = DB::memory();
+                let mut service = ComputeService::new_mock_processor(db.clone());
+                let mb_hash = H256::from_low_u64_be(0xCAFE);
+
+                seed_mb(&db, mb_hash, gas_allowance);
+                service.compute_mb(mb_hash, PromisePolicy::Disabled);
+
+                assert_eq!(
+                    next_compute_event(&mut service).await,
+                    ComputeEvent::MbComputed(mb_hash)
+                );
+                assert!(db.mb_meta(mb_hash).computed);
+            });
+        }
+
+        #[test]
+        fn process_code(code in collection::vec(any::<u8>(), 1..=64)) {
+            gear_utils::init_default_logger();
+
+            run_async_test(async move {
+                let code_id = CodeId::generate(&code);
+                let db = DB::memory();
+                let processor = MockProcessor::with_default_valid_code()
+                    .tap_mut(|p| p.process_codes_result.as_mut().unwrap().code_id = code_id);
+                let mut service = ComputeService::new(db.clone(), processor.clone());
+
+                assert!(db.code_valid(code_id).is_none());
+
+                service.process_code(CodeAndIdUnchecked { code, code_id });
+
+                assert_eq!(
+                    next_compute_event(&mut service).await,
+                    ComputeEvent::CodeProcessed(code_id)
+                );
+                assert_eq!(processor.process_code_call_count(), 1);
+                assert_eq!(db.code_valid(code_id), Some(true));
+            });
+        }
     }
 }
