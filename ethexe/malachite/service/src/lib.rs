@@ -3,17 +3,50 @@
 
 //! # Ethexe Malachite
 //!
-//! Ethexe-side wrapper around [`ethexe_malachite_core::MalachiteService`].
-//! Stitches the [`InjectedTxMempool`], [`ethexe_malachite_core::Externalities`],
-//! and the public [`MalachiteService`] facade.
+//! Ethexe-side glue around `ethexe-malachite-core`, the generic Malachite BFT /
+//! Tendermint-style consensus engine. BFT voting, gossip, peer discovery, and
+//! persistence all live in the core crate; this crate provides the public
+//! [`MalachiteService`] facade, the producer-side [`Mempool`] abstraction, per-
+//! transaction validity checking, and translation of engine callbacks into
+//! [`MalachiteEvent`]s.
 //!
-//! Inputs: [`Database`](ethexe_db::Database) (block storage), the latest Ethereum
-//! chain head fed via `receive_new_chain_head`, and the [`Mempool`] sampled by
-//! the producer.
+//! `ethexe-service` constructs the service at startup and is the sole consumer of
+//! its output `Stream` of [`MalachiteEvent`]; it calls `receive_new_chain_head`
+//! on each `ObserverEvent::BlockSynced`.
 //!
-//! Outputs (`Stream<Item = Result<MalachiteEvent>>`): `BlockProposal` fires
-//! after `process_mb_proposal` persists, `BlockFinalized` after
-//! `process_mb_finalized`. Both are emitted ancestor-first.
+//! ## Public API
+//!
+//! - [`MalachiteService`] (struct) — Public facade; `Stream` + driver methods
+//! - [`MalachiteEvent`] (enum) — Output event: proposal, finalization, purged txs
+//! - [`CommitCertificate`] (struct) — BFT commit proof attached to `BlockFinalized`
+//! - [`MalachiteConfig`] (struct) — Service configuration
+//! - [`ValidatorEntry`] (struct) — Single entry in the validator set
+//! - [`Mempool`] (trait) — Producer-side injected-tx source
+//! - [`InjectedTxMempool`] (struct) — Real mempool implementation
+//! - [`TxValidityChecker`] (struct) — Per-tx validity against the MB world
+//! - [`TxValidity`] (enum) — Validity verdict: `Valid`, `Duplicate`, `Outdated`, …
+//!
+//! Driver methods on [`MalachiteService`]: `receive_injected_transaction`,
+//! `receive_new_chain_head`, `receive_eb_prepared`, `shutdown`.
+//!
+//! [`TxValidity`] gates inclusion: a producer drops any non-`Valid` tx when
+//! building an MB, and a validator rejects an entire MB that contains one.
+//!
+//! ## Caller Invariants
+//!
+//! - Construct with `MalachiteService::new(config, db, signer, validator_pub_key,
+//!   mempool)`. A `Some` key starts a `Validator` and must appear in
+//!   `config.validators`; `None` starts a gossip/sync-only `FullNode`. `new`
+//!   returns `Err` if `config.validators` is empty or the local key is absent.
+//! - `BlockProposal` is always emitted before the matching `BlockFinalized` for a
+//!   height; both series are emitted ancestor-first.
+//! - Tendermint's quorum threshold is `> 2/3` of total voting power across the
+//!   validator list.
+//! - Peer discovery is disabled: every `persistent_peers` multiaddr must include a
+//!   `/p2p/<peer_id>` suffix, and every validator must be listed or transitively
+//!   reachable through a listed peer.
+//! - `Drop` is best-effort; call `shutdown().await` before an immediate restart so
+//!   RocksDB locks and sockets release.
 
 mod config;
 mod externalities;
@@ -24,10 +57,7 @@ mod tx_validity;
 
 pub use crate::{
     config::{MalachiteConfig, ValidatorEntry},
-    mempool::{
-        DEFAULT_POOL_CAPACITY, EmptyMempool, InjectedTxMempool, Mempool, MempoolInsertError,
-        classify_insert_outcome,
-    },
+    mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
@@ -107,7 +137,6 @@ fn _api_shape(
     _ev: MalachiteEvent,
     _block: Transactions,
     _cert: CommitCertificate,
-    _mp: EmptyMempool,
     _cfg: MalachiteConfig,
     _tx: ethexe_common::injected::SignedInjectedTransaction,
 ) {

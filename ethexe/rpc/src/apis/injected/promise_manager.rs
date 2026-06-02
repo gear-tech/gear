@@ -16,18 +16,19 @@ use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{trace, warn};
 
-// TODO: Issues #5384 and #5385.
+// TODO: #5385.
 type PromiseSubscribers =
     Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedTxReceipt>>>;
-type ReceiptsComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, UnfilledPromiseReceipt>>;
+type PendingReceiptsCache = moka::sync::Cache<HashOf<InjectedTransaction>, UnfilledPromiseReceipt>;
 
 /// The manager for promise subscribers.
 #[derive(Debug, Clone)]
 pub struct PromiseSubscriptionManager {
     db: Database,
+    /// Active subscribers for injected transaction receipt ([SignedTxReceipt]).
     subscribers: PromiseSubscribers,
-
-    waiting_for_compute: ReceiptsComputationWaiting,
+    /// Cached [UnfilledPromiseReceipt] waiting for local [Promise] computation.
+    pending_receipts: PendingReceiptsCache,
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -68,9 +69,9 @@ impl PendingSubscriber {
 impl PromiseSubscriptionManager {
     pub fn new(db: Database) -> Self {
         Self {
+            pending_receipts: utils::build_pending_receipts_cache(&db),
             db,
             subscribers: PromiseSubscribers::default(),
-            waiting_for_compute: ReceiptsComputationWaiting::default(),
         }
     }
 
@@ -117,12 +118,12 @@ impl PromiseSubscriptionManager {
                         ?unfilled,
                         "locally computed promise do not match producer's receipt"
                     );
-                    self.waiting_for_compute.insert(tx_hash, unfilled);
+                    self.pending_receipts.insert(tx_hash, unfilled);
                 }
             },
             None => {
                 trace!("not found promise in database, waiting for computation...");
-                self.waiting_for_compute.insert(tx_hash, unfilled_promise);
+                self.pending_receipts.insert(tx_hash, unfilled_promise);
             }
         }
     }
@@ -131,7 +132,7 @@ impl PromiseSubscriptionManager {
         trace!(?promise, "received new computed promise");
         self.db.set_promise(&promise);
 
-        let Some((_, unfilled_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) else {
+        let Some(unfilled_promise) = self.pending_receipts.remove(&promise.tx_hash) else {
             return;
         };
 
@@ -144,7 +145,7 @@ impl PromiseSubscriptionManager {
                     ?unfilled,
                     "locally computed promise do not match producer's receipt"
                 );
-                self.waiting_for_compute.insert(unfilled.tx_hash, unfilled);
+                self.pending_receipts.insert(unfilled.tx_hash, unfilled);
             }
         }
     }
@@ -169,15 +170,37 @@ impl PromiseSubscriptionManager {
 }
 
 mod utils {
-    use ethexe_common::db::ConfigStorageRO;
+    use super::PendingReceiptsCache;
+    use ethexe_common::{db::ConfigStorageRO, injected::VALIDITY_WINDOW};
+    use std::time::Duration;
 
     /// The maximum number of slots RPC will wait for transaction promise.
-    const MAX_PROMISE_WAITING_SLOTS: u64 = 20;
+    ///
+    /// Reuse [VALIDITY_WINDOW] with a `2` slots reserve, because it defines
+    /// the exact number of blocks within transaction is valid and promise can appear.
+    const MAX_PROMISE_WAITING_SLOTS: u64 = VALIDITY_WINDOW as u64 + 2u64;
+    /// The maximum number of pending receipts which are waiting for promise computation.
+    const MAX_PENDING_RECEIPTS_CACHE_CAPACITY: u64 = 2_000;
+    /// The default capacity of pending receipts cache.
+    const DEFAULT_PENDING_RECEIPTS_CACHE_CAPACITY: usize = 100;
 
     /// Returns the maximum time that spawned [super::PendingSubscriber] will wait for promise.
-    pub fn receipt_waiting_timeout<DB: ConfigStorageRO>(db: &DB) -> std::time::Duration {
+    pub fn receipt_waiting_timeout<DB: ConfigStorageRO>(db: &DB) -> Duration {
         let slot_duration_secs = db.config().timelines.slot.get();
-        std::time::Duration::from_secs(slot_duration_secs * MAX_PROMISE_WAITING_SLOTS)
+        Duration::from_secs(slot_duration_secs * MAX_PROMISE_WAITING_SLOTS)
+    }
+
+    /// Creates [`moka::sync::Cache`] instance for pending [UnfilledPromiseReceipt](super::UnfilledPromiseReceipt).
+    pub fn build_pending_receipts_cache<DB: ConfigStorageRO>(db: &DB) -> PendingReceiptsCache {
+        // Note: pending receipt will be removed from cache after `MAX_PROMISE_WAITING_SLOTS`,
+        //       because after that time must be no active subscriber.
+        let time_to_live = receipt_waiting_timeout(db);
+
+        moka::sync::CacheBuilder::default()
+            .initial_capacity(DEFAULT_PENDING_RECEIPTS_CACHE_CAPACITY)
+            .max_capacity(MAX_PENDING_RECEIPTS_CACHE_CAPACITY)
+            .time_to_live(time_to_live)
+            .build()
     }
 }
 
@@ -245,7 +268,7 @@ mod tests {
     }
 
     /// Producer signature lands first via gossip; the manager parks it
-    /// in `waiting_for_compute` and dispatches as soon as the local
+    /// in `pending_receipts` and dispatches as soon as the local
     /// body lands.
     #[tokio::test]
     async fn compact_first_then_body_dispatches() {
