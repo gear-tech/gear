@@ -11,8 +11,7 @@ use ethexe_common::{
     HashOf,
     db::InjectedStorageRO,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
-        SignedTxReceipt,
+        InjectedTransaction, SignedInjectedTransaction, SignedTxReceipt, TransactionAcceptance,
     },
 };
 use ethexe_db::Database;
@@ -37,8 +36,11 @@ pub struct InjectedApi {
 // TODO: Issue #5387
 #[async_trait]
 impl InjectedServer for InjectedApi {
-    async fn send_transaction(&self, transaction: SignedInjectedTransaction) -> RpcResult<()> {
-        self.send_transaction(transaction)
+    async fn send_transaction(
+        &self,
+        transaction: SignedInjectedTransaction,
+    ) -> RpcResult<TransactionAcceptance> {
+        self.send_transaction(transaction).await
     }
 
     async fn send_transaction_and_watch(
@@ -85,8 +87,11 @@ impl InjectedApi {
 
 // RPC API implementation.
 impl InjectedApi {
-    fn send_transaction(&self, transaction: SignedInjectedTransaction) -> RpcResult<()> {
-        self.relayer.relay(transaction)
+    async fn send_transaction(
+        &self,
+        transaction: SignedInjectedTransaction,
+    ) -> RpcResult<TransactionAcceptance> {
+        self.relayer.relay(transaction).await
     }
 
     // TODO: Issue #5386.
@@ -104,7 +109,7 @@ impl InjectedApi {
             }
         };
 
-        self.relayer.relay(transaction).inspect_err(|_err| {
+        let acceptance = self.relayer.relay(transaction).await.inspect_err(|_err| {
             self.manager.cancel_registration(tx_hash);
         })?;
 

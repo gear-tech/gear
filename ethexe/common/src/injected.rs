@@ -32,8 +32,8 @@ pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB: usize = 127 * 1024;
 
 // TODO: remove this
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
-pub enum InjectedTransactionAcceptance {
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::IsVariant)]
+pub enum TransactionAcceptance {
     Accept,
     /// Mempool already holds (or has recently committed) this tx. The promise
     /// will still fire — the subscription should stay open and fan-out should
@@ -46,7 +46,7 @@ pub enum InjectedTransactionAcceptance {
     },
 }
 
-impl InjectedTransactionAcceptance {
+impl TransactionAcceptance {
     /// Either fresh acceptance or duplicate of a pooled tx — the caller's
     /// promise subscription will receive the reply in both cases.
     pub fn is_promise_bound(&self) -> bool {
@@ -54,7 +54,7 @@ impl InjectedTransactionAcceptance {
     }
 }
 
-impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
+impl<E: ToString> From<Result<(), E>> for TransactionAcceptance {
     fn from(value: Result<(), E>) -> Self {
         match value {
             Ok(()) => Self::Accept,

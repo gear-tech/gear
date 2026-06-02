@@ -8,8 +8,7 @@ use ethexe_common::{
     Address, SimpleBlockData,
     gear_core::rpc::ReplyInfo,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, Promise, Receipt,
-        SignedInjectedTransaction,
+        InjectedTransaction, Promise, Receipt, SignedInjectedTransaction, TransactionAcceptance,
     },
 };
 use ethexe_ethereum::{

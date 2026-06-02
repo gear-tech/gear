@@ -82,14 +82,14 @@ impl MempoolInsertError {
 /// fatal cases.
 pub fn classify_insert_outcome(
     outcome: Result<(), MempoolInsertError>,
-) -> ethexe_common::injected::InjectedTransactionAcceptance {
-    use ethexe_common::injected::InjectedTransactionAcceptance;
+) -> ethexe_common::injected::TransactionAcceptance {
+    use ethexe_common::injected::TransactionAcceptance;
     match outcome {
-        Ok(()) => InjectedTransactionAcceptance::Accept,
-        Err(err) if err.is_already_pooled() => InjectedTransactionAcceptance::AlreadyPooled {
+        Ok(()) => TransactionAcceptance::Accept,
+        Err(err) if err.is_already_pooled() => TransactionAcceptance::AlreadyPooled {
             reason: err.to_string(),
         },
-        Err(err) => InjectedTransactionAcceptance::Reject {
+        Err(err) => TransactionAcceptance::Reject {
             reason: err.to_string(),
         },
     }
@@ -440,7 +440,7 @@ mod tests {
     use ethexe_common::{
         BlockHeader, PrivateKey, SignedMessage, SimpleBlockData,
         db::{BlockMetaStorageRW, GlobalsStorageRW, OnChainStorageRW},
-        injected::{InjectedTransaction, InjectedTransactionAcceptance},
+        injected::{InjectedTransaction, TransactionAcceptance},
     };
     use gprimitives::ActorId;
     use std::time::Duration;
@@ -453,7 +453,7 @@ mod tests {
     fn classify_insert_outcome_maps_each_variant() {
         assert!(matches!(
             classify_insert_outcome(Ok(())),
-            InjectedTransactionAcceptance::Accept
+            TransactionAcceptance::Accept
         ));
         for err in [
             MempoolInsertError::AlreadyCommitted,
@@ -462,7 +462,7 @@ mod tests {
             assert!(
                 matches!(
                     classify_insert_outcome(Err(err)),
-                    InjectedTransactionAcceptance::AlreadyPooled { .. }
+                    TransactionAcceptance::AlreadyPooled { .. }
                 ),
                 "already-pooled variant must classify as AlreadyPooled",
             );
@@ -475,7 +475,7 @@ mod tests {
             assert!(
                 matches!(
                     classify_insert_outcome(Err(err)),
-                    InjectedTransactionAcceptance::Reject { .. }
+                    TransactionAcceptance::Reject { .. }
                 ),
                 "fatal variant must classify as Reject",
             );

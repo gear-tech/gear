@@ -35,7 +35,7 @@ use crate::config::{Config, ConfigPublicKey};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
-    rpc::types::anvil::Metadata,
+    rpc::types::{Transaction, anvil::Metadata},
 };
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
@@ -44,7 +44,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     gear::CodeState,
-    injected::{CompactPromise, Receipt},
+    injected::{CompactPromise, Receipt, TransactionAcceptance},
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -666,7 +666,7 @@ impl Service {
         // One fan-out can park N senders under the same tx_hash (one per
         // recipient validator), so we hold a Vec — earlier inserts must
         // not be clobbered by later ones.
-        // let mut network_injected_txs: HashMap<_, Vec<oneshot::Sender<_>>> = HashMap::new();
+        let mut network_injected_txs = HashMap::new();
 
         loop {
             let event: Event = tokio::select! {
@@ -854,16 +854,44 @@ impl Service {
                     log::trace!("Received RPC event: {event:?}");
 
                     match event {
-                        RpcEvent::InjectedTransaction { transaction } => {
-                            if let Some(network) = network.as_mut() {
-                                network.send_injected_transaction(transaction.clone());
-                            };
+                        RpcEvent::InjectedTransaction {
+                            transaction,
+                            sender,
+                        } => {
+                            let mut local_acceptance = None;
 
-                            if let Some(malachite) = malachite.as_mut()
-                                && let Err(error) =
-                                    malachite.receive_injected_transaction(transaction)
-                            {
-                                tracing::error!(?error, "failed to insert transaction to mempool");
+                            if let Some(malachite) = malachite.as_mut() {
+                                let result =
+                                    malachite.receive_injected_transaction(transaction.clone());
+                                local_acceptance = Some(TransactionAcceptance::from(result));
+                            }
+
+                            match network.as_mut() {
+                                Some(network) => {
+                                    let tx_hash = transaction.data().to_hash();
+                                    network.send_injected_transaction(transaction);
+                                    match local_acceptance {
+                                        Some(acceptance @ TransactionAcceptance::Accept) => {
+                                            if let Err(send_err) = sender.send(acceptance) {
+                                                todo!()
+                                            }
+                                        }
+                                        _ => {
+                                            network_injected_txs.insert(tx_hash, sender);
+                                        }
+                                    }
+                                }
+                                None => {
+                                    let acceptance = local_acceptance.unwrap_or_else(|| {
+                                        TransactionAcceptance::Reject {
+                                            reason: "transaction can not be received by consensus or sent by network".into(),
+                                        }
+                                    });
+
+                                    if let Err(err) = sender.send(acceptance) {
+                                        todo!()
+                                    }
+                                }
                             }
                         }
                     }

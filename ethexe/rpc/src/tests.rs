@@ -7,8 +7,7 @@ use ethexe_common::{
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, Promise, Receipt,
-        SignedCompactTxReceipt, SignedInjectedTransaction,
+        InjectedTransaction, Promise, Receipt, SignedCompactTxReceipt, SignedInjectedTransaction,
     },
     mock::Mock,
 };
@@ -59,7 +58,7 @@ impl MockService {
                         unreachable!("RPC server should not be stopped during the test")
                     },
                     event = self.rpc.next() => {
-                        let RpcEvent::InjectedTransaction {transaction} = event.expect("RPC event will be valid");
+                        let RpcEvent::InjectedTransaction {transaction, ..} = event.expect("RPC event will be valid");
                         tx_batch.push(transaction);
                     },
                 }

@@ -7,12 +7,12 @@
 //! validator in the current era and returns the first acceptance.
 
 use crate::{RpcEvent, errors};
-use ethexe_common::injected::{InjectedTransactionAcceptance, SignedInjectedTransaction};
+use ethexe_common::injected::{SignedInjectedTransaction, TransactionAcceptance};
 use ethexe_db::Database;
 use futures::{StreamExt, stream::FuturesUnordered};
 use jsonrpsee::core::RpcResult;
 use std::time::{Duration, SystemTime, SystemTimeError};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, Clone)]
 pub struct TransactionsRelayer {
@@ -28,7 +28,10 @@ impl TransactionsRelayer {
     /// Broadcast `transaction` to every validator in the current era,
     /// returning the first `Accept` (or the last `Reject` if none accept).
     /// Falls back to a zero-address delivery if the validator set isn't known yet.
-    pub fn relay(&self, transaction: SignedInjectedTransaction) -> RpcResult<()> {
+    pub async fn relay(
+        &self,
+        transaction: SignedInjectedTransaction,
+    ) -> RpcResult<TransactionAcceptance> {
         let tx_hash = transaction.data().to_hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
 
@@ -42,16 +45,24 @@ impl TransactionsRelayer {
                 "Injected transactions with non-zero value are not supported",
             ));
         }
-
+        let (sender, receiver) = oneshot::channel();
         self.rpc_sender
-            .send(RpcEvent::InjectedTransaction { transaction })
+            .send(RpcEvent::InjectedTransaction {
+                transaction,
+                sender,
+            })
             .map_err(|error| {
                 tracing::error!(
                     ?error,
                     "failed to send injected transaction to inner service"
                 );
                 errors::internal()
-            })
+            })?;
+
+        receiver.await.map_err(|recv_err| {
+            tracing::error!(?recv_err, "failed to receive transaction acceptance");
+            errors::internal()
+        })
     }
 }
 
