@@ -202,13 +202,23 @@ impl Mirror {
             .map(|receipt| (*receipt.transaction_hash).into())
     }
 
+    pub async fn claim_value_pending(
+        &self,
+        claimed_id: MessageId,
+    ) -> Result<PendingTransactionBuilder<network::Ethereum>> {
+        self.instance
+            .claimValue(claimed_id.into_bytes().into())
+            .send()
+            .await
+            .map_err(Into::into)
+    }
+
     pub async fn claim_value_with_receipt(
         &self,
         claimed_id: MessageId,
     ) -> Result<TransactionReceipt> {
-        let builder = self.instance.claimValue(claimed_id.into_bytes().into());
-        let receipt = builder
-            .send()
+        let receipt = self
+            .claim_value_pending(claimed_id)
             .await?
             .try_get_receipt_check_reverted()
             .await?;

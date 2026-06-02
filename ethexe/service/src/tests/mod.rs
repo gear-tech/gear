@@ -15,7 +15,7 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
-    OutgoingAction,
+    OutgoingAction, ToDigest,
     db::{
         CodesStorageRO, GlobalsStorageRO, InjectedStorageRO, MbStorageRO, OnChainStorageRO,
         OutgoingActionStorageRO,
@@ -86,6 +86,69 @@ async fn find_value_claim_proof(
                 GpU256::from(idx as u64),
                 Vec::<H256>::new(),
             ))
+        })
+        .await
+}
+
+async fn find_value_claim_proofs(
+    receiver: ObserverEventReceiver,
+    db: &ethexe_db::Database,
+    actor_id: ActorId,
+    message_ids: &[MessageId],
+) -> Vec<(H256, GpU256, GpU256, OutgoingAction, Vec<H256>)> {
+    let db = db.clone();
+    let message_ids = message_ids.to_vec();
+    receiver
+        .filter_map_block_synced()
+        .find_map(|event| {
+            let BlockEvent::Mirror {
+                actor_id: ev_actor,
+                event: MirrorEvent::StateChanged(StateChangedEvent { state_hash }),
+            } = event
+            else {
+                return None;
+            };
+            if ev_actor != actor_id {
+                return None;
+            }
+
+            let actions = db.outgoing_actions(state_hash)?.into_inner();
+            if !message_ids
+                .iter()
+                .all(|message_id| actions.iter().any(|a| a.message_id() == *message_id))
+            {
+                return None;
+            }
+
+            let action_hashes = actions
+                .iter()
+                .map(|action| H256(action.to_digest().0))
+                .collect::<Vec<_>>();
+            Some(
+                message_ids
+                    .iter()
+                    .map(|message_id| {
+                        let leaf_index = actions
+                            .iter()
+                            .position(|action| action.message_id() == *message_id)
+                            .expect("checked above");
+                        let merkle_proof = binary_merkle_tree::merkle_proof_raw::<
+                            sp_runtime::traits::Keccak256,
+                            _,
+                        >(
+                            action_hashes.clone(), leaf_index
+                        );
+
+                        (
+                            state_hash,
+                            merkle_proof.number_of_leaves.into(),
+                            merkle_proof.leaf_index.into(),
+                            actions[leaf_index].clone(),
+                            merkle_proof.proof,
+                        )
+                    })
+                    .collect(),
+            )
         })
         .await
 }
@@ -1062,6 +1125,168 @@ async fn value_send_program_to_user_and_claimed() {
         )
         .await
         .unwrap();
+
+    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
+    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    let balance = env
+        .ethereum
+        .provider()
+        .get_balance(sender_address)
+        .await
+        .unwrap();
+    assert!(default_anvil_balance - balance <= measurement_error);
+
+    stop_nodes([node]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn value_send_program_to_user_and_claimed_in_one_eth_block() {
+    init_logger();
+
+    let mut env = TestEnv::default().await;
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_piggy_bank::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let piggy_bank_id = res.program_id;
+    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+
+    const CLAIMS_AMOUNT: usize = 2;
+    const VALUE_PER_CLAIM: u128 = 1_000 * ETHER;
+
+    let mut mailboxed_msg_ids = Vec::with_capacity(CLAIMS_AMOUNT);
+    for _ in 0..CLAIMS_AMOUNT {
+        piggy_bank
+            .owned_balance_top_up(VALUE_PER_CLAIM)
+            .await
+            .unwrap();
+
+        // Force the validator to fold the deposit into a finalised MB by
+        // sending a no-op message and waiting for the reply.
+        let res = env
+            .send_message(piggy_bank_id, b"")
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+        let res = env
+            .send_message(piggy_bank_id, b"smash")
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+        assert_eq!(res.value, 0);
+
+        mailboxed_msg_ids.push(MessageId::generate_outgoing(res.message_id, 0));
+    }
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    let router_address = env.ethereum.router().address();
+    let router_balance = env
+        .ethereum
+        .provider()
+        .get_balance(router_address.into())
+        .await
+        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
+        .unwrap();
+    assert_eq!(router_balance, CLAIMS_AMOUNT as u128 * VALUE_PER_CLAIM);
+
+    let auto_mine = env.provider.anvil_get_auto_mine().await.unwrap();
+    env.provider.anvil_set_auto_mine(false).await.unwrap();
+
+    let receiver = env.new_observer_events();
+    let mut pending_claims = Vec::with_capacity(CLAIMS_AMOUNT);
+    for message_id in &mailboxed_msg_ids {
+        pending_claims.push(piggy_bank.claim_value_pending(*message_id).await.unwrap());
+    }
+
+    env.provider.evm_mine(None).await.unwrap();
+
+    let mut claim_receipts = Vec::with_capacity(CLAIMS_AMOUNT);
+    for pending_claim in pending_claims {
+        claim_receipts.push(
+            pending_claim
+                .try_get_receipt_check_reverted()
+                .await
+                .unwrap(),
+        );
+    }
+    env.provider.anvil_set_auto_mine(auto_mine).await.unwrap();
+
+    let claim_block_number = claim_receipts[0]
+        .block_number
+        .expect("claim receipt must have block number");
+    assert!(
+        claim_receipts
+            .iter()
+            .all(|receipt| receipt.block_number == Some(claim_block_number)),
+        "claimValue transactions must be mined in one Ethereum block"
+    );
+
+    let _ = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let db = node.db.clone();
+    let proofs = find_value_claim_proofs(receiver, &db, piggy_bank_id, &mailboxed_msg_ids).await;
+    assert_eq!(proofs.len(), CLAIMS_AMOUNT);
+
+    let sender_address = env.ethereum.provider().default_signer_address();
+    for (message_id, (state_hash, total_leaves, leaf_index, outgoing_action, proof)) in
+        mailboxed_msg_ids.iter().zip(proofs)
+    {
+        let expected_action = OutgoingAction::ValueClaim(ValueClaim {
+            message_id: *message_id,
+            destination: sender_address.into(),
+            value: VALUE_PER_CLAIM,
+        });
+        assert_eq!(outgoing_action, expected_action);
+
+        piggy_bank
+            .process_outgoing_action(state_hash, total_leaves, leaf_index, outgoing_action, proof)
+            .await
+            .unwrap();
+    }
 
     let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
     let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();

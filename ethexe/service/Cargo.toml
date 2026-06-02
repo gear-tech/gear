@@ -73,6 +73,8 @@ jsonrpsee = { workspace = true, features = ["client"] }
 async-broadcast.workspace = true
 wat.workspace = true
 tempfile.workspace = true
+binary-merkle-tree = { workspace = true, features = ["std"] }
+sp-runtime = { workspace = true, features = ["std"] }
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-value-sender-ethexe = { workspace = true, features = ["debug", "ethexe"] }
