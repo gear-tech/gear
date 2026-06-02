@@ -4,8 +4,10 @@
 use anyhow::Result;
 use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
-    HashOf,
-    db::{InjectedStorageRO, InjectedStorageRW},
+    Address, HashOf,
+    db::{
+        ConfigStorageRO, GlobalsStorageRO, InjectedStorageRO, InjectedStorageRW, OnChainStorageRO,
+    },
     injected::{
         InjectedTransaction, Promise, SignedCompactTxReceipt, SignedTxReceipt,
         TryFillPromiseResult, UnfilledPromiseReceipt, UpgradedReceipt,
@@ -101,6 +103,10 @@ impl PromiseSubscriptionManager {
     pub fn on_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
         trace!(?receipt, "received new compact receipt");
 
+        if !self.compact_receipt_signed_by_known_validator(&receipt) {
+            return;
+        }
+
         let unfilled_promise = match receipt.upgrade() {
             UpgradedReceipt::Ready(receipt) => {
                 self.store_and_dispatch_receipt(receipt);
@@ -148,6 +154,56 @@ impl PromiseSubscriptionManager {
                 self.pending_receipts.insert(unfilled.tx_hash, unfilled);
             }
         }
+    }
+
+    fn compact_receipt_signed_by_known_validator(&self, receipt: &SignedCompactTxReceipt) -> bool {
+        self.signer_is_known_validator(receipt.address(), receipt.data().tx_hash())
+    }
+
+    fn signer_is_known_validator(
+        &self,
+        address: Address,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> bool {
+        let timestamp = self.db.globals().latest_synced_eb.header.timestamp;
+        let timelines = self.db.config().timelines;
+
+        let Some(current_era) = timelines.era_from_ts(timestamp) else {
+            warn!(
+                %tx_hash,
+                ?address,
+                timestamp,
+                "failed to calculate current era for tx receipt validator check"
+            );
+            return false;
+        };
+
+        let Some(current_validators) = self.db.validators(current_era) else {
+            warn!(
+                %tx_hash,
+                ?address,
+                current_era,
+                "current validator set not found for tx receipt validator check"
+            );
+            return false;
+        };
+
+        let signer_is_known = current_validators.contains(&address)
+            || current_era
+                .checked_sub(1)
+                .and_then(|previous_era| self.db.validators(previous_era))
+                .is_some_and(|previous_validators| previous_validators.contains(&address));
+
+        if !signer_is_known {
+            trace!(
+                %tx_hash,
+                ?address,
+                current_era,
+                "tx receipt signer is not in the known validator set"
+            );
+        }
+
+        signer_is_known
     }
 
     fn dispatch_receipt(&self, receipt: SignedTxReceipt) {
@@ -208,7 +264,8 @@ mod utils {
 mod tests {
     use super::*;
     use ethexe_common::{
-        SignedMessage,
+        Address, SignedMessage, ValidatorsVec,
+        db::{GlobalsStorageRO, OnChainStorageRW, SetGlobals},
         ecdsa::PrivateKey,
         injected::{InjectedTransaction, Receipt},
         mock::Mock,
@@ -220,6 +277,26 @@ mod tests {
         let tx = InjectedTransaction::mock(());
         let promise = Promise::mock(tx.to_hash());
         (promise, private_key)
+    }
+
+    fn set_current_validators(db: &Database, validators: Vec<Address>) {
+        db.set_validators(
+            0,
+            ValidatorsVec::try_from(validators).expect("validators must be non-empty"),
+        );
+    }
+
+    fn set_validators(db: &Database, era: u64, validators: Vec<Address>) {
+        db.set_validators(
+            era,
+            ValidatorsVec::try_from(validators).expect("validators must be non-empty"),
+        );
+    }
+
+    fn set_current_era(db: &Database, era: u64) {
+        let mut globals = db.globals().clone();
+        globals.latest_synced_eb.header.timestamp = era;
+        db.set_globals(globals);
     }
 
     fn register(
@@ -254,6 +331,7 @@ mod tests {
 
         let receipt =
             SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
+        set_current_validators(&db, vec![receipt.address()]);
         manager.on_tx_receipt(receipt.into());
 
         let delivered = receiver.as_mut().await.unwrap();
@@ -281,6 +359,7 @@ mod tests {
 
         let receipt =
             SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
+        set_current_validators(&db, vec![receipt.address()]);
         manager.on_tx_receipt(receipt.into());
         assert_eq!(manager.subscribers_count(), 1);
 
@@ -333,6 +412,7 @@ mod tests {
         let bad_receipt =
             SignedMessage::create(private_key, Receipt::Promise(other_promise.to_compact()))
                 .unwrap();
+        set_current_validators(&db, vec![bad_receipt.address()]);
         manager.on_tx_receipt(bad_receipt.into());
         manager.on_computed_promise(promise.clone());
 
@@ -340,6 +420,83 @@ mod tests {
             tokio::time::timeout(std::time::Duration::from_millis(50), receiver.as_mut()).await;
         assert!(elapsed.is_err(), "no signed promise should be delivered");
         assert_eq!(db.promise(tx_hash), Some(promise));
+        assert_eq!(db.receipt(tx_hash), None);
+    }
+
+    #[test]
+    fn on_tx_receipt_ignores_non_validator_signature() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+        let receipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
+
+        set_current_validators(&db, vec![Address::from(1)]);
+        db.set_promise(&promise);
+
+        manager.on_tx_receipt(receipt.into());
+
+        assert_eq!(db.receipt(tx_hash), None);
+    }
+
+    #[test]
+    fn on_tx_receipt_accepts_validator_signature() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+        let receipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
+
+        set_current_validators(&db, vec![receipt.address()]);
+        db.set_promise(&promise);
+
+        manager.on_tx_receipt(receipt.into());
+
+        assert_eq!(
+            db.receipt(tx_hash).unwrap().data(),
+            &Receipt::Promise(promise)
+        );
+    }
+
+    #[test]
+    fn on_tx_receipt_accepts_previous_era_validator_signature() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+        let receipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
+
+        set_current_era(&db, 1);
+        set_validators(&db, 0, vec![receipt.address()]);
+        set_validators(&db, 1, vec![Address::from(1)]);
+        db.set_promise(&promise);
+
+        manager.on_tx_receipt(receipt.into());
+
+        assert_eq!(
+            db.receipt(tx_hash).unwrap().data(),
+            &Receipt::Promise(promise)
+        );
+    }
+
+    #[test]
+    fn on_tx_receipt_rejects_next_era_validator_signature() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+        let receipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
+
+        set_current_validators(&db, vec![Address::from(1)]);
+        set_validators(&db, 1, vec![receipt.address()]);
+        db.set_promise(&promise);
+
+        manager.on_tx_receipt(receipt.into());
+
         assert_eq!(db.receipt(tx_hash), None);
     }
 }

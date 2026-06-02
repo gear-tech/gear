@@ -136,7 +136,8 @@ impl Cache {
     fn finish_compile(&self, code_id: CodeId) {
         {
             let mut state = self.state.lock().unwrap();
-            debug_assert!(state.compiling.remove(&code_id));
+            let removed = state.compiling.remove(&code_id);
+            debug_assert!(removed);
         }
 
         self.module_ready.notify_all();

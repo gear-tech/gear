@@ -20,7 +20,7 @@ use jsonrpsee::{
     types::{ErrorObjectOwned, error::ErrorObject},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
-use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
+use pallet_gear_rpc_runtime_api::{CalculateReplyForHandleResult, GasInfo, HandleKind, ReplyInfo};
 use parity_scale_codec::DecodeAll;
 use sc_client_api::{Backend as ClientBackend, BlockchainEvents, StorageProvider};
 use sc_rpc::SubscriptionTaskExecutor;
@@ -30,6 +30,32 @@ use sp_core::{Bytes, H256, twox_128};
 use sp_runtime::traits::Block as BlockT;
 use sp_storage::StorageKey;
 use std::{collections::BTreeSet, future::Future, pin::Pin, sync::Arc};
+
+/// Legacy reply information returned by `gear_calculateReplyForHandle`.
+///
+/// This preserves the historical JSON shape where `code` is serialized by
+/// serde as an enum, for example `{ "Success": "Manual" }`. The newer
+/// `gear_calculateReplyForHandleResult` endpoint intentionally returns
+/// `gear_core::rpc::ReplyInfo`, where `code` is a 0x-prefixed byte string.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LegacyReplyInfo {
+    /// Payload of the reply.
+    pub payload: Bytes,
+    /// Value attached to the reply.
+    pub value: u128,
+    /// Reply code of the reply.
+    pub code: ReplyCode,
+}
+
+impl From<ReplyInfo> for LegacyReplyInfo {
+    fn from(reply: ReplyInfo) -> Self {
+        Self {
+            payload: Bytes(reply.payload),
+            value: reply.value,
+            code: reply.code,
+        }
+    }
+}
 
 /// Subscription item describing programs whose states changed within a block.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -61,7 +87,18 @@ pub trait GearApi<BlockHash, ResponseType> {
         gas_limit: u64,
         value: RpcValue,
         at: Option<BlockHash>,
-    ) -> RpcResult<ReplyInfo>;
+    ) -> RpcResult<LegacyReplyInfo>;
+
+    #[method(name = "gear_calculateReplyForHandleResult")]
+    fn calculate_reply_for_handle_result(
+        &self,
+        origin: H256,
+        destination: H256,
+        payload: Bytes,
+        gas_limit: u64,
+        value: RpcValue,
+        at: Option<BlockHash>,
+    ) -> RpcResult<CalculateReplyForHandleResult>;
 
     #[method(name = "gear_calculateInitCreateGas", aliases = ["gear_calculateGasForCreate"])]
     fn get_init_create_gas_spent(
@@ -324,11 +361,36 @@ where
         gas_limit: u64,
         value: RpcValue,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> RpcResult<ReplyInfo> {
+    ) -> RpcResult<LegacyReplyInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         self.run_with_api_copy(|api| {
             api.calculate_reply_for_handle(
+                at_hash,
+                origin,
+                destination,
+                payload.to_vec(),
+                gas_limit,
+                value.0,
+                self.allowance_multiplier,
+            )
+        })
+        .map(Into::into)
+    }
+
+    fn calculate_reply_for_handle_result(
+        &self,
+        origin: H256,
+        destination: H256,
+        payload: Bytes,
+        gas_limit: u64,
+        value: RpcValue,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<CalculateReplyForHandleResult> {
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        self.run_with_api_copy(|api| {
+            api.calculate_reply_for_handle_result(
                 at_hash,
                 origin,
                 destination,
