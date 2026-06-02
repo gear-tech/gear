@@ -323,6 +323,7 @@ jobs:
             gcli=trace,\
             ethexe=trace,\
             runtime=trace,\
+            runtime::election-provider=debug,\
             syscalls=trace,\
             gwasm=trace"
 
