@@ -1,7 +1,58 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Ethereum state observer for ethexe.
+//! # ethexe-observer
+//!
+//! Watches the Ethereum chain head and back-fills missing blocks into the local
+//! database, surfacing each arrival and each completed sync as an [`ObserverEvent`].
+//!
+//! It is read-only with respect to Ethereum: chain writes (batch commitments, etc.)
+//! belong to `ethexe-ethereum`. `ethexe-service` polls [`ObserverService`] as the
+//! canonical chain-head source and dispatches its events to consensus and compute.
+//!
+//! ## Public API
+//!
+//! - [`ObserverService`] — Stream of chain-head and sync events; implements `futures::Stream<Item = Result<ObserverEvent>>` and
+//!   `FusedStream`
+//! - [`ObserverService::new`] — Async constructor that connects the provider and starts the header subscription
+//! - [`ObserverService::provider`] — Borrows the underlying `alloy` `RootProvider`
+//! - [`ObserverService::block_loader`] — Returns a fresh [`EthereumBlockLoader`] bound to the configured router address
+//! - [`ObserverService::router_query`] — Returns a fresh `RouterQuery` for read-only contract queries
+//! - [`ObserverConfig`] — Constructor input: Ethereum RPC URL and optional max sync depth
+//! - [`ObserverEvent`] — Stream item: `Block` on a new head, `BlockSynced` after back-fill
+//! - [`SyncError`] — Error classifier: `RpcError` (recoverable, skipped) vs `Fatal` (propagated)
+//! - [`utils::BlockLoader`] — Trait abstracting block-data loading from Ethereum
+//! - [`utils::BlockId`] — Block selector for `BlockLoader::load_simple`: `Hash(H256)`, `Latest`, `Finalized`
+//! - [`utils::EthereumBlockLoader`] — alloy-backed [`utils::BlockLoader`] impl
+//!
+//! ## Invariants
+//!
+//! - The stream never terminates: `FusedStream::is_terminated` always returns `false`.
+//! - Back-fill stops at the database watermark, connecting each new head to the existing synced chain.
+//! - `max_sync_depth` defaults to `u32::MAX` when `None` is passed in [`ObserverConfig`].
+//!
+//! ## Usage
+//!
+//! ```rust,no_run
+//! use ethexe_observer::{ObserverConfig, ObserverEvent, ObserverService};
+//! use futures::StreamExt as _;
+//!
+//! let mut observer = ObserverService::new(
+//!     db.clone(),
+//!     ObserverConfig {
+//!         rpc: &ethereum_rpc_url,
+//!         max_sync_depth: Some(1024),
+//!     },
+//! )
+//! .await?;
+//!
+//! while let Some(event) = observer.next().await {
+//!     match event? {
+//!         ObserverEvent::Block(block) => { /* new chain head */ }
+//!         ObserverEvent::BlockSynced(hash) => { /* `hash` and ancestors now in db */ }
+//!     }
+//! }
+//! ```
 
 use crate::utils::EthereumBlockLoader;
 use alloy::{
