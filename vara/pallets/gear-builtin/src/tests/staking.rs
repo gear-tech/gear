@@ -593,13 +593,7 @@ fn gas_allowance_respected() {
 
         assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
 
-        // Estimate the gas cost for sending a message to `staking-broker` contract (without any
-        // outgoing messages).
-        // TODO: find a way to use `calculate_gas_info` here for more precise estimation.
-        // To block the contract from sending any messages, we provide an illegal payload. But
-        // we have to use the "actual" `calculate_gas_info` (since `cfg(test)` is not propagated
-        // to the dependencies), and that one doesn't allow calculating gas for failed dispatches.
-        let gas_to_engage_staking_broker = 880_000_000_u64; // Heuristic value
+        let broker_gas_allowance = 1_u64;
 
         let gas_cost = pallet_staking::Call::<Test>::bond {
             value: 100 * UNITS,
@@ -613,7 +607,7 @@ fn gas_allowance_respected() {
 
         // With insufficient gas allowance, the message should not be processed
         send_bond_message(contract_id, 100 * UNITS, None);
-        run_for_n_blocks(1, Some(gas_to_engage_staking_broker + gas_cost));
+        run_for_n_blocks(1, Some(broker_gas_allowance + gas_cost));
 
         // No staking events have taken place
         assert_no_staking_events();
