@@ -85,6 +85,51 @@ async fn test_calculate_create_gas() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_read_wasm_custom_section() -> Result<()> {
+    let (_node, api) = dev_node().await;
+
+    let wat_code = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (export "init" (func $init))
+            (func $init)
+            (@custom "sails:idl" "hello idl")
+        )
+    "#;
+    let wasm = wat::parse_str(wat_code).unwrap();
+
+    let upload = api.upload_code(wasm).await?;
+    let upload_block_hash = upload.block_hash;
+    let code_id = upload.value;
+
+    let present = api.read_wasm_custom_section(code_id, "sails:idl").await?;
+    assert_eq!(
+        present.as_ref().map(|bytes| bytes.0.as_slice()),
+        Some(b"hello idl".as_ref())
+    );
+
+    let present_at_upload = api
+        .read_wasm_custom_section_at(code_id, "sails:idl", upload_block_hash)
+        .await?;
+    assert_eq!(
+        present_at_upload.as_ref().map(|bytes| bytes.0.as_slice()),
+        Some(b"hello idl".as_ref())
+    );
+
+    let missing_section = api
+        .read_wasm_custom_section(code_id, "no:such:section")
+        .await?;
+    assert!(missing_section.is_none());
+
+    let unknown_code = api
+        .read_wasm_custom_section(CodeId::from([0u8; 32]), "sails:idl")
+        .await?;
+    assert!(unknown_code.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_calculate_handle_gas() -> Result<()> {
     let (_node, api) = dev_node().await;
 

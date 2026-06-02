@@ -7217,6 +7217,7 @@ dependencies = [
  "scale-info",
  "serde",
  "tracing-subscriber",
+ "wasm-encoder 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
 ]
@@ -13068,6 +13069,7 @@ dependencies = [
  "jsonrpsee",
  "log",
  "pallet-gear-rpc-runtime-api",
+ "parity-scale-codec",
  "sc-client-api",
  "sc-rpc",
  "serde",

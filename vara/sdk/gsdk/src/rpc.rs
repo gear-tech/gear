@@ -266,6 +266,30 @@ impl Api {
         Ok(T::decode(&mut bytes.as_slice())?)
     }
 
+    /// Reads a named custom section from the original WASM code stored
+    /// on-chain. When `block_hash` is `None`, the best block is used.
+    ///
+    /// Actually calls `gear_readWasmCustomSection` RPC method. A successful
+    /// `None` response means either that the node has no code for `code_id` or
+    /// that the stored WASM does not contain `section_name`.
+    /// Primary use case: retrieving a Sails IDL embedded in the `sails:idl`
+    /// custom section at specified block.
+    #[at_block]
+    pub async fn read_wasm_custom_section_at(
+        &self,
+        code_id: CodeId,
+        section_name: impl AsRef<str>,
+        block_hash: Option<H256>,
+    ) -> Result<Option<sp_core::Bytes>> {
+        self.rpc()
+            .request(
+                "gear_readWasmCustomSection",
+                rpc_params![H256(code_id.into()), section_name.as_ref(), block_hash],
+            )
+            .await
+            .map_err(Into::into)
+    }
+
     /// Calls `runtime_wasmBlobVersion` RPC method at specified block.
     #[at_block]
     pub async fn runtime_wasm_blob_version_at(&self, block_hash: Option<H256>) -> Result<String> {
