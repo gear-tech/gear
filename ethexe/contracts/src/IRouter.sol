@@ -120,11 +120,6 @@ interface IRouter {
          * @dev This contains information about the available codes and programs.
          */
         Gear.ProtocolData protocolData;
-        /**
-         * @notice The version of the protocol, used by nodes.
-         * @dev This contains the version of the protocol, which can be used by nodes.
-         */
-        uint256 protocolVersion;
     }
 
     /* # Events */
@@ -525,11 +520,10 @@ interface IRouter {
     function setRequestCodeValidationExtraFee(uint256 newExtraFee) external;
 
     /**
-     * @dev Sets the version of the protocol, used by nodes.
+     * @dev Bumps the version of the protocol, used by nodes.
      *      Emits `ProtocolVersionChanged` event.
-     * @param newProtocolVersion The new version of the protocol.
      */
-    function setProtocolVersion(uint256 newProtocolVersion) external;
+    function bumpProtocolVersion() external;
 
     /**
      * @dev Pauses the contract.

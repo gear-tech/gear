@@ -341,7 +341,7 @@ impl Ethereum {
         let router = router_address.into();
         let (wvara, middleware) = if initialize_addresses {
             let protocol_version = router_query.protocol_version().await?;
-            if protocol_version != Self::CLIENT_PROTOCOL_VERSION {
+            if protocol_version > Self::CLIENT_PROTOCOL_VERSION {
                 return Err(anyhow!(
                     "Client protocol version mismatch. Expected {client_protocol_version}, got {protocol_version}. \
                     Please make sure to use compatible version of Ethereum client with `Router` contract.",

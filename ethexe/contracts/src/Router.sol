@@ -124,7 +124,7 @@ contract Router is
         );
         // forge-lint: disable-end(block-timestamp)
 
-        setProtocolVersion(PROTOCOL_VERSION);
+        router.protocolData.protocolVersion = PROTOCOL_VERSION;
     }
 
     /**
@@ -194,7 +194,7 @@ contract Router is
         uint256 decimalsFactor = 10 ** IWrappedVara(router.implAddresses.wrappedVara).decimals();
         router.protocolData.requestCodeValidationBaseFee = DEFAULT_REQUEST_CODE_VALIDATION_BASE_FEE * decimalsFactor;
         router.protocolData.requestCodeValidationExtraFee = DEFAULT_REQUEST_CODE_VALIDATION_EXTRA_FEE * decimalsFactor;
-        setProtocolVersion(PROTOCOL_VERSION);
+        router.protocolData.protocolVersion = PROTOCOL_VERSION;
     }
 
     /**
@@ -224,7 +224,7 @@ contract Router is
             maxValidators: router.protocolData.maxValidators,
             requestCodeValidationBaseFee: router.protocolData.requestCodeValidationBaseFee,
             requestCodeValidationExtraFee: router.protocolData.requestCodeValidationExtraFee,
-            protocolVersion: router.protocolVersion
+            protocolVersion: router.protocolData.protocolVersion
         });
     }
 
@@ -466,7 +466,7 @@ contract Router is
      * @return protocolVersion The current protocol version.
      */
     function protocolVersion() external view returns (uint256) {
-        return _router().protocolVersion;
+        return _router().protocolData.protocolVersion;
     }
 
     /**
@@ -512,12 +512,12 @@ contract Router is
     }
 
     /**
-     * @dev Sets the version of the protocol, used by nodes.
+     * @dev Bumps the version of the protocol, used by nodes.
      *      Emits `ProtocolVersionChanged` event.
-     * @param newProtocolVersion The new version of the protocol.
      */
-    function setProtocolVersion(uint256 newProtocolVersion) public onlyOwner {
-        _router().protocolVersion = newProtocolVersion;
+    function bumpProtocolVersion() external onlyOwner {
+        uint256 newProtocolVersion = _router().protocolData.protocolVersion + 1;
+        _router().protocolData.protocolVersion = newProtocolVersion;
 
         emit ProtocolVersionChanged(newProtocolVersion);
     }

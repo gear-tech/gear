@@ -405,6 +405,11 @@ library Gear {
          *      This extra fee is paid in WVARA ERC20 token.
          */
         uint256 requestCodeValidationExtraFee;
+        /**
+         * @notice The version of the protocol, used by nodes.
+         * @dev This contains the version of the protocol, which can be used by nodes.
+         */
+        uint256 protocolVersion;
     }
 
     /**

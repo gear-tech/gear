@@ -158,7 +158,7 @@ impl ChainSync {
                     )) => {
                         let client_protocol_version: U256 =
                             Ethereum::CLIENT_PROTOCOL_VERSION.into();
-                        if new_protocol_version != client_protocol_version {
+                        if new_protocol_version > client_protocol_version {
                             return Err(SyncError::ProtocolVersionMismatch {
                                 expected: client_protocol_version,
                                 got: new_protocol_version,
