@@ -27,6 +27,7 @@ sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface-common = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }
 region.workspace = true
+gear-wasmtime-cache.workspace = true
 
 gear-workspace-hack.workspace = true
 

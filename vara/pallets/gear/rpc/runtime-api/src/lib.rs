@@ -6,7 +6,7 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub use pallet_gear::{GasInfo, ReplyInfo, manager::HandleKind};
+pub use pallet_gear::{CalculateReplyForHandleResult, GasInfo, ReplyInfo, manager::HandleKind};
 use sp_core::H256;
 use sp_runtime::traits::Block as BlockT;
 use sp_std::vec::Vec;
@@ -16,6 +16,9 @@ sp_api::decl_runtime_apis! {
     pub trait GearApi {
         #[allow(clippy::too_many_arguments)]
         fn calculate_reply_for_handle(origin: H256, destination: H256, payload: Vec<u8>, gas_limit: u64, value: u128, allowance_multiplier: u64) -> Result<ReplyInfo, Vec<u8>>;
+
+        #[allow(clippy::too_many_arguments)]
+        fn calculate_reply_for_handle_result(origin: H256, destination: H256, payload: Vec<u8>, gas_limit: u64, value: u128, allowance_multiplier: u64) -> Result<CalculateReplyForHandleResult, Vec<u8>>;
 
         #[allow(clippy::too_many_arguments)]
         fn calculate_gas_info(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128, allow_other_panics: bool, initial_gas: Option<u64>, allowance_multiplier: Option<u64>) -> Result<GasInfo, Vec<u8>>;

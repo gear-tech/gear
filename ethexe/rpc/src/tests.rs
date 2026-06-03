@@ -6,8 +6,9 @@ use crate::{
     RpcService,
 };
 use ethexe_common::{
-    SignedMessage,
-    ecdsa::PrivateKey,
+    SignedMessage, ValidatorsVec,
+    db::OnChainStorageRW,
+    ecdsa::{PrivateKey, PublicKey},
     gear::MAX_BLOCK_GAS_LIMIT,
     injected::{AddressedInjectedTransaction, Promise, Receipt, SignedCompactTxReceipt},
     mock::Mock,
@@ -24,13 +25,27 @@ use tokio::task::{JoinHandle, JoinSet};
 struct MockService {
     rpc: RpcService,
     handle: ServerHandle,
+    validator_key: PrivateKey,
 }
 
 impl MockService {
     /// Creates a new mock service which runs an RPC server listening on the given address.
     pub async fn new(listen_addr: SocketAddr) -> Self {
-        let (handle, rpc) = start_new_server(listen_addr).await;
-        Self { rpc, handle }
+        let db = Database::memory();
+        let validator_key = PrivateKey::random();
+        let validator_address = PublicKey::from(&validator_key).to_address();
+        db.set_validators(
+            0,
+            ValidatorsVec::try_from(vec![validator_address])
+                .expect("test validator set must be non-empty"),
+        );
+
+        let (handle, rpc) = start_new_server(listen_addr, db).await;
+        Self {
+            rpc,
+            handle,
+            validator_key,
+        }
     }
 
     pub fn injected_api(&self) -> InjectedApi {
@@ -50,7 +65,7 @@ impl MockService {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
                         for tx in tx_batch.drain(..) {
-                            let (promise, receipt) = Self::create_promise_for(tx);
+                            let (promise, receipt) = self.create_promise_for(tx);
                             self.rpc.receive_computed_promise(promise);
                             self.rpc.receive_tx_receipt(receipt);
                         }
@@ -69,17 +84,22 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: AddressedInjectedTransaction) -> (Promise, SignedCompactTxReceipt) {
+    fn create_promise_for(
+        &self,
+        tx: AddressedInjectedTransaction,
+    ) -> (Promise, SignedCompactTxReceipt) {
         let promise = Promise::mock(tx.tx.data().to_hash());
-        let receipt =
-            SignedMessage::create(PrivateKey::random(), Receipt::Promise(promise.to_compact()))
-                .unwrap();
+        let receipt = SignedMessage::create(
+            self.validator_key.clone(),
+            Receipt::Promise(promise.to_compact()),
+        )
+        .unwrap();
         (promise, receipt.into())
     }
 }
 
 /// Starts a new RPC server listening on the given address.
-async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService) {
+async fn start_new_server(listen_addr: SocketAddr, db: Database) -> (ServerHandle, RpcService) {
     let rpc_config = RpcConfig {
         listen_addr,
         cors: None,
@@ -87,7 +107,7 @@ async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService)
         chunk_size: 2,
         with_dev_api: false,
     };
-    RpcServer::new(rpc_config, Database::memory())
+    RpcServer::new(rpc_config, db)
         .run_server()
         .await
         .expect("RPC Server will start successfully")
