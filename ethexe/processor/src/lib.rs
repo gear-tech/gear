@@ -147,7 +147,10 @@ use core::num::NonZero;
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule,
     ecdsa::VerifiedData,
-    events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
+    events::{
+        BlockRequestEvent, MirrorRequestEvent,
+        mirror::{ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent},
+    },
     gear::Message,
     injected::InjectedTransaction,
 };
@@ -175,6 +178,7 @@ mod thread_pool;
 
 // Default amount of programs in one chunk to be processed in parallel.
 pub const DEFAULT_CHUNK_SIZE: NonZero<usize> = NonZero::new(16).unwrap();
+const EXECUTION_FOR_REPLY_TOP_UP_VALUE_PER_GAS: u128 = 100;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
@@ -470,6 +474,7 @@ pub struct ExecutableDataForReply {
     pub payload: Vec<u8>,
     pub value: u128,
     pub gas_allowance: u64,
+    pub with_top_up: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -497,6 +502,7 @@ impl OverlaidProcessor {
             payload,
             value,
             gas_allowance,
+            with_top_up,
         } = executable;
 
         let known_programs = program_states.keys().copied().collect::<Vec<_>>();
@@ -518,22 +524,34 @@ impl OverlaidProcessor {
 
         let transitions = InBlockTransitions::new(height, program_states, Schedule::default());
 
-        let transitions = self.0.handle_injected_and_events(
-            transitions,
-            vec![],
-            vec![BlockRequestEvent::Mirror {
+        let mut events = Vec::with_capacity(if with_top_up { 2 } else { 1 });
+
+        if with_top_up {
+            events.push(BlockRequestEvent::Mirror {
                 actor_id: program_id,
-                event: MirrorRequestEvent::MessageQueueingRequested(
-                    MessageQueueingRequestedEvent {
-                        id: MessageId::zero(),
-                        source,
-                        payload: payload.clone(),
-                        value,
-                        call_reply: true,
+                event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                    ExecutableBalanceTopUpRequestedEvent {
+                        value: u128::from(gas_allowance)
+                            .saturating_mul(EXECUTION_FOR_REPLY_TOP_UP_VALUE_PER_GAS),
                     },
                 ),
-            }],
-        )?;
+            });
+        }
+
+        events.push(BlockRequestEvent::Mirror {
+            actor_id: program_id,
+            event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::zero(),
+                source,
+                payload: payload.clone(),
+                value,
+                call_reply: true,
+            }),
+        });
+
+        let transitions = self
+            .0
+            .handle_injected_and_events(transitions, vec![], events)?;
 
         let transitions = OverlaidRunContext::new(
             self.0.db.clone(),
