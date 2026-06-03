@@ -454,6 +454,7 @@ mod tests {
         },
         injected::{InjectedTransaction, SignedInjectedTransaction},
         malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
+        mock::seed_genesis_zero_mb,
     };
     use ethexe_processor::{Processor, ValidCodeInfo};
     use ethexe_runtime_common::RUNTIME_ID;
@@ -509,6 +510,7 @@ mod tests {
         gear_utils::init_default_logger();
 
         let db = Database::memory();
+        seed_genesis_zero_mb(&db);
         let processor = MockProcessor::default();
         let mut sub = ComputeSubService::new(db.clone(), processor);
 
@@ -799,6 +801,7 @@ mod tests {
         pinger_count: u64,
     ) -> (Vec<H256>, Vec<(H256, Promise)>) {
         let db = Database::memory();
+        seed_genesis_zero_mb(&db);
         let mut processor = Processor::new(db.clone()).expect("failed to create processor");
         let mb_hashes = build_ping_mb_chain(&db, &mut processor, pinger_count).await;
 
