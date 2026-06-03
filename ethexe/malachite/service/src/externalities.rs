@@ -56,7 +56,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_malachite_core::{Block, Externalities};
 use gprimitives::H256;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{DecodeAll, Encode};
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex, RwLock},
@@ -128,7 +128,7 @@ fn decode_transactions(payload: &BlockPayload) -> Result<Transactions> {
             BLOCK_PAYLOAD_VERSION,
         ));
     }
-    Transactions::decode(&mut payload.bytes.as_ref())
+    Transactions::decode_all(&mut payload.bytes.as_ref())
         .map_err(|e| anyhow!("decoding Transactions from BlockPayload bytes: {e}"))
 }
 
@@ -1040,6 +1040,41 @@ mod tests {
                 .await
                 .unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn validate_soft_rejects_unsupported_version() {
+        use ethexe_common::malachite::{BLOCK_PAYLOAD_VERSION, BlockPayload};
+        let db = Database::memory();
+        let (ext, _rx) = make_externalities(db.clone());
+        let valid_bytes = payload(None, 1).encode();
+        let mut payload = BlockPayload::new(valid_bytes).expect("within cap");
+        payload.version = BLOCK_PAYLOAD_VERSION + 1;
+        assert!(!ext.validate_block_above(H256::zero(), payload).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn validate_soft_rejects_trailing_garbage() {
+        use ethexe_common::malachite::BlockPayload;
+        let db = Database::memory();
+        let (ext, _rx) = make_externalities(db.clone());
+        let mut bytes = payload(None, 1).encode();
+        bytes.extend_from_slice(&[0u8; 16]);
+        let payload = BlockPayload::new(bytes).expect("within cap");
+        assert!(!ext.validate_block_above(H256::zero(), payload).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn process_mb_proposal_errors_on_unsupported_version() {
+        use ethexe_common::malachite::{BLOCK_PAYLOAD_VERSION, BlockPayload};
+        let db = Database::memory();
+        let (ext, _rx) = make_externalities(db.clone());
+        let valid_bytes = payload(None, 1).encode();
+        let mut bp = BlockPayload::new(valid_bytes).expect("within cap");
+        bp.version = BLOCK_PAYLOAD_VERSION + 1;
+        let block = Block::new(H256::zero(), 1, bp);
+        let mb_hash = block.hash();
+        assert!(ext.process_mb_proposal(mb_hash, block).await.is_err());
     }
 
     #[tokio::test]
