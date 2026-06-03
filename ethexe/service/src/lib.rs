@@ -170,7 +170,6 @@ pub struct Service {
     rpc: Option<RpcServer>,
 
     fast_sync: bool,
-    validator_address: Option<Address>,
     validator_pub_key: Option<PublicKey>,
 
     /// When set, `run` performs `MalachiteService::shutdown` on signal.
@@ -178,6 +177,52 @@ pub struct Service {
 
     #[cfg(test)]
     sender: tests::utils::TestingEventSender,
+}
+
+struct PendingNetworkInjectedTx {
+    response_senders: Vec<oneshot::Sender<InjectedTransactionAcceptance>>,
+    pending_responses: usize,
+    last_reject: Option<InjectedTransactionAcceptance>,
+}
+
+impl PendingNetworkInjectedTx {
+    fn new(
+        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
+        pending_responses: usize,
+        last_reject: Option<InjectedTransactionAcceptance>,
+    ) -> Self {
+        Self {
+            response_senders: vec![response_sender],
+            pending_responses,
+            last_reject,
+        }
+    }
+
+    fn record_response(
+        &mut self,
+        acceptance: InjectedTransactionAcceptance,
+    ) -> Option<InjectedTransactionAcceptance> {
+        match acceptance {
+            InjectedTransactionAcceptance::Accept => Some(InjectedTransactionAcceptance::Accept),
+            rejection @ InjectedTransactionAcceptance::Reject { .. } => {
+                self.pending_responses = self
+                    .pending_responses
+                    .checked_sub(1)
+                    .expect("pending response count must match network requests");
+                self.last_reject = Some(rejection);
+
+                if self.pending_responses == 0 {
+                    Some(
+                        self.last_reject
+                            .take()
+                            .expect("last rejection is set after recording a rejection"),
+                    )
+                } else {
+                    None
+                }
+            }
+        }
+    }
 }
 
 impl Service {
@@ -401,7 +446,6 @@ impl Service {
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
-        let validator_address = validator_pub_key.map(|key| key.to_address());
 
         // TODO #4642: use validator session key
         let _validator_pub_key_session =
@@ -546,7 +590,6 @@ impl Service {
             prometheus,
             rpc,
             fast_sync,
-            validator_address,
             validator_pub_key,
             shutdown_rx: None,
             #[cfg(test)]
@@ -577,7 +620,6 @@ impl Service {
         rpc: Option<RpcServer>,
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
-        validator_address: Option<Address>,
         validator_pub_key: Option<PublicKey>,
     ) -> Self {
         Self {
@@ -593,7 +635,6 @@ impl Service {
             rpc,
             sender,
             fast_sync,
-            validator_address,
             validator_pub_key,
             shutdown_rx: None,
         }
@@ -634,7 +675,6 @@ impl Service {
             mut prometheus,
             rpc,
             fast_sync: _,
-            validator_address,
             validator_pub_key,
             shutdown_rx,
             #[cfg(test)]
@@ -663,10 +703,7 @@ impl Service {
             .send(tests::utils::TestingEvent::ServiceStarted)
             .await;
 
-        // One fan-out can park N senders under the same tx_hash (one per
-        // recipient validator), so we hold a Vec — earlier inserts must
-        // not be clobbered by later ones.
-        let mut network_injected_txs: HashMap<_, Vec<oneshot::Sender<_>>> = HashMap::new();
+        let mut network_injected_txs: HashMap<_, PendingNetworkInjectedTx> = HashMap::new();
 
         loop {
             let event: Event = tokio::select! {
@@ -850,13 +887,16 @@ impl Service {
                                 transaction_hash,
                                 acceptance,
                             } => {
-                                if let Some(senders) =
-                                    network_injected_txs.get_mut(&transaction_hash)
-                                    && let Some(response_sender) = senders.pop()
+                                let final_acceptance = network_injected_txs
+                                    .get_mut(&transaction_hash)
+                                    .and_then(|pending| pending.record_response(acceptance));
+
+                                if let Some(final_acceptance) = final_acceptance
+                                    && let Some(mut pending) =
+                                        network_injected_txs.remove(&transaction_hash)
                                 {
-                                    let _res = response_sender.send(acceptance);
-                                    if senders.is_empty() {
-                                        network_injected_txs.remove(&transaction_hash);
+                                    for response_sender in pending.response_senders.drain(..) {
+                                        let _res = response_sender.send(final_acceptance.clone());
                                     }
                                 }
                             }
@@ -892,51 +932,63 @@ impl Service {
                                 Some(network) => match local_acceptance {
                                     Some(acceptance @ InjectedTransactionAcceptance::Accept) => {
                                         // local consensus handle transaction, no need to wait for other acceptances
-                                        network.broadcast_injected_transaction(transaction);
-                                        response_sender.send(acceptance);
+                                        if let Err(err) =
+                                            network.broadcast_injected_transaction(transaction)
+                                        {
+                                            tracing::warn!(
+                                                "failed to broadcast locally accepted injected transaction: error={err:?}"
+                                            );
+                                        }
+                                        if let Err(err) = response_sender.send(acceptance) {
+                                            tracing::error!(
+                                                "failed to send local acceptance to RPC service, RPC channel dropped"
+                                            )
+                                        }
                                     }
                                     _ => {
-                                        // local consensus reject transaction, wait for other acceptances
+                                        // no local malachite or malachite reject transaction, wait for other acceptances
                                         let tx_hash = transaction.data().to_hash();
-                                        network.broadcast_injected_transaction(transaction);
-                                        network_injected_txs.insert(tx_hash, response_sender);
+                                        if let Some(pending) =
+                                            network_injected_txs.get_mut(&tx_hash)
+                                        {
+                                            pending.response_senders.push(response_sender);
+                                            continue;
+                                        }
+
+                                        match network.broadcast_injected_transaction(transaction) {
+                                            Ok(pending_responses) => {
+                                                let pending = PendingNetworkInjectedTx::new(
+                                                    response_sender,
+                                                    pending_responses,
+                                                    local_acceptance,
+                                                );
+                                                network_injected_txs.insert(tx_hash, pending);
+                                            }
+                                            Err(err) => {
+                                                let acceptance =
+                                                    InjectedTransactionAcceptance::Reject {
+                                                        reason: err.to_string(),
+                                                    };
+
+                                                if let Err(err) = response_sender.send(acceptance) {
+                                                    tracing::error!(
+                                                        "failed to send local acceptance to RPC service, RPC channel dropped"
+                                                    );
+                                                }
+                                            }
+                                        }
                                     }
                                 },
                                 None => {
+                                    // No network, send local_acceptance to RPC
                                     let acceptance = local_acceptance.unwrap_or_else(|| {
                                         InjectedTransactionAcceptance::Reject {
                                             reason: "RPC not a validator and do not connect to P2P network".into(),
                                         }
                                     });
-                                    response_sender.send(acceptance);
+                                    let _ = response_sender.send(acceptance);
                                 }
                             }
-
-                            //     let acceptance = if let Some(m) = malachite.as_mut() {
-                            //         m.receive_injected_transaction(transaction.tx.clone())
-                            //             .into()
-                            //     } else {
-                            //         ethexe_common::injected::InjectedTransactionAcceptance::Accept
-                            //     };
-                            //     let _res = response_sender.send(acceptance);
-                            // } else {
-                            //     let Some(network) = network.as_mut() else {
-                            //         continue;
-                            //     };
-
-                            //     let tx_hash = transaction.tx.data().to_hash();
-
-                            //     match network.send_injected_transaction(transaction) {
-                            //         Ok(()) => {
-                            //             network_injected_txs
-                            //                 .entry(tx_hash)
-                            //                 .or_default()
-                            //                 .push(response_sender);
-                            //         }
-                            //         Err(err) => {
-                            //             let _res = response_sender.send(Err(err).into());
-                            //         }
-                            //     }
                         }
                     }
                 }

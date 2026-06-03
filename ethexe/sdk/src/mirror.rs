@@ -8,8 +8,8 @@ use ethexe_common::{
     Address, SimpleBlockData,
     gear_core::rpc::ReplyInfo,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Promise,
-        Receipt, SignedInjectedTransaction,
+        InjectedTransaction, InjectedTransactionAcceptance, Promise, Receipt,
+        SignedInjectedTransaction,
     },
 };
 use ethexe_ethereum::{
@@ -206,7 +206,7 @@ impl<'a> Mirror<'a> {
         value: u128,
     ) -> Result<MessageId> {
         let transaction = self.prepare_injected_transaction(payload, value).await?;
-        let injected_transaction = transaction.tx.data();
+        let injected_transaction = transaction.data();
 
         let message_id = injected_transaction.to_message_id();
 
@@ -231,7 +231,7 @@ impl<'a> Mirror<'a> {
         value: u128,
     ) -> Result<(MessageId, Promise)> {
         let transaction = self.prepare_injected_transaction(payload, value).await?;
-        let injected_transaction = transaction.tx.data();
+        let injected_transaction = transaction.data();
 
         let message_id = injected_transaction.to_message_id();
 

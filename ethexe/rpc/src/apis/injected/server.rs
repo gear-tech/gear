@@ -11,8 +11,8 @@ use ethexe_common::{
     HashOf,
     db::InjectedStorageRO,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedTxReceipt,
+        InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
+        SignedTxReceipt,
     },
 };
 use ethexe_db::Database;
@@ -80,7 +80,7 @@ impl InjectedApi {
         Self {
             db: db.clone(),
             manager: PromiseSubscriptionManager::new(db.clone()),
-            relayer: TransactionsRelayer::new(rpc_sender, db),
+            relayer: TransactionsRelayer::new(rpc_sender),
             metrics: InjectedApiMetrics::default(),
         }
     }

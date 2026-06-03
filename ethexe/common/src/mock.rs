@@ -7,12 +7,11 @@ use crate::{
     Sum, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
-    ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
     },
-    injected::{AddressedInjectedTransaction, InjectedTransaction, Promise},
+    injected::{InjectedTransaction, Promise},
     malachite::Transactions,
 };
 use alloc::{collections::BTreeMap, vec};
@@ -117,25 +116,6 @@ impl From<(u32, ValidatorsVec)> for BlockChainParams {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct AddressedInjectedTransactionParams {
-    signer: Option<PrivateKey>,
-}
-
-impl From<()> for AddressedInjectedTransactionParams {
-    fn from((): ()) -> Self {
-        Self::default()
-    }
-}
-
-impl From<PrivateKey> for AddressedInjectedTransactionParams {
-    fn from(signer: PrivateKey) -> Self {
-        Self {
-            signer: Some(signer),
-        }
-    }
-}
-
 fn h256_strategy() -> BoxedStrategy<H256> {
     any::<[u8; 32]>().prop_map(Into::into).boxed()
 }
@@ -162,14 +142,6 @@ fn message_id_strategy() -> BoxedStrategy<MessageId> {
 
 fn reservation_id_strategy() -> BoxedStrategy<ReservationId> {
     any::<[u8; 32]>().prop_map(Into::into).boxed()
-}
-
-fn private_key_strategy() -> BoxedStrategy<PrivateKey> {
-    any::<[u8; 32]>()
-        .prop_filter_map("valid secp256k1 private key", |seed| {
-            PrivateKey::from_seed(seed).ok()
-        })
-        .boxed()
 }
 
 fn limited_bytes_strategy<const N: usize>(
@@ -436,30 +408,6 @@ impl Arbitrary for InjectedTransaction {
                 value: 0,
                 reference_block: Default::default(),
                 salt,
-            })
-            .boxed()
-    }
-}
-
-impl Arbitrary for AddressedInjectedTransaction {
-    type Parameters = AddressedInjectedTransactionParams;
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
-        let signer = match args.signer {
-            Some(signer) => Just(signer).boxed(),
-            None => private_key_strategy(),
-        };
-
-        (
-            address_strategy(),
-            signer,
-            InjectedTransaction::arbitrary_with(()),
-        )
-            .prop_map(|(recipient, signer, tx)| Self {
-                recipient,
-                tx: SignedMessage::create(signer, tx)
-                    .expect("signing injected transaction must succeed"),
             })
             .boxed()
     }
@@ -954,9 +902,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn addressed_injected_transaction_mock_produces_distinct_hashes() {
+    fn injected_transaction_mock_produces_distinct_hashes() {
         let tx_hashes: std::collections::BTreeSet<_> = (0..8)
-            .map(|_| AddressedInjectedTransaction::mock(()).tx.data().to_hash())
+            .map(|_| InjectedTransaction::mock(()).to_hash())
             .collect();
 
         assert_eq!(tx_hashes.len(), 8);

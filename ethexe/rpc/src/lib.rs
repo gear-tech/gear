@@ -48,7 +48,7 @@ use apis::{
 };
 #[cfg(feature = "server")]
 use ethexe_common::injected::{
-    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt, SignedInjectedTransaction,
+    InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt, SignedInjectedTransaction,
 };
 #[cfg(feature = "server")]
 use ethexe_db::Database;

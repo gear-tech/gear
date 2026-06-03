@@ -4,8 +4,8 @@
 use ethexe_common::{
     HashOf,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedTxReceipt,
+        InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
+        SignedTxReceipt,
     },
 };
 use jsonrpsee::proc_macros::rpc;

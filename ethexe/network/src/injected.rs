@@ -8,10 +8,7 @@ use crate::{
 };
 use ethexe_common::{
     Address, HashOf,
-    injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction,
-    },
+    injected::{InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction},
 };
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use libp2p::{
@@ -129,7 +126,7 @@ pub enum SendTransactionError {
     #[display("transaction already sent")]
     TransactionAlreadySent,
     #[display("validator not found")]
-    ValidatorNotFound,
+    NoValidatorsFound,
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
@@ -158,40 +155,51 @@ impl Behaviour {
         }
     }
 
+    /// Broadcasts [SignedInjectedTransaction] to all known validators.
+    /// Returns the number of sended requests.
     pub fn broadcast_transaction(
         &mut self,
         identities: &ValidatorIdentities,
         transaction: SignedInjectedTransaction,
-    ) -> Result<(), SendTransactionError> {
-        let recipient = identities.iter().cloned().take(1).collect::<Vec<_>()[0].0;
+    ) -> Result<usize, SendTransactionError> {
         let tx_hash = transaction.data().to_hash();
 
-        if self.pending_requests.len() >= MAX_PENDING_REQUESTS.get() {
-            return Err(SendTransactionError::TooManyPendingRequests);
+        if identities.is_empty() {
+            return Err(SendTransactionError::NoValidatorsFound);
         }
 
-        if let Some(transactions) = self.transaction_cache.get_mut(&tx_hash)
-            && let Some(&()) = transactions.get(&recipient)
-        {
+        let already_sent = self.transaction_cache.get(&tx_hash);
+        let recipients = identities
+            .iter()
+            .filter(|(recipient, _)| {
+                already_sent
+                    .and_then(|addresses| addresses.peek(recipient))
+                    .is_none()
+            })
+            .collect::<Vec<_>>();
+
+        if recipients.is_empty() {
             return Err(SendTransactionError::TransactionAlreadySent);
         }
 
-        let identity = identities
-            .get(&recipient)
-            .ok_or(SendTransactionError::ValidatorNotFound)?;
-        let peer_id = identity.peer_id();
-        let addresses = identity.addresses().iter().cloned().collect();
+        if self.pending_requests.len() + recipients.len() > MAX_PENDING_REQUESTS.get() {
+            return Err(SendTransactionError::TooManyPendingRequests);
+        }
+        let requests_num = recipients.len();
+        for (recipient, identity) in recipients {
+            let id = self.inner.send_request_with_addresses(
+                &identity.peer_id(),
+                InnerRequest(transaction.clone()),
+                identity.addresses().iter().cloned().collect(),
+            );
+            self.pending_requests.insert(id, tx_hash);
 
-        let id = self
-            .inner
-            .send_request_with_addresses(&peer_id, InnerRequest(tx), addresses);
-        self.pending_requests.insert(id, tx_hash);
+            self.transaction_cache
+                .get_or_insert_mut(tx_hash, || LruCache::new(MAX_VALIDATORS_PER_TRANSACTION))
+                .put(*recipient, ());
+        }
 
-        self.transaction_cache
-            .get_or_insert_mut(tx_hash, || LruCache::new(MAX_VALIDATORS_PER_TRANSACTION))
-            .put(recipient, ());
-
-        Ok(())
+        Ok(requests_num)
     }
 
     fn handle_inner_event(
@@ -479,6 +487,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn broadcasts_to_all_validators() {
+        init_logger();
+
+        let (mut alice, _) = new_swarm().await;
+        let alice_peer_id = *alice.local_peer_id();
+        let (mut bob, bob_identity) = new_swarm().await;
+        let (mut carol, carol_identity) = new_swarm().await;
+
+        let transaction = signed_injected_tx();
+        let identities = [
+            (bob_identity.address(), bob_identity),
+            (carol_identity.address(), carol_identity),
+        ]
+        .into();
+
+        alice
+            .behaviour_mut()
+            .broadcast_transaction(&identities, transaction.clone())
+            .unwrap();
+        let alice_handle = tokio::spawn(async move {
+            for _ in 0..2 {
+                let (_tx_hash, acceptance) = alice
+                    .next_behaviour_event()
+                    .await
+                    .unwrap_injected_transaction_acceptance();
+                assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
+            }
+        });
+
+        let (peer, new_tx, channel) = bob
+            .next_behaviour_event()
+            .await
+            .unwrap_new_injected_transaction();
+        assert_eq!(peer, alice_peer_id);
+        assert_eq!(new_tx, transaction);
+        channel.send(InjectedTransactionAcceptance::Accept).unwrap();
+        tokio::spawn(bob.loop_on_next());
+
+        let (peer, new_tx, channel) = carol
+            .next_behaviour_event()
+            .await
+            .unwrap_new_injected_transaction();
+        assert_eq!(peer, alice_peer_id);
+        assert_eq!(new_tx, transaction);
+        channel.send(InjectedTransactionAcceptance::Accept).unwrap();
+        tokio::spawn(carol.loop_on_next());
+
+        alice_handle.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn rejected() {
         const REJECT_REASON: &str = "test reason";
 
@@ -572,13 +631,13 @@ mod tests {
         for _ in 0..MAX_PENDING_REQUESTS.get() {
             let transaction = signed_injected_tx();
             alice
-                .broadcast_transaction_transaction(&identities, transaction)
+                .broadcast_transaction(&identities, transaction)
                 .unwrap();
         }
 
-        let transaction = addressed_injected_tx(bob_address);
+        let transaction = signed_injected_tx();
         let err = alice
-            .broadcast_transaction_transaction(&identities, transaction)
+            .broadcast_transaction(&identities, transaction)
             .unwrap_err();
         assert_eq!(err, SendTransactionError::TooManyPendingRequests);
     }
@@ -612,6 +671,6 @@ mod tests {
         let err = alice
             .broadcast_transaction(&Default::default(), transaction)
             .unwrap_err();
-        assert_eq!(err, SendTransactionError::ValidatorNotFound);
+        assert_eq!(err, SendTransactionError::NoValidatorsFound);
     }
 }

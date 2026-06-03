@@ -11,8 +11,7 @@ use ethexe_common::{
     ecdsa::{PrivateKey, PublicKey},
     gear::MAX_BLOCK_GAS_LIMIT,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, Promise, Receipt,
-        SignedCompactTxReceipt, SignedInjectedTransaction,
+        InjectedTransaction, Promise, Receipt, SignedCompactTxReceipt, SignedInjectedTransaction,
     },
     mock::Mock,
 };
