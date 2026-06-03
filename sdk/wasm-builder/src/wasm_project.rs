@@ -7,7 +7,6 @@ use chrono::offset::Local as ChronoLocal;
 use gear_wasm_instrument::SyscallKind;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
 use std::{
-    collections::BTreeMap,
     env,
     ffi::OsString,
     fs,
@@ -21,7 +20,7 @@ const OPT_LEVEL: &str = "z";
 ///
 /// The sub-project is written outside the workspace root, so workspace-relative
 /// patch paths like local `substrate/` overrides cannot be resolved there.
-fn remove_local_path_patches(patch: &mut BTreeMap<String, toml::Value>) {
+fn remove_local_path_patches(patch: &mut Table) {
     patch.retain(|_, section| {
         let Some(entries) = section.as_table_mut() else {
             return true;

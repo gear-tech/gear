@@ -42,7 +42,7 @@ examples_clippy() {
 no_std_clippy() {
   mapfile -t no_std < <(
     cargo metadata --no-deps --format-version=1 |
-    jq -r '.workspace_members as $members | .packages.[] | . as $pkg | select($members | index($pkg.id)) | select(.features | index("std")) | select(.name != "sc-executor") | "-p=" + .name'
+    jq -r '.workspace_members as $members | .packages.[] | . as $pkg | select($members | index($pkg.id)) | select(.features | has("std")) | select(.name != "sc-executor") | "-p=" + .name'
   )
   RUSTFLAGS="--cfg=substrate_runtime" \
   __GEAR_WASM_BUILDER_NO_BUILD=1 \
