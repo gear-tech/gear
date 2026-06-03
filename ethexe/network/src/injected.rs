@@ -158,13 +158,13 @@ impl Behaviour {
         }
     }
 
-    pub fn send_transaction(
+    pub fn broadcast_transaction(
         &mut self,
         identities: &ValidatorIdentities,
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
     ) -> Result<(), SendTransactionError> {
-        let AddressedInjectedTransaction { recipient, tx } = transaction;
-        let tx_hash = tx.data().to_hash();
+        let recipient = identities.iter().cloned().take(1).collect::<Vec<_>()[0].0;
+        let tx_hash = transaction.data().to_hash();
 
         if self.pending_requests.len() >= MAX_PENDING_REQUESTS.get() {
             return Err(SendTransactionError::TooManyPendingRequests);
@@ -401,14 +401,12 @@ mod tests {
     use libp2p_swarm_test::SwarmExt;
     use std::time::Duration;
 
-    fn addressed_injected_tx(recipient: Address) -> AddressedInjectedTransaction {
+    fn signed_injected_tx() -> SignedInjectedTransaction {
         let signer = Signer::memory();
         let pub_key = signer.generate().unwrap();
 
         let tx = arb_value::<InjectedTransaction>(());
-        let tx = signer.signed_message(pub_key, tx, None).unwrap();
-
-        AddressedInjectedTransaction { recipient, tx }
+        signer.signed_message(pub_key, tx, None).unwrap()
     }
 
     async fn new_swarm() -> (Swarm<Behaviour>, SignedValidatorIdentity) {
@@ -453,12 +451,12 @@ mod tests {
         let alice_peer_id = *alice.local_peer_id();
         let (mut bob, bob_identity) = new_swarm().await;
 
-        let transaction = addressed_injected_tx(bob_identity.address());
+        let transaction = signed_injected_tx();
         let identities = [(bob_identity.address(), bob_identity)].into();
 
         alice
             .behaviour_mut()
-            .send_transaction(&identities, transaction.clone())
+            .broadcast_transaction(&identities, transaction.clone())
             .unwrap();
         let alice_handle = tokio::spawn(async move {
             let (_tx_hash, acceptance) = alice
@@ -473,7 +471,7 @@ mod tests {
             .await
             .unwrap_new_injected_transaction();
         assert_eq!(peer, alice_peer_id);
-        assert_eq!(new_tx, transaction.tx);
+        assert_eq!(new_tx, transaction);
         channel.send(InjectedTransactionAcceptance::Accept).unwrap();
         tokio::spawn(bob.loop_on_next());
 
@@ -488,12 +486,12 @@ mod tests {
         let alice_peer_id = *alice.local_peer_id();
         let (mut bob, bob_identity) = new_swarm().await;
 
-        let transaction = addressed_injected_tx(bob_identity.address());
+        let transaction = signed_injected_tx();
         let identities = [(bob_identity.address(), bob_identity)].into();
 
         alice
             .behaviour_mut()
-            .send_transaction(&identities, transaction.clone())
+            .broadcast_transaction(&identities, transaction.clone())
             .unwrap();
         let alice_handle = tokio::spawn(async move {
             let (_tx_hash, acceptance) = alice
@@ -513,7 +511,7 @@ mod tests {
             .await
             .unwrap_new_injected_transaction();
         assert_eq!(peer, alice_peer_id);
-        assert_eq!(new_tx, transaction.tx);
+        assert_eq!(new_tx, transaction);
         channel
             .send(InjectedTransactionAcceptance::Reject {
                 reason: REJECT_REASON.to_string(),
@@ -530,12 +528,12 @@ mod tests {
         let alice_peer_id = *alice.local_peer_id();
         let (mut bob, bob_identity) = new_swarm().await;
 
-        let transaction = addressed_injected_tx(bob_identity.address());
+        let transaction = signed_injected_tx();
         let identities = [(bob_identity.address(), bob_identity)].into();
 
         alice
             .behaviour_mut()
-            .send_transaction(&identities, transaction.clone())
+            .broadcast_transaction(&identities, transaction.clone())
             .unwrap();
         let alice_handle = tokio::spawn(async move {
             let (_tx_hash, acceptance) = alice
@@ -555,7 +553,7 @@ mod tests {
             .await
             .unwrap_new_injected_transaction();
         assert_eq!(peer, alice_peer_id);
-        assert_eq!(new_tx, transaction.tx);
+        assert_eq!(new_tx, transaction);
         drop(bob);
 
         alice_handle.await.unwrap();
@@ -572,13 +570,15 @@ mod tests {
         let identities = [(bob_address, bob_identity)].into();
 
         for _ in 0..MAX_PENDING_REQUESTS.get() {
-            let transaction = addressed_injected_tx(bob_address);
-            alice.send_transaction(&identities, transaction).unwrap();
+            let transaction = signed_injected_tx();
+            alice
+                .broadcast_transaction_transaction(&identities, transaction)
+                .unwrap();
         }
 
         let transaction = addressed_injected_tx(bob_address);
         let err = alice
-            .send_transaction(&identities, transaction)
+            .broadcast_transaction_transaction(&identities, transaction)
             .unwrap_err();
         assert_eq!(err, SendTransactionError::TooManyPendingRequests);
     }
@@ -590,15 +590,15 @@ mod tests {
         let mut alice = Behaviour::new();
         let (_bob, bob_identity) = new_swarm().await;
 
-        let transaction = addressed_injected_tx(bob_identity.address());
+        let transaction = signed_injected_tx();
         let identities = [(bob_identity.address(), bob_identity)].into();
 
         alice
-            .send_transaction(&identities, transaction.clone())
+            .broadcast_transaction(&identities, transaction.clone())
             .unwrap();
 
         let err = alice
-            .send_transaction(&identities, transaction)
+            .broadcast_transaction(&identities, transaction)
             .unwrap_err();
         assert_eq!(err, SendTransactionError::TransactionAlreadySent);
     }
@@ -607,10 +607,10 @@ mod tests {
     async fn validator_not_found() {
         let mut alice = Behaviour::new();
 
-        let transaction = addressed_injected_tx(Address::default());
+        let transaction = signed_injected_tx();
 
         let err = alice
-            .send_transaction(&Default::default(), transaction)
+            .broadcast_transaction(&Default::default(), transaction)
             .unwrap_err();
         assert_eq!(err, SendTransactionError::ValidatorNotFound);
     }

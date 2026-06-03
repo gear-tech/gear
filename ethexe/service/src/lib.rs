@@ -44,7 +44,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     gear::CodeState,
-    injected::{CompactPromise, Receipt},
+    injected::{CompactPromise, InjectedTransactionAcceptance, Receipt},
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -879,37 +879,64 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            // zero address means that no matter what validator will insert this tx.
-                            let is_zero_address = transaction.recipient == Address::default();
-                            let is_our_address = Some(transaction.recipient) == validator_address;
+                            let mut local_acceptance = None;
 
-                            if is_zero_address || is_our_address {
-                                let acceptance = if let Some(m) = malachite.as_mut() {
-                                    m.receive_injected_transaction(transaction.tx.clone())
-                                        .into()
-                                } else {
-                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept
-                                };
-                                let _res = response_sender.send(acceptance);
-                            } else {
-                                let Some(network) = network.as_mut() else {
-                                    continue;
-                                };
+                            if let Some(malachite) = malachite.as_mut() {
+                                let status =
+                                    malachite.receive_injected_transaction(transaction.clone());
+                                local_acceptance =
+                                    Some(InjectedTransactionAcceptance::from(status));
+                            }
 
-                                let tx_hash = transaction.tx.data().to_hash();
-
-                                match network.send_injected_transaction(transaction) {
-                                    Ok(()) => {
-                                        network_injected_txs
-                                            .entry(tx_hash)
-                                            .or_default()
-                                            .push(response_sender);
+                            match network.as_mut() {
+                                Some(network) => match local_acceptance {
+                                    Some(acceptance @ InjectedTransactionAcceptance::Accept) => {
+                                        // local consensus handle transaction, no need to wait for other acceptances
+                                        network.broadcast_injected_transaction(transaction);
+                                        response_sender.send(acceptance);
                                     }
-                                    Err(err) => {
-                                        let _res = response_sender.send(Err(err).into());
+                                    _ => {
+                                        // local consensus reject transaction, wait for other acceptances
+                                        let tx_hash = transaction.data().to_hash();
+                                        network.broadcast_injected_transaction(transaction);
+                                        network_injected_txs.insert(tx_hash, response_sender);
                                     }
+                                },
+                                None => {
+                                    let acceptance = local_acceptance.unwrap_or_else(|| {
+                                        InjectedTransactionAcceptance::Reject {
+                                            reason: "RPC not a validator and do not connect to P2P network".into(),
+                                        }
+                                    });
+                                    response_sender.send(acceptance);
                                 }
                             }
+
+                            //     let acceptance = if let Some(m) = malachite.as_mut() {
+                            //         m.receive_injected_transaction(transaction.tx.clone())
+                            //             .into()
+                            //     } else {
+                            //         ethexe_common::injected::InjectedTransactionAcceptance::Accept
+                            //     };
+                            //     let _res = response_sender.send(acceptance);
+                            // } else {
+                            //     let Some(network) = network.as_mut() else {
+                            //         continue;
+                            //     };
+
+                            //     let tx_hash = transaction.tx.data().to_hash();
+
+                            //     match network.send_injected_transaction(transaction) {
+                            //         Ok(()) => {
+                            //             network_injected_txs
+                            //                 .entry(tx_hash)
+                            //                 .or_default()
+                            //                 .push(response_sender);
+                            //         }
+                            //         Err(err) => {
+                            //             let _res = response_sender.send(Err(err).into());
+                            //         }
+                            //     }
                         }
                     }
                 }

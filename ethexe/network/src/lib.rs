@@ -44,7 +44,7 @@ use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedCompactTxReceipt},
+    injected::{AddressedInjectedTransaction, SignedCompactTxReceipt, SignedInjectedTransaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -629,14 +629,14 @@ impl NetworkService {
     }
 
     /// Send an injected transaction privately to the destination validator.
-    pub fn send_injected_transaction(
+    pub fn broadcast_injected_transaction(
         &mut self,
-        data: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
     ) -> Result<(), injected::SendTransactionError> {
         let behaviour = self.swarm.behaviour_mut();
         behaviour
             .injected
-            .send_transaction(behaviour.validator_discovery.identities(), data)
+            .broadcast_transaction(behaviour.validator_discovery.identities(), transaction)
     }
 
     /// Publish a signed promise to the public promise gossipsub topic.
