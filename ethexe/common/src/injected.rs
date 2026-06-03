@@ -4,6 +4,11 @@
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
 use core::hash::Hash;
+use ferveo_tdec::{
+    Result as TdecResult,
+    bls12_381::{Ciphertext, DkgPublicKey},
+    rand_traits::Rng,
+};
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
 use gsigner::Signature;
@@ -127,6 +132,23 @@ impl InjectedTransaction {
     /// Creates [`MessageId`] from [`InjectedTransaction`].
     pub fn to_message_id(&self) -> MessageId {
         MessageId::new(self.to_hash().inner().0)
+    }
+
+    pub fn shield(
+        self,
+        public_key: &DkgPublicKey,
+        rng: &mut impl Rng,
+    ) -> TdecResult<ShieldedTransaction> {
+        let shielded_fields = (self.destination, self.payload, self.value);
+        // TODO: FIXME
+        let aad = [0u8; 32];
+        let ciphertext = ferveo_tdec::encrypt(&shielded_fields, &aad, public_key, rng)?;
+
+        Ok(ShieldedTransaction {
+            ciphertext,
+            reference_block: self.reference_block,
+            salt: self.salt,
+        })
     }
 }
 
@@ -368,6 +390,31 @@ pub enum TransactionPurgedReason {
 impl TransactionPurgedReason {
     pub fn variant_index(&self) -> u8 {
         *self as u8
+    }
+}
+
+type ShieldedFields = (ActorId, LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>, u128);
+
+// #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+// #[cfg_attr(feature = "serde", derive(Hash))]
+// #[derive(Debug, Clone, Encode, Decode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct ShieldedTransaction {
+    /// Encrypted fields of initial [InjectedTransaction].
+    pub ciphertext: Ciphertext<ShieldedFields>,
+    /// Reference block number.
+    pub reference_block: H256,
+    /// Arbitrary bytes to allow multiple synonymous
+    /// transactions to be sent simultaneously.
+    /// NOTE: this is also a salt for MessageId generation.
+    // #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
+}
+
+impl ShieldedTransaction {
+    pub fn unshield(&self) {
+        let shared_secret = ferveo_tdec::
+        let v = ferveo_tdec::decrypt(&self.ciphertext, aad, shared_secret);
     }
 }
 
