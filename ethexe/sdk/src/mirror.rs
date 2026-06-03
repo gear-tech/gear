@@ -139,7 +139,7 @@ impl<'a> Mirror<'a> {
                 destination.to_address_lossy(),
                 payload.as_ref().to_vec().into(),
                 value,
-                with_top_up,
+                Some(with_top_up),
             )
             .map_err(Into::into)
             .await
