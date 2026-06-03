@@ -3249,7 +3249,7 @@ async fn re_genesis_with_state_dump() {
         dump.programs.len(),
         dump.blobs.len(),
     );
-    assert_eq!(dump.block_hash, new_genesis_hash);
+    assert_eq!(dump.eb_hash, new_genesis_hash);
     assert!(!dump.codes.is_empty());
     assert!(!dump.programs.is_empty());
 
@@ -3425,7 +3425,7 @@ async fn re_genesis_delayed_message() {
         dump.programs.len(),
         dump.blobs.len(),
     );
-    assert_eq!(dump.block_hash, new_genesis_hash);
+    assert_eq!(dump.eb_hash, new_genesis_hash);
 
     // Verify the dispatch stash is non-empty (delayed message pending).
     {

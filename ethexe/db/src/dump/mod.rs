@@ -24,7 +24,7 @@ use std::{
 pub struct StateDump {
     pub metadata: H256,
     /// Block hash for which this dump was created.
-    pub block_hash: H256,
+    pub eb_hash: H256,
     /// Valid code ids. Code bytes are stored in `blobs` (keyed by CodeId in CAS).
     pub codes: BTreeSet<CodeId>,
     /// Programs: program id -> (code id, state hash).

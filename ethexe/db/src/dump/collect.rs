@@ -349,7 +349,7 @@ impl StateDump {
 
         Ok(StateDump {
             metadata: mb_hash,
-            block_hash,
+            eb_hash: block_hash,
             codes,
             programs,
             blobs: collector.blobs,
