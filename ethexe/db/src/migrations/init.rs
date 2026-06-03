@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use super::{InitConfig, LATEST_VERSION, migrate};
 use crate::{Database, RawDatabase, dump::StateDump, migrations::GenesisInitializer};
 use alloy::providers::{Provider as _, RootProvider};
-use anyhow::{Context as _, Result, bail, ensure};
+use anyhow::{Context as _, Result, ensure};
 use ethexe_common::{
     BlockHeader, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
     StateHashWithQueueSize,
