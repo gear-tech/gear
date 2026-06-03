@@ -137,7 +137,7 @@ impl<'a> Router<'a> {
     }
 
     pub async fn program_ids(&self) -> Result<Vec<ActorId>> {
-        let program_ids = self.api.vara_eth_client.ids().await?;
+        let program_ids = self.api.vara_eth_client()?.ids().await?;
         Ok(program_ids.into_iter().map(ActorId::from).collect())
     }
 

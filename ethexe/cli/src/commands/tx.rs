@@ -20,17 +20,13 @@ use alloy_chains::NamedChain;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use ethexe_common::{
-    Address, BlockHeader, SimpleBlockData,
-    gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
-    injected::{
-        AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE, Receipt,
-    },
+    Address,
+    gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo},
 };
 use ethexe_ethereum::{Ethereum, EthereumBuilder, mirror::ClaimInfo, router::CodeValidationResult};
-use ethexe_rpc::{InjectedClient, ProgramClient};
+use ethexe_sdk::VaraEthApi;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
-use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
-use jsonrpsee::ws_client::WsClientBuilder;
+use gsigner::secp256k1::Signer;
 use serde::Serialize;
 use serde_json::json;
 use sp_core::Bytes;
@@ -139,10 +135,6 @@ enum SendMessageResult {
         payload: SendMessagePayload,
     },
     Injected {
-        tx_hash: H256,
-        reference_block_number: u64,
-        reference_block_hash: H256,
-
         #[serde(flatten)]
         payload: SendMessagePayload,
     },
@@ -330,15 +322,25 @@ impl TxCommand {
         {
             eprintln!("WS RPC:   {rpc_url}");
         }
-        let router = ethereum.router();
-        let router_query = router.query();
+        let api = match &self.command {
+            TxSubcommand::Query { rpc_url, .. }
+            | TxSubcommand::SendMessage {
+                rpc_url: Some(rpc_url),
+                injected: true,
+                ..
+            } => VaraEthApi::new(rpc_url, ethereum.clone())
+                .await
+                .with_context(|| "failed to create Vara.ETH SDK client")?,
+            _ => VaraEthApi::from_ethereum(ethereum.clone()),
+        };
+        let router = api.router();
         let chain_id = ethereum
             .chain_id()
             .await
             .with_context(|| "failed to fetch chain id")?;
 
         eprintln!("Router:   {router_addr}");
-        if let Some(url) = explorer_address_link(chain_id, router.address()) {
+        if let Some(url) = explorer_address_link(chain_id, router_addr) {
             eprintln!("Explorer: {url}");
         }
         eprintln!("Sender:   {sender}");
@@ -688,13 +690,13 @@ impl TxCommand {
                 create_abi_result?;
             }
             TxSubcommand::Query {
-                rpc_url,
+                rpc_url: _,
                 mirror,
                 json,
             } => {
                 // TODO: consider moving this out of tx subcommand
                 let query_result = (async || -> Result<MirrorState> {
-                    let maybe_code_id = router_query
+                    let maybe_code_id = router
                         .program_code_id(mirror.into())
                         .await
                         .with_context(|| "failed to check if mirror in known by router")?;
@@ -708,28 +710,21 @@ impl TxCommand {
                     eprintln!("  Mirror: {mirror}");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror.into());
-                    let mirror_query = mirror.query();
+                    let mirror = api.mirror(mirror.into());
 
-                    // TODO: consider crate like gsdk but for Vara.eth to avoid direct RPC calls
-                    let ws_client: jsonrpsee::ws_client::WsClient = WsClientBuilder::new()
-                        .build(&rpc_url)
-                        .await
-                        .with_context(|| "failed to create ws client for Vara.eth RPC")?;
-
-                    let state_hash = mirror_query.state_hash().await?;
-                    let program_state = ws_client.read_state(state_hash).await?;
+                    let state_hash = mirror.state_hash().await?;
+                    let program_state = mirror.state().await?;
 
                     let balance = program_state.balance;
                     let executable_balance = program_state.executable_balance;
 
                     let mirror_state = MirrorState {
-                        router: mirror_query.router().await?,
+                        router: mirror.router().await?,
                         state_hash,
-                        nonce: mirror_query.nonce().await?,
-                        exited: mirror_query.exited().await?,
-                        inheritor: mirror_query.inheritor().await?,
-                        initializer: mirror_query.initializer().await?,
+                        nonce: mirror.nonce().await?,
+                        exited: mirror.exited().await?,
+                        inheritor: mirror.inheritor().await?,
+                        initializer: mirror.initializer().await?,
                         balance,
                         formatted_balance: FormattedValue::<EthereumCurrency>::new(balance)
                             .to_string(),
@@ -786,7 +781,7 @@ impl TxCommand {
             } => {
                 let owned_balance_top_up_result = (async || -> Result<TopUpResult> {
                     let raw_value = value.into_inner();
-                    let maybe_code_id = router_query
+                    let maybe_code_id = router
                         .program_code_id(mirror.into())
                         .await
                         .with_context(|| "failed to check if mirror in known by router")?;
@@ -802,7 +797,7 @@ impl TxCommand {
                     eprintln!("  Value:  {formatted_value} ({raw_value} wei)");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror.into());
+                    let mirror = api.mirror(mirror.into());
                     let actor_id: ActorId = mirror.actor_id();
                     let actor_id = actor_id.to_address_lossy();
 
@@ -885,7 +880,7 @@ impl TxCommand {
             } => {
                 let executable_balance_top_up_result = (async || -> Result<TopUpResult> {
                     let raw_value = value.into_inner();
-                    let maybe_code_id = router_query
+                    let maybe_code_id = router
                         .program_code_id(mirror.into())
                         .await
                         .with_context(|| "failed to check if mirror in known by router")?;
@@ -901,15 +896,13 @@ impl TxCommand {
                     eprintln!("  Value:  {formatted_value} ({raw_value})");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror.into());
+                    let mirror = api.mirror(mirror.into());
                     let actor_id: ActorId = mirror.actor_id();
                     let actor_id = actor_id.to_address_lossy();
 
                     // TODO: consider to get receipt from approve tx as well
                     if raw_value != 0 && approve {
-                        ethereum
-                            .router()
-                            .wvara()
+                        api.wrapped_vara()
                             .approve(mirror.actor_id(), raw_value)
                             .await?;
                     }
@@ -1001,7 +994,7 @@ impl TxCommand {
             } => {
                 let send_message_result = (async || -> Result<SendMessageResult> {
                     let raw_value = value.into_inner();
-                    let maybe_code_id = router_query
+                    let maybe_code_id = router
                         .program_code_id(mirror.into())
                         .await
                         .with_context(|| "failed to check if mirror in known by router")?;
@@ -1031,101 +1024,19 @@ impl TxCommand {
                     eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror.into());
-                    let raw_actor_id: ActorId = mirror.actor_id();
-                    let actor_id = raw_actor_id.to_address_lossy();
+                    let mirror = api.mirror(mirror.into());
+                    let actor_id = mirror.actor_id().to_address_lossy();
 
-                    if let Some(rpc_url) = &rpc_url
-                        && injected
-                    {
-                        // TODO: consider crate like gsdk but for Vara.eth to avoid direct RPC calls
-                        let ws_client: jsonrpsee::ws_client::WsClient = WsClientBuilder::new()
-                            .build(rpc_url)
-                            .await
-                            .with_context(|| "failed to create ws client for Vara.eth RPC")?;
-
-                        let public_key = signer
-                            .get_key_by_address(sender)
-                            .with_context(|| format!("failed to get key for sender {sender}"))?
-                            .ok_or_else(|| anyhow!("no key found for {sender}"))?;
-
-                        //let (reference_block_number, reference_block_hash) =
-                        let SimpleBlockData {
-                            hash: reference_block_hash,
-                            header:
-                                BlockHeader {
-                                    height: reference_block_number,
-                                    ..
-                                },
-                        } = ethereum.get_latest_block().await?;
-                        let reference_block_number = reference_block_number as u64;
-                        let salt = H256::random();
-
-                        let injected_transaction = InjectedTransaction {
-                            destination: raw_actor_id,
-                            payload: payload.0.clone().try_into().with_context(|| {
-                                format!(
-                                    "Payload size exceeds the maximum allowed size of {} bytes",
-                                    MAX_INJECTED_TX_PAYLOAD_SIZE
-                                )
-                            })?,
-                            value: raw_value,
-                            reference_block: reference_block_hash,
-                            salt: LimitedVec::try_from(salt.as_bytes())
-                                .expect("`H256` is small enough for a salt"),
-                        };
-                        let message_id = injected_transaction.to_message_id();
-                        let tx_hash = injected_transaction.to_hash().into();
-
-                        let transaction = AddressedInjectedTransaction {
-                            recipient: Address::default(),
-                            tx: signer
-                                .signed_message(public_key, injected_transaction, None)
-                                .with_context(|| "failed to create signed injected transaction")?,
-                        };
-
-                        if !watch {
-                            ws_client
-                                .send_transaction(transaction.clone())
-                                .await
-                                .with_context(|| "failed to send injected transaction")?;
-                        }
-
-                        // TODO: consider adding tx fee estimation in ETH here?
-                        eprintln!("Completed, injected transaction info:");
-                        eprintln!("  Tx hash:      {tx_hash:?}");
-                        eprintln!("  Block number: {reference_block_number:<66} (reference block)");
-                        eprintln!("  Block hash:   {reference_block_hash:?} (reference block)");
-                        eprintln!("  Salt:         {salt:?}");
-                        eprintln!();
-
-                        eprintln!("Message successfully sent:");
-                        eprintln!("  Message id: {message_id:?}");
-                        eprintln!();
-
-                        let reply_info = if watch {
+                    if rpc_url.is_some() && injected {
+                        let (message_id, reply_info) = if watch {
                             eprintln!("Waiting for reply (promise for injected transaction)...");
 
-                            let mut subscription = ws_client
-                                .send_transaction_and_watch(transaction)
+                            let (message_id, promise) = mirror
+                                .send_message_injected_and_watch(payload.0.clone(), raw_value)
                                 .await
                                 .with_context(
-                                    || "failed to send injected transaction to Vara.eth RPC",
+                                    || "failed to send injected transaction and wait for promise",
                                 )?;
-
-                            let receipt = subscription
-                                .next()
-                                .await
-                                .ok_or_else(|| anyhow!("no promise received from subscription"))?
-                                .with_context(|| "failed to receive transaction promise")?
-                                .data()
-                                .clone();
-                            let promise = match receipt {
-                                Receipt::Promise(promise) => promise,
-                                Receipt::Purged(err) => {
-                                    bail!("injected transaction was purged: {err}")
-                                }
-                            };
                             let ReplyInfo {
                                 payload,
                                 value,
@@ -1148,22 +1059,30 @@ impl TxCommand {
                             eprintln!("  Code:        {code:?} ({code_hex})");
                             eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
 
-                            Some(ReplyInfo {
-                                payload,
-                                value: raw_value,
-                                code,
-                            })
+                            (
+                                message_id,
+                                Some(ReplyInfo {
+                                    payload,
+                                    value: raw_value,
+                                    code,
+                                }),
+                            )
                         } else {
+                            let message_id = mirror
+                                .send_message_injected(payload.0.clone(), raw_value)
+                                .await
+                                .with_context(|| "failed to send injected transaction")?;
                             eprintln!(
                                 "To wait for the reply, run this command with `--watch` flag"
                             );
-                            None
+                            (message_id, None)
                         };
 
+                        eprintln!("Message successfully sent:");
+                        eprintln!("  Message id: {message_id:?}");
+                        eprintln!();
+
                         Ok(SendMessageResult::Injected {
-                            tx_hash,
-                            reference_block_number,
-                            reference_block_hash,
                             payload: SendMessagePayload {
                                 message_id,
                                 actor_id,
@@ -1287,7 +1206,7 @@ impl TxCommand {
                 json,
             } => {
                 let send_reply_result = (async || -> Result<SendReplyResult> {
-                    let maybe_code_id = router_query
+                    let maybe_code_id = router
                         .program_code_id(mirror.into())
                         .await
                         .with_context(|| "failed to check if mirror in known by router")?;
@@ -1311,7 +1230,7 @@ impl TxCommand {
                     eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror.into());
+                    let mirror = api.mirror(mirror.into());
                     let raw_actor_id: ActorId = mirror.actor_id();
                     let actor_id = raw_actor_id.to_address_lossy();
 
@@ -1412,7 +1331,7 @@ impl TxCommand {
                 json,
             } => {
                 let claim_value_result = (async || -> Result<ClaimValueResult> {
-                    let maybe_code_id = router_query
+                    let maybe_code_id = router
                         .program_code_id(mirror.into())
                         .await
                         .with_context(|| "failed to check if mirror in known by router")?;
@@ -1427,7 +1346,7 @@ impl TxCommand {
                     eprintln!("  Claimed id: {claimed_id}");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror.into());
+                    let mirror = api.mirror(mirror.into());
                     let raw_actor_id: ActorId = mirror.actor_id();
                     let actor_id = raw_actor_id.to_address_lossy();
 
@@ -1522,7 +1441,7 @@ impl TxCommand {
             }
             TxSubcommand::TransferLockedValueToInheritor { mirror, json } => {
                 let transfer_result = (async || -> Result<TransferLockedValueToInheritorResult> {
-                    let maybe_code_id = router_query
+                    let maybe_code_id = router
                         .program_code_id(mirror.into())
                         .await
                         .with_context(|| "failed to check if mirror in known by router")?;
@@ -1532,13 +1451,13 @@ impl TxCommand {
                         "Given mirror address is not recognized by router"
                     );
 
-                    let mirror = ethereum.mirror(mirror.into());
+                    let mirror = api.mirror(mirror.into());
                     let raw_actor_id: ActorId = mirror.actor_id();
                     let actor_id = raw_actor_id.to_address_lossy();
-                    let value =
-                        mirror.query().balance().await.with_context(|| {
-                            format!("failed to get balance of mirror {actor_id:?}")
-                        })?;
+                    let value = mirror
+                        .balance()
+                        .await
+                        .with_context(|| format!("failed to get balance of mirror {actor_id:?}"))?;
                     let formatted_value = FormattedValue::<EthereumCurrency>::new(value);
 
                     ensure!(

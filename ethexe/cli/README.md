@@ -132,8 +132,9 @@ ethexe key --key-store ./tmp-keys keyring import --secret-key <hex>
 
 ## `tx`
 
-`ethexe tx` opens an Ethereum client with the selected sender key and Router address, then runs
-one of the transaction-oriented subcommands.
+`ethexe tx` opens an SDK client with the selected sender key and Router address, then runs one of
+the transaction-oriented subcommands. Commands that read Vara.eth program state or submit injected
+transactions also require a Vara.eth WebSocket RPC endpoint.
 
 Shared requirements:
 
@@ -175,6 +176,9 @@ ethexe tx --sender 0x... executable-balance-top-up 0xMirror "10 WVARA" --approve
 
 When `--json` is supported by a subcommand, the command still prints human progress to stderr and
 emits the machine-readable result on stdout.
+
+Injected `send-message` output reports SDK-level message and reply data. It does not include the
+locally constructed injected transaction hash or reference block metadata.
 
 ## `check`
 
