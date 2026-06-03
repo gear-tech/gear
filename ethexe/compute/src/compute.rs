@@ -231,18 +231,17 @@ pub fn prepare_executable_for_mb(
             payload_hash: transactions_hash,
         })?;
 
-    let (program_states, schedule, initial_advanced_block) = if parent.is_zero() {
-        // Genesis MB has no parent, so start with empty states and the router's genesis block as the anchor.
-        (Default::default(), Default::default(), H256::zero())
-    } else {
-        let states = db
-            .mb_program_states(parent)
-            .ok_or(ComputeError::ParentMbStatesMissing(parent))?;
-        let schedule = db
-            .mb_schedule(parent)
-            .ok_or(ComputeError::ParentMbScheduleMissing(parent))?;
-        (states, schedule, db.mb_meta(parent).last_advanced_eb)
-    };
+    // Read the parent MB's computed state from the DB. The genesis MB's parent
+    // is the zero MB seeded by `initialize_empty_db` (carrying the genesis /
+    // re-genesis state); it is a normal computed record like any other parent,
+    // so no special-casing of the zero parent is needed here.
+    let program_states = db
+        .mb_program_states(parent)
+        .ok_or(ComputeError::ParentMbStatesMissing(parent))?;
+    let schedule = db
+        .mb_schedule(parent)
+        .ok_or(ComputeError::ParentMbScheduleMissing(parent))?;
+    let initial_advanced_block = db.mb_meta(parent).last_advanced_eb;
 
     build_executable_data(
         db,

@@ -129,7 +129,7 @@ contract Router is
      *      NOTE: Don't forget to bump `reinitializer(version)` in modifier!
      * @custom:oz-upgrades-validate-as-initializer
      */
-    function reinitialize() public onlyOwner reinitializer(5) {
+    function reinitialize() public onlyOwner reinitializer(7) {
         /* Example of wipe and reinitialize */
 
         // __Ownable_init(owner());
@@ -184,7 +184,14 @@ contract Router is
         __EIP712_init(EIP712_NAME, EIP712_VERSION);
 
         Storage storage router = _router();
-        router.genesisBlock = Gear.newGenesis();
+        // Re-genesis fork test: anchor genesis at A1.block (the committed
+        // announce's L1 block on the original testnet) instead of the current
+        // (forked) block, so it matches the genesis state dump exactly.
+        router.genesisBlock = Gear.GenesisBlockInfo({
+            hash: 0x906df661c44b34708b6ab2c954e028849ef371322c3d521b5b56927ac6f4bfed,
+            number: 2940312,
+            timestamp: 1780436880
+        });
         router.latestCommittedBatch = Gear.CommittedBatchInfo({hash: bytes32(0), timestamp: 0});
         router.protocolData.maxValidators = uint16(Gear.currentEraValidators(router).list.length);
         uint256 decimalsFactor = 10 ** IWrappedVara(router.implAddresses.wrappedVara).decimals();

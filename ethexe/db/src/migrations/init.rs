@@ -92,34 +92,42 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         },
     };
 
-    let genesis_mb = if let Some(initializer) = config.genesis_initializer {
-        let (mb_hash, program_states, schedule) =
+    // Genesis program state + schedule: loaded from the state dump for
+    // re-genesis, or empty for a fresh network.
+    let (program_states, schedule) = if let Some(initializer) = config.genesis_initializer {
+        let (_dump_mb_hash, program_states, schedule) =
             genesis_data_initialization(initializer, db, genesis_block).await?;
-        // Seed MB rows so RPC reads (program_states / schedule / outcome)
-        // resolve before the first post-genesis MB lands. The empty
-        // Transactions blob is persisted in CAS so downstream walkers
-        // (`prepare_executable_for_mb`, `ethexe check`) can resolve
-        // `transactions_hash` without tripping on `H256::zero`.
-        let transactions_hash = db.set_transactions(Transactions::default());
-        db.set_mb_compact_block(
-            mb_hash,
-            CompactMb {
-                parent: H256::zero(),
-                height: 0,
-                transactions_hash,
-            },
-        );
-        db.set_mb_program_states(mb_hash, program_states);
-        db.set_mb_schedule(mb_hash, schedule);
-        db.set_mb_outcome(mb_hash, Vec::new());
-        db.mutate_mb_meta(mb_hash, |m| {
-            m.computed = true;
-            m.last_advanced_eb = genesis_block.hash;
-        });
-        Some(mb_hash)
+        (program_states, schedule)
     } else {
-        None
+        (Default::default(), Default::default())
     };
+
+    // The malachite genesis block (height 1) is produced by the malachite
+    // service with `parent == H256::zero()`, so the zero hash is the ancestor
+    // of the genesis MB. Seed it as a *computed* MB carrying the genesis state
+    // (real for re-genesis, empty otherwise) so the compute pipeline reads it
+    // as the genesis MB's parent — exactly like any other parent MB. This is
+    // done in BOTH cases: a genesis block cannot be produced during init (only
+    // the malachite service makes MBs), so the genesis state must live under
+    // the zero ancestor that the service's height-1 block points to.
+    // `last_advanced_eb` is zero (pre-genesis: nothing advanced yet), matching
+    // the compute anchor fallback and the malachite-service zero handling.
+    let transactions_hash = db.set_transactions(Transactions::default());
+    db.set_mb_compact_block(
+        H256::zero(),
+        CompactMb {
+            parent: H256::zero(),
+            height: 0,
+            transactions_hash,
+        },
+    );
+    db.set_mb_program_states(H256::zero(), program_states);
+    db.set_mb_schedule(H256::zero(), schedule);
+    db.set_mb_outcome(H256::zero(), Vec::new());
+    db.mutate_mb_meta(H256::zero(), |m| {
+        m.computed = true;
+        m.last_advanced_eb = H256::zero();
+    });
 
     ethexe_common::setup_block_in_db(
         &db,
@@ -157,14 +165,15 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         max_validators: storage_view.maxValidators,
     };
 
-    // NOTE: start block could be changed later by fast-sync
-    let genesis_mb_hash = genesis_mb.unwrap_or(H256::zero());
+    // NOTE: start block could be changed later by fast-sync.
+    // The genesis state lives under the zero MB (ancestor of the malachite
+    // genesis block), so the latest computed/finalized MB at init is zero.
     let globals = ethexe_common::db::DBGlobals {
         start_block_hash: genesis_block.hash,
         latest_synced_eb: genesis_block,
         latest_prepared_eb_hash: genesis_block.hash,
-        latest_finalized_mb_hash: genesis_mb_hash,
-        latest_computed_mb_hash: genesis_mb_hash,
+        latest_finalized_mb_hash: H256::zero(),
+        latest_computed_mb_hash: H256::zero(),
     };
 
     db.kv.set_globals(globals);
@@ -225,7 +234,18 @@ async fn genesis_data_initialization(
         let db_clone = db.clone();
         code_processing_futures.push(async move {
             let Some((instrumented_code, code_metadata)) = process.await? else {
-                bail!("Genesis data contains invalid code {code_id}");
+                // Re-genesis can cross runtime versions: some old codes use a
+                // syscall/import set the current runtime cannot instrument.
+                // Mark such a code invalid and skip it instead of aborting the
+                // whole genesis — programs that depend on it won't execute, but
+                // the rest of the genesis state (and all still-valid programs)
+                // loads normally.
+                log::warn!(
+                    "Genesis data contains code {code_id} that the current runtime cannot \
+                     instrument; marking it invalid and skipping"
+                );
+                db_clone.set_code_valid(code_id, false);
+                return Ok::<_, anyhow::Error>(());
             };
 
             // Should not happen because we checked that code_bytes.len() == codes.len(),
