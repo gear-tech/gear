@@ -77,6 +77,9 @@ impl Mempool for EmptyMempool {
 ///   compute service's `prepare_block` pipeline; tests that don't
 ///   run that pipeline must seed it manually.
 fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
+    // The producer builds the genesis MB with `parent == H256::zero()`; seed
+    // that zero ancestor as a computed MB exactly as `initialize_empty_db` does.
+    ethexe_common::mock::seed_genesis_zero_mb(db);
     let mut chain = Vec::with_capacity(len);
     let mut parent = H256::zero();
     for i in 0..len {
