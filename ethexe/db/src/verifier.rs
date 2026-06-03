@@ -475,7 +475,7 @@ mod tests {
         let code_id = db.set_original_code(ORIGINAL_CODE);
         db.set_code_valid(code_id, true);
         db.set_instrumented_code(
-            ethexe_runtime_common::VERSION,
+            ethexe_runtime_common::RUNTIME_ID,
             code_id,
             InstrumentedCode::new(
                 vec![1, 2, 3, 4, 5],
