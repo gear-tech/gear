@@ -348,7 +348,7 @@ impl StateDump {
         }
 
         Ok(StateDump {
-            mb_hash,
+            metadata: mb_hash,
             block_hash,
             codes,
             programs,

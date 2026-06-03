@@ -22,8 +22,7 @@ use std::{
 /// at a given block.
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize)]
 pub struct StateDump {
-    /// Hash of the MB whose post-execution state was captured.
-    pub mb_hash: H256,
+    pub metadata: H256,
     /// Block hash for which this dump was created.
     pub block_hash: H256,
     /// Valid code ids. Code bytes are stored in `blobs` (keyed by CodeId in CAS).

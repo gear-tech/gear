@@ -95,9 +95,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     // Genesis program state + schedule: loaded from the state dump for
     // re-genesis, or empty for a fresh network.
     let (program_states, schedule) = if let Some(initializer) = config.genesis_initializer {
-        let (_dump_mb_hash, program_states, schedule) =
-            genesis_data_initialization(initializer, db, genesis_block).await?;
-        (program_states, schedule)
+        genesis_data_initialization(initializer, db, genesis_block).await?
     } else {
         (Default::default(), Default::default())
     };
@@ -186,11 +184,11 @@ async fn genesis_data_initialization(
     mut initializer: Box<dyn GenesisInitializer>,
     db: &RawDatabase,
     genesis_block: SimpleBlockData,
-) -> Result<(H256, ProgramStates, Schedule)> {
+) -> Result<(ProgramStates, Schedule)> {
     log::info!("Start genesis {genesis_block} data initialization...");
 
     let StateDump {
-        mb_hash,
+        metadata: _,
         block_hash,
         codes,
         programs,
@@ -205,7 +203,7 @@ async fn genesis_data_initialization(
     }
 
     log::info!(
-        "Genesis data for MB {mb_hash} and block {block_hash} \
+        "Genesis data for ethereum block {block_hash} \
          contains {} codes, {} programs, {} blobs",
         codes.len(),
         programs.len(),
@@ -295,5 +293,5 @@ async fn genesis_data_initialization(
 
     log::info!("Genesis data initialization completed");
 
-    Ok((mb_hash, program_states, schedule))
+    Ok((program_states, schedule))
 }

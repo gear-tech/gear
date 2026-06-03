@@ -289,7 +289,9 @@ pub fn eb_touched_programs(
     let mut known: HashSet<ActorId> = db
         .mb_program_states(latest_computed_mb)
         .ok_or_else(|| {
-            anyhow!("no program_states for latest_computed_mb_hash {latest_computed_mb} — DB invariant")
+            anyhow!(
+                "no program_states for latest_computed_mb_hash {latest_computed_mb} — DB invariant"
+            )
         })?
         .keys()
         .copied()
