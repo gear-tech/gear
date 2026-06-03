@@ -1050,7 +1050,11 @@ mod tests {
         let valid_bytes = payload(None, 1).encode();
         let mut payload = BlockPayload::new(valid_bytes).expect("within cap");
         payload.version = BLOCK_PAYLOAD_VERSION + 1;
-        assert!(!ext.validate_block_above(H256::zero(), payload).await.unwrap());
+        assert!(
+            !ext.validate_block_above(H256::zero(), payload)
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
@@ -1061,7 +1065,11 @@ mod tests {
         let mut bytes = payload(None, 1).encode();
         bytes.extend_from_slice(&[0u8; 16]);
         let payload = BlockPayload::new(bytes).expect("within cap");
-        assert!(!ext.validate_block_above(H256::zero(), payload).await.unwrap());
+        assert!(
+            !ext.validate_block_above(H256::zero(), payload)
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
