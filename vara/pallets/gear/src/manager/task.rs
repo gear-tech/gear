@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    Config, DispatchStashOf, Event, Pallet, QueueOf, manager::ExtManager, weights::WeightInfo,
+    Config, DispatchStashOf, Event, GasHandlerOf, Pallet, QueueOf, manager::ExtManager,
+    weights::WeightInfo,
 };
 use alloc::{format, string::ToString};
 use common::{
-    Gas, Origin,
+    Gas, Origin, ReservableTree,
     event::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
         UserMessageReadSystemReason,
@@ -113,11 +114,32 @@ where
                 unreachable!("{err_msg}");
             });
 
-        self.send_signal(
-            message_id,
-            waitlisted.destination(),
-            SignalCode::RemovedFromWaitlist,
-        );
+        match waitlisted.kind() {
+            // Signals cannot carry system reservations; suppress secondary signals.
+            DispatchKind::Signal => {}
+            DispatchKind::Init => {
+                if let Ok(reserved) = GasHandlerOf::<T>::get_system_reserve(message_id)
+                    && reserved != 0
+                {
+                    GasHandlerOf::<T>::system_unreserve(message_id).unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "TaskHandler::remove_from_waitlist: failed system unreserve. \
+                            Message id - {message_id}. Got error: {e:?}"
+                        );
+
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
+                    });
+                }
+            }
+            _ => {
+                self.send_signal(
+                    message_id,
+                    waitlisted.destination(),
+                    SignalCode::RemovedFromWaitlist,
+                );
+            }
+        }
 
         if !waitlisted.is_reply() && waitlisted.kind() != DispatchKind::Signal {
             // Trap explanation.

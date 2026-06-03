@@ -1,7 +1,57 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Runtime common implementation.
+//! # ethexe-runtime-common
+//!
+//! Shared `no_std` runtime types, traits, and message-queue processing logic for the ethexe execution
+//! layer. It is the portable core of Gear-on-Ethereum program execution: it dequeues and runs a
+//! program's pending dispatches within a block's gas budget and applies the resulting journal to
+//! program state.
+//!
+//! This crate does **not** contain the executable runtime WASM binary (`ethexe-runtime`), does not
+//! speak to Ethereum or the network, and has no Substrate pallets.
+//!
+//! ## Role in the stack
+//!
+//! `ethexe-runtime` is the primary consumer of [`process_queue`]: its `NativeRuntimeInterface`
+//! implements [`RuntimeInterface`] over WASM host functions and calls [`process_queue`] for each
+//! program. `ethexe-processor` drives the `ethexe-runtime` WASM binary, and `ethexe-compute`
+//! orchestrates which programs are scheduled. `ethexe-db` supplies the [`state::Storage`]
+//! implementation.
+//!
+//! ## Public API
+//!
+//! - [`process_queue`] / [`process_queue_with_report`] — Entry points: dequeue and execute a program's pending dispatches within
+//!   the gas budget, returning [`ProgramJournals`] and gas spent; the `_with_report` variant additionally returns a per-run
+//!   runtime queue report.
+//! - [`RuntimeInterface`] — Seam to the embedding environment; extends [`state::Storage`] with lazy-page init, randomness,
+//!   state-hash notification, and promise publishing. Associated `LazyPages: LazyPagesInterface`.
+//! - [`state::Storage`] — Content-addressed read/write of [`state::ProgramState`] and every state component (queues, waitlist,
+//!   dispatch stash, mailbox, memory pages, allocations).
+//! - [`ProcessQueueContext`] — SCALE-encoded input for one queue-processing run: program id, state root, queue type, instrumented
+//!   code, block info, promise policy.
+//! - [`TransitionController`] — Wraps `&Storage` + `&mut InBlockTransitions`; `update_state` reads a program's state, applies a
+//!   closure, writes it back, and records the new hash.
+//! - [`InBlockTransitions`] / [`FinalizedBlockTransitions`] / [`NonFinalTransition`] — Per-block accumulators of per-program
+//!   state-hash and queue-size changes.
+//! - [`JournalHandler`] / [`ScheduleHandler`] / [`ScheduleRestorer`] — Apply `core-processor` [`JournalNote`]s and scheduled
+//!   tasks as storage mutations.
+//! - [`ProgramJournals`] — Ordered journal output of a queue run.
+//! - [`pack_u32_to_i64`] / [`unpack_i64_to_u32`] — WASM FFI return-value packing helpers.
+//!
+//! Protocol limit constants ([`MAX_OUTGOING_MESSAGES_PER_EXECUTION`],
+//! [`MAX_OUTGOING_MESSAGES_PER_RUN`], [`MAX_CALL_REPLIES_PER_RUN`], etc.) and runtime version
+//! constants ([`VERSION`], [`RUNTIME_ID`]) are also exported.
+//!
+//! ## Invariants
+//!
+//! - Promise policy must be disabled for the canonical queue.
+//! - Uninitialized programs accept only `Init` or `Reply` dispatches; any other kind produces an
+//!   error reply.
+//! - Forbidden syscalls (reservations, signals, `Random`, `CreateProgram`, and all deprecated `*WGas`
+//!   variants) are blocked on every [`process_queue`] call.
+//! - [`TransitionController::update_state`] requires the program to be in the tracked set with a state
+//!   readable from storage.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 

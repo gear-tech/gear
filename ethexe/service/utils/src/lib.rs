@@ -1,6 +1,45 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+//! # ethexe-service-utils
+//!
+//! Async-runtime helpers that keep `tokio::select!`-style event loops clean when
+//! service branches are optional or conditionally present. No ethexe domain logic.
+//!
+//! It depends on no other ethexe crate. `ethexe-service` uses [`OptionFuture`] and
+//! [`OptionStreamNext`] to drive optional subsystems (consensus, network, RPC,
+//! Prometheus) in its main `select!` loop; `ethexe-network` uses [`task_local!`]
+//! for mutable per-task state in its database-sync handler.
+//!
+//! ## Public API
+//!
+//! - [`OptionFuture`] (sealed trait) — `.maybe()` on `Option<F: Future>`; a `None` stays pending forever
+//! - [`OptionStreamNext`] (sealed trait) — `.maybe_next()` / `.maybe_next_some()` on `&mut Option<S>` and
+//!   `&mut FuturesUnordered<F>`
+//! - [`Timer`] (struct) — named restartable timer carrying data `T`; `new` / `new_from_secs` / `new_from_millis`, `start` /
+//!   `stop` / `started`
+//! - [`LocalKey`] (struct) — mutable task-local; `scope` / `with_mut` / `poll_fn`
+//! - [`task_local!`] (macro) — declares a `static LocalKey<T>`, like `tokio::task_local!` but mutable
+//!
+//! Both traits are sealed: only the impls in this crate satisfy them. Calling
+//! `maybe_next` (not `maybe_next_some`) on a `&mut FuturesUnordered` panics by design.
+//!
+//! ## Usage
+//!
+//! ```rust,no_run
+//! use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _, Timer};
+//!
+//! // Optional services stay pending when absent; present ones yield events normally.
+//! tokio::select! {
+//!     event = consensus.maybe_next_some() => handle(event),
+//!     event = network.maybe_next_some()   => handle(event),
+//!     data  = &mut retry_timer            => retry(data),
+//! }
+//!
+//! // Timer: arm with data, await, rearm.
+//! let mut t: Timer<u32> = Timer::new_from_secs("retry", 5);
+//! t.start(42); // resolves to 42 after 5 s; pending again until start() is called
+//! ```
 #![allow(async_fn_in_trait)]
 
 use futures::{

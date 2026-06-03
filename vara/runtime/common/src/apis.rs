@@ -154,6 +154,17 @@ macro_rules! impl_runtime_apis_plus_common {
 					Gear::calculate_reply_for_handle(origin, destination, payload, gas_limit, value, allowance_multiplier)
 				}
 
+				fn calculate_reply_for_handle_result(
+					origin: H256,
+					destination: H256,
+					payload: Vec<u8>,
+					gas_limit: u64,
+					value: u128,
+					allowance_multiplier: u64,
+				) -> Result<pallet_gear::CalculateReplyForHandleResult, Vec<u8>> {
+					Gear::calculate_reply_for_handle_result(origin, destination, payload, gas_limit, value, allowance_multiplier)
+				}
+
 				fn calculate_gas_info(
 					account_id: H256,
 					kind: HandleKind,
