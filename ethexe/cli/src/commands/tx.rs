@@ -298,6 +298,15 @@ impl TxCommand {
 
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
+        if let TxSubcommand::SendMessage {
+            injected: true,
+            rpc_url: None,
+            ..
+        } = &self.command
+        {
+            bail!("`--rpc-url` is required when `--injected` is set");
+        }
+
         let ethereum = EthereumBuilder::default()
             .rpc_url(rpc.clone())
             .router_address(router_addr)
@@ -689,11 +698,7 @@ impl TxCommand {
 
                 create_abi_result?;
             }
-            TxSubcommand::Query {
-                rpc_url: _,
-                mirror,
-                json,
-            } => {
+            TxSubcommand::Query { mirror, json, .. } => {
                 // TODO: consider moving this out of tx subcommand
                 let query_result = (async || -> Result<MirrorState> {
                     let maybe_code_id = router
@@ -1013,7 +1018,7 @@ impl TxCommand {
                     // TODO: consider truncating long payloads in non-verbose mode and hexdump in verbose mode
                     let payload_hex = format!("0x{}", hex::encode(&payload.0));
                     let formatted_value = FormattedValue::<EthereumCurrency>::new(raw_value);
-                    if rpc_url.is_some() && injected {
+                    if injected {
                         eprintln!("Sending injected message to program:");
                     } else {
                         eprintln!("Sending message to program on Ethereum:");
@@ -1027,7 +1032,7 @@ impl TxCommand {
                     let mirror = api.mirror(mirror.into());
                     let actor_id = mirror.actor_id().to_address_lossy();
 
-                    if rpc_url.is_some() && injected {
+                    if injected {
                         let (message_id, reply_info) = if watch {
                             eprintln!("Waiting for reply (promise for injected transaction)...");
 
@@ -1037,6 +1042,11 @@ impl TxCommand {
                                 .with_context(
                                     || "failed to send injected transaction and wait for promise",
                                 )?;
+
+                            eprintln!("Message successfully sent:");
+                            eprintln!("  Message id: {message_id:?}");
+                            eprintln!();
+
                             let ReplyInfo {
                                 payload,
                                 value,
@@ -1072,15 +1082,14 @@ impl TxCommand {
                                 .send_message_injected(payload.0.clone(), raw_value)
                                 .await
                                 .with_context(|| "failed to send injected transaction")?;
+                            eprintln!("Message successfully sent:");
+                            eprintln!("  Message id: {message_id:?}");
+                            eprintln!();
                             eprintln!(
                                 "To wait for the reply, run this command with `--watch` flag"
                             );
                             (message_id, None)
                         };
-
-                        eprintln!("Message successfully sent:");
-                        eprintln!("  Message id: {message_id:?}");
-                        eprintln!();
 
                         Ok(SendMessageResult::Injected {
                             payload: SendMessagePayload {
