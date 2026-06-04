@@ -766,10 +766,9 @@ mod tests {
         signing::{MalachiteSigner, libp2p_peer_id, private_key_from_bytes},
         state::SharedValidatorSet,
         store::Store,
-        types::MAX_BLOCK_PAYLOAD_BYTES,
+        types::BlockPayload,
     };
     use async_trait::async_trait;
-    use gear_core::limited::LimitedVec;
     use malachitebft_app_channel::{
         ConsensusRequest, NetworkRequest,
         app::{events::TxEvent, streaming::StreamId},
@@ -778,8 +777,8 @@ mod tests {
     use tempfile::TempDir;
     use tokio::sync::mpsc;
 
-    fn test_payload() -> LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES> {
-        LimitedVec::default()
+    fn test_payload() -> BlockPayload {
+        BlockPayload::default()
     }
 
     struct NoopExt;
@@ -792,17 +791,10 @@ mod tests {
         async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Ok(())
         }
-        async fn build_block_above(
-            &self,
-            _: H256,
-        ) -> Result<LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>> {
+        async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
             Ok(test_payload())
         }
-        async fn validate_block_above(
-            &self,
-            _: H256,
-            _: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
-        ) -> Result<bool> {
+        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
             Ok(true)
         }
     }
@@ -982,17 +974,10 @@ mod tests {
         async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Err(anyhow!("application: finalize-side store write failed"))
         }
-        async fn build_block_above(
-            &self,
-            _: H256,
-        ) -> Result<LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>> {
+        async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
             Ok(test_payload())
         }
-        async fn validate_block_above(
-            &self,
-            _: H256,
-            _: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
-        ) -> Result<bool> {
+        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
             Ok(true)
         }
     }

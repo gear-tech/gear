@@ -371,7 +371,7 @@ impl MbStorageRO for RawDatabase {
             })
     }
 
-    fn transactions(&self, transactions_hash: H256) -> Option<Operations> {
+    fn operations(&self, transactions_hash: H256) -> Option<Operations> {
         self.cas.read(transactions_hash).map(|data| {
             Operations::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `Operations`")
@@ -422,8 +422,8 @@ impl MbStorageRW for RawDatabase {
             .put(&Key::MbCompactBlock(mb_hash).to_bytes(), compact.encode());
     }
 
-    fn set_transactions(&self, transactions: Operations) -> H256 {
-        self.cas.write(&transactions.encode())
+    fn set_operations(&self, operations: Operations) -> H256 {
+        self.cas.write(&operations.encode())
     }
 
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates) {
@@ -904,7 +904,7 @@ impl InjectedStorageRO for Database {
 impl MbStorageRO for Database {
     delegate!(to self.raw {
         fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb>;
-        fn transactions(&self, transactions_hash: H256) -> Option<Operations>;
+        fn operations(&self, transactions_hash: H256) -> Option<Operations>;
         fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
         fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
         fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
@@ -915,7 +915,7 @@ impl MbStorageRO for Database {
 impl MbStorageRW for Database {
     delegate!(to self.raw {
         fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb);
-        fn set_transactions(&self, transactions: Operations) -> H256;
+        fn set_operations(&self, operations: Operations) -> H256;
         fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
         fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
         fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);

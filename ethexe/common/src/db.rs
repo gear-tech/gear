@@ -130,7 +130,7 @@ pub trait InjectedStorageRW: InjectedStorageRO {
 }
 
 /// MB static identity. Keyed by the Blake2b envelope hash; existence implies
-/// the matching `Transactions` blob is in CAS at `transactions_hash`.
+/// the matching `Operations` blob is in CAS at `transactions_hash`.
 #[derive(
     Debug, Clone, Copy, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash, derive_more::Display,
 )]
@@ -157,7 +157,7 @@ pub trait MbStorageRO {
     /// CAS at `transactions_hash`.
     fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb>;
     /// Read the [`Operations`] blob from CAS by its content hash.
-    fn transactions(&self, transactions_hash: H256) -> Option<Operations>;
+    fn operations(&self, transactions_hash: H256) -> Option<Operations>;
     fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
     fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
     fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
@@ -169,7 +169,7 @@ pub trait MbStorageRW: MbStorageRO {
     fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb);
     /// Write an [`Operations`] blob into the CAS and return its hash
     /// (the value stored in [`CompactMb::transactions_hash`]).
-    fn set_transactions(&self, transactions: Operations) -> H256;
+    fn set_operations(&self, operations: Operations) -> H256;
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
     fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "61475410c7650ddc7bc62f0c0db1213ac316878e0a51af2dd46ca5edaf7596b4";
+            "2ac12362571e233bad9b8b3f48d6099eca24c7363f87bb9bedd2283b43916c67";
 
         let types = [
             meta_type::<BlockMeta>(),

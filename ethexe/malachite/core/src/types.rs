@@ -24,6 +24,9 @@ use std::fmt::Display;
 /// framing fit comfortably in the remaining margin).
 pub const MAX_BLOCK_PAYLOAD_BYTES: usize = 1024 * 1024;
 
+/// Size-capped opaque application payload carried by [`Block::payload`].
+pub type BlockPayload = LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>;
+
 /// 20-byte validator address.
 ///
 /// Newtype around [`gsigner::schemes::secp256k1::Address`] so the
@@ -71,17 +74,13 @@ impl Address {
 pub struct Block {
     pub parent_hash: H256,
     pub height: u64,
-    pub payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
+    pub payload: BlockPayload,
     pub reserved: [u8; 64],
 }
 
 impl Block {
     /// Construct a block with `reserved` zeroed out.
-    pub fn new(
-        parent_hash: H256,
-        height: u64,
-        payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
-    ) -> Self {
+    pub fn new(parent_hash: H256, height: u64, payload: BlockPayload) -> Self {
         Self {
             parent_hash,
             height,

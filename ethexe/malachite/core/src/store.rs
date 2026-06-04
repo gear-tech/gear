@@ -31,13 +31,12 @@
 use std::{path::Path, sync::Arc};
 
 use anyhow::{Context as _, Result, anyhow};
-use gear_core::limited::LimitedVec;
 use parity_scale_codec::{Decode, Encode};
 use rocksdb::{DB, Options, WriteBatch};
 
 use crate::{
     context::Height,
-    types::{Block, CommitCertificate, H256, MAX_BLOCK_PAYLOAD_BYTES},
+    types::{Block, BlockPayload, CommitCertificate, H256},
 };
 
 mod prefix {
@@ -58,7 +57,7 @@ pub(crate) struct BlockEntry {
     pub block_hash: H256,
     pub parent_hash: H256,
     pub height: u64,
-    pub payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
+    pub payload: BlockPayload,
     pub reserved: [u8; 64],
     pub saved: bool,
     pub finalized: bool,
@@ -648,7 +647,7 @@ mod tests {
             block_hash,
             parent_hash,
             height,
-            payload: LimitedVec::default(),
+            payload: BlockPayload::default(),
             reserved: [0u8; 64],
             saved: false,
             finalized: false,

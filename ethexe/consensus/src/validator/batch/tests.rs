@@ -59,13 +59,13 @@ fn mock_batch_manager(db: Database) -> BatchCommitmentManager {
 /// Append a single MB to the chain. Sets the meta as `computed=true`
 /// so the manager treats it as finalized state available for batching.
 fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransition>) -> H256 {
-    let txs = Operations::new(vec![
+    let ops = Operations::new(vec![
         Operation::AdvanceTillEthereumBlock {
             block_hash: H256::from_low_u64_be(0xEB00 + height),
         },
         Operation::ProcessQueues { gas_allowance: 0 },
     ]);
-    let transactions_hash = db.set_transactions(txs);
+    let ops_hash = db.set_operations(ops);
     // Synthetic mb_hash — uniqueness is what matters here.
     let mb_hash = H256::from_low_u64_be(0x1000 + height);
     db.set_mb_compact_block(
@@ -73,7 +73,7 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
         CompactMb {
             parent,
             height,
-            transactions_hash,
+            transactions_hash: ops_hash,
         },
     );
     db.set_mb_outcome(mb_hash, outcome);

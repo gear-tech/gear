@@ -5,15 +5,14 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use gear_core::limited::LimitedVec;
 
-use crate::types::{Block, CommitCertificate, H256, MAX_BLOCK_PAYLOAD_BYTES};
+use crate::types::{Block, BlockPayload, CommitCertificate, H256};
 
 /// Application-side callbacks the consensus service requires.
 ///
 /// The service is application-agnostic: it owns the BFT engine, the
 /// libp2p swarm, and the persistent BFT state. The opaque, size-capped
-/// payload byte string (`LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>`) is the only
+/// payload byte string ([`BlockPayload`]) is the only
 /// shape the application contributes to a [`Block`] — encoding and
 /// decoding of any application-level schema lives behind this trait.
 ///
@@ -71,10 +70,7 @@ pub trait Externalities: Send + Sync + 'static {
     ///
     /// `parent_hash == H256::zero()` is passed when building the
     /// genesis block.
-    async fn build_block_above(
-        &self,
-        parent_mb_hash: H256,
-    ) -> Result<LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>>;
+    async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload>;
 
     /// Application-side validation of an incoming proposal's
     /// **payload only**.
@@ -103,6 +99,6 @@ pub trait Externalities: Send + Sync + 'static {
     async fn validate_block_above(
         &self,
         parent_mb_hash: H256,
-        payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
+        payload: BlockPayload,
     ) -> Result<bool>;
 }

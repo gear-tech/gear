@@ -233,7 +233,7 @@ impl TxValidityChecker {
                 // the `Outdated` rule to keep things consistent.
                 break;
             };
-            let Some(transactions) = db.transactions(cb.transactions_hash) else {
+            let Some(transactions) = db.operations(cb.transactions_hash) else {
                 break;
             };
             for tx in transactions.into_iter() {
@@ -455,20 +455,20 @@ mod tests {
         executable_balance: u128,
         parent_mb: H256,
     ) -> H256 {
-        let txs = Operations::new(
+        let ops = Operations::new(
             injected_transactions
                 .into_iter()
                 .map(Operation::Injected)
                 .collect(),
         );
-        let transactions_hash = db.set_transactions(txs);
+        let ops_hash = db.set_operations(ops);
         let mb_hash = H256::random();
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent: parent_mb,
                 height: u64::MAX / 2,
-                transactions_hash,
+                transactions_hash: ops_hash,
             },
         );
 
@@ -731,13 +731,13 @@ mod tests {
 
         let mb_grand = setup_mb(&db, vec![], true, chain.mb_hash_at(8));
         let mb_parent = H256::random();
-        let transactions_hash = db.set_transactions(Operations::new(vec![]));
+        let ops_hash = db.set_operations(Operations::new(vec![]));
         db.set_mb_compact_block(
             mb_parent,
             CompactMb {
                 parent: mb_grand,
                 height: u64::MAX / 2 + 1,
-                transactions_hash,
+                transactions_hash: ops_hash,
             },
         );
         // mb_parent's mb_meta.computed stays false → checker walks past it.

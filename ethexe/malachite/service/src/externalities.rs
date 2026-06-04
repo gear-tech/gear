@@ -47,12 +47,11 @@ use async_trait::async_trait;
 use ethexe_common::{
     MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
-    gear_core::limited::LimitedVec,
     injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, SignedInjectedTransaction},
     malachite::{Operation, Operations},
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{Block, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
+use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
 use gprimitives::H256;
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{
@@ -147,16 +146,16 @@ impl Externalities for EthexeExternalities {
             })
             .unwrap_or(parent_advanced);
 
-        // CAS-store transactions first so the contract — "if
-        // CompactMb exists, transactions are reachable" — holds
+        // CAS-store operations first so the contract — "if
+        // CompactMb exists, operations are reachable" — holds
         // unconditionally.
-        let transactions_hash = self.db.set_transactions(payload.clone());
+        let ops_hash = self.db.set_operations(payload.clone());
         self.db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent,
                 height: mb.height,
-                transactions_hash,
+                transactions_hash: ops_hash,
             },
         );
         self.db.mutate_mb_meta(mb_hash, |meta| {
@@ -186,7 +185,7 @@ impl Externalities for EthexeExternalities {
         })?;
         let payload = self
             .db
-            .transactions(compact.transactions_hash)
+            .operations(compact.transactions_hash)
             .ok_or_else(|| {
                 anyhow!(
                     "mark_finalized: transactions blob {} missing for block {mb_hash}",
@@ -234,10 +233,7 @@ impl Externalities for EthexeExternalities {
         Ok(())
     }
 
-    async fn build_block_above(
-        &self,
-        parent_mb_hash: H256,
-    ) -> Result<LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>> {
+    async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload> {
         // `parent_hash` is the consensus envelope hash of the parent
         // (zero for genesis). Use it directly to seed the producer's
         // `last_advanced_eb` lookup.
@@ -372,16 +368,12 @@ impl Externalities for EthexeExternalities {
 
         let bytes = Operations::new(operations).encode();
         let len = bytes.len();
-        LimitedVec::try_from(bytes).map_err(|_| {
+        BlockPayload::try_from(bytes).map_err(|_| {
             anyhow!("built block payload exceeds {MAX_BLOCK_PAYLOAD_BYTES}-byte cap (got {len})")
         })
     }
 
-    async fn validate_block_above(
-        &self,
-        parent_hash: H256,
-        payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
-    ) -> Result<bool> {
+    async fn validate_block_above(&self, parent_hash: H256, payload: BlockPayload) -> Result<bool> {
         // Validation only ever runs on a fresh proposal (never on the sync
         // path), so it enforces the operations *this* build accepts. Decode
         // rejects any operation whose discriminant this build doesn't know —
@@ -756,8 +748,8 @@ mod tests {
         injected::PurgedTransaction,
     };
 
-    fn to_payload(bytes: Vec<u8>) -> LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES> {
-        LimitedVec::try_from(bytes).expect("test payload within size cap")
+    fn to_payload(bytes: Vec<u8>) -> BlockPayload {
+        BlockPayload::try_from(bytes).expect("test payload within size cap")
     }
 
     impl EthexeExternalities {
@@ -855,7 +847,7 @@ mod tests {
         assert_eq!(compact.height, 1);
         assert_eq!(compact.parent, H256::zero());
         let txs = db
-            .transactions(compact.transactions_hash)
+            .operations(compact.transactions_hash)
             .expect("transactions in CAS");
         assert_eq!(txs, p);
 
@@ -1298,14 +1290,14 @@ mod tests {
             ActiveProgram, MessageQueueHashWithSize, Program, ProgramState, Storage,
         };
 
-        let transactions_hash = db.set_transactions(Operations::new(vec![]));
+        let ops_hash = db.set_operations(Operations::new(vec![]));
         let mb_hash = H256::random();
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent: parent_mb,
                 height: u64::MAX / 2,
-                transactions_hash,
+                transactions_hash: ops_hash,
             },
         );
 
@@ -1874,13 +1866,13 @@ mod tests {
         // of chain[3], so the descendant check would reject — and that
         // is exactly what we want validators to do.
         let parent_mb = H256::from([0xCD; 32]);
-        let transactions_hash = db.set_transactions(Operations::new(vec![]));
+        let ops_hash = db.set_operations(Operations::new(vec![]));
         db.set_mb_compact_block(
             parent_mb,
             ethexe_common::db::CompactMb {
                 parent: H256::zero(),
                 height: 1,
-                transactions_hash,
+                transactions_hash: ops_hash,
             },
         );
         db.set_mb_program_states(parent_mb, ethexe_common::ProgramStates::default());

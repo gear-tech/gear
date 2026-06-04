@@ -135,7 +135,7 @@ impl std::fmt::Display for MalachiteEvent {
 #[allow(dead_code)]
 fn _api_shape(
     _ev: MalachiteEvent,
-    _block: Operations,
+    _ops: Operations,
     _cert: CommitCertificate,
     _cfg: MalachiteConfig,
     _tx: ethexe_common::injected::SignedInjectedTransaction,

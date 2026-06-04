@@ -225,7 +225,7 @@ pub fn prepare_executable_for_mb(
     } = compact_mb;
 
     let mb_payload = db
-        .transactions(transactions_hash)
+        .operations(transactions_hash)
         .ok_or(ComputeError::MbPayloadNotFound {
             mb_hash,
             payload_hash: transactions_hash,
@@ -463,9 +463,9 @@ mod tests {
     use gprimitives::{ActorId, CodeId, MessageId};
     use proptest::prelude::*;
 
-    fn dummy_txs(db: &Database, tag: u8) -> Operations {
+    fn dummy_ops(db: &Database, tag: u8) -> Operations {
         // Tag-derived AdvanceTillEthereumBlock makes each block's
-        // transaction list (and thus its CAS hash) unique across heights.
+        // operations list (and thus its CAS hash) unique across heights.
         // The referenced EB also needs a header in the DB so the
         // compute-side advance walk picks it up.
         let eth_block_hash = H256::from_low_u64_be(0xEB00 + tag as u64);
@@ -490,14 +490,14 @@ mod tests {
     }
 
     /// Mimics malachite `process_mb_proposal`: CAS write + `CompactMb`.
-    fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, txs: Operations) {
-        let transactions_hash = db.set_transactions(txs);
+    fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, ops: Operations) {
+        let ops_hash = db.set_operations(ops);
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent,
                 height,
-                transactions_hash,
+                transactions_hash: ops_hash,
             },
         );
     }
@@ -519,7 +519,7 @@ mod tests {
         let mut parent = H256::zero();
         for i in 1..=N {
             let mb_hash = H256::from_low_u64_be(0x1000 + i);
-            seed_mb(&db, mb_hash, parent, i, dummy_txs(&db, i as u8));
+            seed_mb(&db, mb_hash, parent, i, dummy_ops(&db, i as u8));
             hashes.push((i, mb_hash));
             parent = mb_hash;
         }
@@ -559,7 +559,7 @@ mod tests {
 
             for i in 1..=chain_len {
                 let mb_hash = H256::from_low_u64_be(0xB000 + i);
-                seed_mb(&db, mb_hash, parent, i, dummy_txs(&db, i as u8));
+                seed_mb(&db, mb_hash, parent, i, dummy_ops(&db, i as u8));
                 hashes.push(mb_hash);
                 parent = mb_hash;
             }
@@ -632,7 +632,7 @@ mod tests {
         let mut sub = ComputeSubService::new(db.clone(), processor);
 
         let mb_hash = H256::from_low_u64_be(0xCAFE);
-        seed_mb(&db, mb_hash, H256::zero(), 1, dummy_txs(&db, 0));
+        seed_mb(&db, mb_hash, H256::zero(), 1, dummy_ops(&db, 0));
         db.mutate_mb_meta(mb_hash, |meta| {
             meta.computed = true;
         });
@@ -759,28 +759,28 @@ mod tests {
             ],
         );
         let creator = H256::from_low_u64_be(0x1000);
-        let mut txs = vec![Operation::AdvanceTillEthereumBlock {
+        let mut ops = vec![Operation::AdvanceTillEthereumBlock {
             block_hash: create_eb,
         }];
-        txs.extend(mb_bookend());
-        seed_mb(db, creator, H256::zero(), 0, Operations::new(txs));
+        ops.extend(mb_bookend());
+        seed_mb(db, creator, H256::zero(), 0, Operations::new(ops));
         mb_hashes.push(creator);
 
         // MB #1.. — each injects a single PING into the ping program.
         for i in 1..=pinger_count {
             let eb = synthetic_eb(db, i as u8, vec![]);
             let mb_hash = H256::from_low_u64_be(0x1000 + i);
-            let mut txs = vec![
+            let mut ops = vec![
                 Operation::AdvanceTillEthereumBlock { block_hash: eb },
                 Operation::Injected(ping_injected(ping_id)),
             ];
-            txs.extend(mb_bookend());
+            ops.extend(mb_bookend());
             seed_mb(
                 db,
                 mb_hash,
                 *mb_hashes.last().unwrap(),
                 i,
-                Operations::new(txs),
+                Operations::new(ops),
             );
             mb_hashes.push(mb_hash);
         }

@@ -158,7 +158,7 @@ mod tests {
         );
         db.set_block_events(eth_block_hash, &[]);
 
-        let transactions_hash = db.set_transactions(Operations::new(vec![
+        let ops_hash = db.set_operations(Operations::new(vec![
             Operation::AdvanceTillEthereumBlock {
                 block_hash: eth_block_hash,
             },
@@ -171,7 +171,7 @@ mod tests {
             CompactMb {
                 parent: H256::zero(),
                 height: 1,
-                transactions_hash,
+                transactions_hash: ops_hash,
             },
         );
     }

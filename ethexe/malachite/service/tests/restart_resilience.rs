@@ -301,7 +301,7 @@ fn assert_chain_contiguous(db: &Database, head: H256, expected_height: u64) {
         // Transactions blob must be reachable too — that's the
         // contract behind CompactMb existence.
         assert!(
-            db.transactions(compact.transactions_hash).is_some(),
+            db.operations(compact.transactions_hash).is_some(),
             "missing transactions blob {} for MB {current}",
             compact.transactions_hash
         );
