@@ -42,7 +42,7 @@ use anyhow::{Context, Result, bail};
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
-    db::{GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
+    db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     injected::{CompactPromise, Receipt},
     network::VerifiedValidatorMessage,
 };
@@ -581,17 +581,6 @@ impl Service {
     pub async fn run(mut self) -> Result<()> {
         if self.fast_sync {
             fast_sync::sync(&mut self).await?;
-
-            let block_hash = self.db.globals().latest_prepared_eb_hash;
-            if !block_hash.is_zero() {
-                if let Some(malachite) = self.malachite.as_mut() {
-                    let block = self
-                        .db
-                        .block_simple_data(block_hash)
-                        .context("Cannot find fast-synced chain head")?;
-                    malachite.receive_new_chain_head(block);
-                }
-            }
         }
 
         self.run_inner().await.inspect_err(|err| {

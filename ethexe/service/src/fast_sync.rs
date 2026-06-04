@@ -181,21 +181,31 @@ enum RequestMetadata {
     Mailbox,
     UserMailbox,
     DispatchStash,
+    /// Any data we only insert into the database.
     Data,
 }
 
 impl RequestMetadata {
     fn is_data(self) -> bool {
-        matches!(self, Self::Data)
+        matches!(self, RequestMetadata::Data)
     }
 }
 
 #[derive(Debug)]
 struct RequestManager {
     db: Database,
+
+    /// Total completed requests
     total_completed_requests: u64,
+    /// Total pending requests
     total_pending_requests: u64,
+
+    /// Pending requests are either:
+    /// * Skipped if they are `RequestMetadata::Data` and exist in the database
+    /// * Completed if the database has keys
+    /// * Converted into one network request
     pending_requests: HashMap<H256, RequestMetadata>,
+    /// Completed requests
     responses: Vec<(RequestMetadata, Vec<u8>)>,
 }
 
@@ -211,7 +221,11 @@ impl RequestManager {
     }
 
     fn add(&mut self, hash: H256, metadata: RequestMetadata) {
-        debug_assert_ne!(hash, H256::zero(), "zero hash cannot be requested");
+        debug_assert_ne!(
+            hash,
+            H256::zero(),
+            "zero hash is cannot be requested from db or network"
+        );
 
         let old_metadata = self.pending_requests.insert(hash, metadata);
 
@@ -277,21 +291,20 @@ impl RequestManager {
                 .expect("unknown pending request");
 
             let db_hash = self.db.cas().write(&data);
-            ensure!(
-                hash == db_hash,
-                "bitswap returned data with unexpected hash"
-            );
+            debug_assert_eq!(hash, db_hash);
 
             self.responses.push((metadata, data));
         }
 
-        debug_assert!(
-            pending_network_requests.is_empty(),
-            "network service must gather all requested hashes"
+        debug_assert_eq!(
+            pending_network_requests,
+            HashMap::new(),
+            "network service guarantees it gathers all hashes"
         );
         Ok(())
     }
 
+    /// (total completed request, total pending requests)
     fn stats(&self) -> (u64, u64) {
         let completed = self.total_completed_requests;
         let pending = self.total_pending_requests;
@@ -357,9 +370,16 @@ impl Drop for RequestManager {
     fn drop(&mut self) {
         #[cfg(debug_assertions)]
         {
-            assert_eq!(self.total_completed_requests, self.total_pending_requests);
-            assert!(self.pending_requests.is_empty());
-            assert!(self.responses.is_empty());
+            let Self {
+                db: _,
+                total_completed_requests,
+                total_pending_requests,
+                pending_requests,
+                responses,
+            } = self;
+            assert_eq!(total_completed_requests, total_pending_requests);
+            assert_eq!(*pending_requests, HashMap::new());
+            assert_eq!(*responses, Vec::new());
         }
     }
 }
@@ -388,7 +408,6 @@ async fn sync_latest_mb(
     mb_hash: H256,
     code_ids: &BTreeSet<CodeId>,
     program_state_hashes: BTreeMap<ActorId, H256>,
-    block_height: u32,
 ) -> Result<ProgramStates> {
     restore_compact_mb(db, mb_hash);
 
@@ -489,14 +508,6 @@ async fn sync_latest_mb(
         })
         .collect();
 
-    let schedule = ScheduleRestorer::from_storage(db, &program_states, block_height)?.restore();
-    db.set_mb_program_states(mb_hash, program_states.clone());
-    db.set_mb_schedule(mb_hash, schedule);
-    // The committed fast-sync anchor is never replayed for batch creation, so
-    // keep queue-derived outcome invariants out of restoration and persist an
-    // empty row only to satisfy database walks over committed MB metadata.
-    db.set_mb_outcome(mb_hash, Default::default());
-
     Ok(program_states)
 }
 
@@ -515,7 +526,7 @@ async fn instrument_codes(
     for &code_id in &code_ids {
         let original_code = db
             .original_code(code_id)
-            .with_context(|| format!("code {code_id:?} was not fetched from the network"))?;
+            .expect("`sync_from_network` must fulfill database");
         compute.process_code(CodeAndIdUnchecked {
             code_id,
             code: original_code,
@@ -542,6 +553,7 @@ async fn set_tx_pool_data_requirement(
     let to = latest_committed_block_height as u64;
     let from = to.saturating_sub(injected::VALIDITY_WINDOW as u64);
 
+    // TODO: #4926 unsafe solution - we need it for taking events from predecessor blocks in ethexe-compute
     let blocks = block_loader.load_many(from..=to).await?;
     for BlockData {
         hash,
@@ -585,6 +597,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         observer,
         compute,
         network,
+        malachite,
         db,
         #[cfg(test)]
         sender,
@@ -667,13 +680,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         db.set_program_code_id(program_id, code_id);
     }
 
-    sync_latest_mb(
+    let program_states = sync_latest_mb(
         network,
         db,
         latest_committed_mb,
         &code_ids,
         program_state_hashes,
-        header.height,
     )
     .await?;
     db.mutate_mb_meta(latest_committed_mb, |meta| {
@@ -702,6 +714,14 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         },
     );
 
+    let schedule = ScheduleRestorer::from_storage(db, &program_states, header.height)?.restore();
+    db.set_mb_program_states(latest_committed_mb, program_states.clone());
+    db.set_mb_schedule(latest_committed_mb, schedule);
+    // The committed fast-sync anchor is never replayed for batch creation, so
+    // keep queue-derived outcome invariants out of restoration and persist an
+    // empty row only to satisfy database walks over committed MB metadata.
+    db.set_mb_outcome(latest_committed_mb, Default::default());
+
     db.globals_mutate(|globals| {
         globals.start_block_hash = block_hash;
         globals.latest_synced_eb = SimpleBlockData {
@@ -712,6 +732,15 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         globals.latest_finalized_mb_hash = latest_committed_mb;
         globals.latest_computed_mb_hash = latest_committed_mb;
     });
+
+    if !block_hash.is_zero()
+        && let Some(malachite) = malachite.as_mut()
+    {
+        malachite.receive_new_chain_head(SimpleBlockData {
+            hash: block_hash,
+            header,
+        });
+    }
 
     log::info!(
         "Fast synchronization done: synced to {block_hash:?}, height {:?}, MB {latest_committed_mb}",
