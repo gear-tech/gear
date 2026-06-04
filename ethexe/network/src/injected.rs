@@ -161,7 +161,7 @@ impl Behaviour {
         &mut self,
         identities: &ValidatorIdentities,
         transaction: SignedInjectedTransaction,
-    ) -> Result<usize, SendTransactionError> {
+    ) -> Result<NonZeroUsize, SendTransactionError> {
         let tx_hash = transaction.data().to_hash();
 
         if identities.is_empty() {
@@ -181,11 +181,12 @@ impl Behaviour {
         if recipients.is_empty() {
             return Err(SendTransactionError::TransactionAlreadySent);
         }
+        let recipients_len = NonZeroUsize::new(recipients.len()).expect("infallible");
 
-        if self.pending_requests.len() + recipients.len() > MAX_PENDING_REQUESTS.get() {
+        if self.pending_requests.len() + recipients_len.get() > MAX_PENDING_REQUESTS.get() {
             return Err(SendTransactionError::TooManyPendingRequests);
         }
-        let requests_num = recipients.len();
+
         for (recipient, identity) in recipients {
             let id = self.inner.send_request_with_addresses(
                 &identity.peer_id(),
@@ -199,7 +200,7 @@ impl Behaviour {
                 .put(*recipient, ());
         }
 
-        Ok(requests_num)
+        Ok(recipients_len)
     }
 
     fn handle_inner_event(

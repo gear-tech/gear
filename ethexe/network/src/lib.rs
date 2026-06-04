@@ -64,7 +64,10 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll, time::Duration};
+use std::{
+    collections::HashSet, fmt::Write, num::NonZeroUsize, pin::Pin, sync::Arc, task::Poll,
+    time::Duration,
+};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 /// Default listen port.
@@ -632,7 +635,7 @@ impl NetworkService {
     pub fn broadcast_injected_transaction(
         &mut self,
         transaction: SignedInjectedTransaction,
-    ) -> Result<usize, injected::SendTransactionError> {
+    ) -> Result<NonZeroUsize, injected::SendTransactionError> {
         let behaviour = self.swarm.behaviour_mut();
         behaviour
             .injected

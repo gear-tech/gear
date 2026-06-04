@@ -72,7 +72,7 @@ use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    num::NonZero,
+    num::{NonZero, NonZeroUsize},
     path::PathBuf,
     pin::Pin,
     time::Duration,
@@ -188,12 +188,12 @@ struct PendingNetworkInjectedTx {
 impl PendingNetworkInjectedTx {
     fn new(
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
-        pending_responses: usize,
+        pending_responses: NonZeroUsize,
         last_reject: Option<InjectedTransactionAcceptance>,
     ) -> Self {
         Self {
             response_senders: vec![response_sender],
-            pending_responses,
+            pending_responses: pending_responses.get(),
             last_reject,
         }
     }
@@ -205,18 +205,13 @@ impl PendingNetworkInjectedTx {
         match acceptance {
             InjectedTransactionAcceptance::Accept => Some(InjectedTransactionAcceptance::Accept),
             rejection @ InjectedTransactionAcceptance::Reject { .. } => {
-                self.pending_responses = self
-                    .pending_responses
-                    .checked_sub(1)
-                    .expect("pending response count must match network requests");
+                // Infallible because in case of `self.pending_responses == 0` returns `Some`.
+                self.pending_responses = self.pending_responses.checked_sub(1).expect("infallible");
                 self.last_reject = Some(rejection);
 
                 if self.pending_responses == 0 {
-                    Some(
-                        self.last_reject
-                            .take()
-                            .expect("last rejection is set after recording a rejection"),
-                    )
+                    // Infallible, because was received at least 1 rejection.
+                    Some(self.last_reject.take().expect("infallible"))
                 } else {
                     None
                 }
@@ -875,11 +870,13 @@ impl Service {
                                 transaction,
                                 channel,
                             } => {
-                                let acceptance = if let Some(m) = malachite.as_mut() {
-                                    m.receive_injected_transaction((*transaction).clone())
-                                        .into()
-                                } else {
-                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept
+                                let acceptance = match malachite.as_mut() {
+                                    Some(malachite) => malachite
+                                        .receive_injected_transaction(transaction.as_ref().clone())
+                                        .into(),
+                                    None => InjectedTransactionAcceptance::Reject {
+                                        reason: "no malachite service to handle transaction".into(),
+                                    },
                                 };
                                 let _ = channel.send(acceptance);
                             }
@@ -892,12 +889,12 @@ impl Service {
                                     .and_then(|pending| pending.record_response(acceptance));
 
                                 if let Some(final_acceptance) = final_acceptance
-                                    && let Some(mut pending) =
+                                    && let Some(pending) =
                                         network_injected_txs.remove(&transaction_hash)
                                 {
-                                    for response_sender in pending.response_senders.drain(..) {
-                                        let _res = response_sender.send(final_acceptance.clone());
-                                    }
+                                    pending.response_senders.into_iter().for_each(|sender| {
+                                        let _res = sender.send(final_acceptance.clone());
+                                    })
                                 }
                             }
                         },
