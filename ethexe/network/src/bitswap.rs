@@ -20,7 +20,7 @@ use beetswap::multihasher::{Multihasher, MultihasherError};
 use blockstore::{block::CidError, cond_send::CondSend};
 use cid::{Cid, CidGeneric};
 use ethexe_common::db::HashStorageRO;
-use futures::FutureExt;
+use futures::{FutureExt, Stream, stream::FuturesUnordered};
 use gprimitives::H256;
 use libp2p::{
     Multiaddr, PeerId,
@@ -87,6 +87,15 @@ impl Handle {
                 }
             }
         }
+    }
+
+    pub fn request_many<'a>(
+        &'a self,
+        iter: impl Iterator<Item = H256> + 'a,
+    ) -> impl Stream<Item = (H256, Vec<u8>)> + 'a {
+        FuturesUnordered::from_iter(
+            iter.map(|hash| self.request(hash).map(move |data| (hash, data))),
+        )
     }
 
     async fn inner_request(&self, request: H256) -> Vec<u8> {
