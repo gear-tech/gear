@@ -156,7 +156,7 @@ impl Behaviour {
     }
 
     /// Broadcasts [SignedInjectedTransaction] to all known validators.
-    /// Returns the number of sended requests.
+    /// Returns the number of sent requests.
     pub fn broadcast_transaction(
         &mut self,
         identities: &ValidatorIdentities,
