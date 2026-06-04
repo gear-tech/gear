@@ -941,6 +941,7 @@ impl Service {
                                         }
                                         if let Err(err) = response_sender.send(acceptance) {
                                             tracing::error!(
+                                                ?err,
                                                 "failed to send local acceptance to RPC service, RPC channel dropped"
                                             )
                                         }
@@ -972,6 +973,7 @@ impl Service {
 
                                                 if let Err(err) = response_sender.send(acceptance) {
                                                     tracing::error!(
+                                                        ?err,
                                                         "failed to send local acceptance to RPC service, RPC channel dropped"
                                                     );
                                                 }
