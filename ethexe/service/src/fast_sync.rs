@@ -40,7 +40,7 @@ use ethexe_runtime_common::{
         UserMailbox, Waitlist,
     },
 };
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::{
@@ -243,10 +243,19 @@ impl RequestManager {
         let pending_network_requests = self.handle_pending_requests();
 
         if !pending_network_requests.is_empty() {
-            let mut response = Vec::with_capacity(pending_network_requests.len());
-            for &hash in pending_network_requests.keys() {
-                response.push((hash, network.bitswap_fetch_hash(hash).await));
-            }
+            let bitswap_handle = network.bitswap_handle();
+            let mut request = pending_network_requests
+                .keys()
+                .map(|&hash| bitswap_handle.request(hash).map(move |data| (hash, data)))
+                .collect::<FuturesUnordered<_>>()
+                .collect::<Vec<_>>();
+
+            let response = loop {
+                tokio::select! {
+                    _ = network.select_next_some() => {},
+                    response = &mut request => break response,
+                }
+            };
 
             self.handle_response(pending_network_requests, response)?;
         }

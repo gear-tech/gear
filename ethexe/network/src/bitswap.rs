@@ -46,41 +46,6 @@ use tokio::{
 const BLAKE2B_CODE: u64 = 0xb220; // standard BLAKE2b multihash code
 const RAW_CODEC: u64 = 0x55; // standard CID raw codec
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum Request {
-    Hash(H256),
-}
-
-impl From<H256> for Request {
-    fn from(hash: H256) -> Self {
-        Self::Hash(hash)
-    }
-}
-
-impl Request {
-    fn into_cid(self) -> Cid {
-        let (codec, hash) = match self {
-            Request::Hash(hash) => (RAW_CODEC, hash),
-        };
-
-        Cid::new_v1(
-            codec,
-            Multihash::wrap(BLAKE2B_CODE, hash.as_bytes()).expect("size is always correct"),
-        )
-    }
-
-    fn into_response(self, data: Vec<u8>) -> Response {
-        match self {
-            Request::Hash(_) => Response::Hash(data),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
-pub enum Response {
-    Hash(Vec<u8>),
-}
-
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Config {
     /// Restart stalled requests after some time.
@@ -102,16 +67,14 @@ impl Config {
 
 #[derive(Clone)]
 pub struct Handle {
-    inner: mpsc::UnboundedSender<(Request, oneshot::Sender<Response>)>,
+    inner: mpsc::UnboundedSender<(H256, oneshot::Sender<Vec<u8>>)>,
     auto_retry: bool,
 }
 
 impl Handle {
     const RETRY_TIMEOUT: Duration = Duration::from_secs(5);
 
-    pub async fn request(&self, request: impl Into<Request>) -> Response {
-        let request = request.into();
-
+    pub async fn request(&self, request: H256) -> Vec<u8> {
         if !self.auto_retry {
             return self.inner_request(request).await;
         }
@@ -126,7 +89,7 @@ impl Handle {
         }
     }
 
-    async fn inner_request(&self, request: Request) -> Response {
+    async fn inner_request(&self, request: H256) -> Vec<u8> {
         let (tx, rx) = oneshot::channel();
 
         self.inner
@@ -255,8 +218,8 @@ type InnerBehaviour = beetswap::Behaviour<32, Blockstore>;
 pub struct Behaviour {
     inner: InnerBehaviour,
     handle: Handle,
-    rx: mpsc::UnboundedReceiver<(Request, oneshot::Sender<Response>)>,
-    requests: HashMap<beetswap::QueryId, (Request, oneshot::Sender<Response>)>,
+    rx: mpsc::UnboundedReceiver<(H256, oneshot::Sender<Vec<u8>>)>,
+    requests: HashMap<beetswap::QueryId, oneshot::Sender<Vec<u8>>>,
 }
 
 impl Behaviour {
@@ -283,12 +246,18 @@ impl Behaviour {
         self.handle.clone()
     }
 
+    fn create_cid(hash: H256) -> Cid {
+        Cid::new_v1(
+            RAW_CODEC,
+            Multihash::wrap(BLAKE2B_CODE, hash.as_bytes()).expect("size is always correct"),
+        )
+    }
+
     fn handle_inner_event(&mut self, event: beetswap::Event) {
         match event {
             beetswap::Event::GetQueryResponse { query_id, data } => {
-                if let Some((request, channel)) = self.requests.remove(&query_id) {
-                    let response = request.into_response(data);
-                    let _ = channel.send(response);
+                if let Some(channel) = self.requests.remove(&query_id) {
+                    let _ = channel.send(data);
                 }
             }
             beetswap::Event::GetQueryError { query_id, error } => {
@@ -379,7 +348,7 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        self.requests.retain(|&query_id, (_, channel)| {
+        self.requests.retain(|&query_id, channel| {
             if channel.is_closed() {
                 self.inner.cancel(query_id);
                 return false;
@@ -389,9 +358,9 @@ impl NetworkBehaviour for Behaviour {
         });
 
         while let Poll::Ready(Some((request, channel))) = self.rx.poll_recv(cx) {
-            let cid = request.into_cid();
+            let cid = Self::create_cid(request);
             let query_id = self.inner.get(&cid);
-            self.requests.insert(query_id, (request, channel));
+            self.requests.insert(query_id, channel);
         }
 
         if let Poll::Ready(to_swarm) = self.inner.poll(cx) {
@@ -433,21 +402,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn request_converts_to_expected_cid() {
-        let hash = H256::from([1; 32]);
-        let cid = Request::Hash(hash).into_cid();
-        assert_eq!(cid.codec(), RAW_CODEC);
-        assert_eq!(cid.hash().code(), BLAKE2B_CODE);
-        assert_eq!(cid.hash().digest(), hash.as_bytes());
-    }
-
     #[tokio::test]
     async fn blockstore_reads_raw_data() {
         let db = ethexe_db::Database::memory();
         let hash = db.cas().write(b"hello");
         let blockstore = Blockstore { db: Box::new(db) };
-        let cid = Request::Hash(hash).into_cid();
+        let cid = Behaviour::create_cid(hash);
 
         let data = blockstore.get(&cid).await.unwrap();
 
@@ -493,7 +453,7 @@ mod tests {
             .cas()
             .write(&vec![0; Blockstore::MAX_BLOCK_SIZE as usize + 1]);
         let blockstore = Blockstore { db: Box::new(db) };
-        let cid = Request::Hash(hash).into_cid();
+        let cid = Behaviour::create_cid(hash);
 
         let error = blockstore.get(&cid).await.unwrap_err();
 
@@ -505,7 +465,7 @@ mod tests {
         let blockstore = Blockstore {
             db: Box::new(PanickingDatabase),
         };
-        let cid = Request::Hash(H256::from([6; 32])).into_cid();
+        let cid = Behaviour::create_cid(H256::from([6; 32]));
 
         let error = blockstore.get(&cid).await.unwrap_err();
 
@@ -549,18 +509,16 @@ mod tests {
         let pending = tokio::spawn(async move { handle.request(hash).await });
 
         let (request, first_response) = rx.recv().await.unwrap();
-        assert_eq!(request, Request::Hash(hash));
+        assert_eq!(request, hash);
 
         time::advance(Handle::RETRY_TIMEOUT).await;
         let (request, second_response) = rx.recv().await.unwrap();
-        assert_eq!(request, Request::Hash(hash));
+        assert_eq!(request, hash);
         assert!(first_response.is_closed());
 
-        second_response
-            .send(Response::Hash(b"hello".to_vec()))
-            .unwrap();
+        second_response.send(b"hello".to_vec()).unwrap();
         let response = pending.await.unwrap();
 
-        assert_eq!(response, Response::Hash(b"hello".to_vec()));
+        assert_eq!(response, b"hello".to_vec());
     }
 }

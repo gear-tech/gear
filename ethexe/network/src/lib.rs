@@ -623,25 +623,6 @@ impl NetworkService {
         self.swarm.behaviour().bitswap.handle()
     }
 
-    async fn bitswap_request(&mut self, request: bitswap::Request) -> bitswap::Response {
-        let bitswap = self.bitswap_handle();
-        let fut = bitswap.request(request);
-        tokio::pin!(fut);
-
-        loop {
-            tokio::select! {
-                _ = self.select_next_some() => {},
-                response = &mut fut => break response,
-            }
-        }
-    }
-
-    pub async fn bitswap_fetch_hash(&mut self, hash: H256) -> Vec<u8> {
-        let bitswap::Response::Hash(data) =
-            self.bitswap_request(bitswap::Request::Hash(hash)).await;
-        data
-    }
-
     /// Refresh validator-era state after the chain head changes.
     ///
     /// This updates both validator-message verification and validator
@@ -968,13 +949,7 @@ mod tests {
         )
         .await
         .expect("time has elapsed");
-        assert_eq!(
-            response,
-            (
-                bitswap::Response::Hash(b"hello".to_vec()),
-                bitswap::Response::Hash(b"world".to_vec())
-            )
-        );
+        assert_eq!(response, (b"hello".to_vec(), b"world".to_vec()));
     }
 
     #[tokio::test]
@@ -998,7 +973,7 @@ mod tests {
         let response = timeout(Duration::from_secs(5), service1_handle.request(hello))
             .await
             .expect("time has elapsed");
-        assert_eq!(response, bitswap::Response::Hash(b"hello".to_vec()));
+        assert_eq!(response, b"hello".to_vec());
     }
 
     #[tokio::test]
