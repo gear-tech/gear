@@ -457,7 +457,6 @@ impl TestEnv {
             validator_config,
             rpc: service_rpc_config,
             fast_sync,
-            network_bootstrap_addresses: custom_network_bootstrap_addresses,
         } = config;
 
         let db = match db {
@@ -478,11 +477,6 @@ impl TestEnv {
                 (format!("/memory/{nonce}"), bootstrap_address.clone())
             })
             .unzip();
-        let network_bootstrap_addresses = if custom_network_bootstrap_addresses.is_empty() {
-            network_bootstrap_address.into_iter().collect()
-        } else {
-            custom_network_bootstrap_addresses
-        };
         let network_public_key = network_address.as_ref().map(|_| {
             self.signer
                 .generate()
@@ -521,7 +515,7 @@ impl TestEnv {
             validator_config,
             network_public_key,
             network_address,
-            network_bootstrap_addresses,
+            network_bootstrap_address,
             service_rpc_config,
             fast_sync,
             commitment_delay_limit: self.commitment_delay_limit,
@@ -919,8 +913,6 @@ pub struct NodeConfig {
     pub rpc: Option<RpcConfig>,
     /// Do P2P database synchronization before the main loop
     pub fast_sync: bool,
-    /// Override bootstrap peer address for tests that need a specific data-serving peer.
-    pub network_bootstrap_addresses: Vec<String>,
 }
 
 impl NodeConfig {
@@ -958,11 +950,6 @@ impl NodeConfig {
     #[allow(dead_code)]
     pub fn fast_sync(mut self) -> Self {
         self.fast_sync = true;
-        self
-    }
-
-    pub fn network_bootstrap_address(mut self, address: impl Into<String>) -> Self {
-        self.network_bootstrap_addresses.push(address.into());
         self
     }
 }
@@ -1032,7 +1019,7 @@ pub struct Node {
     validator_config: Option<ValidatorConfig>,
     network_public_key: Option<PublicKey>,
     network_address: Option<String>,
-    network_bootstrap_addresses: Vec<String>,
+    network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
     commitment_delay_limit: std::num::NonZero<u8>,
@@ -1236,7 +1223,7 @@ impl Node {
             .expect("failed to create blob loader")
             .into_box();
 
-        let wait_for_network = !self.network_bootstrap_addresses.is_empty();
+        let wait_for_network = self.network_bootstrap_address.is_some();
 
         let network = self.construct_network_service(latest_block, latest_validators);
         if let Some(addr) = self.network_address.as_ref() {
@@ -1389,11 +1376,9 @@ impl Node {
         let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
         config.listen_addresses = [multiaddr.clone()].into();
         config.external_addresses = [multiaddr.clone()].into();
-        config.bootstrap_addresses = self
-            .network_bootstrap_addresses
-            .iter()
-            .map(|addr| addr.parse().unwrap())
-            .collect();
+        if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
+            config.bootstrap_addresses = [bootstrap_addr.parse().unwrap()].into();
+        }
 
         let runtime_config = NetworkRuntimeConfig {
             latest_block_header: latest_block.header,
