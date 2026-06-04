@@ -125,7 +125,7 @@ pub enum SendTransactionError {
     TooManyPendingRequests,
     #[display("transaction already sent")]
     TransactionAlreadySent,
-    #[display("validator not found")]
+    #[display("no validators found")]
     NoValidatorsFound,
 }
 

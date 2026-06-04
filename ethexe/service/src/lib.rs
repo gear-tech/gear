@@ -871,9 +871,9 @@ impl Service {
                                 channel,
                             } => {
                                 let acceptance = match malachite.as_mut() {
-                                    Some(malachite) => malachite
-                                        .receive_injected_transaction(transaction.as_ref().clone())
-                                        .into(),
+                                    Some(malachite) => {
+                                        malachite.receive_injected_transaction(*transaction).into()
+                                    }
                                     None => InjectedTransactionAcceptance::Reject {
                                         reason: "no malachite service to handle transaction".into(),
                                     },
