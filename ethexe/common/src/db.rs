@@ -9,7 +9,7 @@ use crate::{
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
-    malachite::Transactions,
+    malachite::Operations,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -153,11 +153,11 @@ pub struct MbMeta {
 #[auto_impl::auto_impl(&, Box)]
 pub trait MbStorageRO {
     /// Static identity (parent + height + `transactions_hash`).
-    /// Existence implies the matching [`Transactions`] blob is in the
+    /// Existence implies the matching [`Operations`] blob is in the
     /// CAS at `transactions_hash`.
     fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb>;
-    /// Read the [`Transactions`] blob from CAS by its content hash.
-    fn transactions(&self, transactions_hash: H256) -> Option<Transactions>;
+    /// Read the [`Operations`] blob from CAS by its content hash.
+    fn transactions(&self, transactions_hash: H256) -> Option<Operations>;
     fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
     fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
     fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
@@ -167,9 +167,9 @@ pub trait MbStorageRO {
 #[auto_impl::auto_impl(&)]
 pub trait MbStorageRW: MbStorageRO {
     fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb);
-    /// Write a [`Transactions`] blob into the CAS and return its hash
+    /// Write an [`Operations`] blob into the CAS and return its hash
     /// (the value stored in [`CompactMb::transactions_hash`]).
-    fn set_transactions(&self, transactions: Transactions) -> H256;
+    fn set_transactions(&self, transactions: Operations) -> H256;
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
     fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
@@ -257,7 +257,7 @@ pub use mock_interfaces::{SetConfig, SetGlobals};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::malachite::{BlockPayload, Transactions};
+    use crate::malachite::Operations;
     use indoc::formatdoc;
     use scale_info::{PortableRegistry, Registry, meta_type};
     use sha3::{Digest, Sha3_256};
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "569dbae9e8ba495995e78991bf667ba5a36bd6c8292bc220a7b1dda86584c970";
+            "61475410c7650ddc7bc62f0c0db1213ac316878e0a51af2dd46ca5edaf7596b4";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -283,8 +283,10 @@ mod tests {
             meta_type::<Schedule>(),
             meta_type::<MbMeta>(),
             meta_type::<CompactMb>(),
-            meta_type::<BlockPayload>(),
-            meta_type::<Transactions>(),
+            // NOTE: `Operation` hand-rolls its `Encode`/`Decode` (fixed-width
+            // u32 tag), so this TypeInfo hash does NOT cover its wire format —
+            // the exact bytes are pinned by `malachite::tests::operation_encoding_is_frozen`.
+            meta_type::<Operations>(),
             meta_type::<DBConfig>(),
             meta_type::<DBGlobals>(),
         ];

@@ -464,19 +464,17 @@ mod tests {
     use ethexe_common::{
         Schedule,
         db::{CompactMb, MbStorageRW},
-        malachite::{ProcessQueuesLimits, Transaction, Transactions},
+        malachite::{Operation, Operations},
     };
     use ethexe_db::Database;
 
     /// Per-height unique CAS via `AdvanceTillEthereumBlock` salt.
-    fn empty_txs(height: u64) -> Transactions {
-        Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock {
+    fn empty_txs(height: u64) -> Operations {
+        Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock {
                 block_hash: H256::from_low_u64_be(0xEB00 + height),
             },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
-            },
+            Operation::ProcessQueues { gas_allowance: 0 },
         ])
     }
 

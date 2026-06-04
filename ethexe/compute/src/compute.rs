@@ -15,7 +15,7 @@ use ethexe_common::{
     db::{CodesStorageRW, CompactMb, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
     events::BlockRequestEvent,
     injected::Promise,
-    malachite::{Transaction, Transactions},
+    malachite::{Operation, Operations},
 };
 use ethexe_db::Database;
 use ethexe_processor::{BoundPromiseSink, ExecutableData};
@@ -252,14 +252,14 @@ pub fn prepare_executable_for_mb(
     )
 }
 
-/// Walk the MB's `Transactions` list and prepare processor input.
+/// Walk the MB's `Operations` list and prepare processor input.
 ///
 /// Synthetic block height/timestamp come from `last_advanced_eb` (the latest
 /// EB pinned by this MB or any ancestor); if none, fall back to the router's
 /// genesis block from [`ConfigStorageRO::config`].
 fn build_executable_data(
     db: &Database,
-    transactions: Transactions,
+    operations: Operations,
     program_states: ethexe_common::ProgramStates,
     schedule: ethexe_common::Schedule,
     initial_advanced_block: H256,
@@ -269,9 +269,9 @@ fn build_executable_data(
     let mut gas_allowance: Option<u64> = None;
     let mut current_anchor = initial_advanced_block;
 
-    for tx in transactions.0 {
-        match tx {
-            Transaction::AdvanceTillEthereumBlock { block_hash } => {
+    for op in operations.0 {
+        match op {
+            Operation::AdvanceTillEthereumBlock { block_hash } => {
                 let chain = collect_advance_chain(db, block_hash, current_anchor)?;
                 for hash in chain {
                     let block_events = db
@@ -283,13 +283,15 @@ fn build_executable_data(
                 }
                 current_anchor = block_hash;
             }
-            Transaction::Injected(signed) => {
+            Operation::Injected(signed) => {
                 let verified = signed.into_verified();
                 injected_transactions.push(verified);
             }
-            Transaction::ProgressTasks { limits: _ } => {}
-            Transaction::ProcessQueues { limits } => {
-                gas_allowance = Some(limits.gas_allowance);
+            Operation::ProgressTasks => {}
+            Operation::ProcessQueues {
+                gas_allowance: op_gas_allowance,
+            } => {
+                gas_allowance = Some(op_gas_allowance);
             }
         }
     }
@@ -453,7 +455,6 @@ mod tests {
             router::ProgramCreatedEvent,
         },
         injected::{InjectedTransaction, SignedInjectedTransaction},
-        malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
         mock::seed_genesis_zero_mb,
     };
     use ethexe_processor::{Processor, ValidCodeInfo};
@@ -462,7 +463,7 @@ mod tests {
     use gprimitives::{ActorId, CodeId, MessageId};
     use proptest::prelude::*;
 
-    fn dummy_txs(db: &Database, tag: u8) -> Transactions {
+    fn dummy_txs(db: &Database, tag: u8) -> Operations {
         // Tag-derived AdvanceTillEthereumBlock makes each block's
         // transaction list (and thus its CAS hash) unique across heights.
         // The referenced EB also needs a header in the DB so the
@@ -477,21 +478,19 @@ mod tests {
             },
         );
         db.set_block_events(eth_block_hash, &[]);
-        Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock {
+        Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock {
                 block_hash: eth_block_hash,
             },
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ])
     }
 
     /// Mimics malachite `process_mb_proposal`: CAS write + `CompactMb`.
-    fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, txs: Transactions) {
+    fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, txs: Operations) {
         let transactions_hash = db.set_transactions(txs);
         db.set_mb_compact_block(
             mb_hash,
@@ -707,15 +706,11 @@ mod tests {
         SignedMessage::create(PrivateKey::random(), tx).expect("failed to sign injected tx")
     }
 
-    fn mb_bookend() -> [Transaction; 2] {
+    fn mb_bookend() -> [Operation; 2] {
         [
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits {
-                    gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-                },
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]
     }
@@ -764,11 +759,11 @@ mod tests {
             ],
         );
         let creator = H256::from_low_u64_be(0x1000);
-        let mut txs = vec![Transaction::AdvanceTillEthereumBlock {
+        let mut txs = vec![Operation::AdvanceTillEthereumBlock {
             block_hash: create_eb,
         }];
         txs.extend(mb_bookend());
-        seed_mb(db, creator, H256::zero(), 0, Transactions::new(txs));
+        seed_mb(db, creator, H256::zero(), 0, Operations::new(txs));
         mb_hashes.push(creator);
 
         // MB #1.. — each injects a single PING into the ping program.
@@ -776,8 +771,8 @@ mod tests {
             let eb = synthetic_eb(db, i as u8, vec![]);
             let mb_hash = H256::from_low_u64_be(0x1000 + i);
             let mut txs = vec![
-                Transaction::AdvanceTillEthereumBlock { block_hash: eb },
-                Transaction::Injected(ping_injected(ping_id)),
+                Operation::AdvanceTillEthereumBlock { block_hash: eb },
+                Operation::Injected(ping_injected(ping_id)),
             ];
             txs.extend(mb_bookend());
             seed_mb(
@@ -785,7 +780,7 @@ mod tests {
                 mb_hash,
                 *mb_hashes.last().unwrap(),
                 i,
-                Transactions::new(txs),
+                Operations::new(txs),
             );
             mb_hashes.push(mb_hash);
         }

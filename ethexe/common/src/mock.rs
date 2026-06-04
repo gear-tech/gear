@@ -13,7 +13,7 @@ use crate::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
     },
     injected::{AddressedInjectedTransaction, InjectedTransaction, Promise},
-    malachite::Transactions,
+    malachite::Operations,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
@@ -584,7 +584,7 @@ pub struct MbFullData {
     /// SCALE-encoded transactions blob to write under this MB.
     /// Defaults to an empty list. Tests that need specific txs in the
     /// dedup-window walk (e.g. tx_validity::Duplicate) can set this.
-    pub transactions: Transactions,
+    pub transactions: Operations,
 }
 
 impl MbFullData {
@@ -644,7 +644,7 @@ pub fn seed_genesis_zero_mb<DB>(db: &DB)
 where
     DB: MbStorageRW,
 {
-    let transactions_hash = db.set_transactions(Transactions::new(vec![]));
+    let transactions_hash = db.set_transactions(Operations::new(vec![]));
     db.set_mb_compact_block(
         H256::zero(),
         CompactMb {
@@ -843,7 +843,7 @@ impl BlockChain {
                     parent: H256::zero(),
                     height: 0,
                     computed: None,
-                    transactions: Transactions::new(vec![]),
+                    transactions: Operations::new(vec![]),
                 });
                 continue;
             }
@@ -857,7 +857,7 @@ impl BlockChain {
                 parent: prev_mb_hash,
                 height: i as u64,
                 computed: Some(MockComputedMbData::default()),
-                transactions: Transactions::new(vec![]),
+                transactions: Operations::new(vec![]),
             });
             prev_mb_hash = hash;
         }

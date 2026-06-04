@@ -138,7 +138,7 @@ mod tests {
             BlockMetaStorageRO, CodesStorageRO, CompactMb, MbStorageRO, MbStorageRW,
             OnChainStorageRW,
         },
-        malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
+        malachite::{Operation, Operations},
         mock::{Tap, seed_genesis_zero_mb},
     };
     use ethexe_db::Database as DB;
@@ -158,16 +158,12 @@ mod tests {
         );
         db.set_block_events(eth_block_hash, &[]);
 
-        let transactions_hash = db.set_transactions(Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock {
+        let transactions_hash = db.set_transactions(Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock {
                 block_hash: eth_block_hash,
             },
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits { gas_allowance },
-            },
+            Operation::ProgressTasks,
+            Operation::ProcessQueues { gas_allowance },
         ]));
 
         db.set_mb_compact_block(

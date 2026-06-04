@@ -6,14 +6,14 @@
 //! world.
 //!
 //! Used on both producer and validator sides so a Malachite Block whose
-//! `Transaction::Injected(..)` payload would fail compute is rejected
+//! `Operation::Injected(..)` payload would fail compute is rejected
 //! before it commits.
 //!
 //! Differences from master's announce-era checker:
 //!
 //! - The recent-included dedup walk traverses `mb_compact_block(..).parent`
 //!   and decodes each MB's `transactions` blob (filtering for
-//!   [`Transaction::Injected`]) instead of reading
+//!   [`Operation::Injected`]) instead of reading
 //!   `announce.injected_transactions` directly.
 //! - `latest_states` is taken from the most-recent **computed** MB
 //!   ancestor via `mb_program_states`, walking back through
@@ -31,7 +31,7 @@ use ethexe_common::{
     events::{BlockRequestEvent, RouterRequestEvent, router::ProgramCreatedEvent},
     gear::INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
     injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
-    malachite::Transaction,
+    malachite::Operation,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -207,7 +207,7 @@ impl TxValidityChecker {
 
     /// Walk back `VALIDITY_WINDOW` MBs through `mb_compact_block(..).parent`,
     /// decoding each MB's transactions blob and harvesting the hashes
-    /// of every [`Transaction::Injected`] for the dedup set.
+    /// of every [`Operation::Injected`] for the dedup set.
     ///
     /// NOTE: Not bound to an instance — exposed `pub` so that
     /// `[`crate::EthexeExternalities`]` can build the dedup set
@@ -237,7 +237,7 @@ impl TxValidityChecker {
                 break;
             };
             for tx in transactions.into_iter() {
-                if let Transaction::Injected(signed) = tx {
+                if let Operation::Injected(signed) = tx {
                     txs.insert(signed.data().to_hash());
                 }
             }
@@ -364,7 +364,7 @@ mod tests {
         db::{CompactMb, MbStorageRW, OnChainStorageRW},
         gear_core::program::MemoryInfix,
         injected::InjectedTransaction,
-        malachite::Transactions,
+        malachite::Operations,
         mock::{BlockChain, Mock, Tap},
     };
     use ethexe_runtime_common::state::{
@@ -455,10 +455,10 @@ mod tests {
         executable_balance: u128,
         parent_mb: H256,
     ) -> H256 {
-        let txs = Transactions::new(
+        let txs = Operations::new(
             injected_transactions
                 .into_iter()
-                .map(Transaction::Injected)
+                .map(Operation::Injected)
                 .collect(),
         );
         let transactions_hash = db.set_transactions(txs);
@@ -731,7 +731,7 @@ mod tests {
 
         let mb_grand = setup_mb(&db, vec![], true, chain.mb_hash_at(8));
         let mb_parent = H256::random();
-        let transactions_hash = db.set_transactions(Transactions::new(vec![]));
+        let transactions_hash = db.set_transactions(Operations::new(vec![]));
         db.set_mb_compact_block(
             mb_parent,
             CompactMb {

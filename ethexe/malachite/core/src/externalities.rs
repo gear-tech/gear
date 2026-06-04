@@ -5,15 +5,15 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use ethexe_common::malachite::BlockPayload;
+use gear_core::limited::LimitedVec;
 
-use crate::types::{Block, CommitCertificate, H256};
+use crate::types::{Block, CommitCertificate, H256, MAX_BLOCK_PAYLOAD_BYTES};
 
 /// Application-side callbacks the consensus service requires.
 ///
 /// The service is application-agnostic: it owns the BFT engine, the
-/// libp2p swarm, and the persistent BFT state. The opaque
-/// [`BlockPayload`] (a versioned, size-capped byte string) is the only
+/// libp2p swarm, and the persistent BFT state. The opaque, size-capped
+/// payload byte string (`LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>`) is the only
 /// shape the application contributes to a [`Block`] — encoding and
 /// decoding of any application-level schema lives behind this trait.
 ///
@@ -41,14 +41,6 @@ use crate::types::{Block, CommitCertificate, H256};
 ///    genesis block).
 ///
 /// All methods are async; the service `await`s them inline.
-/// Returning `Err` from `process_mb_proposal` / `process_mb_finalized`
-/// is treated as a fatal application error: the failed block stays
-/// `saved=false` in the service's store and the service surfaces the
-/// error on its [`crate::MalachiteService`] stream. A subsequent
-/// `process_mb_finalized` for any descendant of that block will be
-/// gated by a debug-assert (the strict ordering invariant) — failure
-/// to handle the surfaced error therefore causes the consensus loop
-/// to abort, not to skip the missing callback silently.
 #[async_trait]
 pub trait Externalities: Send + Sync + 'static {
     /// Persist `block` indexed by `mb_hash`. Called exactly once
@@ -79,7 +71,10 @@ pub trait Externalities: Send + Sync + 'static {
     ///
     /// `parent_hash == H256::zero()` is passed when building the
     /// genesis block.
-    async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload>;
+    async fn build_block_above(
+        &self,
+        parent_mb_hash: H256,
+    ) -> Result<LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>>;
 
     /// Application-side validation of an incoming proposal's
     /// **payload only**.
@@ -92,11 +87,10 @@ pub trait Externalities: Send + Sync + 'static {
     /// signals the genesis block.
     ///
     /// Typical responsibilities:
-    /// - the payload bytes decode against the application's schema
-    ///   (at the version recorded in [`BlockPayload::version`]);
+    /// - the payload bytes decode against the application's schema;
     /// - the decoded content is well-formed against the application's
     ///   protocol invariants (gas budget, single anchor advance,
-    ///   transaction shape, etc.).
+    ///   operation shape, etc.).
     /// - Optionally a stronger proposer-authorization check on top
     ///   of malachite's validator set.
     ///
@@ -109,6 +103,6 @@ pub trait Externalities: Send + Sync + 'static {
     async fn validate_block_above(
         &self,
         parent_mb_hash: H256,
-        payload: BlockPayload,
+        payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
     ) -> Result<bool>;
 }

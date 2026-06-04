@@ -18,7 +18,7 @@
 //!   the way. Emits [`ComputeEvent::RequestLoadCodes`] and
 //!   [`ComputeEvent::BlockPrepared`].
 //! - `mb_compute` — executes a finalised Malachite block (computing
-//!   any missing ancestor MBs first) by walking its `Transactions`
+//!   any missing ancestor MBs first) by walking its `Operations`
 //!   list through `ethexe-processor`. Emits [`ComputeEvent::MbComputed`].
 //!
 //! ## Role in the stack
@@ -70,9 +70,9 @@
 //! uncomputed ancestor MBs have been executed. Compute walks the parent
 //! chain via [`ethexe_common::db::CompactMb::parent`] until it reaches
 //! a computed ancestor (or genesis), then runs the executor over the
-//! [`ethexe_common::malachite::Transactions`] payload of each. Per-step gas
-//! budget is carried inside each `Transaction::ProcessQueues` payload
-//! (see [`ethexe_common::malachite::ProcessQueuesLimits`]).
+//! [`ethexe_common::malachite::Operations`] payload of each. Per-step gas
+//! budget is carried inside each `Operation::ProcessQueues` payload
+//! (its `gas_allowance` field).
 //!
 //! ## Canonical event quarantine
 //!

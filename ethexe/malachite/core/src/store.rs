@@ -31,13 +31,13 @@
 use std::{path::Path, sync::Arc};
 
 use anyhow::{Context as _, Result, anyhow};
-use ethexe_common::malachite::BlockPayload;
+use gear_core::limited::LimitedVec;
 use parity_scale_codec::{Decode, Encode};
 use rocksdb::{DB, Options, WriteBatch};
 
 use crate::{
     context::Height,
-    types::{Block, CommitCertificate, H256},
+    types::{Block, CommitCertificate, H256, MAX_BLOCK_PAYLOAD_BYTES},
 };
 
 mod prefix {
@@ -58,7 +58,7 @@ pub(crate) struct BlockEntry {
     pub block_hash: H256,
     pub parent_hash: H256,
     pub height: u64,
-    pub payload: BlockPayload,
+    pub payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
     pub reserved: [u8; 64],
     pub saved: bool,
     pub finalized: bool,
@@ -629,7 +629,6 @@ fn encode_round(round: malachitebft_core_types::Round) -> [u8; 8] {
 mod tests {
     use super::*;
     use crate::types::{CommitCertificate, H256};
-    use ethexe_common::malachite::BlockPayload;
     use proptest::prelude::*;
     use std::sync::Mutex;
     use tempfile::TempDir;
@@ -649,7 +648,7 @@ mod tests {
             block_hash,
             parent_hash,
             height,
-            payload: BlockPayload::default(),
+            payload: LimitedVec::default(),
             reserved: [0u8; 64],
             saved: false,
             finalized: false,

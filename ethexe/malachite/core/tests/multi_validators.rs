@@ -35,19 +35,19 @@ fn init_tracing() {
 
 use anyhow::Result;
 use async_trait::async_trait;
-use ethexe_common::malachite::BlockPayload;
 use ethexe_malachite_core::{
-    Block, CommitCertificate, Externalities, H256, MalachiteConfig, MalachiteService, Multiaddr,
-    NodeRole, ValidatorEntry, libp2p_peer_id,
+    Block, CommitCertificate, Externalities, H256, MAX_BLOCK_PAYLOAD_BYTES, MalachiteConfig,
+    MalachiteService, Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
 };
+use gear_core::limited::LimitedVec;
 use proptest::prelude::*;
 use tempfile::TempDir;
 use tokio::time::sleep;
 
-fn test_payload() -> BlockPayload {
-    // Empty bytes at version 0 — content is irrelevant; the contract
-    // checks below key off block hashes and chain shape, not bytes.
-    BlockPayload::default()
+fn test_payload() -> LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES> {
+    // Empty bytes — content is irrelevant; the contract checks below
+    // key off block hashes and chain shape, not bytes.
+    LimitedVec::default()
 }
 
 // --------------------------------------------------------------------
@@ -168,7 +168,10 @@ impl Externalities for TestExt {
         Ok(())
     }
 
-    async fn build_block_above(&self, parent_hash: H256) -> Result<BlockPayload> {
+    async fn build_block_above(
+        &self,
+        parent_hash: H256,
+    ) -> Result<LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>> {
         let mut s = self.state.lock().unwrap();
         if let Some(last_fin) = s.finalized.last().copied()
             && parent_hash != last_fin
@@ -184,7 +187,7 @@ impl Externalities for TestExt {
     async fn validate_block_above(
         &self,
         parent_hash: H256,
-        _payload: BlockPayload,
+        _payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
     ) -> Result<bool> {
         let mut s = self.state.lock().unwrap();
         if let Some(last_fin) = s.finalized.last().copied()

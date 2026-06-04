@@ -12,7 +12,7 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{CodesStorageRO, CodesStorageRW, CompactMb, MbStorageRW, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
-    malachite::Transactions,
+    malachite::Operations,
 };
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_runtime_common::{RUNTIME_ID, ScheduleRestorer, state::Storage};
@@ -111,7 +111,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     // `last_advanced_eb` is zero (pre-genesis: nothing advanced yet), matching
     // the compute anchor fallback and the malachite-service zero handling.
     let genesis_parent_mb_hash = H256::zero();
-    let transactions_hash = db.set_transactions(Transactions::default());
+    let transactions_hash = db.set_transactions(Operations::default());
     db.set_mb_compact_block(
         genesis_parent_mb_hash,
         CompactMb {

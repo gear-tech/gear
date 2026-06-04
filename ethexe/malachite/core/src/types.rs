@@ -3,11 +3,26 @@
 
 //! Core public types for [`crate::MalachiteService`].
 
-use ethexe_common::malachite::BlockPayload;
+use gear_core::limited::LimitedVec;
 pub use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+
+/// Hard cap on a block's encoded application payload — the SCALE-encoded
+/// application operation list carried in [`Block::payload`] (the service treats
+/// it as opaque bytes; the schema lives in the application crate).
+///
+/// The whole [`Block`] ships as a single gossipsub message: the proposer
+/// streams it as one `Data` proposal part, and the value-sync path fetches a
+/// finalized block in one request-response round. Malachite's `pubsub_max_size`
+/// (the gossipsub `max_transmit_size`) defaults to 4 MiB, so the encoded block
+/// must stay well under that. Realistic content is ~127 KiB
+/// (`MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB` plus three protocol operations); the
+/// 1 MiB cap leaves ~8x headroom for future operation variants while staying
+/// ~4x under the 4 MiB transport ceiling (block envelope + SCALE / stream
+/// framing fit comfortably in the remaining margin).
+pub const MAX_BLOCK_PAYLOAD_BYTES: usize = 1024 * 1024;
 
 /// 20-byte validator address.
 ///
@@ -56,13 +71,17 @@ impl Address {
 pub struct Block {
     pub parent_hash: H256,
     pub height: u64,
-    pub payload: BlockPayload,
+    pub payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
     pub reserved: [u8; 64],
 }
 
 impl Block {
     /// Construct a block with `reserved` zeroed out.
-    pub fn new(parent_hash: H256, height: u64, payload: BlockPayload) -> Self {
+    pub fn new(
+        parent_hash: H256,
+        height: u64,
+        payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
+    ) -> Self {
         Self {
             parent_hash,
             height,

@@ -16,7 +16,7 @@ use ethexe_common::{
     consensus::BatchCommitmentValidationRequest,
     db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRW, MbStorageRW, SetConfig},
     gear::StateTransition,
-    malachite::{ProcessQueuesLimits, Transaction, Transactions},
+    malachite::{Operation, Operations},
     mock::*,
 };
 use ethexe_db::Database;
@@ -59,13 +59,11 @@ fn mock_batch_manager(db: Database) -> BatchCommitmentManager {
 /// Append a single MB to the chain. Sets the meta as `computed=true`
 /// so the manager treats it as finalized state available for batching.
 fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransition>) -> H256 {
-    let txs = Transactions::new(vec![
-        Transaction::AdvanceTillEthereumBlock {
+    let txs = Operations::new(vec![
+        Operation::AdvanceTillEthereumBlock {
             block_hash: H256::from_low_u64_be(0xEB00 + height),
         },
-        Transaction::ProcessQueues {
-            limits: ProcessQueuesLimits::default(),
-        },
+        Operation::ProcessQueues { gas_allowance: 0 },
     ]);
     let transactions_hash = db.set_transactions(txs);
     // Synthetic mb_hash — uniqueness is what matters here.

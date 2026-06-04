@@ -13,12 +13,12 @@
 //! of the ethexe stack. Block delivery happens exclusively through async
 //! [`Externalities`] callbacks.
 //!
-//! - [`ethexe_common::malachite::BlockPayload`] — versioned, size-capped
-//!   opaque byte string the application produces and consumes. The
-//!   service wraps it into [`Block`] (adds `parent_hash`, `height`,
-//!   `reserved`) and computes the canonical [`H256`] block hash via
-//!   Blake2b-256; schema interpretation lives entirely in the
-//!   application.
+//! - Block payload — a size-capped opaque byte string
+//!   (`LimitedVec<u8, `[`MAX_BLOCK_PAYLOAD_BYTES`]`>`) the application
+//!   produces and consumes. The service wraps it into [`Block`] (adds
+//!   `parent_hash`, `height`, `reserved`) and computes the canonical
+//!   [`H256`] block hash via Blake2b-256; schema interpretation lives
+//!   entirely in the application.
 //! - [`Externalities`] — async callbacks the service invokes to
 //!   process proposals, mark them finalized, build new ones (when
 //!   proposer), and validate incoming proposals. These callbacks are
@@ -50,7 +50,7 @@
 //! - [`MalachiteService`] — Running service; owns the swarm and store. Implements `Stream<Item = anyhow::Error>` and
 //!   [`MService`]. `update_validators` rotates the active validator set, taking effect at the next height boundary.
 //! - [`MService`] — Supertrait bound implemented by [`MalachiteService`].
-//! - [`Block`] — Service-level block envelope: `{ parent_hash: H256, height: u64, payload: BlockPayload, reserved: [u8; 64] }`.
+//! - [`Block`] — Service-level block envelope: `{ parent_hash: H256, height: u64, payload: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>, reserved: [u8; 64] }`.
 //! - [`ValidatorEntry`] — Validator set member: `public_key` + `voting_power`, used in [`MalachiteConfig`] and
 //!   `update_validators`.
 //! - [`MalachiteConfig`] — Node configuration: validator secret, validator set, `persistent_peers`, propose timeout,
@@ -97,7 +97,7 @@ pub use crate::{
         libp2p_keypair_from, libp2p_peer_id, private_key_from_bytes, private_key_from_gsigner,
         public_key_from_gsigner,
     },
-    types::{Address, Block, CommitCertificate, H256},
+    types::{Address, Block, CommitCertificate, H256, MAX_BLOCK_PAYLOAD_BYTES},
 };
 
 /// Re-exported libp2p PeerId — used by integration tests / operators

@@ -55,7 +55,7 @@ use malachitebft_app_channel::{
 use malachitebft_core_types::Height as _;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::RangeInclusive, sync::Arc};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// Max allowed distance into the future for pending proposal parts.
 const FUTURE_HEIGHT_WINDOW: u64 = 4;
@@ -369,6 +369,7 @@ where
             info!("re-using previously built value");
             return Ok(p);
         }
+
         // Compute parent_hash from our finalized height-1 record.
         // `H256::zero()` for genesis.
         let parent_hash = if height.as_u64() <= 1 {
@@ -384,27 +385,23 @@ where
                     )
                 })?
         };
+
         let build_fut = self.externalities.build_block_above(parent_hash);
-        let payload = match tokio::time::timeout(self.state.propose_timeout, build_fut).await {
-            Ok(Ok(p)) => p,
-            Ok(Err(e)) => return Err(anyhow!("Externalities::build_block_above failed: {e:?}")),
-            Err(_) => {
-                warn!(
-                    propose_timeout = ?self.state.propose_timeout,
-                    "Externalities::build_block_above timed out"
-                );
-                return Err(anyhow!("Externalities::build_block_above timed out"));
-            }
-        };
+        let payload = tokio::time::timeout(self.state.propose_timeout, build_fut)
+            .await
+            .context("block proposal timeout elapsed")?
+            .context("Proposal block building failed")?;
         let block = Block::new(parent_hash, height.as_u64(), payload);
         let block_bytes = block.encode();
         let locally = self
             .state
             .build_locally_proposed_value(height, round, block_bytes)?;
+
         // Hook process_mb_proposal at proposal-assembly time on the
         // proposer side. cascade_save guarantees ancestor-first
         // ordering against the application.
         self.record_assembled_block(block).await?;
+
         Ok(locally)
     }
 
@@ -769,9 +766,10 @@ mod tests {
         signing::{MalachiteSigner, libp2p_peer_id, private_key_from_bytes},
         state::SharedValidatorSet,
         store::Store,
+        types::MAX_BLOCK_PAYLOAD_BYTES,
     };
     use async_trait::async_trait;
-    use ethexe_common::malachite::BlockPayload;
+    use gear_core::limited::LimitedVec;
     use malachitebft_app_channel::{
         ConsensusRequest, NetworkRequest,
         app::{events::TxEvent, streaming::StreamId},
@@ -780,8 +778,8 @@ mod tests {
     use tempfile::TempDir;
     use tokio::sync::mpsc;
 
-    fn test_payload() -> BlockPayload {
-        BlockPayload::default()
+    fn test_payload() -> LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES> {
+        LimitedVec::default()
     }
 
     struct NoopExt;
@@ -794,10 +792,17 @@ mod tests {
         async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Ok(())
         }
-        async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
+        async fn build_block_above(
+            &self,
+            _: H256,
+        ) -> Result<LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>> {
             Ok(test_payload())
         }
-        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
+        async fn validate_block_above(
+            &self,
+            _: H256,
+            _: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
+        ) -> Result<bool> {
             Ok(true)
         }
     }
@@ -977,10 +982,17 @@ mod tests {
         async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Err(anyhow!("application: finalize-side store write failed"))
         }
-        async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
+        async fn build_block_above(
+            &self,
+            _: H256,
+        ) -> Result<LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>> {
             Ok(test_payload())
         }
-        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
+        async fn validate_block_above(
+            &self,
+            _: H256,
+            _: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
+        ) -> Result<bool> {
             Ok(true)
         }
     }
