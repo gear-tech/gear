@@ -46,6 +46,7 @@ impl RunCommand {
         crate::enable_logging(default)?;
 
         let mut anvil_instance = None;
+        let mut dev_validator_pub_key = None;
         let is_dev_node = self.params.node.as_ref().map(|n| n.dev).unwrap_or_default();
 
         if let Some(node) = self.params.node.as_mut()
@@ -89,6 +90,7 @@ impl RunCommand {
             self.params.rpc.get_or_insert_with(Default::default);
 
             anvil_instance = Some(anvil);
+            dev_validator_pub_key = Some(validator_public_key);
         }
 
         let config = {
@@ -99,6 +101,13 @@ impl RunCommand {
 
             if is_dev_node && let Some(rpc_config) = config.rpc.as_mut() {
                 rpc_config.with_dev_api = true
+            }
+            if let Some(pub_key) = dev_validator_pub_key {
+                config
+                    .malachite
+                    .validator_pub_keys
+                    .entry(pub_key.to_address())
+                    .or_insert(pub_key);
             }
             config
         };
