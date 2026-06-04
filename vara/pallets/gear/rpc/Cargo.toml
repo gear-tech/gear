@@ -11,6 +11,7 @@ repository.workspace = true
 futures.workspace = true
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
 log.workspace = true
+parity-scale-codec.workspace = true
 serde = { workspace = true, features = ["derive"] }
 sc-client-api.workspace = true
 sc-rpc.workspace = true
