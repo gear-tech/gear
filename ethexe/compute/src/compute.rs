@@ -231,18 +231,17 @@ pub fn prepare_executable_for_mb(
             payload_hash: transactions_hash,
         })?;
 
-    let (program_states, schedule, initial_advanced_block) = if parent.is_zero() {
-        // Genesis MB has no parent, so start with empty states and the router's genesis block as the anchor.
-        (Default::default(), Default::default(), H256::zero())
-    } else {
-        let states = db
-            .mb_program_states(parent)
-            .ok_or(ComputeError::ParentMbStatesMissing(parent))?;
-        let schedule = db
-            .mb_schedule(parent)
-            .ok_or(ComputeError::ParentMbScheduleMissing(parent))?;
-        (states, schedule, db.mb_meta(parent).last_advanced_eb)
-    };
+    // Read the parent MB's computed state from the DB. The genesis MB's parent
+    // is the zero MB seeded by `initialize_empty_db` (carrying the genesis /
+    // re-genesis state); it is a normal computed record like any other parent,
+    // so no special-casing of the zero parent is needed here.
+    let program_states = db
+        .mb_program_states(parent)
+        .ok_or(ComputeError::ParentMbStatesMissing(parent))?;
+    let schedule = db
+        .mb_schedule(parent)
+        .ok_or(ComputeError::ParentMbScheduleMissing(parent))?;
+    let initial_advanced_block = db.mb_meta(parent).last_advanced_eb;
 
     build_executable_data(
         db,
@@ -455,6 +454,7 @@ mod tests {
         },
         injected::{InjectedTransaction, SignedInjectedTransaction},
         malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
+        mock::seed_genesis_zero_mb,
     };
     use ethexe_processor::{Processor, ValidCodeInfo};
     use ethexe_runtime_common::RUNTIME_ID;
@@ -510,6 +510,7 @@ mod tests {
         gear_utils::init_default_logger();
 
         let db = Database::memory();
+        seed_genesis_zero_mb(&db);
         let processor = MockProcessor::default();
         let mut sub = ComputeSubService::new(db.clone(), processor);
 
@@ -800,6 +801,7 @@ mod tests {
         pinger_count: u64,
     ) -> (Vec<H256>, Vec<(H256, Promise)>) {
         let db = Database::memory();
+        seed_genesis_zero_mb(&db);
         let mut processor = Processor::new(db.clone()).expect("failed to create processor");
         let mb_hashes = build_ping_mb_chain(&db, &mut processor, pinger_count).await;
 

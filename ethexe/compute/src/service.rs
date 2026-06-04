@@ -139,7 +139,7 @@ mod tests {
             OnChainStorageRW,
         },
         malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
-        mock::Tap,
+        mock::{Tap, seed_genesis_zero_mb},
     };
     use ethexe_db::Database as DB;
     use gear_core::ids::prelude::CodeIdExt;
@@ -208,6 +208,7 @@ mod tests {
 
             run_async_test(async move {
                 let db = DB::memory();
+                seed_genesis_zero_mb(&db);
                 let mut service = ComputeService::new_mock_processor(db.clone());
                 let mb_hash = H256::from_low_u64_be(0xCAFE);
 

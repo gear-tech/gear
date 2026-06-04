@@ -1020,6 +1020,9 @@ mod tests {
         // canonical_quarantine = 0 in `make_externalities`, so any
         // ancestor of `head` in the local DB clears quarantine.
         let db = Database::memory();
+        // The advance walk resolves the genesis MB's parent (the zero hash);
+        // seed it as a computed ancestor exactly as `initialize_empty_db` does.
+        ethexe_common::mock::seed_genesis_zero_mb(&db);
         let chain_hashes = {
             let mut hashes = Vec::with_capacity(3);
             let mut parent = H256::zero();

@@ -582,6 +582,34 @@ impl BlockChain {
     }
 }
 
+/// Seed the zero MB as a computed genesis ancestor, mirroring
+/// `initialize_empty_db`. The malachite genesis block (height 1) points at
+/// the zero hash as its parent, and the compute / tx-validity pipelines read
+/// that parent as a normal computed record — empty `program_states` and
+/// `schedule`, `computed = true`, `last_advanced_eb = zero`. Every test DB
+/// that exercises those pipelines must carry it.
+pub fn seed_genesis_zero_mb<DB>(db: &DB)
+where
+    DB: MbStorageRW,
+{
+    let transactions_hash = db.set_transactions(Transactions::new(vec![]));
+    db.set_mb_compact_block(
+        H256::zero(),
+        CompactMb {
+            parent: H256::zero(),
+            height: 0,
+            transactions_hash,
+        },
+    );
+    db.set_mb_program_states(H256::zero(), Default::default());
+    db.set_mb_schedule(H256::zero(), Default::default());
+    db.set_mb_outcome(H256::zero(), Vec::new());
+    db.mutate_mb_meta(H256::zero(), |m| {
+        m.computed = true;
+        m.last_advanced_eb = H256::zero();
+    });
+}
+
 impl BlockChain {
     #[track_caller]
     pub fn setup<DB>(self, db: &DB) -> Self
@@ -604,6 +632,10 @@ impl BlockChain {
 
         db.set_config(config.clone());
         db.set_globals(globals);
+
+        // The zero MB is the genesis block's parent; seed it as a computed
+        // ancestor exactly as `initialize_empty_db` does in production.
+        seed_genesis_zero_mb(db);
 
         // Write MB rows in chronological order. Skip the index-0
         // sentinel (zero hash). Empty-transactions MBs share one CAS

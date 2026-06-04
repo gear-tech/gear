@@ -89,10 +89,10 @@ pub struct TxValidityChecker {
 
 impl TxValidityChecker {
     /// Build a checker for an MB whose parent on the consensus chain is
-    /// `parent_mb_hash`. Genesis maps `parent_mb_hash == H256::zero()`,
-    /// in which case `latest_states` is empty and every injected tx will
-    /// resolve to [`TxValidity::UnknownDestination`] — which is the
-    /// correct outcome, since no program has been initialised yet.
+    /// `parent_mb_hash`. Genesis maps `parent_mb_hash == H256::zero()`; the
+    /// zero MB is seeded as a computed ancestor by `initialize_empty_db`
+    /// (empty for a fresh network, the dump state for re-genesis), so its
+    /// `program_states` is read like any other computed snapshot.
     pub fn new_for_mb(
         db: Database,
         chain_head: SimpleBlockData,
@@ -111,13 +111,11 @@ impl TxValidityChecker {
             cursor = cb.parent;
         }
 
-        let latest_states = if cursor.is_zero() {
-            ProgramStates::default()
-        } else {
-            db.mb_program_states(cursor).ok_or_else(|| {
-                anyhow!("MB {cursor} marked computed but has no program_states row — DB invariant")
-            })?
-        };
+        // `cursor` is either a computed MB or the zero ancestor; both carry a
+        // seeded `program_states` row (zero is seeded by `initialize_empty_db`).
+        let latest_states = db.mb_program_states(cursor).ok_or_else(|| {
+            anyhow!("MB {cursor} marked computed but has no program_states row — DB invariant")
+        })?;
 
         let recent_included_txs = Self::collect_recent_included_txs(&db, parent_mb_hash)?;
         let start_block_hash = db.globals().start_block_hash;
@@ -284,20 +282,20 @@ pub fn eb_touched_programs(
         return Ok(HashSet::new());
     }
 
+    // `latest_computed_mb_hash` is the zero ancestor at genesis, which
+    // `initialize_empty_db` seeds with the genesis / re-genesis program states
+    // (so under re-genesis it already lists the dump's programs as known).
     let latest_computed_mb = db.globals().latest_computed_mb_hash;
-    let mut known: HashSet<ActorId> = if latest_computed_mb.is_zero() {
-        HashSet::new()
-    } else {
-        db.mb_program_states(latest_computed_mb)
-            .ok_or_else(|| {
-                anyhow!(
-                    "no program_states for latest_computed_mb_hash {latest_computed_mb} — DB invariant"
-                )
-            })?
-            .keys()
-            .copied()
-            .collect()
-    };
+    let mut known: HashSet<ActorId> = db
+        .mb_program_states(latest_computed_mb)
+        .ok_or_else(|| {
+            anyhow!(
+                "no program_states for latest_computed_mb_hash {latest_computed_mb} — DB invariant"
+            )
+        })?
+        .keys()
+        .copied()
+        .collect();
 
     // Collect blocks in (last_advanced_eb, advanced_eb], newest-first.
     //
