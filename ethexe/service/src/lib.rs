@@ -31,7 +31,10 @@
 //! internal [`Event`] flow and allow waiting for startup, block sync,
 //! MB processing, network activity, and RPC requests.
 
-use crate::config::{Config, ConfigPublicKey};
+use crate::{
+    config::{Config, ConfigPublicKey},
+    pending_tx::PendingNetworkInjectedTx,
+};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
@@ -72,7 +75,7 @@ use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    num::{NonZero, NonZeroUsize},
+    num::NonZero,
     path::PathBuf,
     pin::Pin,
     time::Duration,
@@ -82,6 +85,7 @@ use tokio::sync::oneshot;
 pub mod config;
 
 mod fast_sync;
+mod pending_tx;
 #[cfg(test)]
 mod tests;
 
@@ -177,47 +181,6 @@ pub struct Service {
 
     #[cfg(test)]
     sender: tests::utils::TestingEventSender,
-}
-
-struct PendingNetworkInjectedTx {
-    response_senders: Vec<oneshot::Sender<InjectedTransactionAcceptance>>,
-    pending_responses: usize,
-    last_reject: Option<InjectedTransactionAcceptance>,
-}
-
-impl PendingNetworkInjectedTx {
-    fn new(
-        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
-        pending_responses: NonZeroUsize,
-        last_reject: Option<InjectedTransactionAcceptance>,
-    ) -> Self {
-        Self {
-            response_senders: vec![response_sender],
-            pending_responses: pending_responses.get(),
-            last_reject,
-        }
-    }
-
-    fn record_response(
-        &mut self,
-        acceptance: InjectedTransactionAcceptance,
-    ) -> Option<InjectedTransactionAcceptance> {
-        match acceptance {
-            InjectedTransactionAcceptance::Accept => Some(InjectedTransactionAcceptance::Accept),
-            rejection @ InjectedTransactionAcceptance::Reject { .. } => {
-                // Infallible because in case of `self.pending_responses == 0` returns `Some`.
-                self.pending_responses = self.pending_responses.checked_sub(1).expect("infallible");
-                self.last_reject = Some(rejection);
-
-                if self.pending_responses == 0 {
-                    // Infallible, because was received at least 1 rejection.
-                    Some(self.last_reject.take().expect("infallible"))
-                } else {
-                    None
-                }
-            }
-        }
-    }
 }
 
 impl Service {
@@ -892,9 +855,9 @@ impl Service {
                                     && let Some(pending) =
                                         network_injected_txs.remove(&transaction_hash)
                                 {
-                                    pending.response_senders.into_iter().for_each(|sender| {
+                                    for sender in pending.into_response_senders() {
                                         let _res = sender.send(final_acceptance.clone());
-                                    })
+                                    }
                                 }
                             }
                         },
@@ -949,7 +912,7 @@ impl Service {
                                         if let Some(pending) =
                                             network_injected_txs.get_mut(&tx_hash)
                                         {
-                                            pending.response_senders.push(response_sender);
+                                            pending.add_response_sender(response_sender);
                                             continue;
                                         }
 
