@@ -6,7 +6,7 @@ use alloc::string::{String, ToString};
 use core::hash::Hash;
 use ferveo_tdec::{
     Result as TdecResult,
-    bls12_381::{Ciphertext, DkgPublicKey},
+    bls12_381::{Ciphertext, DkgPublicKey, SharedSecret},
     rand_traits::Rng,
 };
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
@@ -139,13 +139,18 @@ impl InjectedTransaction {
         public_key: &DkgPublicKey,
         rng: &mut impl Rng,
     ) -> TdecResult<ShieldedTransaction> {
-        let shielded_fields = (self.destination, self.payload, self.value);
-        // TODO: FIXME
-        let aad = [0u8; 32];
+        let shielded_fields = ShieldedFields {
+            destination: self.destination,
+            payload: self.payload,
+            value: self.value,
+        };
+        // AAD is a keccak256 hash over shielded fields
+        let aad = shielded_fields.to_digest().0;
         let ciphertext = ferveo_tdec::encrypt(&shielded_fields, &aad, public_key, rng)?;
 
         Ok(ShieldedTransaction {
             ciphertext,
+            aad,
             reference_block: self.reference_block,
             salt: self.salt,
         })
@@ -393,28 +398,56 @@ impl TransactionPurgedReason {
     }
 }
 
-type ShieldedFields = (ActorId, LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>, u128);
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
+pub struct ShieldedFields {
+    pub(crate) destination: ActorId,
+    pub(crate) value: u128,
+    pub(crate) payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
+}
 
-// #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+impl ToDigest for ShieldedFields {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            destination,
+            value,
+            payload,
+        } = &self;
+        hasher.update(destination);
+        hasher.update(value.to_be_bytes());
+        hasher.update(payload);
+    }
+}
+
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 // #[cfg_attr(feature = "serde", derive(Hash))]
-// #[derive(Debug, Clone, Encode, Decode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+// #[derive(Debug, Clone, PartialEq, Eq, MaxEncodedLen, TypeInfo, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct ShieldedTransaction {
     /// Encrypted fields of initial [InjectedTransaction].
     pub ciphertext: Ciphertext<ShieldedFields>,
+    pub aad: [u8; 32],
     /// Reference block number.
     pub reference_block: H256,
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
-    // #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
     pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
 }
 
 impl ShieldedTransaction {
-    pub fn unshield(&self) {
-        let shared_secret = ferveo_tdec::
-        let v = ferveo_tdec::decrypt(&self.ciphertext, aad, shared_secret);
+    /// Decrypts [Ciphertext] with provided [SharedSecret].
+    /// Returns initial [InjectedTransaction].
+    pub fn unshield(self, shared_secret: &SharedSecret) -> TdecResult<InjectedTransaction> {
+        let unshielded_fields = ferveo_tdec::decrypt(&self.ciphertext, &self.aad, shared_secret)?;
+
+        Ok(InjectedTransaction {
+            destination: unshielded_fields.destination,
+            payload: unshielded_fields.payload,
+            value: unshielded_fields.value,
+            reference_block: self.reference_block,
+            salt: self.salt,
+        })
     }
 }
 

@@ -6290,7 +6290,7 @@ dependencies = [
 [[package]]
 name = "ferveo-nucypher-common"
 version = "0.4.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=chore%2Fbetter-use-in-ethexe#1f00d41e5aa7aa536b956fc5863a0462a9b7e188"
+source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=minor-fixed-tdec#8438972f412b01258142c646c1b7d3c84d3e46ee"
 dependencies = [
  "ark-ec 0.6.0",
  "ark-serialize 0.6.0",
@@ -6305,7 +6305,7 @@ dependencies = [
 [[package]]
 name = "ferveo-nucypher-tdec"
 version = "0.4.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=chore%2Fbetter-use-in-ethexe#1f00d41e5aa7aa536b956fc5863a0462a9b7e188"
+source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=minor-fixed-tdec#8438972f412b01258142c646c1b7d3c84d3e46ee"
 dependencies = [
  "ark-bls12-381 0.6.0",
  "ark-ec 0.6.0",
@@ -6319,7 +6319,6 @@ dependencies = [
  "itertools 0.10.5",
  "parity-scale-codec",
  "rand 0.8.5",
- "rand_core 0.6.4",
  "serde",
  "serde_bytes",
  "sha2 0.10.9",
@@ -19006,7 +19005,7 @@ dependencies = [
 [[package]]
 name = "subproductdomain-nucypher"
 version = "0.4.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=chore%2Fbetter-use-in-ethexe#1f00d41e5aa7aa536b956fc5863a0462a9b7e188"
+source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=minor-fixed-tdec#8438972f412b01258142c646c1b7d3c84d3e46ee"
 dependencies = [
  "anyhow",
  "ark-ec 0.6.0",
