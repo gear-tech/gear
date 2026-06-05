@@ -8,6 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+gear-workspace-hack.workspace = true
 gstd.workspace = true
 
 [build-dependencies]
@@ -19,6 +20,3 @@ wasm-wrapper = []
 std = ["wasm-wrapper"]
 default = ["std"]
 ethexe = ["gstd/ethexe"]
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-gear-workspace-hack.workspace = true

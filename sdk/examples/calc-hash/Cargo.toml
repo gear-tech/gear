@@ -8,10 +8,8 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+gear-workspace-hack.workspace = true
 parity-scale-codec.workspace = true
 sha2.workspace = true
 
 [build-dependencies]
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-gear-workspace-hack.workspace = true

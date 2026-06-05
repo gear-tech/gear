@@ -124,7 +124,7 @@ impl context::SupervisorContextDispatcher for RuntimeInterfaceDispatchContext<'_
             .expect("dispatch_thunk_idx should be a funcref")
             .expect("dispatch_thunk_idx should point to actual func");
 
-        let mut ret_vals = [Val::I64(0)];
+        let mut ret_vals = [Val::FuncRef(None)];
         let result = dispatch_thunk.call(
             &mut *self.context.caller,
             &[

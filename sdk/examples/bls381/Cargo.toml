@@ -8,6 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+gear-workspace-hack.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
 gstd = { workspace = true, features = ["debug"] }
 gbuiltin-bls381.workspace = true
@@ -19,6 +20,3 @@ gear-wasm-builder.workspace = true
 [features]
 default = ["std"]
 std = ["parity-scale-codec/std"]
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-gear-workspace-hack.workspace = true

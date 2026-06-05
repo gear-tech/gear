@@ -26,6 +26,7 @@ fn remove_local_path_patches(patch: &mut Table) {
             return true;
         };
 
+        entries.remove("gear-workspace-hack");
         entries.retain(|_, dependency| {
             dependency
                 .as_table()
@@ -220,9 +221,6 @@ impl WasmProject {
         self.features = Some(features.keys().cloned().collect());
 
         let mut patch = crate_info.patch.clone();
-        if let Some(crates_io) = patch.get_mut("crates-io").and_then(|v| v.as_table_mut()) {
-            crates_io.remove("gear-workspace-hack");
-        }
         remove_local_path_patches(&mut patch);
 
         let mut cargo_toml = Table::new();
