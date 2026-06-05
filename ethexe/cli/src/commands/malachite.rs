@@ -12,10 +12,8 @@
 use crate::params::Params;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use ethexe_sdk::{
-    malachite::malachite_libp2p_peer_id,
-    signer::secp256k1::{PublicKey, Signer},
-};
+use ethexe_malachite::malachite_libp2p_peer_id;
+use ethexe_sdk::signer::secp256k1::{PublicKey, Signer};
 use std::path::PathBuf;
 
 /// Malachite-specific helper commands.

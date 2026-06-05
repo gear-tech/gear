@@ -9,7 +9,7 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use ethexe_sdk::service::config::Config;
+use ethexe_service::config::Config;
 use serde::Deserialize;
 use std::path::PathBuf;
 

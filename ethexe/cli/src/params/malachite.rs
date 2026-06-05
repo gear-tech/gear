@@ -10,11 +10,9 @@
 use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
-use ethexe_sdk::{
-    malachite::{MalachiteConfig, Multiaddr},
-    service::config::MalachiteCliConfig,
-    signer::secp256k1::{Address, PublicKey},
-};
+use ethexe_malachite::{MalachiteConfig, Multiaddr};
+use ethexe_sdk::signer::secp256k1::{Address, PublicKey};
+use ethexe_service::config::MalachiteCliConfig;
 use serde::Deserialize;
 use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf};
 

@@ -16,7 +16,14 @@ name = "ethexe"
 path = "src/main.rs"
 
 [dependencies]
-ethexe-sdk = { workspace = true, features = ["operator"] }
+ethexe-compute.workspace = true
+ethexe-network.workspace = true
+ethexe-malachite.workspace = true
+ethexe-prometheus.workspace = true
+ethexe-rpc = { workspace = true, features = ["client"] }
+ethexe-sdk.workspace = true
+ethexe-service.workspace = true
+ethexe-processor.workspace = true
 anyhow.workspace = true
 alloy-chains.workspace = true
 clap = { workspace = true, features = ["derive"] }

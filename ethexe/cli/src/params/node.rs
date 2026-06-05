@@ -7,16 +7,14 @@ use super::MergeParams;
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use directories::ProjectDirs;
-use ethexe_sdk::{
-    common::{
-        DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_COMMITMENT_DELAY_LIMIT,
-        consensus::{DEFAULT_BATCH_SIZE_LIMIT, MAX_BATCH_SIZE_LIMIT},
-        gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
-    },
-    malachite::MalachiteConfig,
-    processor::DEFAULT_CHUNK_SIZE,
-    service::config::{ConfigPublicKey, NodeConfig},
+use ethexe_malachite::MalachiteConfig;
+use ethexe_processor::DEFAULT_CHUNK_SIZE;
+use ethexe_sdk::common::{
+    DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_COMMITMENT_DELAY_LIMIT,
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, MAX_BATCH_SIZE_LIMIT},
+    gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
 };
+use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
 use tempfile::TempDir;

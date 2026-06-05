@@ -9,7 +9,7 @@ use crate::{
 };
 use anyhow::{Context as _, Result};
 use clap::Args;
-use ethexe_sdk::service::Service;
+use ethexe_service::Service;
 use std::time::Duration;
 use tokio::runtime::Builder;
 

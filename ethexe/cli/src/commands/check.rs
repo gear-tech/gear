@@ -6,12 +6,13 @@
 use crate::params::{MergeParams, Params};
 use anyhow::{Context, Result, anyhow, ensure};
 use clap::Parser;
+use ethexe_compute::prepare_executable_for_mb;
+use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_sdk::{
     common::{
         SimpleBlockData,
         db::{DBGlobals, GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
     },
-    compute::prepare_executable_for_mb,
     db::{
         self, Database, InitConfig, RawDatabase, RocksDatabase,
         iterator::{BlockNode, DatabaseIterator},
@@ -19,7 +20,6 @@ use ethexe_sdk::{
         visitor::{self},
     },
     primitives::H256,
-    processor::{Processor, ProcessorConfig},
     runtime_common::FinalizedBlockTransitions,
 };
 use indicatif::{ProgressBar, ProgressStyle};

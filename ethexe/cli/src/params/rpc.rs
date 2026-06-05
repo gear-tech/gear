@@ -5,10 +5,8 @@
 
 use super::MergeParams;
 use clap::Parser;
-use ethexe_sdk::{
-    rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig},
-    service::config::NodeConfig,
-};
+use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
+use ethexe_service::config::NodeConfig;
 use serde::Deserialize;
 use std::{
     net::{Ipv4Addr, SocketAddr},

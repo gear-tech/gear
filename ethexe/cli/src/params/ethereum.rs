@@ -11,8 +11,8 @@ use ethexe_sdk::{
     DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE as SDK_DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE,
     DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI as SDK_DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI,
     DEFAULT_ETHEREUM_RPC as SDK_DEFAULT_ETHEREUM_RPC, common::Address,
-    service::config::EthereumConfig,
 };
+use ethexe_service::config::EthereumConfig;
 use serde::Deserialize;
 use std::time::Duration;
 

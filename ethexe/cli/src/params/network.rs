@@ -6,14 +6,11 @@
 use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
-use ethexe_sdk::{
-    common::Address,
-    network::{
-        DEFAULT_LISTEN_PORT, NetworkConfig,
-        export::{Multiaddr, Protocol},
-    },
-    signer::secp256k1::Signer,
+use ethexe_network::{
+    DEFAULT_LISTEN_PORT, NetworkConfig,
+    export::{Multiaddr, Protocol},
 };
+use ethexe_sdk::{common::Address, signer::secp256k1::Signer};
 use serde::Deserialize;
 use std::path::PathBuf;
 

@@ -5,7 +5,7 @@
 
 use super::MergeParams;
 use clap::Parser;
-use ethexe_sdk::prometheus::PrometheusConfig;
+use ethexe_prometheus::PrometheusConfig;
 use serde::Deserialize;
 use std::net::{Ipv4Addr, SocketAddr};
 
