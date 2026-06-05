@@ -111,13 +111,13 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     // `last_advanced_eb` is zero (pre-genesis: nothing advanced yet), matching
     // the compute anchor fallback and the malachite-service zero handling.
     let genesis_parent_mb_hash = H256::zero();
-    let ops_hash = db.set_operations(Operations::default());
+    let operations_hash = db.set_operations(Operations::default());
     db.set_mb_compact_block(
         genesis_parent_mb_hash,
         CompactMb {
             parent: H256::zero(),
             height: 0,
-            transactions_hash: ops_hash,
+            operations_hash,
         },
     );
     db.set_mb_program_states(genesis_parent_mb_hash, program_states);

@@ -5,7 +5,7 @@
 //!
 //! `compute_mb` walks the parent chain via [`CompactMb::parent`], runs any
 //! uncomputed ancestors oldest-first, then the target. DB layout:
-//! `mb_compact_block` (persisted by the service at finalize), `transactions`
+//! `mb_compact_block` (persisted by the service at finalize), `operations`
 //! (CAS payload), `mb_meta` (`computed` flips here), and the per-MB program
 //! states / outcome / schedule rows on success.
 
@@ -220,15 +220,15 @@ pub fn prepare_executable_for_mb(
 ) -> Result<ExecutableData> {
     let CompactMb {
         parent,
-        transactions_hash,
+        operations_hash,
         ..
     } = compact_mb;
 
     let mb_payload = db
-        .operations(transactions_hash)
+        .operations(operations_hash)
         .ok_or(ComputeError::MbPayloadNotFound {
             mb_hash,
-            payload_hash: transactions_hash,
+            payload_hash: operations_hash,
         })?;
 
     // Read the parent MB's computed state from the DB. The genesis MB's parent
@@ -491,13 +491,13 @@ mod tests {
 
     /// Mimics malachite `process_mb_proposal`: CAS write + `CompactMb`.
     fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, ops: Operations) {
-        let ops_hash = db.set_operations(ops);
+        let operations_hash = db.set_operations(ops);
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent,
                 height,
-                transactions_hash: ops_hash,
+                operations_hash,
             },
         );
     }

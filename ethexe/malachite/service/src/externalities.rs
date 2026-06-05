@@ -149,13 +149,13 @@ impl Externalities for EthexeExternalities {
         // CAS-store operations first so the contract — "if
         // CompactMb exists, operations are reachable" — holds
         // unconditionally.
-        let ops_hash = self.db.set_operations(payload.clone());
+        let operations_hash = self.db.set_operations(payload.clone());
         self.db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent,
                 height: mb.height,
-                transactions_hash: ops_hash,
+                operations_hash,
             },
         );
         self.db.mutate_mb_meta(mb_hash, |meta| {
@@ -183,15 +183,12 @@ impl Externalities for EthexeExternalities {
                  (process_mb_proposal must run first)"
             )
         })?;
-        let payload = self
-            .db
-            .operations(compact.transactions_hash)
-            .ok_or_else(|| {
-                anyhow!(
-                    "mark_finalized: transactions blob {} missing for block {mb_hash}",
-                    compact.transactions_hash
-                )
-            })?;
+        let payload = self.db.operations(compact.operations_hash).ok_or_else(|| {
+            anyhow!(
+                "mark_finalized: operations blob {} missing for block {mb_hash}",
+                compact.operations_hash
+            )
+        })?;
 
         // Flush the committed injected txs from the mempool and add
         // their hashes to the seen-set so a re-gossip can't slip them
@@ -434,7 +431,7 @@ impl Externalities for EthexeExternalities {
         }
 
         if iter.next().is_some() {
-            warn!("validate: MB has extra transactions after the `ProcessQueues` bookend");
+            warn!("validate: MB has extra operations after the `ProcessQueues` bookend");
             return Ok(false);
         }
 
@@ -757,15 +754,15 @@ mod tests {
         /// size-capped block payload, then run the standard validate path.
         /// Mirrors the producer-side encoding step the inner core service
         /// applies to whatever `build_block_above` returns.
-        async fn validate_transactions(&self, parent: H256, ops: Operations) -> Result<bool> {
+        async fn validate_operations(&self, parent: H256, ops: Operations) -> Result<bool> {
             self.validate_block_above(parent, to_payload(ops.encode()))
                 .await
         }
 
-        /// Test-only inverse of [`Self::validate_transactions`]: run the
+        /// Test-only inverse of [`Self::validate_operations`]: run the
         /// standard build path and decode its payload bytes back into the
         /// application's [`Operations`] shape.
-        async fn build_transactions(&self, parent: H256) -> Result<Operations> {
+        async fn build_operations(&self, parent: H256) -> Result<Operations> {
             Operations::decode_all(&mut self.build_block_above(parent).await?.as_ref())
                 .context("operations decoding error")
         }
@@ -847,8 +844,8 @@ mod tests {
         assert_eq!(compact.height, 1);
         assert_eq!(compact.parent, H256::zero());
         let txs = db
-            .operations(compact.transactions_hash)
-            .expect("transactions in CAS");
+            .operations(compact.operations_hash)
+            .expect("operations in CAS");
         assert_eq!(txs, p);
 
         match rx.try_recv().expect("event").expect("ok") {
@@ -868,7 +865,7 @@ mod tests {
     }
 
     /// `process_mb_finalized` reads the [`CompactMb`] +
-    /// transactions blob keyed by the consensus envelope hash,
+    /// operations blob keyed by the consensus envelope hash,
     /// advances `globals.latest_finalized_mb_hash`, and emits a
     /// `BlockFinalized`.
     #[tokio::test]
@@ -1016,7 +1013,7 @@ mod tests {
             Operation::ProcessQueues { gas_allowance: 0 },
         ]);
         assert!(
-            !ext.validate_transactions(H256::zero(), payload)
+            !ext.validate_operations(H256::zero(), payload)
                 .await
                 .unwrap()
         );
@@ -1063,7 +1060,7 @@ mod tests {
             Operation::ProcessQueues { gas_allowance: 0 },
         ]);
         assert!(
-            !ext.validate_transactions(H256::zero(), payload)
+            !ext.validate_operations(H256::zero(), payload)
                 .await
                 .unwrap()
         );
@@ -1115,7 +1112,7 @@ mod tests {
             Operation::ProcessQueues { gas_allowance: 0 },
         ]);
         assert!(
-            ext.validate_transactions(H256::zero(), payload)
+            ext.validate_operations(H256::zero(), payload)
                 .await
                 .unwrap()
         );
@@ -1290,14 +1287,14 @@ mod tests {
             ActiveProgram, MessageQueueHashWithSize, Program, ProgramState, Storage,
         };
 
-        let ops_hash = db.set_operations(Operations::new(vec![]));
+        let operations_hash = db.set_operations(Operations::new(vec![]));
         let mb_hash = H256::random();
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent: parent_mb,
                 height: u64::MAX / 2,
-                transactions_hash: ops_hash,
+                operations_hash,
             },
         );
 
@@ -1406,7 +1403,7 @@ mod tests {
         let (ext, _rx) = make_externalities_with_pool(db, mempool);
         *ext.chain_head.write().unwrap() = Some(head);
 
-        let payload = ext.build_transactions(parent_mb).await.unwrap();
+        let payload = ext.build_operations(parent_mb).await.unwrap();
         let injected: Vec<_> = payload
             .iter()
             .filter_map(|tx| match tx {
@@ -1481,7 +1478,7 @@ mod tests {
         // The producer reads chain_head_notify to pick its advance candidate;
         // since canonical_quarantine = 0, head's parent (block 9) is a valid
         // advance.
-        let payload = ext.build_transactions(parent_mb).await.unwrap();
+        let payload = ext.build_operations(parent_mb).await.unwrap();
         let advance_present = payload
             .iter()
             .any(|tx| matches!(tx, Operation::AdvanceTillEthereumBlock { .. }));
@@ -1549,11 +1546,11 @@ mod tests {
         let extra_destinations = (MAX_TOUCHED_PROGRAMS_PER_MB / 2 + 1
             ..MAX_TOUCHED_PROGRAMS_PER_MB + 1)
             .map(|i| ActorId::from(i as u64));
-        let mut transactions = vec![Operation::AdvanceTillEthereumBlock {
+        let mut operations = vec![Operation::AdvanceTillEthereumBlock {
             block_hash: advance_block,
         }];
         for (i, dest) in extra_destinations.enumerate() {
-            transactions.push(Operation::Injected(signed_injected_tx(
+            operations.push(Operation::Injected(signed_injected_tx(
                 &pk,
                 dest,
                 chain.blocks[9].hash,
@@ -1561,11 +1558,11 @@ mod tests {
             )));
         }
         // Full shape — the shape walk must not be the reason for rejection.
-        transactions.push(Operation::ProgressTasks);
-        transactions.push(Operation::ProcessQueues { gas_allowance: 0 });
-        let payload = Operations::new(transactions);
+        operations.push(Operation::ProgressTasks);
+        operations.push(Operation::ProcessQueues { gas_allowance: 0 });
+        let payload = Operations::new(operations);
         assert!(
-            !ext.validate_transactions(parent_mb, payload).await.unwrap(),
+            !ext.validate_operations(parent_mb, payload).await.unwrap(),
             "MB must be rejected when touched destinations + EB-touched > cap"
         );
     }
@@ -1622,7 +1619,7 @@ mod tests {
         let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
         *ext.chain_head.write().unwrap() = Some(head);
 
-        let payload = ext.build_transactions(parent_mb).await.unwrap();
+        let payload = ext.build_operations(parent_mb).await.unwrap();
         let injected: Vec<_> = payload
             .iter()
             .filter_map(|tx| match tx {
@@ -1710,7 +1707,7 @@ mod tests {
             },
         ]);
         assert!(
-            !ext.validate_transactions(H256::zero(), payload)
+            !ext.validate_operations(H256::zero(), payload)
                 .await
                 .unwrap(),
             "MB with `gas_allowance > DEFAULT_GAS_ALLOWANCE` must be rejected"
@@ -1732,7 +1729,7 @@ mod tests {
             Operation::ProcessQueues { gas_allowance: 0 },
         ]);
         assert!(
-            !ext.validate_transactions(H256::zero(), payload)
+            !ext.validate_operations(H256::zero(), payload)
                 .await
                 .unwrap(),
             "MB missing `ProgressTasks` bookend must be rejected"
@@ -1754,7 +1751,7 @@ mod tests {
             // No ProcessQueues here.
         ]);
         assert!(
-            !ext.validate_transactions(H256::zero(), payload)
+            !ext.validate_operations(H256::zero(), payload)
                 .await
                 .unwrap(),
             "MB missing `ProcessQueues` bookend must be rejected"
@@ -1804,7 +1801,7 @@ mod tests {
             Operation::ProcessQueues { gas_allowance: 0 },
         ]);
         assert!(
-            !ext.validate_transactions(parent_mb, payload).await.unwrap(),
+            !ext.validate_operations(parent_mb, payload).await.unwrap(),
             "MB where Advance is not the first tx must be rejected"
         );
     }
@@ -1825,7 +1822,7 @@ mod tests {
             Operation::ProgressTasks,
         ]);
         assert!(
-            !ext.validate_transactions(H256::zero(), payload)
+            !ext.validate_operations(H256::zero(), payload)
                 .await
                 .unwrap(),
             "MB where `ProcessQueues` is not the last tx must be rejected"
@@ -1866,13 +1863,13 @@ mod tests {
         // of chain[3], so the descendant check would reject — and that
         // is exactly what we want validators to do.
         let parent_mb = H256::from([0xCD; 32]);
-        let ops_hash = db.set_operations(Operations::new(vec![]));
+        let operations_hash = db.set_operations(Operations::new(vec![]));
         db.set_mb_compact_block(
             parent_mb,
             ethexe_common::db::CompactMb {
                 parent: H256::zero(),
                 height: 1,
-                transactions_hash: ops_hash,
+                operations_hash,
             },
         );
         db.set_mb_program_states(parent_mb, ethexe_common::ProgramStates::default());
@@ -1897,7 +1894,7 @@ mod tests {
         ]);
 
         assert!(
-            !ext.validate_transactions(parent_mb, payload).await.unwrap(),
+            !ext.validate_operations(parent_mb, payload).await.unwrap(),
             "MB whose AdvanceTillEthereumBlock regresses parent.last_advanced_eb \
              must be rejected — currently passes because validate_block_above \
              skips the strict-descendant check the producer enforces",
@@ -1957,7 +1954,7 @@ mod tests {
 
         let result = tokio::time::timeout(
             std::time::Duration::from_millis(50),
-            ext.validate_transactions(H256::zero(), payload),
+            ext.validate_operations(H256::zero(), payload),
         )
         .await
         .expect("validate_block_above must return synchronously, not wait on local sync");

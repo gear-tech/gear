@@ -130,15 +130,15 @@ pub trait InjectedStorageRW: InjectedStorageRO {
 }
 
 /// MB static identity. Keyed by the Blake2b envelope hash; existence implies
-/// the matching `Operations` blob is in CAS at `transactions_hash`.
+/// the matching `Operations` blob is in CAS at `operations_hash`.
 #[derive(
     Debug, Clone, Copy, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash, derive_more::Display,
 )]
-#[display("MB(height {height}, parent {parent}, transactions_hash {transactions_hash})")]
+#[display("MB(height {height}, parent {parent}, operations_hash {operations_hash})")]
 pub struct CompactMb {
     pub parent: H256,
     pub height: u64,
-    pub transactions_hash: H256,
+    pub operations_hash: H256,
 }
 
 /// MB dynamic state. `last_advanced_eb` is propagated forward at save time
@@ -152,12 +152,12 @@ pub struct MbMeta {
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait MbStorageRO {
-    /// Static identity (parent + height + `transactions_hash`).
+    /// Static identity (parent + height + `operations_hash`).
     /// Existence implies the matching [`Operations`] blob is in the
-    /// CAS at `transactions_hash`.
+    /// CAS at `operations_hash`.
     fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb>;
     /// Read the [`Operations`] blob from CAS by its content hash.
-    fn operations(&self, transactions_hash: H256) -> Option<Operations>;
+    fn operations(&self, operations_hash: H256) -> Option<Operations>;
     fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
     fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
     fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
@@ -168,7 +168,7 @@ pub trait MbStorageRO {
 pub trait MbStorageRW: MbStorageRO {
     fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb);
     /// Write an [`Operations`] blob into the CAS and return its hash
-    /// (the value stored in [`CompactMb::transactions_hash`]).
+    /// (the value stored in [`CompactMb::operations_hash`]).
     fn set_operations(&self, operations: Operations) -> H256;
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "2ac12362571e233bad9b8b3f48d6099eca24c7363f87bb9bedd2283b43916c67";
+            "600c7b8ccc11ab8c87a94170473bad7cf7c1c87973f5f56f3734ff4ad7473a2a";
 
         let types = [
             meta_type::<BlockMeta>(),

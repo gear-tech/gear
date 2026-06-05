@@ -21,7 +21,7 @@
 //! [`crate::db::CompactMb`], indexed by the consensus block envelope
 //! hash. The matching [`Operations`] blob is stored in the
 //! content-addressed half of the ethexe db and referenced by
-//! `CompactMb::transactions_hash`.
+//! `CompactMb::operations_hash`.
 //!
 //! These types live in `ethexe-common` (rather than inside
 //! `ethexe-malachite`) so `ethexe-processor` can accept them without
@@ -151,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn hash_changes_when_transactions_change() {
+    fn hash_changes_when_operations_change() {
         let mut a = empty_txs();
         let b = empty_txs();
         a.push(Operation::AdvanceTillEthereumBlock {
@@ -161,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn transaction_tag_distinguishes_variants() {
+    fn operation_tag_distinguishes_variants() {
         let advance = Operation::AdvanceTillEthereumBlock {
             block_hash: H256::zero(),
         };

@@ -592,13 +592,13 @@ pub fn seed_genesis_zero_mb<DB>(db: &DB)
 where
     DB: MbStorageRW,
 {
-    let ops_hash = db.set_operations(Operations::new(vec![]));
+    let operations_hash = db.set_operations(Operations::new(vec![]));
     db.set_mb_compact_block(
         H256::zero(),
         CompactMb {
             parent: H256::zero(),
             height: 0,
-            transactions_hash: ops_hash,
+            operations_hash,
         },
     );
     db.set_mb_program_states(H256::zero(), Default::default());
@@ -644,13 +644,13 @@ impl BlockChain {
             if mb.hash == H256::zero() {
                 continue;
             }
-            let ops_hash = db.set_operations(mb.operations.clone());
+            let operations_hash = db.set_operations(mb.operations.clone());
             db.set_mb_compact_block(
                 mb.hash,
                 CompactMb {
                     parent: mb.parent,
                     height: mb.height,
-                    transactions_hash: ops_hash,
+                    operations_hash,
                 },
             );
             if let Some(computed) = &mb.computed {

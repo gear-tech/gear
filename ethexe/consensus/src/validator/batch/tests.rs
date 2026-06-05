@@ -65,7 +65,7 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
         },
         Operation::ProcessQueues { gas_allowance: 0 },
     ]);
-    let ops_hash = db.set_operations(ops);
+    let operations_hash = db.set_operations(ops);
     // Synthetic mb_hash — uniqueness is what matters here.
     let mb_hash = H256::from_low_u64_be(0x1000 + height);
     db.set_mb_compact_block(
@@ -73,7 +73,7 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
         CompactMb {
             parent,
             height,
-            transactions_hash: ops_hash,
+            operations_hash,
         },
     );
     db.set_mb_outcome(mb_hash, outcome);

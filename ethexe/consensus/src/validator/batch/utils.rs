@@ -486,7 +486,7 @@ mod tests {
         outcome: Vec<StateTransition>,
     ) -> H256 {
         let ops = empty_ops(height);
-        let ops_hash = db.set_operations(ops);
+        let operations_hash = db.set_operations(ops);
         // Synthetic mb_hash; only uniqueness matters here.
         let mb_hash = H256::from_low_u64_be(0x1000 + height);
         db.set_mb_compact_block(
@@ -494,7 +494,7 @@ mod tests {
             CompactMb {
                 parent: parent_mb,
                 height,
-                transactions_hash: ops_hash,
+                operations_hash,
             },
         );
         db.set_mb_outcome(mb_hash, outcome);
@@ -735,7 +735,7 @@ mod tests {
             CompactMb {
                 parent: H256::from_low_u64_be(0xB000), // unknown parent
                 height: 1,
-                transactions_hash: db.set_operations(empty_ops(99)),
+                operations_hash: db.set_operations(empty_ops(99)),
             },
         );
         assert!(!is_finalized_locally(&db, chain_b_root, chain_a));

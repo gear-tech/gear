@@ -12,7 +12,7 @@
 //! Differences from master's announce-era checker:
 //!
 //! - The recent-included dedup walk traverses `mb_compact_block(..).parent`
-//!   and decodes each MB's `transactions` blob (filtering for
+//!   and decodes each MB's `operations` blob (filtering for
 //!   [`Operation::Injected`]) instead of reading
 //!   `announce.injected_transactions` directly.
 //! - `latest_states` is taken from the most-recent **computed** MB
@@ -206,14 +206,14 @@ impl TxValidityChecker {
     }
 
     /// Walk back `VALIDITY_WINDOW` MBs through `mb_compact_block(..).parent`,
-    /// decoding each MB's transactions blob and harvesting the hashes
+    /// decoding each MB's operations blob and harvesting the hashes
     /// of every [`Operation::Injected`] for the dedup set.
     ///
     /// NOTE: Not bound to an instance — exposed `pub` so that
     /// `[`crate::EthexeExternalities`]` can build the dedup set
     /// independently of constructing a full checker.
     ///
-    /// A missing `mb_compact_block` / `transactions` row on the walk is
+    /// A missing `mb_compact_block` / `operations` row on the walk is
     /// treated like reaching the start of our locally-tracked history:
     /// we stop walking instead of failing. This mirrors master's
     /// pragmatic break-on-missing for fast-sync recovery.
@@ -233,11 +233,11 @@ impl TxValidityChecker {
                 // the `Outdated` rule to keep things consistent.
                 break;
             };
-            let Some(transactions) = db.operations(cb.transactions_hash) else {
+            let Some(operations) = db.operations(cb.operations_hash) else {
                 break;
             };
-            for tx in transactions.into_iter() {
-                if let Operation::Injected(signed) = tx {
+            for op in operations.into_iter() {
+                if let Operation::Injected(signed) = op {
                     txs.insert(signed.data().to_hash());
                 }
             }
@@ -461,14 +461,14 @@ mod tests {
                 .map(Operation::Injected)
                 .collect(),
         );
-        let ops_hash = db.set_operations(ops);
+        let operations_hash = db.set_operations(ops);
         let mb_hash = H256::random();
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent: parent_mb,
                 height: u64::MAX / 2,
-                transactions_hash: ops_hash,
+                operations_hash,
             },
         );
 
@@ -731,13 +731,13 @@ mod tests {
 
         let mb_grand = setup_mb(&db, vec![], true, chain.mb_hash_at(8));
         let mb_parent = H256::random();
-        let ops_hash = db.set_operations(Operations::new(vec![]));
+        let operations_hash = db.set_operations(Operations::new(vec![]));
         db.set_mb_compact_block(
             mb_parent,
             CompactMb {
                 parent: mb_grand,
                 height: u64::MAX / 2 + 1,
-                transactions_hash: ops_hash,
+                operations_hash,
             },
         );
         // mb_parent's mb_meta.computed stays false → checker walks past it.

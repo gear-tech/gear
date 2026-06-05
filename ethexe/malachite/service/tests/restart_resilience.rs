@@ -298,12 +298,12 @@ fn assert_chain_contiguous(db: &Database, head: H256, expected_height: u64) {
             "chain height mismatch at {current}: expected {expected}, got {}",
             compact.height
         );
-        // Transactions blob must be reachable too — that's the
+        // Operations blob must be reachable too — that's the
         // contract behind CompactMb existence.
         assert!(
-            db.operations(compact.transactions_hash).is_some(),
-            "missing transactions blob {} for MB {current}",
-            compact.transactions_hash
+            db.operations(compact.operations_hash).is_some(),
+            "missing operations blob {} for MB {current}",
+            compact.operations_hash
         );
         if expected == 1 {
             assert!(
