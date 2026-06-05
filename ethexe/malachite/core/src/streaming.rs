@@ -11,7 +11,7 @@
 
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, BinaryHeap, HashSet},
+    collections::{BTreeMap, BTreeSet, BinaryHeap, HashSet},
 };
 
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input, Output};
@@ -25,6 +25,12 @@ use crate::{
     context::{Height, ProposalInit, ProposalPart},
     types::Address,
 };
+
+const MAX_STREAM_MESSAGES: u64 = 16;
+const MAX_STREAMS_PER_PEER: usize = 64;
+const MAX_STREAMS_TOTAL: usize = 1024;
+
+type StreamKey = (PeerId, StreamId);
 
 /// Min-heap wrapper that orders `StreamMessage`s by ascending sequence.
 struct MinSeq<T>(StreamMessage<T>);
@@ -83,13 +89,15 @@ struct StreamState {
     buffer: MinHeap<ProposalPart>,
     init_info: Option<ProposalInit>,
     seen_sequences: HashSet<Sequence>,
-    total_messages: usize,
-    fin_received: bool,
+    total_messages: Option<usize>,
 }
 
 impl StreamState {
     fn is_done(&self) -> bool {
-        self.init_info.is_some() && self.fin_received && self.buffer.len() == self.total_messages
+        self.init_info.is_some()
+            && self
+                .total_messages
+                .is_some_and(|total| self.buffer.len() == total)
     }
 
     fn insert(&mut self, msg: StreamMessage<ProposalPart>) -> Option<ProposalParts> {
@@ -97,8 +105,7 @@ impl StreamState {
             self.init_info = msg.content.as_data().and_then(|p| p.as_init()).cloned();
         }
         if msg.is_fin() {
-            self.fin_received = true;
-            self.total_messages = msg.sequence as usize + 1;
+            self.total_messages = Some(msg.sequence as usize + 1);
         }
         self.buffer.push(msg);
         if self.is_done() {
@@ -172,18 +179,23 @@ impl ProposalParts {
     }
 }
 
-// TODO: #5473 `PartStreamsMap` has no per-peer cap, no total cap, and no
-// eviction for streams that never receive a valid `Fin`. Pinned by the
-// (ignored) regression test
-// `streaming::tests::part_streams_map_grows_unbounded_under_fin_sequence_attack`.
 #[derive(Default)]
 pub struct PartStreamsMap {
-    streams: BTreeMap<(PeerId, StreamId), StreamState>,
+    streams: BTreeMap<StreamKey, StreamState>,
+    peer_streams: BTreeMap<PeerId, usize>,
+    recencies: BTreeMap<StreamKey, u64>,
+    recency_order: BTreeSet<(u64, PeerId, StreamId)>,
+    next_recency: u64,
 }
 
 impl PartStreamsMap {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.streams.len()
     }
 
     /// Insert a part. Returns `Some(parts)` once the stream is
@@ -195,19 +207,86 @@ impl PartStreamsMap {
         peer_id: PeerId,
         msg: StreamMessage<ProposalPart>,
     ) -> Option<ProposalParts> {
-        let stream_id = msg.stream_id.clone();
-        let state = self
-            .streams
-            .entry((peer_id, stream_id.clone()))
-            .or_default();
-        if !state.seen_sequences.insert(msg.sequence) {
+        let key = (peer_id, msg.stream_id.clone());
+        if msg.sequence >= MAX_STREAM_MESSAGES {
+            self.remove_stream(&key);
             return None;
         }
-        let result = state.insert(msg);
-        if state.is_done() {
-            self.streams.remove(&(peer_id, stream_id));
+        if !self.streams.contains_key(&key) {
+            self.make_room_for_new_stream(peer_id);
+        }
+
+        let result = {
+            let state = self.streams.entry(key.clone()).or_insert_with(|| {
+                *self.peer_streams.entry(peer_id).or_default() += 1;
+                StreamState::default()
+            });
+            if !state.seen_sequences.insert(msg.sequence) {
+                return None;
+            }
+            state.insert(msg)
+        };
+        if result.is_some() {
+            self.remove_stream(&key);
+        } else {
+            self.touch_stream(&key);
         }
         result
+    }
+
+    fn make_room_for_new_stream(&mut self, peer_id: PeerId) {
+        if self
+            .peer_streams
+            .get(&peer_id)
+            .is_some_and(|count| *count >= MAX_STREAMS_PER_PEER)
+            && let Some(key) = self.oldest_stream_for_peer(peer_id)
+        {
+            self.remove_stream(&key);
+        }
+
+        if self.streams.len() >= MAX_STREAMS_TOTAL
+            && let Some((_, peer_id, stream_id)) = self.recency_order.iter().next().cloned()
+        {
+            self.remove_stream(&(peer_id, stream_id));
+        }
+    }
+
+    fn oldest_stream_for_peer(&self, peer_id: PeerId) -> Option<StreamKey> {
+        self.recency_order
+            .iter()
+            .find(|(_, candidate_peer, _)| *candidate_peer == peer_id)
+            .map(|(_, peer_id, stream_id)| (*peer_id, stream_id.clone()))
+    }
+
+    fn touch_stream(&mut self, key: &StreamKey) {
+        let recency = self.next_recency;
+        self.next_recency = self
+            .next_recency
+            .checked_add(1)
+            .expect("stream recency counter overflowed");
+
+        if let Some(old_recency) = self.recencies.insert(key.clone(), recency) {
+            self.recency_order
+                .remove(&(old_recency, key.0, key.1.clone()));
+        }
+        self.recency_order.insert((recency, key.0, key.1.clone()));
+    }
+
+    fn remove_stream(&mut self, key: &StreamKey) {
+        if self.streams.remove(key).is_none() {
+            return;
+        }
+
+        if let Some(recency) = self.recencies.remove(key) {
+            self.recency_order.remove(&(recency, key.0, key.1.clone()));
+        }
+
+        if let Some(count) = self.peer_streams.get_mut(&key.0) {
+            *count -= 1;
+            if *count == 0 {
+                self.peer_streams.remove(&key.0);
+            }
+        }
     }
 }
 
@@ -256,6 +335,22 @@ mod tests {
         StreamMessage::new(stream_id, seq, StreamContent::Fin)
     }
 
+    fn fill_global_cap(map: &mut PartStreamsMap, start_stream: u64) {
+        let mut stream = start_stream;
+        for peer_byte in 2..=250 {
+            for _ in 0..MAX_STREAMS_PER_PEER {
+                if map.len() == MAX_STREAMS_TOTAL {
+                    return;
+                }
+                let p = peer_id(peer_byte);
+                let s = sid(stream);
+                assert!(map.insert(p, msg(s, 0, init_part(stream))).is_none());
+                stream += 1;
+            }
+        }
+        assert_eq!(map.len(), MAX_STREAMS_TOTAL);
+    }
+
     #[test]
     fn complete_in_order_assembles() {
         let mut map = PartStreamsMap::new();
@@ -271,6 +366,28 @@ mod tests {
         assert_eq!(done.height, Height::new(1));
         assert_eq!(done.parts.len(), 2);
         assert_eq!(done.data_block_bytes(), Some(&b"hello"[..]));
+    }
+
+    #[test]
+    fn completed_stream_releases_slot() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(1);
+        let s = sid(11);
+
+        assert!(map.insert(p, msg(s.clone(), 0, init_part(11))).is_none());
+        assert!(
+            map.insert(p, msg(s.clone(), 1, data_part(b"done")))
+                .is_none()
+        );
+        assert!(map.insert(p, fin_msg(s.clone(), 2)).is_some());
+
+        assert!(
+            !map.streams.contains_key(&(p, s)),
+            "completed stream must be removed from PartStreamsMap"
+        );
+        assert_eq!(map.streams.len(), 0);
+        assert!(map.recencies.is_empty());
+        assert!(map.recency_order.is_empty());
     }
 
     #[test]
@@ -313,43 +430,152 @@ mod tests {
         assert!(map.insert(p, fin_msg(s2.clone(), 2)).is_none());
     }
 
-    /// REPRODUCES: a single peer can grow `PartStreamsMap` without
-    /// bound by either (a) opening fresh `stream_id`s and never sending
-    /// `Fin`, or (b) sending a `Fin` with a `sequence` far above any
-    /// part it actually delivers so the `total_messages == buffer.len()`
-    /// gate is unreachable.
     #[test]
-    #[ignore = "tracks issue #5473 in streaming.rs: unbounded PartStreamsMap"]
-    fn part_streams_map_grows_unbounded_under_fin_sequence_attack() {
+    fn per_peer_cap_evicts_oldest_and_accepts_new_stream() {
         let mut map = PartStreamsMap::new();
         let p = peer_id(1);
 
-        // Attack A: a peer opens many streams and never finalises.
-        // 100 distinct stream_ids, each with Init + Data but no Fin.
-        for stream_idx in 0..100u64 {
+        let first = sid(0xA000_0000);
+        for stream_idx in 0..MAX_STREAMS_PER_PEER as u64 {
             let s = sid(0xA000_0000 + stream_idx);
             assert!(map.insert(p, msg(s.clone(), 0, init_part(1))).is_none());
-            assert!(map.insert(p, msg(s, 1, data_part(b"x"))).is_none());
         }
 
-        // Attack B: cheaper still — one message per stream, Fin with a
-        // far-future sequence. `total_messages` becomes
-        // `u64::MAX as usize + 1` (wraps to 0 in release, panics in
-        // debug), but the `is_done` gate `buffer.len() == total_messages`
-        // is unreachable for any sane traffic. 100 more streams.
-        for stream_idx in 0..100u64 {
-            let s = sid(0xB000_0000 + stream_idx);
-            assert!(map.insert(p, fin_msg(s, u64::MAX / 2)).is_none());
-        }
+        assert_eq!(map.streams.len(), MAX_STREAMS_PER_PEER);
+        assert_eq!(map.peer_streams.get(&p), Some(&MAX_STREAMS_PER_PEER));
 
-        // Desired behaviour: a single peer cannot hold > a bounded
-        // number of in-flight stream slots. The exact cap is up to the
-        // fix, but it must be much smaller than the 200 we just pushed.
+        let newest = sid(0xB000_0000);
         assert!(
-            map.streams.len() < 200,
-            "PartStreamsMap grew to {} entries under a single-peer flood — \
-             needs per-peer cap + GC for never-finalised / bogus-Fin streams",
-            map.streams.len(),
+            map.insert(p, msg(newest.clone(), 0, init_part(1)))
+                .is_none()
         );
+
+        assert_eq!(map.streams.len(), MAX_STREAMS_PER_PEER);
+        assert!(!map.streams.contains_key(&(p, first)));
+        assert!(map.streams.contains_key(&(p, newest.clone())));
+
+        assert!(
+            map.insert(p, msg(newest.clone(), 1, data_part(b"new")))
+                .is_none()
+        );
+        assert!(map.insert(p, fin_msg(newest.clone(), 2)).is_some());
+        assert!(!map.streams.contains_key(&(p, newest)));
+        assert_eq!(map.peer_streams.get(&p), Some(&(MAX_STREAMS_PER_PEER - 1)));
+    }
+
+    #[test]
+    fn global_cap_evicts_oldest_and_stays_bounded() {
+        let mut map = PartStreamsMap::new();
+        let first_peer = peer_id(1);
+        let first_stream = sid(10);
+
+        assert!(
+            map.insert(first_peer, msg(first_stream.clone(), 0, init_part(10)))
+                .is_none()
+        );
+        fill_global_cap(&mut map, 1_000);
+        assert_eq!(map.len(), MAX_STREAMS_TOTAL);
+
+        let new_peer = peer_id(251);
+        let new_stream = sid(20_000);
+        assert!(
+            map.insert(new_peer, msg(new_stream.clone(), 0, init_part(20_000)))
+                .is_none()
+        );
+
+        assert_eq!(map.len(), MAX_STREAMS_TOTAL);
+        assert!(!map.streams.contains_key(&(first_peer, first_stream)));
+        assert!(map.streams.contains_key(&(new_peer, new_stream)));
+    }
+
+    #[test]
+    fn valid_parts_refresh_existing_stream_recency() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(1);
+        let refreshed = sid(50);
+        let stale = sid(51);
+
+        assert!(
+            map.insert(p, msg(refreshed.clone(), 0, init_part(50)))
+                .is_none()
+        );
+        assert!(
+            map.insert(p, msg(stale.clone(), 0, init_part(51)))
+                .is_none()
+        );
+        assert!(
+            map.insert(p, msg(refreshed.clone(), 1, data_part(b"fresh")))
+                .is_none()
+        );
+
+        fill_global_cap(&mut map, 2_000);
+
+        let new_peer = peer_id(251);
+        let new_stream = sid(30_000);
+        assert!(
+            map.insert(new_peer, msg(new_stream.clone(), 0, init_part(30_000)))
+                .is_none()
+        );
+
+        assert!(map.streams.contains_key(&(p, refreshed)));
+        assert!(!map.streams.contains_key(&(p, stale)));
+        assert!(map.streams.contains_key(&(new_peer, new_stream)));
+    }
+
+    #[test]
+    fn malformed_far_future_fin_evicts_only_its_stream() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(1);
+        let s = sid(30);
+        let other = sid(31);
+
+        assert!(map.insert(p, msg(s.clone(), 0, init_part(30))).is_none());
+        assert!(
+            map.insert(p, msg(other.clone(), 0, init_part(31)))
+                .is_none()
+        );
+        assert!(map.streams.contains_key(&(p, s.clone())));
+        assert!(
+            map.insert(p, fin_msg(s.clone(), MAX_STREAM_MESSAGES))
+                .is_none()
+        );
+
+        assert!(!map.streams.contains_key(&(p, s)));
+        assert!(map.streams.contains_key(&(p, other.clone())));
+        assert_eq!(map.peer_streams.get(&p), Some(&1));
+        assert!(map.recencies.contains_key(&(p, other)));
+    }
+
+    #[test]
+    fn completed_stream_releases_slot_after_cap_eviction() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(1);
+        let first = sid(40);
+
+        assert!(
+            map.insert(p, msg(first.clone(), 0, init_part(40)))
+                .is_none()
+        );
+        for stream_idx in 1..MAX_STREAMS_PER_PEER as u64 {
+            let s = sid(40 + stream_idx);
+            assert!(map.insert(p, msg(s, 0, init_part(40))).is_none());
+        }
+        assert_eq!(map.streams.len(), MAX_STREAMS_PER_PEER);
+
+        let over_cap = sid(10_000);
+        assert!(
+            map.insert(p, msg(over_cap.clone(), 0, init_part(40)))
+                .is_none()
+        );
+        assert!(!map.streams.contains_key(&(p, first.clone())));
+        assert!(map.streams.contains_key(&(p, over_cap.clone())));
+
+        assert!(
+            map.insert(p, msg(over_cap.clone(), 1, data_part(b"ok")))
+                .is_none()
+        );
+        assert!(map.insert(p, fin_msg(over_cap.clone(), 2)).is_some());
+        assert!(!map.streams.contains_key(&(p, over_cap)));
+        assert_eq!(map.streams.len(), MAX_STREAMS_PER_PEER - 1);
     }
 }
