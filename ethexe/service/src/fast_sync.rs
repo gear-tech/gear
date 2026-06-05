@@ -11,7 +11,7 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{
         BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, CompactMb, ConfigStorageRO,
-        GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRW, PreparedBlockData,
+        GlobalsStorageRW, MbStorageRW, OnChainStorageRW, PreparedBlockData,
     },
     events::{
         BlockEvent, RouterEvent,
@@ -50,7 +50,7 @@ use std::{
 
 struct EventData {
     latest_committed_batch: Digest,
-    committed_mbs: Vec<H256>,
+    latest_committed_mb: H256,
     latest_committed_eb: Option<H256>,
 }
 
@@ -61,7 +61,7 @@ impl EventData {
         highest_block: H256,
     ) -> Result<Option<Self>> {
         let mut latest_committed_batch = None;
-        let mut committed_mbs = Vec::new();
+        let mut latest_committed_mb = None;
         let mut latest_committed_eb = None;
 
         let mut block = highest_block;
@@ -72,16 +72,14 @@ impl EventData {
                 match event {
                     BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
                         digest,
-                    })) if latest_committed_batch.is_none() => {
-                        latest_committed_batch = Some(*digest);
+                    })) => {
+                        latest_committed_batch.get_or_insert(*digest);
                     }
                     BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(mb_hash))) => {
-                        committed_mbs.push(*mb_hash);
+                        latest_committed_mb.get_or_insert(*mb_hash);
                     }
-                    BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(eb_hash)))
-                        if latest_committed_eb.is_none() =>
-                    {
-                        latest_committed_eb = Some(*eb_hash);
+                    BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(eb_hash))) => {
+                        latest_committed_eb.get_or_insert(*eb_hash);
                     }
                     _ => {}
                 }
@@ -93,13 +91,13 @@ impl EventData {
             }
         }
 
-        if committed_mbs.is_empty() {
+        let Some(latest_committed_mb) = latest_committed_mb else {
             return Ok(None);
-        }
+        };
 
         Ok(Some(Self {
             latest_committed_batch: latest_committed_batch.unwrap_or_default(),
-            committed_mbs,
+            latest_committed_mb,
             latest_committed_eb,
         }))
     }
@@ -239,7 +237,7 @@ impl RequestManager {
     async fn request(
         &mut self,
         network: &mut NetworkService,
-    ) -> Result<Option<Vec<(RequestMetadata, Vec<u8>)>>> {
+    ) -> Option<Vec<(RequestMetadata, Vec<u8>)>> {
         let pending_network_requests = self.handle_pending_requests();
 
         if !pending_network_requests.is_empty() {
@@ -256,16 +254,16 @@ impl RequestManager {
             };
             drop(request);
 
-            self.handle_response(pending_network_requests, response)?;
+            self.handle_response(pending_network_requests, response);
         }
 
         let continue_processing = !(self.pending_requests.is_empty() && self.responses.is_empty());
         if continue_processing {
-            let responses = self.responses.drain(..).collect::<Vec<_>>();
+            let responses: Vec<_> = self.responses.drain(..).collect();
             self.total_completed_requests += responses.len() as u64;
-            Ok(Some(responses))
+            Some(responses)
         } else {
-            Ok(None)
+            None
         }
     }
 
@@ -292,7 +290,7 @@ impl RequestManager {
         &mut self,
         mut pending_network_requests: HashMap<H256, RequestMetadata>,
         data: Vec<(H256, Vec<u8>)>,
-    ) -> Result<()> {
+    ) {
         for (hash, data) in data {
             let metadata = pending_network_requests
                 .remove(&hash)
@@ -309,7 +307,6 @@ impl RequestManager {
             HashMap::new(),
             "network service guarantees it gathers all hashes"
         );
-        Ok(())
     }
 
     /// (total completed request, total pending requests)
@@ -392,54 +389,45 @@ impl Drop for RequestManager {
     }
 }
 
-fn restore_compact_mb(db: &Database, mb_hash: H256) {
-    if db.mb_compact_block(mb_hash).is_some() {
-        return;
-    }
-
-    let transactions_hash = db.set_transactions(Transactions::default());
-    // The committed MB is a fast-sync boundary: chain data gives us the head
-    // hash, but not the Malachite envelope `(parent, height, payload_hash)`.
-    // Store a synthetic compact row so DB walks have an anchor without
-    // pretending to restore the pre-boundary MB chain.
-    let compact = CompactMb {
-        parent: H256::zero(),
-        height: 0,
-        transactions_hash,
-    };
-    db.set_mb_compact_block(mb_hash, compact);
-}
-
-async fn sync_latest_mb(
+/// Synchronize program states and related data from the network.
+///
+/// This asynchronous function fetches data from the network based on program
+/// state hashes and associated metadata using a request-manager mechanism. It also enriches
+/// the program states with cached queue sizes.
+async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
-    mb_hash: H256,
     code_ids: &BTreeSet<CodeId>,
-    program_state_hashes: BTreeMap<ActorId, H256>,
-) -> Result<ProgramStates> {
-    restore_compact_mb(db, mb_hash);
-
+    program_states: BTreeMap<ActorId, H256>,
+) -> ProgramStates {
     let mut restored_cached_queue_sizes = BTreeMap::new();
+
     let mut manager = RequestManager::new(db.clone());
-    for &state_hash in program_state_hashes.values() {
-        manager.add(state_hash, RequestMetadata::ProgramState);
+
+    for &state in program_states.values() {
+        manager.add(state, RequestMetadata::ProgramState);
     }
+
     for &code_id in code_ids {
         manager.add(code_id.into(), RequestMetadata::Data);
     }
 
-    while let Some(responses) = manager.request(network).await? {
+    loop {
         let (completed, pending) = manager.stats();
         log::info!("[{completed:>05} / {pending:>05}] Getting network data");
+
+        let Some(responses) = manager.request(network).await else {
+            break;
+        };
 
         for (metadata, data) in responses {
             match metadata {
                 RequestMetadata::ProgramState => {
                     let state: ProgramState =
                         Decode::decode(&mut &data[..]).expect("bitswap must validate data");
-                    let state_hash = ethexe_db::hash(&data);
+                    let program_state_hash = ethexe_db::hash(&data);
                     restored_cached_queue_sizes.insert(
-                        state_hash,
+                        program_state_hash,
                         (
                             state.canonical_queue.cached_queue_size,
                             state.injected_queue.cached_queue_size,
@@ -492,14 +480,15 @@ async fn sync_latest_mb(
                         Decode::decode(&mut &data[..]).expect("bitswap must validate data");
                     ethexe_db::visitor::walk(&mut manager, DispatchStashNode { dispatch_stash });
                 }
-                RequestMetadata::Data => {}
+                RequestMetadata::Data => continue,
             }
         }
     }
 
     log::info!("Network data getting is done");
 
-    let program_states = program_state_hashes
+    // Enrich program states with cached queue size
+    program_states
         .into_iter()
         .map(|(program_id, hash)| {
             let (canonical_queue_size, injected_queue_size) = *restored_cached_queue_sizes
@@ -514,11 +503,10 @@ async fn sync_latest_mb(
                 },
             )
         })
-        .collect();
-
-    Ok(program_states)
+        .collect()
 }
 
+/// Instruments a set of codes by delegating their processing to the `ComputeService`.
 async fn instrument_codes(
     compute: &mut ComputeService,
     db: &Database,
@@ -620,6 +608,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let finalized_block = observer
         .block_loader()
+        // we get finalized block to avoid block reorganization
+        // because we restore the database only for the latest block of a chain,
+        // and thus the reorganization can lead us to an empty block
         .load_simple(BlockId::finalized())
         .await
         .context("failed to get latest finalized block")?
@@ -660,15 +651,10 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
     };
 
-    let latest_committed_mb = event_data
-        .committed_mbs
-        .first()
-        .copied()
-        .expect("EventData always contains at least one committed MB");
     let EventData {
         latest_committed_batch,
+        latest_committed_mb,
         latest_committed_eb,
-        ..
     } = event_data;
 
     let latest_committed_eb = latest_committed_eb.unwrap_or(genesis_block_hash);
@@ -684,26 +670,17 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let program_state_hashes =
         collect_program_state_hashes(observer, state_query_block, &program_code_ids).await?;
 
-    for (&program_id, &code_id) in &program_code_ids {
-        db.set_program_code_id(program_id, code_id);
-    }
-
-    let program_states = sync_latest_mb(
-        network,
-        db,
-        latest_committed_mb,
-        &code_ids,
-        program_state_hashes,
-    )
-    .await?;
-    db.mutate_mb_meta(latest_committed_mb, |meta| {
-        meta.computed = true;
-        meta.last_advanced_eb = latest_committed_eb;
-    });
+    let program_states = sync_from_network(network, db, &code_ids, program_state_hashes).await;
 
     instrument_codes(compute, db, code_ids).await?;
 
+    let schedule = ScheduleRestorer::from_storage(db, &program_states, header.height)?.restore();
+
     set_tx_pool_data_requirement(db, &block_loader, header.height).await?;
+
+    for (program_id, code_id) in program_code_ids {
+        db.set_program_code_id(program_id, code_id);
+    }
 
     let latest_era_with_committed_validators =
         latest_era_with_committed_validators(db, &observer.router_query(), block_hash).await?;
@@ -715,14 +692,33 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             header,
             events,
             latest_era_with_committed_validators,
+            // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Default::default(),
+            // TODO #4812: using `latest_committed_batch` here is not correct,
+            // because `latest_committed_batch` is latest for finalized block, not for `block_hash`.
             last_committed_batch: latest_committed_batch,
             last_committed_mb: latest_committed_mb,
             last_committed_eb: latest_committed_eb,
         },
     );
 
-    let schedule = ScheduleRestorer::from_storage(db, &program_states, header.height)?.restore();
+    db.mutate_mb_meta(latest_committed_mb, |meta| {
+        meta.computed = true;
+        meta.last_advanced_eb = latest_committed_eb;
+    });
+
+    let transactions_hash = db.set_transactions(Transactions::default());
+    // The committed MB is a fast-sync boundary: chain data gives us the head
+    // hash, but not the Malachite envelope `(parent, height, payload_hash)`.
+    // Store a synthetic compact row so DB walks have an anchor without
+    // pretending to restore the pre-boundary MB chain.
+    let compact = CompactMb {
+        parent: H256::zero(),
+        height: 0,
+        transactions_hash,
+    };
+    db.set_mb_compact_block(latest_committed_mb, compact);
+
     db.set_mb_program_states(latest_committed_mb, program_states.clone());
     db.set_mb_schedule(latest_committed_mb, schedule);
     // The committed fast-sync anchor is never replayed for batch creation, so
