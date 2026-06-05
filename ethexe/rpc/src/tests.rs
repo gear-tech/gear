@@ -3,7 +3,7 @@
 
 use crate::{
     CodeClient, InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent,
-    RpcServer, RpcService,
+    RpcServer, RpcService, test_utils::wasm_with_custom_section,
 };
 use ethexe_common::{
     SignedMessage, ValidatorsVec,
@@ -126,39 +126,19 @@ fn mock_signed_transaction() -> SignedInjectedTransaction {
     SignedMessage::create(PrivateKey::random(), InjectedTransaction::mock(())).unwrap()
 }
 
-fn wasm_with_custom_sections(sections: &[(&str, &[u8])]) -> Vec<u8> {
-    let mut wasm = b"\0asm\x01\0\0\0".to_vec();
-
-    for (name, data) in sections {
-        let section_len = 1 + name.len() + data.len();
-        assert!(name.len() < 0x80);
-        assert!(section_len < 0x80);
-
-        wasm.push(0);
-        wasm.push(section_len as u8);
-        wasm.push(name.len() as u8);
-        wasm.extend_from_slice(name.as_bytes());
-        wasm.extend_from_slice(data);
-    }
-
-    wasm
-}
-
-fn wasm_with_custom_section(name: &str, data: &[u8]) -> Vec<u8> {
-    wasm_with_custom_sections(&[(name, data)])
-}
-
 #[tokio::test]
 #[ntest::timeout(60_000)]
 async fn test_code_read_wasm_custom_section_via_rpc() {
+    const SECTION_NAME: &str = "sails:idl";
+
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8011);
     let db = Database::memory();
     let section_data = b"wire idl";
     let code_id = gprimitives::H256::from(
-        db.set_original_code(&wasm_with_custom_section("sails:idl", section_data))
+        db.set_original_code(&wasm_with_custom_section(SECTION_NAME, section_data))
             .into_bytes(),
     );
-    let mut malformed_wasm = wasm_with_custom_section("sails:idl", b"malformed");
+    let mut malformed_wasm = wasm_with_custom_section(SECTION_NAME, b"malformed");
     malformed_wasm.extend_from_slice(b"trailing junk");
     let malformed_code_id =
         gprimitives::H256::from(db.set_original_code(&malformed_wasm).into_bytes());
@@ -170,7 +150,7 @@ async fn test_code_read_wasm_custom_section_via_rpc() {
         .expect("WS client will be created");
 
     let result = ws_client
-        .read_wasm_custom_section(code_id, "sails:idl".to_string())
+        .read_wasm_custom_section(code_id, SECTION_NAME.to_string())
         .await
         .expect("custom section read must succeed");
 
@@ -183,13 +163,13 @@ async fn test_code_read_wasm_custom_section_via_rpc() {
     assert_eq!(missing_section, None);
 
     let unknown_code = ws_client
-        .read_wasm_custom_section(gprimitives::H256::zero(), "sails:idl".to_string())
+        .read_wasm_custom_section(gprimitives::H256::zero(), SECTION_NAME.to_string())
         .await
         .expect("unknown code must not be an error");
     assert_eq!(unknown_code, None);
 
     let err = ws_client
-        .read_wasm_custom_section(malformed_code_id, "sails:idl".to_string())
+        .read_wasm_custom_section(malformed_code_id, SECTION_NAME.to_string())
         .await
         .expect_err("malformed stored wasm must be an RPC error");
     let ClientError::Call(err) = err else {

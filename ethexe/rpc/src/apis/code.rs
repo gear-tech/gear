@@ -98,32 +98,11 @@ impl CodeServer for CodeApi {
 #[cfg(all(test, feature = "server"))]
 mod tests {
     use super::*;
+    use crate::test_utils::{wasm_with_custom_section, wasm_with_custom_sections};
     use ethexe_common::db::CodesStorageRW;
 
     const SECTION_NAME: &str = "sails:idl";
     const SECTION_DATA: &[u8] = b"hello idl";
-
-    fn wasm_with_custom_sections(sections: &[(&str, &[u8])]) -> Vec<u8> {
-        let mut wasm = b"\0asm\x01\0\0\0".to_vec();
-
-        for (name, data) in sections {
-            let section_len = 1 + name.len() + data.len();
-            assert!(name.len() < 0x80);
-            assert!(section_len < 0x80);
-
-            wasm.push(0);
-            wasm.push(section_len as u8);
-            wasm.push(name.len() as u8);
-            wasm.extend_from_slice(name.as_bytes());
-            wasm.extend_from_slice(data);
-        }
-
-        wasm
-    }
-
-    fn wasm_with_custom_section(name: &str, data: &[u8]) -> Vec<u8> {
-        wasm_with_custom_sections(&[(name, data)])
-    }
 
     fn api_with_code(code: &[u8]) -> (CodeApi, H256) {
         let db = Database::memory();
