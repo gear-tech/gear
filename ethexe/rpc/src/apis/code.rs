@@ -61,7 +61,7 @@ impl CodeApi {
 
         get_custom_section_data(&original_code, section_name)
             .map(|section| section.map(|section| Bytes(section.to_vec())))
-            .map_err(|err| errors::bad_request(err).into())
+            .map_err(errors::bad_request)
     }
 }
 
