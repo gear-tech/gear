@@ -23,8 +23,7 @@ use ethexe_common::{
     },
     gear::BatchCommitment,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Receipt,
-        TransactionPurgedReason,
+        InjectedTransaction, InjectedTransactionAcceptance, Receipt, TransactionPurgedReason,
     },
     mock::*,
 };
@@ -1834,7 +1833,6 @@ async fn send_injected_tx() {
     let mut env = TestEnv::new(test_env_config).await.unwrap();
 
     let validator0_pubkey = env.validators[0].public_key;
-    let validator1_pubkey = env.validators[1].public_key;
 
     test_info!("📗 Starting node 0");
     let mut node0 = env
@@ -1873,20 +1871,17 @@ async fn send_injected_tx() {
         salt: vec![1].try_into().unwrap(),
     };
 
-    let tx_for_node1 = AddressedInjectedTransaction {
-        recipient: validator1_pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(validator0_pubkey, tx.clone(), None)
-            .unwrap(),
-    };
+    let signed_tx = env
+        .signer
+        .signed_message(validator0_pubkey, tx.clone(), None)
+        .unwrap();
 
     // Send request
     test_info!("Sending transaction to node-1");
     let acceptance = node1
         .rpc_http_client()
         .unwrap()
-        .send_transaction(tx_for_node1.clone())
+        .send_transaction(signed_tx.clone())
         .await
         .expect("rpc server is set");
     assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
@@ -1895,11 +1890,8 @@ async fn send_injected_tx() {
     node1
         .events()
         .find(|event| {
-            // RPC fan-out emits one InjectedTransaction event per
-            // validator, so match on the v1-targeted one — that's
-            // the one whose recipient equals `tx_for_node1.recipient`.
             if let TestingEvent::Rpc(TestingRpcEvent::InjectedTransaction { transaction }) = event
-                && *transaction == tx_for_node1
+                && *transaction == signed_tx
             {
                 true
             } else {
@@ -1913,7 +1905,7 @@ async fn send_injected_tx() {
         .db
         .injected_transaction(tx.to_hash())
         .expect("tx not found");
-    assert_eq!(node1_db_tx, tx_for_node1.tx);
+    assert_eq!(node1_db_tx, signed_tx);
 
     stop_nodes([node0, node1]).await;
 }
@@ -1952,10 +1944,7 @@ async fn injected_tx_purged_receipt() {
         salt: vec![1].try_into().unwrap(),
     };
     let tx_hash = tx.to_hash();
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: pubkey.to_address(),
-        tx: env.signer.signed_message(pubkey, tx, None).unwrap(),
-    };
+    let rpc_tx = env.signer.signed_message(pubkey, tx, None).unwrap();
 
     let mut subscription = rpc_client
         .send_transaction_and_watch(rpc_tx)
@@ -2637,13 +2626,10 @@ async fn injected_tx_fungible_token() {
         salt: vec![1].try_into().unwrap(),
     };
 
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(pubkey, mint_tx.clone(), None)
-            .unwrap(),
-    };
+    let rpc_tx = env
+        .signer
+        .signed_message(pubkey, mint_tx.clone(), None)
+        .unwrap();
 
     let mut subscription = rpc_client
         .send_transaction_and_watch(rpc_tx)
@@ -2742,13 +2728,10 @@ async fn injected_tx_fungible_token() {
         salt: vec![1].try_into().unwrap(),
     };
 
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(pubkey, transfer_tx.clone(), None)
-            .unwrap(),
-    };
+    let rpc_tx = env
+        .signer
+        .signed_message(pubkey, transfer_tx.clone(), None)
+        .unwrap();
     let ws_client = node
         .rpc_ws_client()
         .await
@@ -2816,7 +2799,6 @@ async fn injected_tx_fungible_token_over_network() {
         .await
         .expect("RPC client provide by node");
 
-    let bob_pubkey = env.validators[0].public_key;
     let mut bob_node = env
         .new_node(NodeConfig::named("Bob").validator(env.validators[0]))
         .await;
@@ -2884,13 +2866,10 @@ async fn injected_tx_fungible_token_over_network() {
         salt: vec![1].try_into().unwrap(),
     };
 
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: bob_pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(user_pubkey, mint_tx.clone(), None)
-            .unwrap(),
-    };
+    let rpc_tx = env
+        .signer
+        .signed_message(user_pubkey, mint_tx.clone(), None)
+        .unwrap();
 
     alice_node
         .events()
