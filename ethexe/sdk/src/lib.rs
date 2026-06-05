@@ -28,6 +28,9 @@
 //! - [`WVara`] — WrappedVara ERC20 queries and transfers, plus `mint` and `events`.
 //! - [`VaraEth`], [`VaraEthInstance`], [`Error`] — Re-exported from `ethexe-node-wrapper`; spawn and manage a local ethexe node
 //!   process and obtain its RPC endpoints.
+//! - `operator` feature — Re-exports heavier node/service/database/operator modules used by
+//!   `ethexe-cli`. It is disabled by default so client SDK consumers do not pull the full node
+//!   stack.
 //!
 //! ## Usage example
 //!
@@ -58,12 +61,78 @@
 //! - Most methods are `async` and return `anyhow::Result`, assuming a live RPC WebSocket and a
 //!   reachable Ethereum endpoint.
 
-pub use crate::{api::VaraEthApi, mirror::Mirror, router::Router, wvara::WVara};
+pub use crate::{
+    api::{
+        DEFAULT_BLOB_GAS_MULTIPLIER, DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE,
+        DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI, DEFAULT_ETHEREUM_RPC, VaraEthApi,
+        VaraEthApiBuilder,
+    },
+    mirror::Mirror,
+    router::Router,
+    wvara::WVara,
+};
 
 mod api;
 mod mirror;
 mod router;
 mod wvara;
 
+pub use alloy::rpc::types::TransactionReceipt;
+pub use ethexe_ethereum::{mirror::ClaimInfo, router::CodeValidationResult};
 // Re-export the
 pub use ethexe_node_wrapper::{Error, VaraEth, VaraEthInstance};
+
+pub mod common {
+    pub use ethexe_common::*;
+}
+
+#[cfg(feature = "operator")]
+pub mod compute {
+    pub use ethexe_compute::*;
+}
+
+#[cfg(feature = "operator")]
+pub mod db {
+    pub use ethexe_db::*;
+}
+
+#[cfg(feature = "operator")]
+pub mod malachite {
+    pub use ethexe_malachite::*;
+}
+
+#[cfg(feature = "operator")]
+pub mod network {
+    pub use ethexe_network::*;
+}
+
+#[cfg(feature = "operator")]
+pub mod processor {
+    pub use ethexe_processor::*;
+}
+
+#[cfg(feature = "operator")]
+pub mod prometheus {
+    pub use ethexe_prometheus::*;
+}
+
+pub mod rpc {
+    pub use ethexe_rpc::*;
+}
+
+pub mod runtime_common {
+    pub use ethexe_runtime_common::*;
+}
+
+#[cfg(feature = "operator")]
+pub mod service {
+    pub use ethexe_service::*;
+}
+
+pub mod primitives {
+    pub use gprimitives::*;
+}
+
+pub mod signer {
+    pub use gsigner::*;
+}

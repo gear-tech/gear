@@ -6,20 +6,22 @@
 use crate::params::{MergeParams, Params};
 use anyhow::{Context, Result, anyhow, ensure};
 use clap::Parser;
-use ethexe_common::{
-    SimpleBlockData,
-    db::{DBGlobals, GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
+use ethexe_sdk::{
+    common::{
+        SimpleBlockData,
+        db::{DBGlobals, GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
+    },
+    compute::prepare_executable_for_mb,
+    db::{
+        self, Database, InitConfig, RawDatabase, RocksDatabase,
+        iterator::{BlockNode, DatabaseIterator},
+        verifier::IntegrityVerifier,
+        visitor::{self},
+    },
+    primitives::H256,
+    processor::{Processor, ProcessorConfig},
+    runtime_common::FinalizedBlockTransitions,
 };
-use ethexe_compute::prepare_executable_for_mb;
-use ethexe_db::{
-    Database, InitConfig, RawDatabase, RocksDatabase,
-    iterator::{BlockNode, DatabaseIterator},
-    verifier::IntegrityVerifier,
-    visitor::{self},
-};
-use ethexe_processor::{Processor, ProcessorConfig};
-use ethexe_runtime_common::FinalizedBlockTransitions;
-use gprimitives::H256;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{collections::HashSet, path::PathBuf};
 
@@ -100,7 +102,7 @@ impl CheckCommand {
                 .context("missing Ethereum-related configuration")?
                 .into_config()?;
 
-            ethexe_db::initialize_db(
+            db::initialize_db(
                 InitConfig {
                     ethereum_rpc: ethereum_config.rpc.clone(),
                     router_address: ethereum_config.router_address,
@@ -209,7 +211,7 @@ impl Checker {
                 visited_nodes.clone(),
             )
             .for_each(|node| {
-                visited_nodes.insert(ethexe_db::iterator::node_hash(&node));
+                visited_nodes.insert(db::iterator::node_hash(&node));
                 visitor::visit_node(&mut verifier, node);
             });
 

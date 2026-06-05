@@ -6,7 +6,7 @@
 use crate::params::Params;
 use anyhow::Result;
 use clap::Parser;
-use gsigner::cli::{
+use ethexe_sdk::signer::cli::{
     SchemeCommands, SchemeKeyringCommands, SchemeSubcommand, display_result, execute_command,
 };
 use std::path::PathBuf;

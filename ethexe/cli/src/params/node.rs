@@ -7,13 +7,16 @@ use super::MergeParams;
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use directories::ProjectDirs;
-use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, MAX_BATCH_SIZE_LIMIT},
-    gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
+use ethexe_sdk::{
+    common::{
+        DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_COMMITMENT_DELAY_LIMIT,
+        consensus::{DEFAULT_BATCH_SIZE_LIMIT, MAX_BATCH_SIZE_LIMIT},
+        gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
+    },
+    malachite::MalachiteConfig,
+    processor::DEFAULT_CHUNK_SIZE,
+    service::config::{ConfigPublicKey, NodeConfig},
 };
-use ethexe_processor::DEFAULT_CHUNK_SIZE;
-use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
 use tempfile::TempDir;
@@ -177,7 +180,7 @@ impl NodeParams {
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             post_quarantine_delay: self
                 .post_quarantine_delay
-                .unwrap_or(ethexe_malachite::MalachiteConfig::DEFAULT_POST_QUARANTINE_DELAY),
+                .unwrap_or(MalachiteConfig::DEFAULT_POST_QUARANTINE_DELAY),
             dev: self.dev,
             pre_funded_accounts: self
                 .pre_funded_accounts
@@ -193,7 +196,7 @@ impl NodeParams {
                 .unwrap_or(DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD),
             commitment_delay_limit: self
                 .commitment_delay_limit
-                .unwrap_or(ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT),
+                .unwrap_or(DEFAULT_COMMITMENT_DELAY_LIMIT),
             genesis_state_dump: self.genesis_state_dump,
         })
     }

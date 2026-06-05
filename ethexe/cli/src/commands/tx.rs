@@ -19,14 +19,15 @@ use crate::{
 use alloy_chains::NamedChain;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
-use ethexe_common::{
-    Address,
-    gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo},
+use ethexe_sdk::{
+    ClaimInfo, CodeValidationResult, VaraEthApi,
+    common::{
+        Address,
+        gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo},
+    },
+    primitives::{ActorId, CodeId, H160, H256, MessageId, U256},
+    signer::secp256k1::Signer,
 };
-use ethexe_ethereum::{Ethereum, EthereumBuilder, mirror::ClaimInfo, router::CodeValidationResult};
-use ethexe_sdk::VaraEthApi;
-use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
-use gsigner::secp256k1::Signer;
 use serde::Serialize;
 use serde_json::json;
 use sp_core::Bytes;
@@ -307,19 +308,13 @@ impl TxCommand {
             bail!("`--rpc-url` is required when `--injected` is set");
         }
 
-        let ethereum = EthereumBuilder::default()
-            .rpc_url(rpc.clone())
+        let mut api_builder = VaraEthApi::builder()
+            .ethereum_rpc_url(rpc.clone())
             .router_address(router_addr)
             .signer(signer.clone())
             .sender_address(sender)
-            .eip1559_fee_increase_percentage_opt(self.eip1559_fee_increase_percentage)
-            .blob_gas_multiplier(
-                self.blob_gas_multiplier
-                    .unwrap_or(Ethereum::INCREASED_BLOB_GAS_MULTIPLIER),
-            )
-            .build()
-            .await
-            .with_context(|| "failed to create Ethereum client")?;
+            .eip1559_fee_increase_percentage(self.eip1559_fee_increase_percentage)
+            .blob_gas_multiplier(self.blob_gas_multiplier);
 
         eprintln!("RPC:      {rpc}");
         if let TxSubcommand::Query { rpc_url, .. }
@@ -330,20 +325,14 @@ impl TxCommand {
         } = &self.command
         {
             eprintln!("WS RPC:   {rpc_url}");
+            api_builder = api_builder.vara_eth_rpc_url(rpc_url.clone());
         }
-        let api = match &self.command {
-            TxSubcommand::Query { rpc_url, .. }
-            | TxSubcommand::SendMessage {
-                rpc_url: Some(rpc_url),
-                injected: true,
-                ..
-            } => VaraEthApi::new(rpc_url, ethereum.clone())
-                .await
-                .with_context(|| "failed to create Vara.ETH SDK client")?,
-            _ => VaraEthApi::from_ethereum(ethereum.clone()),
-        };
+        let api = api_builder
+            .build()
+            .await
+            .with_context(|| "failed to create Vara.ETH SDK client")?;
         let router = api.router();
-        let chain_id = ethereum
+        let chain_id = api
             .chain_id()
             .await
             .with_context(|| "failed to fetch chain id")?;

@@ -6,12 +6,14 @@
 use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
-use ethexe_common::Address;
-use ethexe_network::{
-    NetworkConfig,
-    export::{Multiaddr, Protocol},
+use ethexe_sdk::{
+    common::Address,
+    network::{
+        DEFAULT_LISTEN_PORT, NetworkConfig,
+        export::{Multiaddr, Protocol},
+    },
+    signer::secp256k1::Signer,
 };
-use gsigner::secp256k1::Signer;
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -98,9 +100,7 @@ impl NetworkParams {
 
         let network_listen_addr = self.network_listen_addr.unwrap_or_default();
 
-        let port = self
-            .network_port
-            .unwrap_or(ethexe_network::DEFAULT_LISTEN_PORT);
+        let port = self.network_port.unwrap_or(DEFAULT_LISTEN_PORT);
 
         let listen_addresses = if network_listen_addr.is_empty() {
             [

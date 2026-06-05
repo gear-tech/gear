@@ -4,9 +4,11 @@
 use crate::params::{MergeParams, Params};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use ethexe_common::db::GlobalsStorageRO;
-use ethexe_db::{Database, RawDatabase, RocksDatabase, dump::StateDump};
-use gprimitives::H256;
+use ethexe_sdk::{
+    common::db::GlobalsStorageRO,
+    db::{Database, RawDatabase, RocksDatabase, dump::StateDump},
+    primitives::H256,
+};
 use std::path::{Path, PathBuf};
 
 /// State dump operations for re-genesis.

@@ -1,9 +1,11 @@
 # ethexe-cli
 
 `ethexe-cli` is the command-line entrypoint for running and operating a Vara-on-Ethereum node.
+It depends on `ethexe-sdk` as the ethexe-facing facade for client, service, database,
+networking, and key-related building blocks.
 It bundles four workflows behind the `ethexe` binary:
 
-- `run` starts the full service stack from `ethexe-service`
+- `run` starts the full service stack exposed through `ethexe-sdk`
 - `key` manages the local Secp256k1 key stores used by the node and the network layer
 - `tx` submits Ethereum-side and injected Vara.eth transactions
 - `check` validates the local RocksDB state and can recompute announces for correctness
@@ -93,7 +95,7 @@ database is moved to a temporary directory instead.
 
 ## `run`
 
-`ethexe run` turns the merged CLI/config parameters into an `ethexe_service::config::Config`,
+`ethexe run` turns the merged CLI/config parameters into an SDK-exported service config,
 initializes logging, and boots the asynchronous service stack.
 
 Development mode changes behavior intentionally:
@@ -184,8 +186,8 @@ locally constructed injected transaction hash or reference block metadata.
 
 `ethexe check` opens a local RocksDB database and can run two families of validation:
 
-- integrity checks walk the stored block DAG and use `ethexe_db::verifier::IntegrityVerifier`
-- computation checks recompute announces with `ethexe_processor::Processor` and compare the
+- integrity checks walk the stored block DAG and use the SDK-exported database verifier
+- computation checks recompute announces with the SDK-exported processor and compare the
   resulting states, transitions, and schedule with the persisted values
 
 Behavior notes:
