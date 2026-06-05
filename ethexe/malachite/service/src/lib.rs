@@ -64,7 +64,7 @@ pub use crate::{
 use ethexe_common::injected::PurgedTransaction;
 pub use ethexe_common::{
     injected::SignedInjectedTransaction,
-    malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
+    malachite::{Operation, Operations},
 };
 pub use ethexe_malachite_core::{
     Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
@@ -135,7 +135,7 @@ impl std::fmt::Display for MalachiteEvent {
 #[allow(dead_code)]
 fn _api_shape(
     _ev: MalachiteEvent,
-    _block: Transactions,
+    _ops: Operations,
     _cert: CommitCertificate,
     _cfg: MalachiteConfig,
     _tx: ethexe_common::injected::SignedInjectedTransaction,

@@ -26,7 +26,7 @@
 //! - [`events`] — On-chain event model: `BlockEvent` (Mirror/Router variants) and `WVaraEvent`.
 //! - [`gear`] — Protocol commitments ([`gear::BatchCommitment`] and siblings) and [`gear::StateTransition`].
 //! - [`injected`] — Injected transactions, promises, and receipts for inbound cross-chain messaging.
-//! - [`malachite`] — Sequencer block-payload shape ([`malachite::Transactions`], `Transaction`).
+//! - [`malachite`] — Sequencer block-payload shape ([`malachite::Operations`], `Operation`).
 //! - [`network`] — Validator network messages (`ValidatorMessage` and signed/verified variants).
 //! - [`ecdsa`] — secp256k1 re-exports from `gsigner`.
 //! - [`mock`] — Test helpers and proptest fixtures (feature `mock`).

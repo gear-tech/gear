@@ -12,7 +12,7 @@ use crate::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
     },
     injected::{InjectedTransaction, Promise},
-    malachite::Transactions,
+    malachite::Operations,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
@@ -529,10 +529,10 @@ pub struct MbFullData {
     /// Computed-side data. `Some(default)` by default; setting to
     /// `None` skips writing `mb_program_states` and `mb_meta.computed`.
     pub computed: Option<MockComputedMbData>,
-    /// SCALE-encoded transactions blob to write under this MB.
-    /// Defaults to an empty list. Tests that need specific txs in the
-    /// dedup-window walk (e.g. tx_validity::Duplicate) can set this.
-    pub transactions: Transactions,
+    /// SCALE-encoded operations blob to write under this MB.
+    /// Defaults to an empty list. Tests that need specific operations in
+    /// the dedup-window walk (e.g. tx_validity::Duplicate) can set this.
+    pub operations: Operations,
 }
 
 impl MbFullData {
@@ -592,13 +592,13 @@ pub fn seed_genesis_zero_mb<DB>(db: &DB)
 where
     DB: MbStorageRW,
 {
-    let transactions_hash = db.set_transactions(Transactions::new(vec![]));
+    let operations_hash = db.set_operations(Operations::new(vec![]));
     db.set_mb_compact_block(
         H256::zero(),
         CompactMb {
             parent: H256::zero(),
             height: 0,
-            transactions_hash,
+            operations_hash,
         },
     );
     db.set_mb_program_states(H256::zero(), Default::default());
@@ -638,19 +638,19 @@ impl BlockChain {
         seed_genesis_zero_mb(db);
 
         // Write MB rows in chronological order. Skip the index-0
-        // sentinel (zero hash). Empty-transactions MBs share one CAS
-        // entry naturally — `set_transactions` is content-addressed.
+        // sentinel (zero hash). Empty-operations MBs share one CAS
+        // entry naturally — `set_operations` is content-addressed.
         for mb in &mbs {
             if mb.hash == H256::zero() {
                 continue;
             }
-            let transactions_hash = db.set_transactions(mb.transactions.clone());
+            let operations_hash = db.set_operations(mb.operations.clone());
             db.set_mb_compact_block(
                 mb.hash,
                 CompactMb {
                     parent: mb.parent,
                     height: mb.height,
-                    transactions_hash,
+                    operations_hash,
                 },
             );
             if let Some(computed) = &mb.computed {
@@ -791,7 +791,7 @@ impl BlockChain {
                     parent: H256::zero(),
                     height: 0,
                     computed: None,
-                    transactions: Transactions::new(vec![]),
+                    operations: Operations::new(vec![]),
                 });
                 continue;
             }
@@ -805,7 +805,7 @@ impl BlockChain {
                 parent: prev_mb_hash,
                 height: i as u64,
                 computed: Some(MockComputedMbData::default()),
-                transactions: Transactions::new(vec![]),
+                operations: Operations::new(vec![]),
             });
             prev_mb_hash = hash;
         }
