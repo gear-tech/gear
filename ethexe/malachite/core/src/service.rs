@@ -8,7 +8,7 @@ use crate::{
     codec::ScaleCodec,
     config::{MalachiteConfig, NodeRole},
     context::{MalachiteCtx, Validator, ValidatorSet},
-    externalities::{BlockPayload, Externalities},
+    externalities::Externalities,
     signing::{
         MalachiteSigner, libp2p_keypair_from, private_key_from_gsigner, public_key_from_gsigner,
     },
@@ -34,7 +34,6 @@ use malachitebft_app_channel::{
 use malachitebft_core_types::ValidatorProof;
 use std::{
     fs::OpenOptions,
-    marker::PhantomData,
     path::{Path, PathBuf},
     pin::Pin,
     sync::Arc,
@@ -49,7 +48,7 @@ use tokio::{sync::mpsc, task::JoinHandle};
 pub trait MService: Stream<Item = anyhow::Error> + Send + Unpin {}
 
 /// Application-agnostic Malachite BFT consensus service.
-pub struct MalachiteService<P: BlockPayload, EXT: Externalities<P>> {
+pub struct MalachiteService<EXT: Externalities> {
     errors_rx: mpsc::UnboundedReceiver<anyhow::Error>,
     engine: EngineHandle,
     app_handle: JoinHandle<()>,
@@ -61,7 +60,6 @@ pub struct MalachiteService<P: BlockPayload, EXT: Externalities<P>> {
     /// writes here, the next `Finalized` / `ConsensusReady` reply reads.
     validator_set: SharedValidatorSet,
     _externalities: Arc<EXT>,
-    _phantom: PhantomData<fn() -> P>,
 }
 
 /// Upper bound on how long [`MalachiteService::shutdown`] will wait
@@ -114,7 +112,7 @@ async fn wait_wal_lock_released(wal_path: &Path, timeout: Duration) {
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> Drop for MalachiteService<P, EXT> {
+impl<EXT: Externalities> Drop for MalachiteService<EXT> {
     fn drop(&mut self) {
         // Stop the engine actor so its libp2p / consensus children
         // shut down cleanly, then abort the app and engine join handles.
@@ -128,7 +126,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> Drop for MalachiteService<P, EXT> {
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
+impl<EXT: Externalities> MalachiteService<EXT> {
     /// Block until the engine actor tree has finished shutting down
     /// and any open file locks (RocksDB, WAL) have been released.
     /// Use this before re-opening the same `base` to avoid
@@ -148,7 +146,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
+impl<EXT: Externalities> MalachiteService<EXT> {
     /// Bootstrap the service.
     pub async fn new(config: MalachiteConfig, externalities: Arc<EXT>) -> Result<Self> {
         // The service owns `<base>/malachite/`. We `mkdir -p` it so
@@ -251,8 +249,8 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
         let _registry = SharedRegistry::global().with_moniker(&moniker);
 
         // ---- store + state ----
-        let store = Store::<P>::open(&store_path).context("opening Store")?;
-        let state = State::<P>::new(
+        let store = Store::open(&store_path).context("opening Store")?;
+        let state = State::new(
             signer,
             validator_set.clone(),
             address,
@@ -264,7 +262,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
         let (errors_tx, errors_rx) = mpsc::unbounded_channel();
         let externalities_for_task = Arc::clone(&externalities);
         let app_handle = tokio::spawn(async move {
-            if let Err(e) = app::run::<P, EXT>(state, channels, externalities_for_task).await {
+            if let Err(e) = app::run::<EXT>(state, channels, externalities_for_task).await {
                 tracing::error!(target: "ethexe-malachite-core", error = %e, "app task terminated");
                 let _ = errors_tx.send(e);
             }
@@ -277,7 +275,6 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
             wal_path,
             validator_set,
             _externalities: externalities,
-            _phantom: PhantomData,
         })
     }
 
@@ -308,7 +305,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> Stream for MalachiteService<P, EXT> {
+impl<EXT: Externalities> Stream for MalachiteService<EXT> {
     type Item = anyhow::Error;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
@@ -316,13 +313,13 @@ impl<P: BlockPayload, EXT: Externalities<P>> Stream for MalachiteService<P, EXT>
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> FusedStream for MalachiteService<P, EXT> {
+impl<EXT: Externalities> FusedStream for MalachiteService<EXT> {
     fn is_terminated(&self) -> bool {
         self.errors_rx.is_closed()
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> MService for MalachiteService<P, EXT> {}
+impl<EXT: Externalities> MService for MalachiteService<EXT> {}
 
 fn build_inner_config(cfg: &MalachiteConfig, moniker: &str) -> InnerNodeConfig {
     let transport = TransportProtocol::Tcp;

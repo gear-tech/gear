@@ -3,8 +3,6 @@
 
 use crate::validator::batch::{filler::BatchFiller, types::BatchParts};
 
-use super::types::CodeNotValidatedError;
-
 use anyhow::{Result, anyhow, bail};
 use core::num::NonZero;
 use ethexe_common::{
@@ -14,7 +12,7 @@ use ethexe_common::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
     },
 };
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, H256};
 use std::collections::{HashMap, hash_map::Entry};
 
 /// MBs in `(last_committed_mb, mb_hash]`, chronological order. Strict: errors
@@ -169,22 +167,32 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     }))
 }
 
-pub fn aggregate_code_commitments<DB: CodesStorageRO>(
+/// Producer-side helper: take the block's `codes_queue`, aggregate validated
+/// code commitments, and push them into the batch filler in queue order. Stops
+/// once the filler rejects further additions (e.g. size limit).
+pub fn aggregate_code_commitments_for_block<DB: CodesStorageRO + BlockMetaStorageRO>(
     db: &DB,
-    codes: impl IntoIterator<Item = CodeId>,
-    fail_if_not_found: bool,
-) -> Result<Vec<CodeCommitment>, CodeNotValidatedError> {
-    let mut commitments = Vec::new();
+    block_hash: H256,
+    batch_filler: &mut BatchFiller,
+) -> Result<()> {
+    let queue = db
+        .block_meta(block_hash)
+        .codes_queue
+        .ok_or_else(|| anyhow!("Computed block {block_hash} codes queue is not in storage"))?;
 
-    for id in codes {
-        match db.code_valid(id) {
-            Some(valid) => commitments.push(CodeCommitment { id, valid }),
-            None if fail_if_not_found => return Err(CodeNotValidatedError(id)),
-            None => {}
+    for commitment in queue
+        .into_iter()
+        .filter_map(|id| db.code_valid(id).map(|valid| CodeCommitment { id, valid }))
+    {
+        if let Err(err) = batch_filler.include_code_commitment(commitment) {
+            tracing::trace!(
+                "filler rejects code commitment: {err}, stop including more code commitments"
+            );
+            break;
         }
     }
 
-    Ok(commitments)
+    Ok(())
 }
 
 /// Producer chain-commitment builder: covers `(last_committed_mb..mb_head]` up
@@ -464,19 +472,17 @@ mod tests {
     use ethexe_common::{
         Schedule,
         db::{CompactMb, MbStorageRW},
-        malachite::{ProcessQueuesLimits, Transaction, Transactions},
+        malachite::{Operation, Operations},
     };
     use ethexe_db::Database;
 
     /// Per-height unique CAS via `AdvanceTillEthereumBlock` salt.
-    fn empty_txs(height: u64) -> Transactions {
-        Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock {
+    fn empty_ops(height: u64) -> Operations {
+        Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock {
                 block_hash: H256::from_low_u64_be(0xEB00 + height),
             },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
-            },
+            Operation::ProcessQueues { gas_allowance: 0 },
         ])
     }
 
@@ -487,8 +493,8 @@ mod tests {
         height: u64,
         outcome: Vec<StateTransition>,
     ) -> H256 {
-        let txs = empty_txs(height);
-        let transactions_hash = db.set_transactions(txs);
+        let ops = empty_ops(height);
+        let operations_hash = db.set_operations(ops);
         // Synthetic mb_hash; only uniqueness matters here.
         let mb_hash = H256::from_low_u64_be(0x1000 + height);
         db.set_mb_compact_block(
@@ -496,7 +502,7 @@ mod tests {
             CompactMb {
                 parent: parent_mb,
                 height,
-                transactions_hash,
+                operations_hash,
             },
         );
         db.set_mb_outcome(mb_hash, outcome);
@@ -737,7 +743,7 @@ mod tests {
             CompactMb {
                 parent: H256::from_low_u64_be(0xB000), // unknown parent
                 height: 1,
-                transactions_hash: db.set_transactions(empty_txs(99)),
+                operations_hash: db.set_operations(empty_ops(99)),
             },
         );
         assert!(!is_finalized_locally(&db, chain_b_root, chain_a));

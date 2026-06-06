@@ -511,7 +511,7 @@ mod tests {
             CompactMb {
                 parent: H256::zero(),
                 height: 100,
-                transactions_hash: H256::zero(),
+                operations_hash: H256::zero(),
             },
         );
 
