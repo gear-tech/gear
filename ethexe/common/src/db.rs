@@ -66,6 +66,8 @@ pub trait CodesStorageRO {
     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
+
+    // TODO #5562: code valid, metadata, valid codes can be runtime specific, so should be stored with runtime_id as well.
     fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn valid_codes(&self) -> BTreeSet<CodeId>;

@@ -54,7 +54,7 @@ impl<P: ProcessorExt> CodesSubService<P> {
                 );
                 debug_assert!(
                     self.db
-                        .instrumented_code_exists(ethexe_runtime_common::VERSION, code_id),
+                        .instrumented_code_exists(ethexe_runtime_common::RUNTIME_ID, code_id),
                     "Instrumented code {code_id:?} must exist in database"
                 );
             }
@@ -75,7 +75,7 @@ impl<P: ProcessorExt> CodesSubService<P> {
                     {
                         db.set_original_code(&code);
                         db.set_instrumented_code(
-                            ethexe_runtime_common::VERSION,
+                            ethexe_runtime_common::RUNTIME_ID,
                             code_id,
                             instrumented_code,
                         );
@@ -144,7 +144,7 @@ mod tests {
         db.set_code_valid(code_id, true);
         db.set_original_code(code_and_id.code());
         db.set_instrumented_code(
-            ethexe_runtime_common::VERSION,
+            ethexe_runtime_common::RUNTIME_ID,
             code_id,
             InstrumentedCode::new(
                 vec![5, 6, 7, 8],
