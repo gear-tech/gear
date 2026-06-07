@@ -485,7 +485,7 @@ impl ProgramBuilder {
         let schedule = Schedule::default();
         let code = Code::try_new(
             original_code,
-            ethexe_runtime_common::VERSION,
+            ethexe_runtime_common::CODES_INSTRUMENTATION_VERSION,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
