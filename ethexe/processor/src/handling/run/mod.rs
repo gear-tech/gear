@@ -97,6 +97,7 @@ pub(crate) use chunks_splitting::ActorStateHashWithQueueSize;
 
 use crate::{
     BoundPromiseSink, ProcessorError, Result,
+    handling::run::chunk_execution_spawn::ChunkItemInput,
     host::{InstanceCreator, InstanceWrapper},
 };
 use chunk_execution_processing::ChunkJournalsProcessingOutput;
@@ -114,7 +115,7 @@ use ethexe_runtime_common::{
 };
 use futures::prelude::*;
 use gear_core::{
-    code::{CodeMetadata, InstrumentedCode},
+    code::{CodeMetadata, InstrumentationStatus, InstrumentedCode},
     gas::GasAllowanceCounter,
 };
 use gprimitives::{ActorId, CodeId, H256};
@@ -185,20 +186,18 @@ pub(super) async fn run_for_queue_type(
 fn lazy_instrument_chunk(
     ctx: &mut impl RunContext,
     chunk: Vec<(ActorId, H256)>,
-) -> Result<Vec<chunk_execution_spawn::ChunkItemInput>> {
+) -> Result<Vec<ChunkItemInput>> {
     let mut instrumentation_instance = None;
 
     chunk
         .into_iter()
         .map(|(program_id, state_hash)| {
-            let (instrumented_code, code_metadata) =
-                ctx.program_code(program_id, &mut instrumentation_instance)?;
+            let code = ctx.program_code(program_id, &mut instrumentation_instance)?;
 
-            Ok(chunk_execution_spawn::ChunkItemInput {
+            Ok(ChunkItemInput {
                 program_id,
                 state_hash,
-                instrumented_code,
-                code_metadata,
+                code,
             })
         })
         .collect()
@@ -224,7 +223,7 @@ pub(super) trait RunContext {
         &self,
         program_id: ActorId,
         instrumentation_instance: &mut Option<InstanceWrapper>,
-    ) -> Result<(InstrumentedCode, CodeMetadata)>;
+    ) -> Result<Option<(InstrumentedCode, CodeMetadata)>>;
 
     /// Get reference to inner.
     fn inner(&self) -> &CommonRunContext;
@@ -418,7 +417,7 @@ impl RunContext for CommonRunContext {
         &self,
         program_id: ActorId,
         instrumentation_instance: &mut Option<InstanceWrapper>,
-    ) -> Result<(InstrumentedCode, CodeMetadata)> {
+    ) -> Result<Option<(InstrumentedCode, CodeMetadata)>> {
         let code_id = self
             .transitions
             .registered_programs()
@@ -456,11 +455,27 @@ pub(super) fn instrumented_code_and_metadata(
     instance_creator: &InstanceCreator,
     instrumentation_instance: &mut Option<InstanceWrapper>,
     code_id: CodeId,
-) -> Result<(InstrumentedCode, CodeMetadata)> {
-    if let Some(instrumented_code) = db.instrumented_code(ethexe_runtime_common::VERSION, code_id)
-        && let Some(metadata) = db.code_metadata(code_id)
+) -> Result<Option<(InstrumentedCode, CodeMetadata)>> {
+    let existed_metadata = if let Some(metadata) = db.code_metadata(code_id) {
+        if let InstrumentationStatus::InstrumentationFailed { version } =
+            metadata.instrumentation_status()
+            && version == ethexe_runtime_common::CODES_INSTRUMENTATION_VERSION
+        {
+            log::debug!(
+                "Previous instrumentation attempt for code {code_id} was failed, skipping re-instrumentation"
+            );
+            return Ok(None);
+        }
+        Some(metadata)
+    } else {
+        None
+    };
+
+    if let Some(instrumented_code) =
+        db.instrumented_code(ethexe_runtime_common::RUNTIME_ID, code_id)
+        && let Some(metadata) = existed_metadata
     {
-        return Ok((instrumented_code, metadata));
+        return Ok(Some((instrumented_code, metadata)));
     }
 
     let original_code = db
@@ -473,18 +488,41 @@ pub(super) fn instrumented_code_and_metadata(
     let instance = instrumentation_instance
         .as_mut()
         .expect("instrumentation instance was just initialized");
-    let (instrumented_code, code_metadata) = instance
-        .instrument(&original_code)?
-        .ok_or(ProcessorError::MissingInstrumentedCodeForProgram(code_id))?;
+
+    // Return error if it's wasm runtime instance error. In case it's failed instrumentation - return Ok(None)
+    let Some((instrumented_code, code_metadata)) = instance.instrument(&original_code)? else {
+        log::debug!("Unsuccessful code {code_id} (re-)instrumentation");
+
+        // TODO #5562: not good approach to create fake metadata in case of no existed metadata,
+        // but we need to store the fact of failed instrumentation to avoid repeated attempts of instrumentation in future runs.
+        let metadata = CodeMetadata::new(
+            original_code.len() as u32,
+            existed_metadata
+                .as_ref()
+                .map_or_else(Default::default, |m| m.exports().clone()),
+            existed_metadata
+                .as_ref()
+                .map_or_else(Default::default, |m| m.static_pages()),
+            existed_metadata
+                .as_ref()
+                .map_or_else(Default::default, |m| m.stack_end()),
+            InstrumentationStatus::InstrumentationFailed {
+                version: ethexe_runtime_common::CODES_INSTRUMENTATION_VERSION,
+            },
+        );
+        db.set_code_metadata(code_id, metadata);
+
+        return Ok(None);
+    };
 
     db.set_instrumented_code(
-        ethexe_runtime_common::VERSION,
+        ethexe_runtime_common::RUNTIME_ID,
         code_id,
         instrumented_code.clone(),
     );
     db.set_code_metadata(code_id, code_metadata.clone());
 
-    Ok((instrumented_code, code_metadata))
+    Ok(Some((instrumented_code, code_metadata)))
 }
 
 pub(super) fn states(

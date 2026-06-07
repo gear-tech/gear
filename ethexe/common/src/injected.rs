@@ -50,15 +50,6 @@ impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
 
 pub type SignedInjectedTransaction = SignedMessage<InjectedTransaction>;
 
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", derive(Hash))]
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct AddressedInjectedTransaction {
-    /// Address of validator the transaction intended for
-    pub recipient: Address,
-    pub tx: SignedInjectedTransaction,
-}
-
 /// IMPORTANT: message id == tx hash.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]

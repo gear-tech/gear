@@ -10,8 +10,8 @@ use ethexe_common::{
     gear::ValueClaim,
     gear_core::rpc::ReplyInfo,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Promise,
-        Receipt,
+        InjectedTransaction, InjectedTransactionAcceptance, Promise, Receipt,
+        SignedInjectedTransaction,
     },
 };
 use ethexe_ethereum::{
@@ -199,7 +199,7 @@ impl<'a> Mirror<'a> {
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<AddressedInjectedTransaction> {
+    ) -> Result<SignedInjectedTransaction> {
         // TODO: check existence of deposit in Router contract
         ensure!(
             value == 0,
@@ -238,14 +238,9 @@ impl<'a> Mirror<'a> {
             salt,
         };
 
-        let transaction = AddressedInjectedTransaction {
-            recipient: Address::default(),
-            tx: signer
-                .signed_message(public_key, injected_transaction, None)
-                .with_context(|| "failed to create signed injected transaction")?,
-        };
-
-        Ok(transaction)
+        signer
+            .signed_message(public_key, injected_transaction, None)
+            .with_context(|| "failed to create signed injected transaction")
     }
 
     pub async fn send_message_injected(
@@ -254,7 +249,7 @@ impl<'a> Mirror<'a> {
         value: u128,
     ) -> Result<MessageId> {
         let transaction = self.prepare_injected_transaction(payload, value).await?;
-        let injected_transaction = transaction.tx.data();
+        let injected_transaction = transaction.data();
 
         let message_id = injected_transaction.to_message_id();
 
@@ -279,7 +274,7 @@ impl<'a> Mirror<'a> {
         value: u128,
     ) -> Result<(MessageId, Promise)> {
         let transaction = self.prepare_injected_transaction(payload, value).await?;
-        let injected_transaction = transaction.tx.data();
+        let injected_transaction = transaction.data();
 
         let message_id = injected_transaction.to_message_id();
 

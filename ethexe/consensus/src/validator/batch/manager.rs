@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, ValidationStatus};
+use super::types::{BatchLimits, ValidationRejectReason, ValidationStatus};
 use crate::validator::{
     batch::{filler::BatchFiller, types::BatchParts, utils},
     core::{ElectionRequest, MiddlewareWrapper},
@@ -13,11 +13,12 @@ use ethexe_common::{
     OutgoingAction, OutgoingActions, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
     db::{
-        BlockMetaStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO, OnChainStorageRO,
-        OutgoingActionStorageRW,
+        BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO,
+        OnChainStorageRO, OutgoingActionStorageRW,
     },
     gear::{
-        BatchCommitment, ChainCommitment, RewardsCommitment, StateTransition, ValidatorsCommitment,
+        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, StateTransition,
+        ValidatorsCommitment,
     },
 };
 use ethexe_db::Database;
@@ -107,23 +108,11 @@ impl BatchCommitmentManager {
             }
         }
 
-        let queue = self.db.block_meta(block.hash).codes_queue.ok_or_else(|| {
-            anyhow!(
-                "Computed block {} codes queue is not in storage",
-                block.hash
-            )
-        })?;
-        let code_commitments = super::utils::aggregate_code_commitments(&self.db, queue, false)
-            .expect("not errors because, fail_if_not_found is set to false");
-
-        for commitment in code_commitments {
-            if let Err(err) = batch_filler.include_code_commitment(commitment) {
-                tracing::trace!(
-                    "failed to include all code commitments into batch, because of error={err}"
-                );
-                break;
-            }
-        }
+        super::utils::aggregate_code_commitments_for_block(
+            &self.db,
+            block.hash,
+            &mut batch_filler,
+        )?;
 
         let batch_commitment = super::utils::create_batch_commitment(
             &self.db,
@@ -162,7 +151,7 @@ impl BatchCommitmentManager {
         if crate::utils::has_duplicates(codes.as_slice()) {
             return Ok(ValidationStatus::Rejected {
                 request,
-                reason: ValidationRejectReason::CodesHasDuplicates,
+                reason: ValidationRejectReason::CodesHaveDuplicates,
             });
         }
 
@@ -205,15 +194,17 @@ impl BatchCommitmentManager {
             });
         }
 
-        match super::utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
-            Ok(commitments) => batch_parts.code_commitments = commitments,
-            Err(CodeNotValidatedError(code_id)) => {
+        for &id in codes.iter() {
+            let Some(valid) = self.db.code_valid(id) else {
                 return Ok(ValidationStatus::Rejected {
                     request,
-                    reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
+                    reason: ValidationRejectReason::CodeIsNotProcessedYet(id),
                 });
-            }
-        };
+            };
+            batch_parts
+                .code_commitments
+                .push(CodeCommitment { id, valid });
+        }
 
         if let Some(head_mb) = head {
             // Mirror the coordinator-side guard: refuse to sign anything if our

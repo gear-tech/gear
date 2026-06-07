@@ -24,9 +24,7 @@ use ethexe_common::{
     events::mirror::StateChangedEvent,
     gear::ValueClaim,
     gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
-    injected::{
-        AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE, Receipt,
-    },
+    injected::{InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE, Receipt},
 };
 use ethexe_ethereum::{Ethereum, EthereumBuilder, mirror::Mirror, router::CodeValidationResult};
 use ethexe_rpc::{InjectedClient, ProgramClient, Proof};
@@ -1082,12 +1080,9 @@ impl TxCommand {
                         let message_id = injected_transaction.to_message_id();
                         let tx_hash = injected_transaction.to_hash().into();
 
-                        let transaction = AddressedInjectedTransaction {
-                            recipient: Address::default(),
-                            tx: signer
-                                .signed_message(public_key, injected_transaction, None)
-                                .with_context(|| "failed to create signed injected transaction")?,
-                        };
+                        let transaction = signer
+                            .signed_message(public_key, injected_transaction, None)
+                            .with_context(|| "failed to create signed injected transaction")?;
 
                         if !watch {
                             ws_client

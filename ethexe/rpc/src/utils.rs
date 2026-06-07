@@ -29,12 +29,10 @@ pub fn block_at_or_latest_synced(
 }
 
 /// Latest MB whose per-row state is on disk.
+///
+/// At genesis this is the zero MB, which `initialize_empty_db` seeds with the
+/// genesis / re-genesis program states — so zero is a valid source for RPC
+/// reads (it carries the dump state under re-genesis) rather than "no state".
 pub fn latest_computed_mb(db: &Database) -> RpcResult<H256> {
-    let hash = db.globals().latest_computed_mb_hash;
-    if hash.is_zero() {
-        return Err(errors::db(
-            "no computed MB available yet; RPC reads require an MB-side state",
-        ));
-    }
-    Ok(hash)
+    Ok(db.globals().latest_computed_mb_hash)
 }

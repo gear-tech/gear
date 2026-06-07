@@ -297,7 +297,7 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
 
 impl StateDump {
     /// Collect a state dump for a specific MB hash. The Eth block at
-    /// which the MB observably "applies" is recorded as `block_hash`
+    /// which the MB observably "applies" is recorded as `eb_hash`
     /// — typically the last EB the MB pinned via
     /// `AdvanceTillEthereumBlock`, which the caller passes in.
     ///
@@ -307,7 +307,7 @@ impl StateDump {
     pub fn collect_from_mb_storage(
         storage: &(impl MbStorageRO + CodesStorageRO + HashStorageRO),
         mb_hash: H256,
-        block_hash: H256,
+        eb_hash: H256,
     ) -> Result<Self> {
         let mut collector = BlobCollector {
             storage,
@@ -350,8 +350,8 @@ impl StateDump {
         }
 
         Ok(StateDump {
-            mb_hash,
-            block_hash,
+            metadata: mb_hash,
+            eb_hash,
             codes,
             programs,
             blobs: collector.blobs,
@@ -363,9 +363,9 @@ impl StateDump {
     /// [`Self::collect_from_mb_storage`].
     pub fn collect_from_storage(
         storage: &(impl MbStorageRO + CodesStorageRO + BlockMetaStorageRO + HashStorageRO),
-        block_hash: H256,
+        eb_hash: H256,
     ) -> Result<Self> {
-        let block_meta = storage.block_meta(block_hash);
+        let block_meta = storage.block_meta(eb_hash);
 
         let mb_hash = block_meta
             .last_committed_mb
@@ -373,15 +373,15 @@ impl StateDump {
 
         let codes_queue = block_meta
             .codes_queue
-            .with_context(|| format!("codes queue not found for block {block_hash}"))?;
+            .with_context(|| format!("codes queue not found for block {eb_hash}"))?;
 
         if !codes_queue.is_empty() {
             // StorageDump does not include codes queue, so after re-genesis the queue will be lost.
             log::warn!(
-                "Codes queue is not empty at block {block_hash:?}. This may cause hanging codes after re-genesis."
+                "Codes queue is not empty at block {eb_hash:?}. This may cause hanging codes after re-genesis."
             );
         }
 
-        Self::collect_from_mb_storage(storage, mb_hash, block_hash)
+        Self::collect_from_mb_storage(storage, mb_hash, eb_hash)
     }
 }

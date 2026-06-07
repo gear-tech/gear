@@ -1122,7 +1122,6 @@ impl Node {
         };
 
         let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
-        let validator_address = validator_pub_key.map(|key| key.to_address());
 
         // Validators and full/RPC nodes both join the Malachite mesh.
         // Full nodes run in `NodeRole::FullNode` (no signing) but still
@@ -1252,7 +1251,6 @@ impl Node {
             rpc,
             sender,
             self.fast_sync,
-            validator_address,
             validator_pub_key,
         );
 

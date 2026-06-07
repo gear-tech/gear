@@ -17,8 +17,7 @@ pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
 pub struct ChunkItemInput {
     pub program_id: ActorId,
     pub state_hash: H256,
-    pub instrumented_code: InstrumentedCode,
-    pub code_metadata: CodeMetadata,
+    pub code: Option<(InstrumentedCode, CodeMetadata)>,
 }
 
 /// Spawns in the thread pool tasks for each program in the chunk remembering position of the program in the chunk.
@@ -51,8 +50,7 @@ pub async fn spawn_chunk_execution(
             let ChunkItemInput {
                 program_id,
                 state_hash,
-                instrumented_code,
-                code_metadata,
+                code,
             } = chunk_item;
 
             let mut executor = ctx.inner().instance_creator.instantiate()?;
@@ -63,11 +61,10 @@ pub async fn spawn_chunk_execution(
                         program_id,
                         state_root: state_hash,
                         queue_type,
-                        instrumented_code,
-                        code_metadata,
                         gas_allowance: GasAllowanceCounter::new(gas_allowance_for_chunk),
                         block_info,
                         promise_policy,
+                        code,
                     },
                     promise_sink,
                 )?;

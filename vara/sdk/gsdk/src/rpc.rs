@@ -3,14 +3,50 @@
 
 //! Gear API RPC methods
 
-use crate::{Api, GasInfo, IntoAccountId32, result::Result, utils};
+use crate::{
+    Api, GasInfo, IntoAccountId32,
+    result::{Error, Result},
+    utils,
+};
 use gear_core::{
     ids::{CodeId, MessageId},
-    rpc::ReplyInfo,
+    rpc::{CalculateReplyForHandleResult, ReplyInfo},
 };
+use gear_core_errors::ReplyCode;
 use gsdk_codegen::at_block;
 use parity_scale_codec::Decode;
+use serde::Deserialize;
 use subxt::{ext::subxt_rpcs::rpc_params, utils::H256};
+
+#[derive(Deserialize)]
+struct LegacyReplyInfo {
+    #[serde(deserialize_with = "deserialize_hex_bytes")]
+    payload: Vec<u8>,
+    value: u128,
+    code: ReplyCode,
+}
+
+impl From<LegacyReplyInfo> for ReplyInfo {
+    fn from(reply: LegacyReplyInfo) -> Self {
+        Self {
+            payload: reply.payload,
+            value: reply.value,
+            code: reply.code,
+        }
+    }
+}
+
+fn deserialize_hex_bytes<'de, D>(deserializer: D) -> std::result::Result<Vec<u8>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    let value = String::deserialize(deserializer)?;
+    let value = value.strip_prefix("0x").unwrap_or(&value);
+
+    hex::decode(value).map_err(D::Error::custom)
+}
 
 impl Api {
     /// Calculates the gas required to create a program from a
@@ -230,6 +266,30 @@ impl Api {
         Ok(T::decode(&mut bytes.as_slice())?)
     }
 
+    /// Reads a named custom section from the original WASM code stored
+    /// on-chain. When `block_hash` is `None`, the best block is used.
+    ///
+    /// Actually calls `gear_readWasmCustomSection` RPC method. A successful
+    /// `None` response means either that the node has no code for `code_id` or
+    /// that the stored WASM does not contain `section_name`.
+    /// Primary use case: retrieving a Sails IDL embedded in the `sails:idl`
+    /// custom section at specified block.
+    #[at_block]
+    pub async fn read_wasm_custom_section_at(
+        &self,
+        code_id: CodeId,
+        section_name: impl AsRef<str>,
+        block_hash: Option<H256>,
+    ) -> Result<Option<sp_core::Bytes>> {
+        self.rpc()
+            .request(
+                "gear_readWasmCustomSection",
+                rpc_params![H256(code_id.into()), section_name.as_ref(), block_hash],
+            )
+            .await
+            .map_err(Into::into)
+    }
+
     /// Calls `runtime_wasmBlobVersion` RPC method at specified block.
     #[at_block]
     pub async fn runtime_wasm_blob_version_at(&self, block_hash: Option<H256>) -> Result<String> {
@@ -260,9 +320,41 @@ impl Api {
         value: u128,
         block_hash: Option<H256>,
     ) -> Result<ReplyInfo> {
-        self.rpc()
+        let reply: LegacyReplyInfo = self
+            .rpc()
             .request(
                 "gear_calculateReplyForHandle",
+                rpc_params![
+                    H256(origin.into_account_id().0),
+                    H256(destination.into_account_id().0),
+                    hex::encode(payload),
+                    gas_limit,
+                    value,
+                    block_hash
+                ],
+            )
+            .await
+            .map_err(Error::from)?;
+
+        Ok(reply.into())
+    }
+
+    /// Calculates a reply and user messages for a given message at specified block.
+    ///
+    /// Actually calls `gear_calculateReplyForHandleResult` RPC method.
+    #[at_block]
+    pub async fn calculate_reply_for_handle_result_at(
+        &self,
+        origin: impl IntoAccountId32,
+        destination: impl IntoAccountId32,
+        payload: impl AsRef<[u8]>,
+        gas_limit: u64,
+        value: u128,
+        block_hash: Option<H256>,
+    ) -> Result<CalculateReplyForHandleResult> {
+        self.rpc()
+            .request(
+                "gear_calculateReplyForHandleResult",
                 rpc_params![
                     H256(origin.into_account_id().0),
                     H256(destination.into_account_id().0),

@@ -18,7 +18,7 @@
 //!   the way. Emits [`ComputeEvent::RequestLoadCodes`] and
 //!   [`ComputeEvent::BlockPrepared`].
 //! - `mb_compute` — executes a finalised Malachite block (computing
-//!   any missing ancestor MBs first) by walking its `Transactions`
+//!   any missing ancestor MBs first) by walking its `Operations`
 //!   list through `ethexe-processor`. Emits [`ComputeEvent::MbComputed`].
 //!
 //! ## Role in the stack
@@ -70,15 +70,15 @@
 //! uncomputed ancestor MBs have been executed. Compute walks the parent
 //! chain via [`ethexe_common::db::CompactMb::parent`] until it reaches
 //! a computed ancestor (or genesis), then runs the executor over the
-//! [`ethexe_common::malachite::Transactions`] payload of each. Per-step gas
-//! budget is carried inside each `Transaction::ProcessQueues` payload
-//! (see [`ethexe_common::malachite::ProcessQueuesLimits`]).
+//! [`ethexe_common::malachite::Operations`] payload of each. Per-step gas
+//! budget is carried inside each `Operation::ProcessQueues` payload
+//! (its `gas_allowance` field).
 //!
 //! ## Canonical event quarantine
 //!
 //! Ethereum events do not become visible to the runtime on the block
 //! they arrive in. When the executor processes an
-//! `AdvanceTillEthereumBlock` transaction inside an MB it fetches the
+//! `AdvanceTillEthereumBlock` operation inside an MB it fetches the
 //! events from blocks already past the canonical-quarantine window
 //! (`MalachiteConfig::canonical_quarantine` in `ethexe-malachite` —
 //! enforced inside `ethexe-processor`'s `process_programs`).
@@ -89,7 +89,7 @@
 //!   corresponding `CodeProcessed` is emitted upstream, otherwise a
 //!   block waiting on that code will stall for an extra poll.
 //! - `compute_mb` must only be called once the malachite service has
-//!   recorded the matching `CompactMb` + transactions blob. The
+//!   recorded the matching `CompactMb` + operations blob. The
 //!   service layer enforces this by gating event emission inside
 //!   `MalachiteService::receive_new_chain_head` (in `ethexe-malachite`).
 

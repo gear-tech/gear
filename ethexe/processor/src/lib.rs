@@ -184,9 +184,6 @@ pub enum ProcessorError {
     #[error("code id not found for created program {0}")]
     MissingCodeIdForProgram(ActorId),
 
-    #[error("missing instrumented code for code id {0}")]
-    MissingInstrumentedCodeForProgram(CodeId),
-
     #[error("missing original code for code id {0}")]
     MissingOriginalCodeForProgram(CodeId),
 

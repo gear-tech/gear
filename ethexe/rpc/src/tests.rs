@@ -6,10 +6,13 @@ use crate::{
     RpcService,
 };
 use ethexe_common::{
-    SignedMessage,
-    ecdsa::PrivateKey,
+    SignedMessage, ValidatorsVec,
+    db::OnChainStorageRW,
+    ecdsa::{PrivateKey, PublicKey},
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, Promise, Receipt, SignedCompactTxReceipt},
+    injected::{
+        InjectedTransaction, Promise, Receipt, SignedCompactTxReceipt, SignedInjectedTransaction,
+    },
     mock::Mock,
 };
 use ethexe_db::Database;
@@ -24,13 +27,27 @@ use tokio::task::{JoinHandle, JoinSet};
 struct MockService {
     rpc: RpcService,
     handle: ServerHandle,
+    validator_key: PrivateKey,
 }
 
 impl MockService {
     /// Creates a new mock service which runs an RPC server listening on the given address.
     pub async fn new(listen_addr: SocketAddr) -> Self {
-        let (handle, rpc) = start_new_server(listen_addr).await;
-        Self { rpc, handle }
+        let db = Database::memory();
+        let validator_key = PrivateKey::random();
+        let validator_address = PublicKey::from(&validator_key).to_address();
+        db.set_validators(
+            0,
+            ValidatorsVec::try_from(vec![validator_address])
+                .expect("test validator set must be non-empty"),
+        );
+
+        let (handle, rpc) = start_new_server(listen_addr, db).await;
+        Self {
+            rpc,
+            handle,
+            validator_key,
+        }
     }
 
     pub fn injected_api(&self) -> InjectedApi {
@@ -50,7 +67,7 @@ impl MockService {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
                         for tx in tx_batch.drain(..) {
-                            let (promise, receipt) = Self::create_promise_for(tx);
+                            let (promise, receipt) = self.create_promise_for(tx);
                             self.rpc.receive_computed_promise(promise);
                             self.rpc.receive_tx_receipt(receipt);
                         }
@@ -69,17 +86,22 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: AddressedInjectedTransaction) -> (Promise, SignedCompactTxReceipt) {
-        let promise = Promise::mock(tx.tx.data().to_hash());
-        let receipt =
-            SignedMessage::create(PrivateKey::random(), Receipt::Promise(promise.to_compact()))
-                .unwrap();
+    fn create_promise_for(
+        &self,
+        tx: SignedInjectedTransaction,
+    ) -> (Promise, SignedCompactTxReceipt) {
+        let promise = Promise::mock(tx.data().to_hash());
+        let receipt = SignedMessage::create(
+            self.validator_key.clone(),
+            Receipt::Promise(promise.to_compact()),
+        )
+        .unwrap();
         (promise, receipt.into())
     }
 }
 
 /// Starts a new RPC server listening on the given address.
-async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService) {
+async fn start_new_server(listen_addr: SocketAddr, db: Database) -> (ServerHandle, RpcService) {
     let rpc_config = RpcConfig {
         listen_addr,
         cors: None,
@@ -87,7 +109,7 @@ async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService)
         chunk_size: 2,
         with_dev_api: false,
     };
-    RpcServer::new(rpc_config, Database::memory())
+    RpcServer::new(rpc_config, db)
         .run_server()
         .await
         .expect("RPC Server will start successfully")
@@ -98,6 +120,10 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
     while injected_api.subscribers_count() > 0 {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
+}
+
+fn mock_signed_transaction() -> SignedInjectedTransaction {
+    SignedMessage::create(PrivateKey::random(), InjectedTransaction::mock(())).unwrap()
 }
 
 #[tokio::test]
@@ -122,7 +148,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut sub = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(mock_signed_transaction())
                 .await
                 .expect("Subscription will be created");
 
@@ -151,7 +177,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut subscription = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(mock_signed_transaction())
                 .await
                 .expect("Subscription will be created");
 
@@ -179,7 +205,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscriptions = vec![];
         for _ in 0..20 {
             let subscription = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(mock_signed_transaction())
                 .await
                 .expect("Subscription will be created");
             subscriptions.push(subscription);
@@ -216,7 +242,7 @@ async fn test_concurrent_multiple_clients() {
             let mut subscriptions = vec![];
             for _ in 0..50 {
                 let mut subscription = client
-                    .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                    .send_transaction_and_watch(mock_signed_transaction())
                     .await
                     .expect("Subscription will be created");
 
