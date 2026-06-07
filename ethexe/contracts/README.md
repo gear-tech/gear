@@ -15,6 +15,12 @@ https://book.getfoundry.sh/
 
 ## Usage
 
+### Install dependencies
+
+```shell
+$ forge soldeer install
+```
+
 ### Build
 
 ```shell
@@ -69,9 +75,11 @@ _- If environment variable `IS_POA` is set to `true` than `DeploymentScript` ski
 ```shell
 $ source .env
 
+$ forge script script/actions/Pause.s.sol:PauseScript --slow --rpc-url $LOCAL_RPC_URL --broadcast -vvvv
 $ forge script script/actions/Pause.s.sol:PauseScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/actions/Pause.s.sol:PauseScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 
+$ forge script script/actions/Unpause.s.sol:UnpauseScript --slow --rpc-url $LOCAL_RPC_URL --broadcast -vvvv
 $ forge script script/actions/Unpause.s.sol:UnpauseScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/actions/Unpause.s.sol:UnpauseScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 ```
@@ -84,15 +92,19 @@ $ forge script script/actions/Unpause.s.sol:UnpauseScript --slow --rpc-url $HOOD
 ```shell
 $ source .env
 
+$ forge script script/upgrades/Mirror.s.sol:MirrorScript --slow --rpc-url $LOCAL_RPC_URL --broadcast -vvvv
 $ forge script script/upgrades/Mirror.s.sol:MirrorScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/upgrades/Mirror.s.sol:MirrorScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 
+$ forge script script/upgrades/POAMiddleware.s.sol:POAMiddlewareScript --slow --rpc-url $LOCAL_RPC_URL --broadcast -vvvv
 $ forge script script/upgrades/POAMiddleware.s.sol:POAMiddlewareScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/upgrades/POAMiddleware.s.sol:POAMiddlewareScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 
+$ forge script script/upgrades/Router.s.sol:RouterScript --slow --rpc-url $LOCAL_RPC_URL --broadcast -vvvv
 $ forge script script/upgrades/Router.s.sol:RouterScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/upgrades/Router.s.sol:RouterScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 
+$ forge script script/upgrades/WrappedVara.s.sol:WrappedVaraScript --slow --rpc-url $LOCAL_RPC_URL --broadcast -vvvv
 $ forge script script/upgrades/WrappedVara.s.sol:WrappedVaraScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/upgrades/WrappedVara.s.sol:WrappedVaraScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 ```

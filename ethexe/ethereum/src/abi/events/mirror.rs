@@ -125,12 +125,3 @@ impl From<IMirror::ReplyTransferFailed> for ReplyTransferFailedEvent {
         }
     }
 }
-
-impl From<IMirror::ValueClaimFailed> for ValueClaimFailedEvent {
-    fn from(value: IMirror::ValueClaimFailed) -> Self {
-        Self {
-            claimed_id: bytes32_to_message_id(value.claimedId),
-            value: value.value,
-        }
-    }
-}

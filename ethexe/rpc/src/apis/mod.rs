@@ -13,7 +13,7 @@ pub use crate::apis::{
     code::CodeClient,
     dev::DevClient,
     injected::InjectedClient,
-    program::{CalculateReplyForHandleResult, FullProgramState, ProgramClient},
+    program::{CalculateReplyForHandleResult, FullProgramState, ProgramClient, Proof},
 };
 #[cfg(feature = "server")]
 pub use block::{BlockApi, BlockServer};

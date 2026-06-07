@@ -20,12 +20,15 @@ use alloy_chains::NamedChain;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use ethexe_common::{
-    Address, BlockHeader, SimpleBlockData,
+    Address, BlockHeader, OutgoingAction, SimpleBlockData,
+    events::mirror::StateChangedEvent,
+    gear::ValueClaim,
     gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
     injected::{InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE, Receipt},
 };
-use ethexe_ethereum::{Ethereum, EthereumBuilder, mirror::ClaimInfo, router::CodeValidationResult};
-use ethexe_rpc::{InjectedClient, ProgramClient};
+use ethexe_ethereum::{Ethereum, EthereumBuilder, mirror::Mirror, router::CodeValidationResult};
+use ethexe_rpc::{InjectedClient, ProgramClient, Proof};
+use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use jsonrpsee::ws_client::WsClientBuilder;
@@ -164,7 +167,7 @@ struct SendReplyResult {
     payload_hex: String,
     raw_value: u128,
     formatted_value: String,
-    claim_info: Option<ClaimInfo>,
+    value_claim: Option<ValueClaim>,
 }
 
 /// JSON-serializable result returned by `tx claim-value`.
@@ -181,7 +184,7 @@ struct ClaimValueResult {
 
     actor_id: H160,
     claimed_id: MessageId,
-    claim_info: Option<ClaimInfo>,
+    value_claim: Option<ValueClaim>,
 }
 
 /// JSON-serializable result returned by `tx transfer-locked-value-to-inheritor`.
@@ -324,7 +327,9 @@ impl TxCommand {
             rpc_url: Some(rpc_url),
             injected: true,
             ..
-        } = &self.command
+        }
+        | TxSubcommand::SendReply { rpc_url, .. }
+        | TxSubcommand::ClaimValue { rpc_url, .. } = &self.command
         {
             eprintln!("WS RPC:   {rpc_url}");
         }
@@ -1274,6 +1279,7 @@ impl TxCommand {
                 send_message_result?;
             }
             TxSubcommand::SendReply {
+                rpc_url,
                 mirror,
                 replied_to,
                 payload,
@@ -1342,27 +1348,36 @@ impl TxCommand {
 
                     eprintln!("Reply successfully sent!");
 
-                    let claim_info = if watch {
+                    let value_claim = if watch {
                         eprintln!("Waiting for value to be claimed...");
 
-                        let claim_info = mirror.wait_for_value_claim(replied_to).await?;
-                        let ClaimInfo {
-                            message_id,
-                            actor_id,
-                            value,
-                        } = &claim_info;
+                        // TODO: consider crate like gsdk but for Vara.eth to avoid direct RPC calls
+                        let ws_client: jsonrpsee::ws_client::WsClient = WsClientBuilder::new()
+                            .build(rpc_url)
+                            .await
+                            .with_context(|| "failed to create ws client for Vara.eth RPC")?;
 
-                        let actor_id = actor_id.to_address_lossy();
+                        let (_, value_claim) = Self::wait_for_value_claim(&mirror, ws_client, replied_to)
+                            .await
+                            .with_context(|| "failed to wait for value claim")?;
+
+                        let ValueClaim {
+                            message_id,
+                            destination,
+                            value,
+                        } = &value_claim;
+
+                        let destination = destination.to_address_lossy();
                         let raw_value = *value;
                         let formatted_value =
                             FormattedValue::<EthereumCurrency>::new(raw_value);
 
-                        eprintln!("Claim info:");
+                        eprintln!("Value claim:");
                         eprintln!("  Message id:  {message_id}");
-                        eprintln!("  Actor id:    {actor_id:?}");
+                        eprintln!("  Destination: {destination:?}");
                         eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
 
-                        Some(claim_info)
+                        Some(value_claim)
                     } else {
                         eprintln!(
                             "To wait for the value to be claimed, run this command with `--watch` flag"
@@ -1385,7 +1400,7 @@ impl TxCommand {
                         payload_hex,
                         raw_value,
                         formatted_value: formatted_value.to_string(),
-                        claim_info,
+                        value_claim,
                     })
                 })()
                 .await;
@@ -1401,6 +1416,7 @@ impl TxCommand {
                 send_reply_result?;
             }
             TxSubcommand::ClaimValue {
+                rpc_url,
                 mirror,
                 claimed_id,
                 watch,
@@ -1461,27 +1477,35 @@ impl TxCommand {
                     eprintln!("Value claim successfully requested!");
                     eprintln!();
 
-                    let claim_info = if watch {
+                    let value_claim = if watch {
                         eprintln!("Waiting for value to be claimed...");
 
-                        let claim_info = mirror.wait_for_value_claim(claimed_id).await?;
-                        let ClaimInfo {
-                            message_id,
-                            actor_id,
-                            value,
-                        } = &claim_info;
+                        // TODO: consider crate like gsdk but for Vara.eth to avoid direct RPC calls
+                        let ws_client: jsonrpsee::ws_client::WsClient = WsClientBuilder::new()
+                            .build(rpc_url)
+                            .await
+                            .with_context(|| "failed to create ws client for Vara.eth RPC")?;
 
-                        let actor_id = actor_id.to_address_lossy();
+                        let (_, value_claim) = Self::wait_for_value_claim(&mirror, ws_client, claimed_id)
+                            .await
+                            .with_context(|| "failed to wait for value claim")?;
+                        let ValueClaim {
+                            message_id,
+                            destination,
+                            value,
+                        } = &value_claim;
+
+                        let destination = destination.to_address_lossy();
                         let raw_value = *value;
                         let formatted_value =
                             FormattedValue::<EthereumCurrency>::new(raw_value);
 
                         eprintln!("Claim info:");
                         eprintln!("  Message id:  {message_id}");
-                        eprintln!("  Actor id:    {actor_id:?}");
+                        eprintln!("  Destination: {destination:?}");
                         eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
 
-                        Some(claim_info)
+                        Some(value_claim)
                     } else {
                         eprintln!(
                             "To wait for the value to be claimed, run this command with `--watch` flag"
@@ -1500,7 +1524,7 @@ impl TxCommand {
                         total_fee_wei: fee.total_fee_wei,
                         actor_id,
                         claimed_id,
-                        claim_info,
+                        value_claim,
                     })
                 })()
                 .await;
@@ -1609,6 +1633,48 @@ impl TxCommand {
         }
 
         Ok(())
+    }
+
+    // TODO #5111: it will be removed in future
+    async fn wait_for_value_claim(
+        mirror: &Mirror,
+        ws_client: jsonrpsee::ws_client::WsClient,
+        message_id: MessageId,
+    ) -> Result<(H256, ValueClaim)> {
+        let mut stream = mirror
+            .query()
+            .events()
+            .state_changed()
+            .subscribe()
+            .await
+            .with_context(|| "failed to subscribe to state changed events of mirror")?;
+
+        while let Some(result) = stream.next().await {
+            if let Ok((StateChangedEvent { state_hash }, _)) = result
+                && let Ok(Proof {
+                    total_leaves,
+                    leaf_index,
+                    outgoing_action,
+                    proof,
+                }) = ws_client
+                    .read_outgoing_action_merkle_proof(state_hash, message_id)
+                    .await
+            {
+                let OutgoingAction::ValueClaim(value_claim) = outgoing_action.clone();
+                let receipt = mirror
+                    .process_outgoing_action(
+                        state_hash,
+                        total_leaves,
+                        leaf_index,
+                        outgoing_action,
+                        proof,
+                    )
+                    .await?;
+                return Ok((receipt, value_claim));
+            }
+        }
+
+        Err(anyhow!("Failed to wait for value claimed"))
     }
 }
 
@@ -1842,6 +1908,9 @@ pub enum TxSubcommand {
     },
     /// Send reply to mirror program on Ethereum.
     SendReply {
+        /// RPC URL of Vara.eth node. Example: ws://127.0.0.1:9944.
+        #[arg(short, long)]
+        rpc_url: String,
         /// Mirror address.
         #[arg()]
         mirror: Address,
@@ -1863,6 +1932,9 @@ pub enum TxSubcommand {
     },
     /// Claim value from mirror program on Ethereum.
     ClaimValue {
+        /// RPC URL of Vara.eth node. Example: ws://127.0.0.1:9944.
+        #[arg(short, long)]
+        rpc_url: String,
         /// Mirror address.
         #[arg()]
         mirror: Address,

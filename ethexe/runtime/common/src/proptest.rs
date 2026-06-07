@@ -773,6 +773,7 @@ impl Arbitrary for ProgramState {
             maybe_hash_of_strategy::<Mailbox>(),
             any::<u128>(),
             any::<u128>(),
+            any::<u64>(),
         )
             .prop_map(
                 |(
@@ -784,6 +785,7 @@ impl Arbitrary for ProgramState {
                     mailbox_hash,
                     balance,
                     executable_balance,
+                    outgoing_actions_counter,
                 )| Self {
                     program,
                     canonical_queue,
@@ -793,6 +795,7 @@ impl Arbitrary for ProgramState {
                     mailbox_hash,
                     balance,
                     executable_balance,
+                    outgoing_actions_counter,
                 },
             )
             .boxed()

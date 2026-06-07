@@ -1,5 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-pragma solidity ^0.8.33;
+pragma solidity ^0.8.35;
 
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
@@ -76,7 +77,6 @@ contract Base is POCBaseTest {
         vm.warp(eraDuration * 100);
 
         // set up the symbiotic ecosystem
-        SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
         super.setUp();
 
         vm.startPrank(admin, admin);
@@ -308,14 +308,6 @@ contract Base is POCBaseTest {
         for (uint256 i = 0; i < _commitment.transitions.length; i++) {
             Gear.StateTransition memory _transition = _commitment.transitions[i];
 
-            bytes memory _valueClaimsBytes;
-            for (uint256 j = 0; j < _transition.valueClaims.length; j++) {
-                Gear.ValueClaim memory claim = _transition.valueClaims[j];
-                _valueClaimsBytes = bytes.concat(
-                    _valueClaimsBytes, Gear.valueClaimHash(claim.messageId, claim.destination, claim.value)
-                );
-            }
-
             bytes memory _messagesHashesBytes;
             for (uint256 j = 0; j < _transition.messages.length; j++) {
                 _messagesHashesBytes = bytes.concat(_messagesHashesBytes, Gear.messageHash(_transition.messages[j]));
@@ -328,7 +320,7 @@ contract Base is POCBaseTest {
                 _transition.inheritor,
                 _transition.valueToReceive,
                 _transition.valueToReceiveNegativeSign,
-                keccak256(_valueClaimsBytes),
+                _transition.merkleRoot,
                 keccak256(_messagesHashesBytes)
             );
         }

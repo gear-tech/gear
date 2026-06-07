@@ -10,14 +10,15 @@ use crate::validator::{
 use alloy::sol_types::SolValue;
 use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
-    SimpleBlockData, ToDigest,
+    OutgoingAction, OutgoingActions, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
     db::{
         BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO,
-        OnChainStorageRO,
+        OnChainStorageRO, OutgoingActionStorageRW,
     },
     gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
+        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, StateTransition,
+        ValidatorsCommitment,
     },
 };
 use ethexe_db::Database;
@@ -113,12 +114,22 @@ impl BatchCommitmentManager {
             &mut batch_filler,
         )?;
 
-        super::utils::create_batch_commitment(
+        let batch_commitment = super::utils::create_batch_commitment(
             &self.db,
             &block,
             batch_filler.into_parts(),
             self.limits.commitment_delay_limit,
-        )
+        );
+
+        if let Ok(Some(BatchCommitment {
+            chain_commitment: Some(chain_commitment),
+            ..
+        })) = batch_commitment.as_ref()
+        {
+            self.store_outgoing_actions_for_chain_commitment(chain_commitment);
+        }
+
+        batch_commitment
     }
 
     /// Participant: re-derive the coordinator's batch and return whether digests agree.
@@ -304,6 +315,7 @@ impl BatchCommitmentManager {
                 std::mem::take(&mut chain_commitment.transitions),
             );
             super::utils::sort_transitions_by_value_to_receive(&mut chain_commitment.transitions);
+            self.store_outgoing_actions_for_chain_commitment(&chain_commitment);
             batch_parts.chain_commitment = Some(chain_commitment);
         }
 
@@ -344,6 +356,25 @@ impl BatchCommitmentManager {
         }
 
         Ok(ValidationStatus::Accepted(digest))
+    }
+
+    fn store_outgoing_actions_for_chain_commitment(&self, commitment: &ChainCommitment) {
+        for StateTransition {
+            new_state_hash,
+            value_claims,
+            ..
+        } in &commitment.transitions
+        {
+            let mut outgoing_actions = vec![];
+
+            for value_claim in value_claims {
+                outgoing_actions.push(OutgoingAction::ValueClaim(value_claim.clone()));
+            }
+
+            let outgoing_actions: OutgoingActions = outgoing_actions.into();
+            self.db
+                .set_outgoing_actions(*new_state_hash, outgoing_actions);
+        }
     }
 
     pub async fn aggregate_validators_commitment(

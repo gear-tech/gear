@@ -1318,6 +1318,7 @@ mod tests {
             mailbox_hash: MaybeHashOf::empty(),
             balance: 0,
             executable_balance: MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES * 100,
+            outgoing_actions_counter: 0,
         };
         let state_hash = db.write_program_state(state);
         let mut program_states = ethexe_common::ProgramStates::default();

@@ -652,6 +652,7 @@ mod tests {
                 mailbox_hash: MaybeHashOf::empty(),
                 balance: 1_000_000_000_000,
                 executable_balance: 100_000_000_000_000,
+                outgoing_actions_counter: 0,
             };
 
             pid_state.canonical_queue.modify_queue(&db, |queue| {

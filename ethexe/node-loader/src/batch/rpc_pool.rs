@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use anyhow::{Result, anyhow};
-use ethexe_common::{gear::CodeState, injected::Promise};
+use ethexe_common::{OutgoingAction, gear::CodeState, injected::Promise};
 use ethexe_ethereum::Ethereum;
 use ethexe_sdk::VaraEthApi;
-use gprimitives::{ActorId, CodeId, MessageId};
+use gprimitives::{ActorId, CodeId, H256, MessageId};
 use rand::RngCore;
 use tokio::time::{Duration, Instant};
 
@@ -371,6 +371,131 @@ impl EthexeRpcPool {
         }
 
         Err(anyhow!("send_message_injected_and_watch exhausted retries"))
+    }
+
+    /// Processes value-claim outgoing actions for a committed program state.
+    pub(crate) async fn process_outgoing_value_claims(
+        &mut self,
+        preferred_endpoint_idx: usize,
+        api: &Ethereum,
+        actor_id: ActorId,
+        state_hash: H256,
+    ) -> Result<Vec<MessageId>> {
+        let mut last_err: Option<anyhow::Error> = None;
+
+        for attempt in 1..=RPC_MAX_ATTEMPTS {
+            for endpoint_idx in self.endpoint_indices_from(preferred_endpoint_idx) {
+                let client = match self.get_or_connect_client(endpoint_idx, api).await {
+                    Ok(client) => client,
+                    Err(err) => {
+                        tracing::warn!(
+                            endpoint_idx,
+                            attempt,
+                            max_attempts = RPC_MAX_ATTEMPTS,
+                            error = %err,
+                            "failed to acquire ethexe RPC client; will try another endpoint"
+                        );
+                        last_err = Some(err);
+                        continue;
+                    }
+                };
+
+                let mirror = client.mirror(actor_id);
+                let result = async {
+                    let outgoing_actions = mirror.outgoing_actions(state_hash).await?.into_inner();
+                    let action_count = outgoing_actions.len();
+                    let mut processed = Vec::new();
+                    let mut failures = 0usize;
+
+                    for outgoing_action in outgoing_actions {
+                        let OutgoingAction::ValueClaim(value_claim) = outgoing_action;
+                        let proof = match mirror
+                            .outgoing_action_merkle_proof(state_hash, value_claim.message_id)
+                            .await
+                        {
+                            Ok(proof) => proof,
+                            Err(err) => {
+                                failures = failures.saturating_add(1);
+                                tracing::warn!(
+                                    %actor_id,
+                                    %state_hash,
+                                    message_id = %value_claim.message_id,
+                                    error = %err,
+                                    "failed to get outgoing value-claim proof"
+                                );
+                                continue;
+                            }
+                        };
+
+                        if let Err(err) = mirror
+                            .process_outgoing_action_with_receipt(
+                                state_hash,
+                                proof.total_leaves,
+                                proof.leaf_index,
+                                proof.outgoing_action,
+                                proof.proof,
+                            )
+                            .await
+                        {
+                            failures = failures.saturating_add(1);
+                            tracing::warn!(
+                                %actor_id,
+                                %state_hash,
+                                message_id = %value_claim.message_id,
+                                error = %err,
+                                "failed to process outgoing value claim"
+                            );
+                            continue;
+                        }
+
+                        processed.push(value_claim.message_id);
+                    }
+
+                    if processed.is_empty() && failures != 0 {
+                        return Err(anyhow!(
+                            "failed to process all {failures}/{action_count} outgoing value claims"
+                        ));
+                    }
+
+                    Ok(processed)
+                }
+                .await;
+
+                match result {
+                    Ok(processed) => return Ok(processed),
+                    Err(err) => {
+                        tracing::warn!(
+                            endpoint_idx,
+                            attempt,
+                            max_attempts = RPC_MAX_ATTEMPTS,
+                            %actor_id,
+                            %state_hash,
+                            error = %err,
+                            "process_outgoing_value_claims failed; scheduling delayed reconnect"
+                        );
+                        self.schedule_reconnect(
+                            endpoint_idx,
+                            "process_outgoing_value_claims failure",
+                        );
+                        last_err = Some(err);
+                    }
+                }
+            }
+
+            if attempt < RPC_MAX_ATTEMPTS {
+                tracing::warn!(
+                    attempt,
+                    max_attempts = RPC_MAX_ATTEMPTS,
+                    "process_outgoing_value_claims retrying with available endpoints"
+                );
+            }
+        }
+
+        if let Some(err) = last_err {
+            return Err(err);
+        }
+
+        Err(anyhow!("process_outgoing_value_claims exhausted retries"))
     }
 }
 

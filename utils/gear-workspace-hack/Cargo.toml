@@ -17,198 +17,198 @@ publish = false
 # they have features like `runtime-benchmarks` and `try-runtime`
 # so we cannot, for example, run `cargo build -p gear-cli` without `--all-features`
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.frame-executive]
+[dependencies.frame-executive]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.frame-support]
+[dependencies.frame-support]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 features = ["experimental"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.frame-try-runtime]
+[dependencies.frame-try-runtime]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-authority-discovery]
+[dependencies.pallet-authority-discovery]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-authorship]
+[dependencies.pallet-authorship]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-babe]
+[dependencies.pallet-babe]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-bags-list]
+[dependencies.pallet-bags-list]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-balances]
+[dependencies.pallet-balances]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-bounties]
+[dependencies.pallet-bounties]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-child-bounties]
+[dependencies.pallet-child-bounties]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-conviction-voting]
+[dependencies.pallet-conviction-voting]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-election-provider-multi-phase]
+[dependencies.pallet-election-provider-multi-phase]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-grandpa]
+[dependencies.pallet-grandpa]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-identity]
+[dependencies.pallet-identity]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-im-online]
+[dependencies.pallet-im-online]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-multisig]
+[dependencies.pallet-multisig]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-nomination-pools]
+[dependencies.pallet-nomination-pools]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-offences]
+[dependencies.pallet-offences]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-preimage]
+[dependencies.pallet-preimage]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-proxy]
+[dependencies.pallet-proxy]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-ranked-collective]
+[dependencies.pallet-ranked-collective]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-referenda]
+[dependencies.pallet-referenda]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-scheduler]
+[dependencies.pallet-scheduler]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-session]
+[dependencies.pallet-session]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["historical", "std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-sudo]
+[dependencies.pallet-sudo]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-timestamp]
+[dependencies.pallet-timestamp]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-transaction-payment]
+[dependencies.pallet-transaction-payment]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-treasury]
+[dependencies.pallet-treasury]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-utility]
+[dependencies.pallet-utility]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-vesting]
+[dependencies.pallet-vesting]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.pallet-whitelist]
+[dependencies.pallet-whitelist]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["std"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.sc-client-db]
+[dependencies.sc-client-db]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 default-features = false
 features = ["rocksdb", "test-helpers"]
 
-[target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies.sc-service]
+[dependencies.sc-service]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-updated-wasmtime"
 features = ["test-helpers"]
@@ -430,7 +430,7 @@ sp-crypto-hashing-c65f7effa3be6d31 = { package = "sp-crypto-hashing", version = 
 sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
 sp-genesis-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
 sp-inherents = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-io = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["disable_oom", "disable_panic_handler"] }
+sp-io = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["disable_allocator", "disable_oom", "disable_panic_handler"] }
 sp-keyring = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
 sp-keystore = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
 sp-metadata-ir = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
@@ -726,7 +726,7 @@ sp-debug-derive = { git = "https://github.com/gear-tech/polkadot-sdk.git", branc
 sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
 sp-genesis-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
 sp-inherents = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-io = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["disable_oom", "disable_panic_handler"] }
+sp-io = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["disable_allocator", "disable_oom", "disable_panic_handler"] }
 sp-keyring = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
 sp-keystore = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
 sp-metadata-ir = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }

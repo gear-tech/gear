@@ -25,6 +25,7 @@ parity-scale-codec.workspace = true
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-runtime-common = { workspace = true, features = ["std"] }
 sp-core = { workspace = true, features = ["serde"] }
+sp-runtime.workspace = true
 gear-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
@@ -34,7 +35,8 @@ metrics-derive.workspace = true
 gear-workspace-hack.workspace = true
 thiserror.workspace = true
 scopeguard.workspace = true
-moka = {workspace = true, features = ["sync"]}
+moka = { workspace = true, features = ["sync"] }
+binary-merkle-tree.workspace = true
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["client"] }
