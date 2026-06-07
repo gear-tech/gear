@@ -78,7 +78,10 @@ mod store;
 mod streaming;
 
 pub use crate::{
-    config::{MalachiteConfig, Multiaddr, NodeRole, ValidatorEntry},
+    config::{
+        Environment as MalachiteConfigEnvironment, MalachiteConfig, Multiaddr, NodeRole,
+        ValidatorEntry,
+    },
     externalities::{BlockPayload, Externalities},
     service::{MService, MalachiteService},
     signing::{

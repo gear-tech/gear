@@ -39,8 +39,9 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
-    ValidatorEntry, derive_libp2p_secret, malachite_libp2p_peer_id,
+    InjectedTxMempool, MalachiteConfig, MalachiteConfigEnvironment, MalachiteService,
+    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
+    malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
@@ -1193,6 +1194,7 @@ impl Node {
                 .with_listen_addr(listen_addr)
                 .with_persistent_peers(persistent_peers)
                 .with_validators(validators);
+            mc.env = MalachiteConfigEnvironment::Test;
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
             let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));

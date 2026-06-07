@@ -10,10 +10,13 @@
 
 use std::{net::SocketAddr, path::PathBuf};
 
+use ethexe_malachite_core::MalachiteConfigEnvironment;
 pub use ethexe_malachite_core::{Multiaddr, ValidatorEntry};
 
 #[derive(Clone, Debug)]
 pub struct MalachiteConfig {
+    pub env: MalachiteConfigEnvironment,
+
     /// Gas allowance per block.
     pub gas_allowance: u64,
 
@@ -81,6 +84,7 @@ impl MalachiteConfig {
     /// (see [`Self::with_validators`]).
     pub fn from_home_dir(home_dir: PathBuf) -> Self {
         Self {
+            env: Default::default(),
             gas_allowance: Self::DEFAULT_GAS_ALLOWANCE,
             canonical_quarantine: Self::DEFAULT_CANONICAL_QUARANTINE,
             post_quarantine_delay: Self::DEFAULT_POST_QUARANTINE_DELAY,

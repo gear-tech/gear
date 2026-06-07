@@ -6,7 +6,7 @@
 use crate::{
     app,
     codec::ScaleCodec,
-    config::{MalachiteConfig, NodeRole},
+    config::{Environment, MalachiteConfig, NodeRole},
     context::{MalachiteCtx, Validator, ValidatorSet},
     externalities::{BlockPayload, Externalities},
     signing::{
@@ -345,10 +345,20 @@ fn build_inner_config(cfg: &MalachiteConfig, moniker: &str) -> InnerNodeConfig {
             ..Default::default()
         },
     };
+    let value_sync = match cfg.env {
+        Environment::Production => ValueSyncConfig::default(),
+        Environment::Test => ValueSyncConfig {
+            status_update_interval: Duration::from_millis(500),
+            request_timeout: Duration::from_secs(3),
+            parallel_requests: 16,
+            batch_size: 32,
+            ..Default::default()
+        },
+    };
     InnerNodeConfig {
         moniker: moniker.to_string(),
         consensus,
-        value_sync: ValueSyncConfig::default(),
+        value_sync,
         logging: LoggingConfig::default(),
         metrics: MetricsConfig::default(),
         runtime: RuntimeConfig::default(),

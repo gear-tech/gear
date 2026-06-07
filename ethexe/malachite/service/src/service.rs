@@ -141,6 +141,7 @@ impl MalachiteService {
         // and travel into the externalities; they never reach
         // ethexe-malachite-core.
         let svc_cfg = ethexe_malachite_core::MalachiteConfig {
+            env: config.env,
             listen_addr: config.listen_addr,
             base: config.home_dir.clone(),
             persistent_peers: config.persistent_peers.clone(),
