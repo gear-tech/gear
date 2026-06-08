@@ -4,12 +4,12 @@
 //! Packages publisher
 
 use crate::{
-    Manifest, PACKAGES, PackageStatus, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator,
-    TEAM_OWNER, Workspace, handler,
+    GEAR_SUBSTRATE_DEPENDENCIES, Manifest, PACKAGES, PackageStatus, SAFE_DEPENDENCIES,
+    STACKED_DEPENDENCIES, Simulator, TEAM_OWNER, Workspace, handler,
 };
 use anyhow::{Result, bail};
 use cargo_metadata::{Metadata, MetadataCommand};
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 /// crates-io packages publisher.
 pub struct Publisher {
@@ -31,7 +31,13 @@ impl Publisher {
         Ok(Self {
             metadata: MetadataCommand::new().no_deps().exec()?,
             graph: vec![],
-            index: [SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, PACKAGES].concat(),
+            index: [
+                GEAR_SUBSTRATE_DEPENDENCIES,
+                SAFE_DEPENDENCIES,
+                STACKED_DEPENDENCIES,
+                PACKAGES,
+            ]
+            .concat(),
             workspace: None,
             simulator: simulate
                 .then(|| Simulator::new(registry_path))
@@ -46,11 +52,12 @@ impl Publisher {
     /// 3. Patch dependencies if needed
     pub async fn build(mut self, verify: bool, version: Option<String>) -> Result<Self> {
         let mut workspace = Workspace::lookup(version)?;
-        let version = workspace.version()?;
+        let workspace_version = workspace.version()?;
+        let mut package_versions = BTreeMap::new();
 
         for name in self.index.iter() {
             let Some(pkg) = self.metadata.packages.iter().find(|pkg| *pkg.name == *name) else {
-                println!("Package {name}@{version} not found in cargo metadata!");
+                println!("Package {name}@{workspace_version} not found in cargo metadata!");
                 continue;
             };
 
@@ -89,6 +96,13 @@ impl Publisher {
                 bail!("Package {name} has empty rust-version!");
             }
 
+            let package_version = if GEAR_SUBSTRATE_DEPENDENCIES.contains(name) {
+                pkg.version.to_string()
+            } else {
+                workspace_version.clone()
+            };
+            package_versions.insert(name.to_string(), package_version.clone());
+
             let mut is_published = false;
             let mut is_actualized = false;
 
@@ -100,8 +114,8 @@ impl Publisher {
                 }
             }
 
-            if verify && crate::verify(name, &version, self.simulator.as_ref()).await? {
-                println!("Package {name}@{version} already published!");
+            if verify && crate::verify(name, &package_version, self.simulator.as_ref()).await? {
+                println!("Package {name}@{package_version} already published!");
                 is_actualized = true;
             }
 
@@ -109,7 +123,11 @@ impl Publisher {
                 .push(handler::patch(pkg, is_published, is_actualized)?);
         }
 
-        workspace.complete(self.index.clone(), self.simulator.is_some())?;
+        workspace.complete(
+            self.index.clone(),
+            &package_versions,
+            self.simulator.is_some(),
+        )?;
 
         self.workspace = Some(workspace);
 
@@ -154,7 +172,7 @@ impl Publisher {
     }
 
     /// Check the to-be-published packages
-    pub fn check(self) -> Result<Self> {
+    pub fn check(&self) -> Result<()> {
         // Post tests for gtest
         for (pkg, test) in [
             ("demo-syscall-error", "program_can_be_initialized"),
@@ -165,7 +183,20 @@ impl Publisher {
             }
         }
 
-        Ok(self)
+        Ok(())
+    }
+
+    /// Apply publish-only workspace dependency rewrites.
+    pub fn prepare_publish(&mut self) -> Result<()> {
+        for manifest in self.graph.iter_mut() {
+            handler::patch_publish(&manifest.name, &mut manifest.mutable_manifest);
+        }
+
+        if let Some(workspace) = self.workspace.as_mut() {
+            workspace.rename()?;
+        }
+
+        self.patch()
     }
 
     /// Publish packages
@@ -178,13 +209,16 @@ impl Publisher {
         } in self.graph.iter().filter(|m| !m.is_actualized)
         {
             println!("Publishing {path:?}");
+            if let Some(simulator) = self.simulator.as_ref() {
+                simulator.clear_cache()?;
+            }
             let status = crate::publish(&path.to_string_lossy())?;
             if !status.success() {
                 bail!("Failed to publish package {path:?} ...");
             }
 
             if self.simulator.is_none() && !is_published {
-                let status = crate::add_owner(name, TEAM_OWNER)?;
+                let status = crate::add_owner(handler::crates_io_name(name), TEAM_OWNER)?;
                 if !status.success() {
                     bail!("Failed to add owner to package {name} ...");
                 }

@@ -16,7 +16,7 @@ workspace = true
 [dependencies]
 tracing.workspace = true
 lru.workspace = true
-wasmtime.workspace = true
+wasmtime = { features = ["cache", "runtime"], workspace = true }
 gear-core.workspace = true
 gear-workspace-hack.workspace = true
 

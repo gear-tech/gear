@@ -19,3 +19,4 @@ tracing-subscriber.workspace = true
 gear-wasm-builder.workspace = true
 gear-wasm-instrument = { workspace = true, features = ["std"] }
 gear-workspace-hack.workspace = true
+wasmparser.workspace = true

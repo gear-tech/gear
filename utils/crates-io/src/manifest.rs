@@ -7,11 +7,12 @@ use crate::{CARGO_REGISTRY_NAME, handler, version};
 use anyhow::{Result, anyhow};
 use cargo_metadata::Package;
 use std::{
+    collections::BTreeMap,
     env, fs,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
-use toml_edit::{DocumentMut, Item};
+use toml_edit::{DocumentMut, InlineTable, Item};
 
 const WORKSPACE_NAME: &str = "__gear_workspace";
 
@@ -77,10 +78,15 @@ impl Workspace {
     }
 
     /// Complete the versions of the specified crates.
-    pub fn complete(&mut self, mut index: Vec<&str>, simulate: bool) -> Result<()> {
+    pub fn complete(
+        &mut self,
+        mut index: Vec<&str>,
+        versions: &BTreeMap<String, String>,
+        simulate: bool,
+    ) -> Result<()> {
         handler::patch_alias(&mut index);
 
-        let version = self.mutable_manifest["workspace"]["package"]["version"]
+        let workspace_version = self.mutable_manifest["workspace"]["package"]["version"]
             .clone()
             .as_str()
             .ok_or_else(|| anyhow!("Could not find version in workspace manifest"))?
@@ -100,6 +106,7 @@ impl Workspace {
                 continue;
             }
 
+            let version = versions.get(name).unwrap_or(&workspace_version);
             dep["version"] = toml_edit::value(format!("={version}"));
 
             if simulate {
@@ -107,7 +114,7 @@ impl Workspace {
             }
         }
 
-        self.rename()?;
+        self.rename_aliases()?;
         Ok(())
     }
 
@@ -125,7 +132,17 @@ impl Workspace {
     }
 
     /// Rename workspace manifest.
-    fn rename(&mut self) -> Result<()> {
+    pub(crate) fn rename(&mut self) -> Result<()> {
+        self.rename_with(handler::patch_workspace)?;
+        handler::patch_publish_workspace(&mut self.mutable_manifest);
+        Ok(())
+    }
+
+    fn rename_aliases(&mut self) -> Result<()> {
+        self.rename_with(handler::patch_workspace_alias)
+    }
+
+    fn rename_with(&mut self, patch: fn(&str, &mut InlineTable)) -> Result<()> {
         let Some(deps) = self.mutable_manifest["workspace"]["dependencies"].as_table_like_mut()
         else {
             return Ok(());
@@ -137,7 +154,7 @@ impl Workspace {
                 continue;
             };
 
-            handler::patch_workspace(name, table);
+            patch(name, table);
         }
 
         Ok(())
