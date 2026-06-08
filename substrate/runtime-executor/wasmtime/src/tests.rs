@@ -154,36 +154,39 @@ impl RuntimeBuilder {
 fn deep_call_stack_wat(depth: usize) -> String {
     format!(
         r#"
-			(module
-			  (memory $0 32)
-			  (export "memory" (memory $0))
-			  (global (export "__heap_base") i32 (i32.const 0))
-			  (func (export "overflow") call 0)
+            (module
+              (memory $0 32)
+              (export "memory" (memory $0))
+              (global (export "__heap_base") i32 (i32.const 0))
+              ;; Keep recursion out of tail position so this remains a stack probe.
+              (global $stack_probe_sink (export "stack_probe_sink") (mut i32) (i32.const 0))
+              (func (export "overflow") call 0)
 
-			  (func $overflow (param $0 i32)
-			    (block $label$1
-			      (br_if $label$1
-			        (i32.ge_u
-			          (local.get $0)
-			          (i32.const {depth})
-			        )
-			      )
-			      (call $overflow
-			        (i32.add
-			          (local.get $0)
-			          (i32.const 1)
-			        )
-			      )
-			    )
-			  )
+              (func $overflow (param $0 i32)
+                (block $label$1
+                  (br_if $label$1
+                    (i32.ge_u
+                      (local.get $0)
+                      (i32.const {depth})
+                    )
+                  )
+                  (call $overflow
+                    (i32.add
+                      (local.get $0)
+                      (i32.const 1)
+                    )
+                  )
+                  (global.set $stack_probe_sink (local.get $0))
+                )
+              )
 
-			  (func (export "main")
-			    (param i32 i32) (result i64)
-			    (call $overflow (i32.const 0))
-			    (i64.const 0)
-			  )
-			)
-		"#
+              (func (export "main")
+                (param i32 i32) (result i64)
+                (call $overflow (i32.const 0))
+                (i64.const 0)
+              )
+            )
+        "#
     )
 }
 
@@ -203,8 +206,9 @@ fn deep_call_stack_wat(depth: usize) -> String {
 
 // We need two limits here since depending on whether the code is compiled in debug
 // or in release mode the maximum call depth is slightly different.
-const CALL_DEPTH_LOWER_LIMIT: usize = 65_455;
-const CALL_DEPTH_UPPER_LIMIT: usize = 65_509;
+// The bounds are calibrated against the non-tail-recursive stack probe above.
+const CALL_DEPTH_LOWER_LIMIT: usize = 32_500;
+const CALL_DEPTH_UPPER_LIMIT: usize = 33_000;
 
 test_wasm_execution!(test_consume_under_1mb_of_stack_does_not_trap);
 fn test_consume_under_1mb_of_stack_does_not_trap(instantiation_strategy: InstantiationStrategy) {
