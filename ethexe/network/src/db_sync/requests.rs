@@ -173,7 +173,8 @@ impl OngoingRequests {
                 // it means `HandleFuture` is dropped,
                 // so we just remove the request and don't make any further work
                 if channel.as_ref().expect("always Some").is_closed() {
-                    self.pending_events.push_back(Event::RequestCancelled { request_id });
+                    self.pending_events
+                        .push_back(Event::RequestCancelled { request_id });
                     return false;
                 }
 
@@ -188,16 +189,17 @@ impl OngoingRequests {
 
                 if let Poll::Ready(res) = poll {
                     let (event, res) = match res {
-                        Ok(response) => {
-                            (Event::RequestSucceed { request_id }, Ok(response))
-                        }
-                        Err((error, request)) => {
-                            (Event::RequestFailed { request_id, error }, Err((error, RetriableRequest {
-                                request_id,
-                                request,
-                            },
-                            )))
-                        }
+                        Ok(response) => (Event::RequestSucceed { request_id }, Ok(response)),
+                        Err((error, request)) => (
+                            Event::RequestFailed { request_id, error },
+                            Err((
+                                error,
+                                RetriableRequest {
+                                    request_id,
+                                    request,
+                                },
+                            )),
+                        ),
                     };
 
                     self.pending_events.push_back(event);
@@ -205,7 +207,8 @@ impl OngoingRequests {
                     // channel can be dropped after `is_closed()` check during future polling
                     let res = channel.take().expect("always Some").send(res);
                     if res.is_err() {
-                        self.pending_events.push_back(Event::RequestCancelled { request_id });
+                        self.pending_events
+                            .push_back(Event::RequestCancelled { request_id });
                     }
 
                     return false;
@@ -214,10 +217,9 @@ impl OngoingRequests {
                 if let Some(state) = state {
                     match state {
                         OngoingRequestState::NoPeers => {
-
                             self.pending_events.push_back(Event::NoPeers { request_id });
-                        },
-                        OngoingRequestState::SendRequest(peer, request, ) => {
+                        }
+                        OngoingRequestState::SendRequest(peer, request) => {
                             let outbound_request_id = behaviour.send_request(&peer, request);
                             self.active_requests.insert(outbound_request_id, request_id);
                         }
