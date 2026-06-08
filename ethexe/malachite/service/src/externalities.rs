@@ -747,11 +747,7 @@ impl EthexeExternalities {
     }
 }
 
-// TODO(#XXXX, typed MB/EB hashes): the test module below predates the typed
-// HashOf<MB> / HashOf<EB> migration and assumes raw H256 throughout. Re-enable
-// after threading the typed hashes through synthetic-chain helpers and
-// `assert_eq!` boundary conversions.
-#[cfg(any())]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::{MalachiteEvent, mempool::EmptyMempool};
@@ -1113,11 +1109,11 @@ mod tests {
         ethexe_common::mock::seed_genesis_zero_mb(&db);
         let chain_hashes = {
             let mut hashes = Vec::with_capacity(3);
-            let mut parent = H256::zero();
+            let mut parent = HashOf::<EB>::zero();
             for i in 0..3 {
                 let mut hb = [0u8; 32];
                 hb[0] = 0x10 + i as u8;
-                let hash = H256::from(hb);
+                let hash = eb_h(H256::from(hb));
                 let header = BlockHeader {
                     height: i as u32,
                     timestamp: i as u64,
@@ -1199,11 +1195,11 @@ mod tests {
         // valid `reference_block` — even though the stub mempool's
         // `insert` is a no-op, the value still travels through the
         // committed block intact.
-        let ref_hash = H256::repeat_byte(0x42);
+        let ref_hash = eb_h(H256::repeat_byte(0x42));
         let header = BlockHeader {
             height: 1,
             timestamp: 0,
-            parent_hash: H256::zero(),
+            parent_hash: HashOf::<EB>::zero(),
         };
         db.set_block_header(ref_hash, header);
 
@@ -1312,9 +1308,9 @@ mod tests {
     /// program with sufficient executable balance.
     fn setup_mb_with_destinations(
         db: &Database,
-        parent_mb: H256,
+        parent_mb: HashOf<MB>,
         destinations: &[gprimitives::ActorId],
-    ) -> H256 {
+    ) -> HashOf<MB> {
         use crate::tx_validity::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES;
         use ethexe_common::{
             MaybeHashOf, StateHashWithQueueSize,
@@ -1325,13 +1321,14 @@ mod tests {
         };
 
         let operations_hash = db.set_operations(Operations::new(vec![]));
-        let mb_hash = H256::random();
+        let mb_hash = HashOf::<MB>::random();
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent: parent_mb,
                 height: u64::MAX / 2,
                 operations_hash,
+                reserved: [0u8; 64],
             },
         );
 
@@ -1376,7 +1373,7 @@ mod tests {
     fn signed_injected_tx(
         pk: &ethexe_common::PrivateKey,
         destination: gprimitives::ActorId,
-        reference_block: H256,
+        reference_block: HashOf<EB>,
         salt: u8,
     ) -> SignedInjectedTransaction {
         ethexe_common::SignedMessage::create(
@@ -1440,7 +1437,7 @@ mod tests {
         let (ext, _rx) = make_externalities_with_pool(db, mempool);
         *ext.chain_head.write().unwrap() = Some(head);
 
-        let payload = ext.build_operations(parent_mb).await.unwrap();
+        let payload = ext.build_operations(parent_mb.inner()).await.unwrap();
         let injected: Vec<_> = payload
             .iter()
             .filter_map(|tx| match tx {
@@ -1515,7 +1512,7 @@ mod tests {
         // The producer reads chain_head_notify to pick its advance candidate;
         // since canonical_quarantine = 0, head's parent (block 9) is a valid
         // advance.
-        let payload = ext.build_operations(parent_mb).await.unwrap();
+        let payload = ext.build_operations(parent_mb.inner()).await.unwrap();
         let advance_present = payload
             .iter()
             .any(|tx| matches!(tx, Operation::AdvanceTillEthereumBlock { .. }));
@@ -1599,7 +1596,9 @@ mod tests {
         operations.push(Operation::ProcessQueues { gas_allowance: 0 });
         let payload = Operations::new(operations);
         assert!(
-            !ext.validate_operations(parent_mb, payload).await.unwrap(),
+            !ext.validate_operations(parent_mb.inner(), payload)
+                .await
+                .unwrap(),
             "MB must be rejected when touched destinations + EB-touched > cap"
         );
     }
@@ -1656,7 +1655,7 @@ mod tests {
         let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
         *ext.chain_head.write().unwrap() = Some(head);
 
-        let payload = ext.build_operations(parent_mb).await.unwrap();
+        let payload = ext.build_operations(parent_mb.inner()).await.unwrap();
         let injected: Vec<_> = payload
             .iter()
             .filter_map(|tx| match tx {
@@ -1696,14 +1695,14 @@ mod tests {
     ) -> (
         EthexeExternalities,
         mpsc::UnboundedReceiver<Result<MalachiteEvent>>,
-        H256,
+        HashOf<EB>,
     ) {
-        let mut parent = H256::zero();
+        let mut parent = HashOf::<EB>::zero();
         let mut chain_hashes = Vec::new();
         for i in 0..3u8 {
             let mut hb = [0u8; 32];
             hb[0] = 0x10 + i;
-            let hash = H256::from(hb);
+            let hash = eb_h(H256::from(hb));
             let header = BlockHeader {
                 height: i as u32,
                 timestamp: i as u64,
@@ -1838,7 +1837,9 @@ mod tests {
             Operation::ProcessQueues { gas_allowance: 0 },
         ]);
         assert!(
-            !ext.validate_operations(parent_mb, payload).await.unwrap(),
+            !ext.validate_operations(parent_mb.inner(), payload)
+                .await
+                .unwrap(),
             "MB where Advance is not the first tx must be rejected"
         );
     }
@@ -1871,12 +1872,12 @@ mod tests {
         let db = Database::memory();
 
         // Build a 5-block chain.
-        let mut parent = H256::zero();
+        let mut parent = HashOf::<EB>::zero();
         let mut chain = Vec::new();
         for i in 0..5u8 {
             let mut hb = [0u8; 32];
             hb[0] = 0x10 + i;
-            let hash = H256::from(hb);
+            let hash = eb_h(H256::from(hb));
             let header = BlockHeader {
                 height: i as u32,
                 timestamp: i as u64,
@@ -1899,14 +1900,15 @@ mod tests {
         // `canonical_quarantine = 0`), but chain[1] is a strict ancestor
         // of chain[3], so the descendant check would reject — and that
         // is exactly what we want validators to do.
-        let parent_mb = H256::from([0xCD; 32]);
+        let parent_mb = mb_h(H256::from([0xCD; 32]));
         let operations_hash = db.set_operations(Operations::new(vec![]));
         db.set_mb_compact_block(
             parent_mb,
             ethexe_common::db::CompactMb {
-                parent: H256::zero(),
+                parent: HashOf::<MB>::zero(),
                 height: 1,
                 operations_hash,
+                reserved: [0u8; 64],
             },
         );
         db.set_mb_program_states(parent_mb, ethexe_common::ProgramStates::default());
@@ -1931,7 +1933,9 @@ mod tests {
         ]);
 
         assert!(
-            !ext.validate_operations(parent_mb, payload).await.unwrap(),
+            !ext.validate_operations(parent_mb.inner(), payload)
+                .await
+                .unwrap(),
             "MB whose AdvanceTillEthereumBlock regresses parent.last_advanced_eb \
              must be rejected — currently passes because validate_block_above \
              skips the strict-descendant check the producer enforces",
@@ -1949,12 +1953,12 @@ mod tests {
         let db = Database::memory();
 
         // Build a small canonical chain `[c0, c1, c2]`.
-        let mut parent = H256::zero();
+        let mut parent = HashOf::<EB>::zero();
         let mut chain = Vec::new();
         for i in 0..3u8 {
             let mut hb = [0u8; 32];
             hb[0] = 0x20 + i;
-            let hash = H256::from(hb);
+            let hash = eb_h(H256::from(hb));
             let header = BlockHeader {
                 height: i as u32,
                 timestamp: i as u64,
@@ -1976,7 +1980,7 @@ mod tests {
         // canonical-ancestor record for from `head` — a fully
         // unrelated hash. `verify_passed` will return Err and
         // validation must reject in one shot.
-        let stranger_advance = H256::from([0xEE; 32]);
+        let stranger_advance = eb_h(H256::from([0xEE; 32]));
 
         let (ext, _rx) = make_externalities(db.clone());
         *ext.chain_head.write().unwrap() = Some(head);
@@ -2015,12 +2019,12 @@ mod tests {
         // Long chain — `canonical_quarantine + post_quarantine_delay`
         // must walk back 5 blocks, so we need at least 7 to leave
         // headroom and confirm the walk stops at the right depth.
-        let mut parent = H256::zero();
+        let mut parent = HashOf::<EB>::zero();
         let mut chain = Vec::new();
         for i in 0..8u8 {
             let mut hb = [0u8; 32];
             hb[0] = 0x30 + i;
-            let hash = H256::from(hb);
+            let hash = eb_h(H256::from(hb));
             let header = BlockHeader {
                 height: i as u32,
                 timestamp: i as u64,
@@ -2056,7 +2060,7 @@ mod tests {
         };
 
         let candidate = ext
-            .find_eb_candidate_for_advancing(H256::zero())
+            .find_eb_candidate_for_advancing(HashOf::<EB>::zero())
             .expect("must surface a candidate — chain is deep enough");
         // Walk back `2 + 3 = 5` parents from head; that's the expected
         // anchor.

@@ -359,11 +359,7 @@ pub fn eb_touched_programs(
     Ok(touched)
 }
 
-// TODO(#XXXX, typed MB/EB hashes): the test module below predates the typed
-// HashOf<MB> / HashOf<EB> migration and assumes raw H256 throughout. Re-enable
-// after threading the typed hashes through synthetic-chain helpers and
-// `assert_eq!` boundary conversions.
-#[cfg(any())]
+#[cfg(test)]
 mod tests {
     use super::*;
     use ethexe_common::{
@@ -404,7 +400,7 @@ mod tests {
         SignedMessage::create(PrivateKey::random(), tx).unwrap()
     }
 
-    fn mock_tx(reference_block: H256) -> SignedInjectedTransaction {
+    fn mock_tx(reference_block: HashOf<EB>) -> SignedInjectedTransaction {
         signed_tx(test_injected_transaction(reference_block, ActorId::zero()))
     }
 
@@ -444,8 +440,8 @@ mod tests {
         db: &Database,
         injected_transactions: Vec<SignedInjectedTransaction>,
         destination_initialized: bool,
-        parent_mb: H256,
-    ) -> H256 {
+        parent_mb: HashOf<MB>,
+    ) -> HashOf<MB> {
         setup_mb_with_balance(
             db,
             injected_transactions,
@@ -460,8 +456,8 @@ mod tests {
         injected_transactions: Vec<SignedInjectedTransaction>,
         destination_initialized: bool,
         executable_balance: u128,
-        parent_mb: H256,
-    ) -> H256 {
+        parent_mb: HashOf<MB>,
+    ) -> HashOf<MB> {
         let ops = Operations::new(
             injected_transactions
                 .into_iter()
@@ -469,13 +465,14 @@ mod tests {
                 .collect(),
         );
         let operations_hash = db.set_operations(ops);
-        let mb_hash = H256::random();
+        let mb_hash = HashOf::<MB>::random();
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent: parent_mb,
                 height: u64::MAX / 2,
                 operations_hash,
+                reserved: [0u8; 64],
             },
         );
 
@@ -577,7 +574,7 @@ mod tests {
         chain.blocks.iter().skip(9).for_each(|block| {
             let mut header = block.to_simple().header;
             header.parent_hash = parent;
-            let hash = H256::random();
+            let hash = HashOf::<EB>::random();
             db.set_block_header(hash, header);
             blocks_branch2.push(SimpleBlockData { hash, header });
             parent = hash;
@@ -646,7 +643,7 @@ mod tests {
         let chain = test_block_chain(10).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
-        let tx = test_injected_transaction(H256::zero(), ActorId::zero());
+        let tx = test_injected_transaction(HashOf::<EB>::zero(), ActorId::zero());
 
         let parent_mb = setup_mb(&db, vec![], true, chain.mb_hash_at(8));
         let tx_checker = TxValidityChecker::new_for_mb(db.clone(), chain_head, parent_mb).unwrap();
@@ -719,9 +716,12 @@ mod tests {
     fn genesis_parent_has_empty_states_so_every_tx_unknown_destination() {
         let db = Database::memory();
         let chain = test_block_chain(2).setup(&db);
-        let checker =
-            TxValidityChecker::new_for_mb(db.clone(), chain.blocks[1].to_simple(), H256::zero())
-                .unwrap();
+        let checker = TxValidityChecker::new_for_mb(
+            db.clone(),
+            chain.blocks[1].to_simple(),
+            HashOf::<MB>::zero(),
+        )
+        .unwrap();
         let tx = mock_tx(chain.blocks[1].hash);
         assert_eq!(
             checker.check_tx_validity(&tx).unwrap(),
@@ -737,7 +737,7 @@ mod tests {
         let chain = test_block_chain(10).setup(&db);
 
         let mb_grand = setup_mb(&db, vec![], true, chain.mb_hash_at(8));
-        let mb_parent = H256::random();
+        let mb_parent = HashOf::<MB>::random();
         let operations_hash = db.set_operations(Operations::new(vec![]));
         db.set_mb_compact_block(
             mb_parent,
@@ -745,6 +745,7 @@ mod tests {
                 parent: mb_grand,
                 height: u64::MAX / 2 + 1,
                 operations_hash,
+                reserved: [0u8; 64],
             },
         );
         // mb_parent's mb_meta.computed stays false → checker walks past it.
@@ -768,8 +769,8 @@ mod tests {
                 .unwrap();
 
         // value != 0 AND ref_block not in DB. NonZeroValue wins.
-        let tx =
-            test_injected_transaction(H256::random(), ActorId::zero()).tap_mut(|tx| tx.value = 1);
+        let tx = test_injected_transaction(HashOf::<EB>::random(), ActorId::zero())
+            .tap_mut(|tx| tx.value = 1);
         assert_eq!(
             checker.check_tx_validity(&signed_tx(tx)).unwrap(),
             TxValidity::NonZeroValue,
