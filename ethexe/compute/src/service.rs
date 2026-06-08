@@ -7,11 +7,12 @@ use crate::{
     ComputeEvent, ProcessorExt, Result, codes::CodesSubService, compute::ComputeSubService,
     prepare::PrepareSubService,
 };
-use ethexe_common::{CodeAndIdUnchecked, PromiseEmissionMode, PromisePolicy};
+use ethexe_common::{
+    CodeAndIdUnchecked, EB, HashOf, PromiseEmissionMode, PromisePolicy, malachite::MB,
+};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{Stream, stream::FusedStream};
-use gprimitives::H256;
 use std::{
     pin::Pin,
     task::{Context, Poll},
@@ -72,11 +73,11 @@ impl<P: ProcessorExt> ComputeService<P> {
         self.codes_sub_service.receive_code_to_process(code_and_id);
     }
 
-    pub fn prepare_block(&mut self, block: H256) {
+    pub fn prepare_block(&mut self, block: HashOf<EB>) {
         self.prepare_sub_service.receive_block_to_prepare(block);
     }
 
-    pub fn compute_mb(&mut self, mb_hash: H256, policy: PromisePolicy) {
+    pub fn compute_mb(&mut self, mb_hash: HashOf<MB>, policy: PromisePolicy) {
         self.mb_compute_sub_service.receive_mb(mb_hash, policy);
     }
 }
@@ -146,14 +147,15 @@ mod tests {
     use gprimitives::{CodeId, H256};
     use proptest::{collection, prelude::*};
 
-    fn seed_mb(db: &DB, mb_hash: H256, gas_allowance: u64) {
-        let eth_block_hash = H256::from_low_u64_be(0xEB00);
+    fn seed_mb(db: &DB, mb_hash: HashOf<MB>, gas_allowance: u64) {
+        // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+        let eth_block_hash = unsafe { HashOf::<EB>::new(H256::from_low_u64_be(0xEB00)) };
         db.set_block_header(
             eth_block_hash,
             BlockHeader {
                 height: 1,
                 timestamp: 1,
-                parent_hash: H256::zero(),
+                parent_hash: HashOf::<EB>::zero(),
             },
         );
         db.set_block_events(eth_block_hash, &[]);
@@ -169,9 +171,10 @@ mod tests {
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
-                parent: H256::zero(),
+                parent: HashOf::<MB>::zero(),
                 height: 1,
                 operations_hash,
+                reserved: [0u8; 64],
             },
         );
     }
@@ -206,7 +209,8 @@ mod tests {
                 let db = DB::memory();
                 seed_genesis_zero_mb(&db);
                 let mut service = ComputeService::new_mock_processor(db.clone());
-                let mb_hash = H256::from_low_u64_be(0xCAFE);
+                // SAFETY: synthetic MB hash for tests — same invariant as a real MB envelope hash.
+                let mb_hash = unsafe { HashOf::<MB>::new(H256::from_low_u64_be(0xCAFE)) };
 
                 seed_mb(&db, mb_hash, gas_allowance);
                 service.compute_mb(mb_hash, PromisePolicy::Disabled);

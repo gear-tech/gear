@@ -25,7 +25,7 @@ use std::{
 
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, SimpleBlockData,
+    Address, EB, HashOf, SimpleBlockData,
     db::{ConfigStorageRO, OnChainStorageRO},
     injected::SignedInjectedTransaction,
 };
@@ -260,7 +260,7 @@ impl MalachiteService {
     /// the prerequisite for downstream `compute_mb` not racing the
     /// code-validation pipeline — see the prerequisite check inside
     /// the externalities impl.
-    pub fn receive_eb_prepared(&self, _eb_hash: H256) {
+    pub fn receive_eb_prepared(&self, _eb_hash: HashOf<EB>) {
         // Drain inspects each queued entry's prerequisite against the
         // current `block_meta.prepared` flag, so we don't need to use
         // `_eb_hash` here — the FIFO drain releases everything that

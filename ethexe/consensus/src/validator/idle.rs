@@ -22,10 +22,9 @@ use super::{
 use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    SimpleBlockData,
+    EB, HashOf, SimpleBlockData,
     db::{BlockMetaStorageRO, OnChainStorageRO},
 };
-use gprimitives::H256;
 
 /// Idle state — waits for the next Ethereum chain head and then routes to
 /// either [`Coordinator`] or [`Participant`] for that block.
@@ -64,7 +63,7 @@ impl StateHandler for Idle {
         Self::create_with_chain_head(self.ctx, block)
     }
 
-    fn process_synced_block(mut self, block: H256) -> Result<ValidatorState> {
+    fn process_synced_block(mut self, block: HashOf<EB>) -> Result<ValidatorState> {
         match &self.state {
             SubState::WaitingForSynced { block: pending } if pending.hash == block => {
                 let pending = *pending;
@@ -81,7 +80,7 @@ impl StateHandler for Idle {
         }
     }
 
-    fn process_prepared_block(self, block: H256) -> Result<ValidatorState> {
+    fn process_prepared_block(self, block: HashOf<EB>) -> Result<ValidatorState> {
         match &self.state {
             SubState::WaitingForPrepared { block: pending } if pending.hash == block => {
                 self.maybe_advance_to_role()

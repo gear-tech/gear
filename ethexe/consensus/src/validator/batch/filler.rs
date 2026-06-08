@@ -131,6 +131,7 @@ impl BatchFiller {
 mod tests {
     use super::*;
     use alloy::sol_types::SolValue;
+    use ethexe_common::{EB, HashOf};
     use ethexe_ethereum::abi::Gear;
     use gprimitives::{CodeId, H256};
 
@@ -144,7 +145,8 @@ mod tests {
         let checkpoint = ChainCommitment {
             head: H256::from_low_u64_be(0xC0DE),
             transitions: Vec::new(),
-            last_advanced_eth_block: H256::from_low_u64_be(0xEB),
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            last_advanced_eth_block: unsafe { HashOf::<EB>::new(H256::from_low_u64_be(0xEB)) },
         };
 
         filler.include_chain_commitment(checkpoint).unwrap();

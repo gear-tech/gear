@@ -11,11 +11,11 @@
 
 use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    PromiseEmissionMode, PromisePolicy,
+    EB, HashOf, PromiseEmissionMode, PromisePolicy,
     db::{CodesStorageRW, CompactMb, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
     events::BlockRequestEvent,
     injected::Promise,
-    malachite::{Operation, Operations},
+    malachite::{MB, Operation, Operations},
 };
 use ethexe_db::Database;
 use ethexe_processor::{BoundPromiseSink, ExecutableData};
@@ -37,11 +37,11 @@ use tokio::sync::mpsc;
 /// instead — `AlwaysEmit` re-emits, `ConsensusDriven` stays silent.
 #[derive(Debug)]
 pub(crate) struct MbComputeRequest {
-    pub mb_hash: H256,
+    pub mb_hash: HashOf<MB>,
     pub promise_policy: PromisePolicy,
 }
 
-type ComputationFuture = future_timing::Timed<BoxFuture<'static, Result<H256>>>;
+type ComputationFuture = future_timing::Timed<BoxFuture<'static, Result<HashOf<MB>>>>;
 
 /// Metrics for the [`ComputeSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
@@ -56,7 +56,7 @@ struct Metrics {
 ///
 /// The MB hash arrives on the channel pre-tagged by [`BoundPromiseSink`].
 struct MbPromisesStream {
-    receiver: mpsc::UnboundedReceiver<(H256, Promise)>,
+    receiver: mpsc::UnboundedReceiver<(HashOf<MB>, Promise)>,
 }
 
 impl Stream for MbPromisesStream {
@@ -84,7 +84,7 @@ pub struct ComputeSubService<P: ProcessorExt> {
     input: VecDeque<MbComputeRequest>,
     /// Head of the in-flight computation, kept so [`Self::receive_mb`] can
     /// skip duplicates that would otherwise re-emit `MbComputed`.
-    in_flight_mb: Option<H256>,
+    in_flight_mb: Option<HashOf<MB>>,
     computation: Option<ComputationFuture>,
     /// Per-MB promise channel; polled before `computation` so promises stream out live.
     promises_stream: Option<MbPromisesStream>,
@@ -115,7 +115,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         }
     }
 
-    pub fn receive_mb(&mut self, mb_hash: H256, promise_policy: PromisePolicy) {
+    pub fn receive_mb(&mut self, mb_hash: HashOf<MB>, promise_policy: PromisePolicy) {
         // Idempotent: skip if already computed, in flight, or queued —
         // otherwise BlockProposal+BlockFinalized for the same head emit
         // `MbComputed` twice.
@@ -136,8 +136,8 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         mut processor: P,
         req: MbComputeRequest,
         promise_emission_mode: PromiseEmissionMode,
-        promise_tx: mpsc::UnboundedSender<(H256, Promise)>,
-    ) -> Result<H256> {
+        promise_tx: mpsc::UnboundedSender<(HashOf<MB>, Promise)>,
+    ) -> Result<HashOf<MB>> {
         let MbComputeRequest {
             mb_hash: head_mb_hash,
             promise_policy,
@@ -179,7 +179,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     async fn compute_one(
         db: &Database,
         processor: &mut P,
-        mb_hash: H256,
+        mb_hash: HashOf<MB>,
         compact_mb: CompactMb,
         promise_sink: Option<BoundPromiseSink>,
     ) -> Result<()> {
@@ -215,7 +215,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 /// Builds executable data for a single MB, parent MB must be computed.
 pub fn prepare_executable_for_mb(
     db: &Database,
-    mb_hash: H256,
+    mb_hash: HashOf<MB>,
     compact_mb: CompactMb,
 ) -> Result<ExecutableData> {
     let CompactMb {
@@ -262,7 +262,7 @@ fn build_executable_data(
     operations: Operations,
     program_states: ethexe_common::ProgramStates,
     schedule: ethexe_common::Schedule,
-    initial_advanced_block: H256,
+    initial_advanced_block: HashOf<EB>,
 ) -> Result<ExecutableData> {
     let mut events: Vec<BlockRequestEvent> = Vec::new();
     let mut injected_transactions = Vec::new();
@@ -319,7 +319,11 @@ fn build_executable_data(
 }
 
 /// EBs in `(last_advanced, target]`, oldest-first; capped at 1024.
-fn collect_advance_chain(db: &Database, target: H256, last_advanced: H256) -> Result<Vec<H256>> {
+fn collect_advance_chain(
+    db: &Database,
+    target: HashOf<EB>,
+    last_advanced: HashOf<EB>,
+) -> Result<Vec<HashOf<EB>>> {
     const MAX_ADVANCE_STEPS: usize = 1024;
 
     if target == last_advanced {
@@ -328,7 +332,7 @@ fn collect_advance_chain(db: &Database, target: H256, last_advanced: H256) -> Re
 
     let mut chain = Vec::new();
     let mut current = target;
-    while current != last_advanced && current != H256::zero() {
+    while current != last_advanced && !current.is_zero() {
         if chain.len() >= MAX_ADVANCE_STEPS {
             return Err(ComputeError::AdvanceWalkTooDeep {
                 target,
@@ -354,8 +358,8 @@ fn collect_advance_chain(db: &Database, target: H256, last_advanced: H256) -> Re
 /// Returns an error if any MB in the chain is missing from the DB.
 fn collect_uncomputed_chain(
     db: &Database,
-    head_mb_hash: H256,
-) -> Result<VecDeque<(H256, CompactMb)>> {
+    head_mb_hash: HashOf<MB>,
+) -> Result<VecDeque<(HashOf<MB>, CompactMb)>> {
     let mut chain = VecDeque::new();
     let mut mb_hash = head_mb_hash;
     while !mb_hash.is_zero() && !db.mb_meta(mb_hash).computed {
@@ -463,18 +467,28 @@ mod tests {
     use gprimitives::{ActorId, CodeId, MessageId};
     use proptest::prelude::*;
 
+    fn eb_hash_of(raw: u64) -> HashOf<EB> {
+        // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+        unsafe { HashOf::<EB>::new(H256::from_low_u64_be(raw)) }
+    }
+
+    fn mb_hash_of(raw: u64) -> HashOf<MB> {
+        // SAFETY: synthetic MB hash for tests — same invariant as a real MB envelope hash.
+        unsafe { HashOf::<MB>::new(H256::from_low_u64_be(raw)) }
+    }
+
     fn dummy_ops(db: &Database, tag: u8) -> Operations {
         // Tag-derived AdvanceTillEthereumBlock makes each block's
         // operations list (and thus its CAS hash) unique across heights.
         // The referenced EB also needs a header in the DB so the
         // compute-side advance walk picks it up.
-        let eth_block_hash = H256::from_low_u64_be(0xEB00 + tag as u64);
+        let eth_block_hash = eb_hash_of(0xEB00 + tag as u64);
         db.set_block_header(
             eth_block_hash,
             BlockHeader {
                 height: tag as u32,
                 timestamp: tag as u64,
-                parent_hash: H256::zero(),
+                parent_hash: HashOf::<EB>::zero(),
             },
         );
         db.set_block_events(eth_block_hash, &[]);
@@ -490,7 +504,13 @@ mod tests {
     }
 
     /// Mimics malachite `process_mb_proposal`: CAS write + `CompactMb`.
-    fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, ops: Operations) {
+    fn seed_mb(
+        db: &Database,
+        mb_hash: HashOf<MB>,
+        parent: HashOf<MB>,
+        height: u64,
+        ops: Operations,
+    ) {
         let operations_hash = db.set_operations(ops);
         db.set_mb_compact_block(
             mb_hash,
@@ -498,6 +518,7 @@ mod tests {
                 parent,
                 height,
                 operations_hash,
+                reserved: [0u8; 64],
             },
         );
     }
@@ -516,9 +537,9 @@ mod tests {
         // 5-block chain; mb_hash = 0x1000 + i.
         const N: u64 = 5;
         let mut hashes = Vec::with_capacity(N as usize);
-        let mut parent = H256::zero();
+        let mut parent = HashOf::<MB>::zero();
         for i in 1..=N {
-            let mb_hash = H256::from_low_u64_be(0x1000 + i);
+            let mb_hash = mb_hash_of(0x1000 + i);
             seed_mb(&db, mb_hash, parent, i, dummy_ops(&db, i as u8));
             hashes.push((i, mb_hash));
             parent = mb_hash;
@@ -555,10 +576,10 @@ mod tests {
         fn collect_uncomputed_chain_returns_oldest_first(chain_len in 2u64..=16) {
             let db = Database::memory();
             let mut hashes = Vec::with_capacity(chain_len as usize);
-            let mut parent = H256::zero();
+            let mut parent = HashOf::<MB>::zero();
 
             for i in 1..=chain_len {
-                let mb_hash = H256::from_low_u64_be(0xB000 + i);
+                let mb_hash = mb_hash_of(0xB000 + i);
                 seed_mb(&db, mb_hash, parent, i, dummy_ops(&db, i as u8));
                 hashes.push(mb_hash);
                 parent = mb_hash;
@@ -585,10 +606,10 @@ mod tests {
     #[test]
     fn collect_advance_chain_errors_on_missing_intermediate_header() {
         let db = Database::memory();
-        let last_advanced = H256::from_low_u64_be(0xA0);
-        let parent_b = H256::from_low_u64_be(0xA1);
-        let parent_a = H256::from_low_u64_be(0xA2);
-        let target = H256::from_low_u64_be(0xA3);
+        let last_advanced = eb_hash_of(0xA0);
+        let parent_b = eb_hash_of(0xA1);
+        let parent_a = eb_hash_of(0xA2);
+        let target = eb_hash_of(0xA3);
 
         // target -> parent_a -> parent_b -> last_advanced
         // parent_b's header is intentionally missing.
@@ -631,8 +652,8 @@ mod tests {
         let processor = MockProcessor::default();
         let mut sub = ComputeSubService::new(db.clone(), processor);
 
-        let mb_hash = H256::from_low_u64_be(0xCAFE);
-        seed_mb(&db, mb_hash, H256::zero(), 1, dummy_ops(&db, 0));
+        let mb_hash = mb_hash_of(0xCAFE);
+        seed_mb(&db, mb_hash, HashOf::<MB>::zero(), 1, dummy_ops(&db, 0));
         db.mutate_mb_meta(mb_hash, |meta| {
             meta.computed = true;
         });
@@ -681,14 +702,14 @@ mod tests {
 
     /// Synthetic Ethereum block with a zeroed parent, so the compute-side
     /// advance walk collects exactly this single block.
-    fn synthetic_eb(db: &Database, tag: u8, events: Vec<BlockEvent>) -> H256 {
-        let hash = H256::from_low_u64_be(0xEB00 + tag as u64);
+    fn synthetic_eb(db: &Database, tag: u8, events: Vec<BlockEvent>) -> HashOf<EB> {
+        let hash = eb_hash_of(0xEB00 + tag as u64);
         db.set_block_header(
             hash,
             BlockHeader {
                 height: tag as u32,
                 timestamp: tag as u64,
-                parent_hash: H256::zero(),
+                parent_hash: HashOf::<EB>::zero(),
             },
         );
         db.set_block_events(hash, &events);
@@ -700,7 +721,8 @@ mod tests {
             destination,
             payload: b"PING".to_vec().try_into().unwrap(),
             value: 0,
-            reference_block: H256::random(),
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            reference_block: unsafe { HashOf::<EB>::new(H256::random()) },
             salt: H256::random().0.to_vec().try_into().unwrap(),
         };
         SignedMessage::create(PrivateKey::random(), tx).expect("failed to sign injected tx")
@@ -721,7 +743,7 @@ mod tests {
         db: &Database,
         processor: &mut Processor,
         pinger_count: u64,
-    ) -> Vec<H256> {
+    ) -> Vec<HashOf<MB>> {
         let ping_code_id = upload_ping_code(processor, db).await;
         let ping_id = ActorId::from(0x10000);
 
@@ -758,18 +780,18 @@ mod tests {
                 },
             ],
         );
-        let creator = H256::from_low_u64_be(0x1000);
+        let creator = mb_hash_of(0x1000);
         let mut ops = vec![Operation::AdvanceTillEthereumBlock {
             block_hash: create_eb,
         }];
         ops.extend(mb_bookend());
-        seed_mb(db, creator, H256::zero(), 0, Operations::new(ops));
+        seed_mb(db, creator, HashOf::<MB>::zero(), 0, Operations::new(ops));
         mb_hashes.push(creator);
 
         // MB #1.. — each injects a single PING into the ping program.
         for i in 1..=pinger_count {
             let eb = synthetic_eb(db, i as u8, vec![]);
-            let mb_hash = H256::from_low_u64_be(0x1000 + i);
+            let mb_hash = mb_hash_of(0x1000 + i);
             let mut ops = vec![
                 Operation::AdvanceTillEthereumBlock { block_hash: eb },
                 Operation::Injected(ping_injected(ping_id)),
@@ -794,7 +816,7 @@ mod tests {
         mode: PromiseEmissionMode,
         policy: PromisePolicy,
         pinger_count: u64,
-    ) -> (Vec<H256>, Vec<(H256, Promise)>) {
+    ) -> (Vec<HashOf<MB>>, Vec<(HashOf<MB>, Promise)>) {
         let db = Database::memory();
         seed_genesis_zero_mb(&db);
         let mut processor = Processor::new(db.clone()).expect("failed to create processor");
@@ -834,7 +856,7 @@ mod tests {
         .await;
 
         let head = *mb_hashes.last().unwrap();
-        let emitting: Vec<H256> = promises.iter().map(|(mb, _)| *mb).collect();
+        let emitting: Vec<HashOf<MB>> = promises.iter().map(|(mb, _)| *mb).collect();
         assert_eq!(
             emitting,
             vec![head],
@@ -855,8 +877,8 @@ mod tests {
 
         // mb_hashes[0] creates the program (no injected tx); the three
         // pingers each produce one promise, in oldest-first order.
-        let expected: Vec<H256> = mb_hashes[1..].to_vec();
-        let emitting: Vec<H256> = promises.iter().map(|(mb, _)| *mb).collect();
+        let expected: Vec<HashOf<MB>> = mb_hashes[1..].to_vec();
+        let emitting: Vec<HashOf<MB>> = promises.iter().map(|(mb, _)| *mb).collect();
         assert_eq!(
             emitting, expected,
             "AlwaysEmit must surface a promise for every MB in the walked chain"

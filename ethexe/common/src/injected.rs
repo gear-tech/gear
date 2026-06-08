@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
+use crate::{Address, EB, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
@@ -64,7 +64,7 @@ pub struct InjectedTransaction {
     /// NOTE: at this moment will be zero.
     pub value: u128,
     /// Reference block number.
-    pub reference_block: H256,
+    pub reference_block: HashOf<EB>,
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
@@ -103,7 +103,7 @@ impl InjectedTransaction {
         append(destination.as_ref());
         append(gear_core::utils::hash(payload).as_ref());
         append(value.to_be_bytes().as_ref());
-        append(reference_block.0.as_ref());
+        append(reference_block.inner().0.as_ref());
         append(gear_core::utils::hash(salt).as_ref());
 
         hashable_bytes
@@ -456,7 +456,8 @@ mod tests {
             destination: ActorId::zero(),
             payload: vec![1u8, 2u8, 3u8, 4u8].try_into().unwrap(),
             value: 100,
-            reference_block: H256::random(),
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            reference_block: unsafe { HashOf::<EB>::new(H256::random()) },
             salt: vec![1u8, 2u8].try_into().unwrap(),
         };
 
@@ -473,13 +474,14 @@ mod tests {
             value_be[0] = payload_last_byte;
             shifted_tx.value = u128::from_be_bytes(value_be);
 
-            let mut ref_block_data = shifted_tx.reference_block.0;
+            let mut ref_block_data = shifted_tx.reference_block.inner().0;
             let last_ref_block = ref_block_data[31];
 
             ref_block_data.copy_within(0..31, 1);
             ref_block_data[0] = value_last_byte;
 
-            shifted_tx.reference_block = H256(ref_block_data);
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            shifted_tx.reference_block = unsafe { HashOf::<EB>::new(H256(ref_block_data)) };
 
             let mut salt = shifted_tx.salt.clone().into_vec();
             salt.insert(0, last_ref_block);
@@ -493,7 +495,7 @@ mod tests {
                 tx.destination.as_ref(),
                 tx.payload.as_ref(),
                 tx.value.to_be_bytes().as_ref(),
-                tx.reference_block.0.as_ref(),
+                tx.reference_block.inner().0.as_ref(),
                 tx.salt.as_ref(),
             ]
             .concat()

@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::events::BlockEvent;
+use crate::{events::BlockEvent, hash::HashOf};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -19,25 +19,26 @@ pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 pub struct BlockHeader {
     pub height: u32,
     pub timestamp: u64,
-    pub parent_hash: H256,
+    pub parent_hash: HashOf<EB>,
 }
 
 impl BlockHeader {
     pub fn dummy(height: u32) -> Self {
-        let mut parent_hash = [0; 32];
-        parent_hash[..4].copy_from_slice(&height.to_le_bytes());
+        let mut parent_hash_bytes = [0u8; 32];
+        parent_hash_bytes[..4].copy_from_slice(&height.to_le_bytes());
 
         Self {
             height,
             timestamp: height as u64 * 12,
-            parent_hash: parent_hash.into(),
+            // SAFETY: synthetic deterministic dummy hash for tests/fixtures.
+            parent_hash: unsafe { HashOf::<EB>::new(parent_hash_bytes.into()) },
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockData {
-    pub hash: H256,
+    pub hash: HashOf<EB>,
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
 }
@@ -56,9 +57,14 @@ impl BlockData {
 )]
 #[display("Block(hash: {hash}, height: {}, parent: {}, ts: {})", header.height, header.parent_hash, header.timestamp)]
 pub struct SimpleBlockData {
-    pub hash: H256,
+    pub hash: HashOf<EB>,
     pub header: BlockHeader,
 }
+
+/// Ethereum block alias. `HashOf<EB>` carries the raw Ethereum block hash
+/// verbatim — no Blake2b recomputation — because the canonical EB identity
+/// already lives on the chain side.
+pub type EB = SimpleBlockData;
 
 /// [`PromisePolicy`] tells processor whether should it emits promises or not.
 #[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Encode, Decode, derive_more::IsVariant)]

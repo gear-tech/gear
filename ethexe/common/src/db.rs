@@ -4,13 +4,17 @@
 //! Common db types and traits.
 
 use crate::{
-    Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
-    SimpleBlockData, ValidatorsVec,
+    Address, BlockHeader, CodeBlobInfo, Digest, EB, HashOf, ProgramStates, ProtocolTimelines,
+    Schedule, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
-    malachite::Operations,
+    malachite::{MB, Operations},
 };
+
+// Re-export so existing `ethexe_common::db::CompactMb` imports keep working
+// — the type itself now lives in `ethexe_common::malachite` alongside `MB`.
+pub use crate::malachite::CompactMb;
 use alloc::{
     collections::{BTreeSet, VecDeque},
     vec::Vec,
@@ -34,9 +38,9 @@ pub struct BlockMeta {
     /// Last committed on-chain batch hash (digest).
     pub last_committed_batch: Option<Digest>,
     /// Last committed MB hash.
-    pub last_committed_mb: Option<H256>,
+    pub last_committed_mb: Option<HashOf<MB>>,
     /// Last committed EB hash.
-    pub last_committed_eb: Option<H256>,
+    pub last_committed_eb: Option<HashOf<EB>>,
     /// Latest era with committed validators.
     pub latest_era_validators_committed: Option<u64>,
 }
@@ -49,14 +53,14 @@ pub trait HashStorageRO {
 #[auto_impl::auto_impl(&, Box)]
 pub trait BlockMetaStorageRO {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
-    fn block_meta(&self, block_hash: H256) -> BlockMeta;
+    fn block_meta(&self, block_hash: HashOf<EB>) -> BlockMeta;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait BlockMetaStorageRW: BlockMetaStorageRO {
     /// NOTE: if `BlockMeta` doesn't exist in the database,
     /// it will be created with default values and then will be mutated.
-    fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta));
+    fn mutate_block_meta(&self, block_hash: HashOf<EB>, f: impl FnOnce(&mut BlockMeta));
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -84,14 +88,14 @@ pub trait CodesStorageRW: CodesStorageRO {
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait OnChainStorageRO {
-    fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
-    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
+    fn block_header(&self, block_hash: HashOf<EB>) -> Option<BlockHeader>;
+    fn block_events(&self, block_hash: HashOf<EB>) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
-    fn block_synced(&self, block_hash: H256) -> bool;
+    fn block_synced(&self, block_hash: HashOf<EB>) -> bool;
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
 
-    fn block_simple_data(&self, block_hash: H256) -> Option<SimpleBlockData> {
-        self.block_header(block_hash).map(|header| SimpleBlockData {
+    fn block_simple_data(&self, block_hash: HashOf<EB>) -> Option<EB> {
+        self.block_header(block_hash).map(|header| EB {
             hash: block_hash,
             header,
         })
@@ -100,11 +104,11 @@ pub trait OnChainStorageRO {
 
 #[auto_impl::auto_impl(&)]
 pub trait OnChainStorageRW: OnChainStorageRO {
-    fn set_block_header(&self, block_hash: H256, header: BlockHeader);
-    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
+    fn set_block_header(&self, block_hash: HashOf<EB>, header: BlockHeader);
+    fn set_block_events(&self, block_hash: HashOf<EB>, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
-    fn set_block_synced(&self, block_hash: H256);
+    fn set_block_synced(&self, block_hash: HashOf<EB>);
 }
 
 #[auto_impl::auto_impl(&)]
@@ -131,25 +135,12 @@ pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_receipt(&self, receipt: &SignedTxReceipt);
 }
 
-/// MB static identity. Keyed by the Blake2b envelope hash; existence implies
-/// the matching `Operations` blob is in CAS at `operations_hash`.
-#[derive(
-    Debug, Clone, Copy, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash, derive_more::Display,
-)]
-#[display("MB(height {height}, parent {parent}, operations_hash {operations_hash})")]
-pub struct CompactMb {
-    pub parent: H256,
-    pub height: u64,
-    pub operations_hash: H256,
-}
-
 /// MB dynamic state. `last_advanced_eb` is propagated forward at save time
-/// (resets on `AdvanceTillEthereumBlock`); `synced` requires this MB and every
-/// ancestor to be persisted.
+/// (resets on `AdvanceTillEthereumBlock`).
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct MbMeta {
     pub computed: bool,
-    pub last_advanced_eb: H256,
+    pub last_advanced_eb: HashOf<EB>,
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -157,25 +148,25 @@ pub trait MbStorageRO {
     /// Static identity (parent + height + `operations_hash`).
     /// Existence implies the matching [`Operations`] blob is in the
     /// CAS at `operations_hash`.
-    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb>;
+    fn mb_compact_block(&self, mb_hash: HashOf<MB>) -> Option<CompactMb>;
     /// Read the [`Operations`] blob from CAS by its content hash.
     fn operations(&self, operations_hash: H256) -> Option<Operations>;
-    fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
-    fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
-    fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
-    fn mb_meta(&self, mb_hash: H256) -> MbMeta;
+    fn mb_program_states(&self, mb_hash: HashOf<MB>) -> Option<ProgramStates>;
+    fn mb_outcome(&self, mb_hash: HashOf<MB>) -> Option<Vec<StateTransition>>;
+    fn mb_schedule(&self, mb_hash: HashOf<MB>) -> Option<Schedule>;
+    fn mb_meta(&self, mb_hash: HashOf<MB>) -> MbMeta;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait MbStorageRW: MbStorageRO {
-    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb);
+    fn set_mb_compact_block(&self, mb_hash: HashOf<MB>, compact: CompactMb);
     /// Write an [`Operations`] blob into the CAS and return its hash
     /// (the value stored in [`CompactMb::operations_hash`]).
     fn set_operations(&self, operations: Operations) -> H256;
-    fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
-    fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
-    fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
-    fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
+    fn set_mb_program_states(&self, mb_hash: HashOf<MB>, program_states: ProgramStates);
+    fn set_mb_outcome(&self, mb_hash: HashOf<MB>, outcome: Vec<StateTransition>);
+    fn set_mb_schedule(&self, mb_hash: HashOf<MB>, schedule: Schedule);
+    fn mutate_mb_meta(&self, mb_hash: HashOf<MB>, f: impl FnOnce(&mut MbMeta));
 }
 
 pub struct PreparedBlockData {
@@ -184,8 +175,8 @@ pub struct PreparedBlockData {
     pub latest_era_with_committed_validators: u64,
     pub codes_queue: VecDeque<CodeId>,
     pub last_committed_batch: Digest,
-    pub last_committed_mb: H256,
-    pub last_committed_eb: H256,
+    pub last_committed_mb: HashOf<MB>,
+    pub last_committed_eb: HashOf<EB>,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
@@ -194,24 +185,24 @@ pub struct DBConfig {
     pub chain_id: u64,
     pub router_address: Address,
     pub timelines: ProtocolTimelines,
-    pub genesis_block_hash: H256,
+    pub genesis_block_hash: HashOf<EB>,
     pub max_validators: u16,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct DBGlobals {
-    pub start_block_hash: H256,
-    pub latest_synced_eb: SimpleBlockData,
-    pub latest_prepared_eb_hash: H256,
+    pub start_block_hash: HashOf<EB>,
+    pub latest_synced_eb: EB,
+    pub latest_prepared_eb_hash: HashOf<EB>,
     /// Latest MB BFT-finalized by Malachite. Rows
     /// (`mb_program_states`/`mb_outcome`/`mb_schedule`) may not yet
     /// be persisted — use [`Self::latest_computed_mb_hash`] for any
     /// read that depends on those rows existing.
-    pub latest_finalized_mb_hash: H256,
+    pub latest_finalized_mb_hash: HashOf<MB>,
     /// Latest MB whose per-row state has been written by the compute
     /// pipeline. Trails `latest_finalized_mb_hash` until compute
     /// catches up.
-    pub latest_computed_mb_hash: H256,
+    pub latest_computed_mb_hash: HashOf<MB>,
 }
 
 #[cfg(feature = "std")]
@@ -259,15 +250,16 @@ pub use mock_interfaces::{SetConfig, SetGlobals};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::malachite::Operations;
+    use crate::malachite::{BlockPayload, MB, Operations};
     use indoc::formatdoc;
     use scale_info::{PortableRegistry, Registry, meta_type};
     use sha3::{Digest, Sha3_256};
 
     #[test]
     fn ensure_types_unchanged() {
+        // Recomputed after the typed-hash + MB move refactor (typed MB/EB hashes).
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "600c7b8ccc11ab8c87a94170473bad7cf7c1c87973f5f56f3734ff4ad7473a2a";
+            "40c73820b88e8c60899d573ec47cb02b332898a418205206c2b6597517ba3ea5";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -284,6 +276,8 @@ mod tests {
             meta_type::<StateTransition>(),
             meta_type::<Schedule>(),
             meta_type::<MbMeta>(),
+            meta_type::<MB>(),
+            meta_type::<BlockPayload>(),
             meta_type::<CompactMb>(),
             // NOTE: `Operation` hand-rolls its `Encode`/`Decode` (fixed-width
             // u32 tag), so this TypeInfo hash does NOT cover its wire format —

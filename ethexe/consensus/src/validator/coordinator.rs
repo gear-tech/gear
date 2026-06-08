@@ -237,7 +237,7 @@ impl Coordinator {
                 let batch_digest = batch.to_digest();
                 let event = match cloned_committer.commit(batch, signatures).await {
                     Ok(tx) => CommitmentSubmitted {
-                        block_hash,
+                        block_hash: block_hash.inner(),
                         batch_digest,
                         tx,
                     }.into(),

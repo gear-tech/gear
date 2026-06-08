@@ -10,7 +10,7 @@ use crate::validator::{
 use alloy::sol_types::SolValue;
 use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
-    SimpleBlockData, ToDigest,
+    HashOf, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
     db::{
         BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO,
@@ -19,10 +19,10 @@ use ethexe_common::{
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
+    malachite::MB,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::abi::Gear;
-use gprimitives::H256;
 use hashbrown::HashSet;
 
 #[derive(derive_more::Debug, Clone)]
@@ -195,7 +195,11 @@ impl BatchCommitmentManager {
                 .push(CodeCommitment { id, valid });
         }
 
-        if let Some(head_mb) = head {
+        if let Some(head_mb_raw) = head {
+            // SAFETY: head_mb travels on-chain as H256; typing it here only
+            // gates DB lookups that the rest of this branch treats as MB.
+            let head_mb = unsafe { HashOf::<MB>::new(head_mb_raw) };
+
             // Mirror the coordinator-side guard: refuse to sign anything if our
             // own `latest_finalized_mb` advanced to a non-canonical Eth block
             // (deep Eth reorg past quarantine). The coordinator's advance must
@@ -208,7 +212,7 @@ impl BatchCommitmentManager {
                     return Ok(ValidationStatus::Rejected {
                         request,
                         reason: ValidationRejectReason::LatestFinalizedAdvanceNotCanonical(
-                            latest_advanced,
+                            latest_advanced.inner(),
                         ),
                     });
                 }
@@ -227,7 +231,7 @@ impl BatchCommitmentManager {
                 );
                 return Ok(ValidationStatus::Rejected {
                     request,
-                    reason: ValidationRejectReason::HeadMbNotFinalized(head_mb),
+                    reason: ValidationRejectReason::HeadMbNotFinalized(head_mb_raw),
                 });
             }
 
@@ -239,7 +243,7 @@ impl BatchCommitmentManager {
                 );
                 return Ok(ValidationStatus::Rejected {
                     request,
-                    reason: ValidationRejectReason::HeadMbNotComputed(head_mb),
+                    reason: ValidationRejectReason::HeadMbNotComputed(head_mb_raw),
                 });
             }
 
@@ -247,7 +251,7 @@ impl BatchCommitmentManager {
                 .db
                 .block_meta(block.hash)
                 .last_committed_mb
-                .unwrap_or(H256::zero());
+                .unwrap_or(HashOf::<MB>::zero());
 
             // Head must strictly advance past last-committed; genesis = height 0.
             let head_height = self
@@ -278,7 +282,7 @@ impl BatchCommitmentManager {
                 );
                 return Ok(ValidationStatus::Rejected {
                     request,
-                    reason: ValidationRejectReason::HeadMbAlreadyCommitted(head_mb),
+                    reason: ValidationRejectReason::HeadMbAlreadyCommitted(head_mb_raw),
                 });
             }
 
@@ -291,7 +295,7 @@ impl BatchCommitmentManager {
 
             let mut chain_commitment = ChainCommitment {
                 transitions: Vec::new(),
-                head: head_mb,
+                head: head_mb_raw,
                 last_advanced_eth_block: self.db.mb_meta(head_mb).last_advanced_eb,
             };
             for mb_hash in pending.into_iter() {
@@ -440,7 +444,7 @@ impl BatchCommitmentManager {
         };
 
         let request = ElectionRequest {
-            at_block_hash: election_block.hash,
+            at_block_hash: election_block.hash.inner(),
             at_timestamp: election_ts,
             max_validators,
         };

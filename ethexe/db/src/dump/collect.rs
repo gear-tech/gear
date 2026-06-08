@@ -6,8 +6,9 @@
 use super::StateDump;
 use anyhow::{Context, Result};
 use ethexe_common::{
-    HashOf, MaybeHashOf, StateHashWithQueueSize,
+    EB, HashOf, MaybeHashOf, StateHashWithQueueSize,
     db::{BlockMetaStorageRO, CodesStorageRO, HashStorageRO, MbStorageRO},
+    malachite::MB,
 };
 use ethexe_runtime_common::state::{
     Dispatch, DispatchStash, Expiring, Mailbox, MailboxMessage, MemoryPages, MemoryPagesInner,
@@ -304,8 +305,8 @@ impl StateDump {
     /// a convenience that derives the MB from `BlockMeta::last_committed_mb`.
     pub fn collect_from_mb_storage(
         storage: &(impl MbStorageRO + CodesStorageRO + HashStorageRO),
-        mb_hash: H256,
-        eb_hash: H256,
+        mb_hash: HashOf<MB>,
+        eb_hash: HashOf<EB>,
     ) -> Result<Self> {
         let mut collector = BlobCollector {
             storage,
@@ -348,8 +349,8 @@ impl StateDump {
         }
 
         Ok(StateDump {
-            metadata: mb_hash,
-            eb_hash,
+            metadata: mb_hash.inner(),
+            eb_hash: eb_hash.inner(),
             codes,
             programs,
             blobs: collector.blobs,
@@ -361,7 +362,7 @@ impl StateDump {
     /// [`Self::collect_from_mb_storage`].
     pub fn collect_from_storage(
         storage: &(impl MbStorageRO + CodesStorageRO + BlockMetaStorageRO + HashStorageRO),
-        eb_hash: H256,
+        eb_hash: HashOf<EB>,
     ) -> Result<Self> {
         let block_meta = storage.block_meta(eb_hash);
 

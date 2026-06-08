@@ -1,13 +1,21 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Application-level block shape produced by the Malachite sequencer
-//! and consumed by the ethexe executor.
+//! Malachite block model shared by the consensus service
+//! (`ethexe-malachite-core`), the consensus glue layer
+//! (`ethexe-malachite`), and the executor (`ethexe-compute`).
 //!
-//! [`Operations`] is the application schema: an ordered list of
-//! [`Operation`]s. The consensus engine ships it SCALE-encoded as an
-//! opaque, size-capped byte string (the malachite `Block` payload);
-//! the encoding/decoding lives behind the consensus boundary.
+//! - [`MB`] is the consensus block envelope: `(parent_hash, height,
+//!   payload, reserved)`. Its hash is [`HashOf<MB>`].
+//! - [`BlockPayload`] is the opaque, versioned, size-capped wire
+//!   payload carried by an MB. The application schema
+//!   ([`Operations`]) lives inside [`BlockPayload`] as SCALE-encoded
+//!   bytes.
+//! - [`CompactMb`] is `MB` with the payload bytes replaced by
+//!   `operations_hash` — what gets indexed in the ethexe DB once the
+//!   matching [`Operations`] blob is in CAS.
+//! - [`Operations`] is the application-level ordered list of
+//!   [`Operation`]s that the executor consumes.
 //!
 //! Protocol evolution is additive: a new behaviour gets a new
 //! [`Operation`] variant with the next free `#[repr(u32)]` discriminant
@@ -17,19 +25,15 @@
 //! validator side — older operations can be retired from new blocks
 //! without ever losing the ability to decode and replay them.
 //!
-//! Block-level identity (parent linkage, height) lives in
-//! [`crate::db::CompactMb`], indexed by the consensus block envelope
-//! hash. The matching [`Operations`] blob is stored in the
-//! content-addressed half of the ethexe db and referenced by
-//! `CompactMb::operations_hash`.
-//!
 //! These types live in `ethexe-common` (rather than inside
 //! `ethexe-malachite`) so `ethexe-processor` can accept them without
 //! depending on the consensus layer.
 
-use crate::injected::SignedInjectedTransaction;
+use crate::{EB, HashOf, injected::SignedInjectedTransaction};
 use alloc::vec::Vec;
+use anyhow::{Result, anyhow};
 use derive_more::{Deref, DerefMut, IntoIterator};
+use gear_core::limited::LimitedVec;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -37,13 +41,150 @@ use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
+/// Per-block payload size cap.
+///
+/// The whole [`MB`] ships as a single gossipsub message: the proposer
+/// streams it as one `Data` proposal part, and the value-sync path fetches
+/// a finalized block in one request-response round. Malachite's
+/// `pubsub_max_size` (the gossipsub `max_transmit_size`) defaults to
+/// 4 MiB, so the encoded MB must stay well under that. The 1 MiB cap
+/// leaves ~4x headroom under the transport ceiling.
+pub const MAX_BLOCK_PAYLOAD_BYTES: usize = 1024 * 1024;
+
+/// Current `BlockPayload::version` written by this code path.
+///
+/// Bump in lockstep with a wire-format change in how the application
+/// interprets [`BlockPayload::bytes`]; decoders MUST tolerate seeing
+/// versions strictly less than the current one but MAY reject newer
+/// ones.
+pub const BLOCK_PAYLOAD_VERSION: u16 = 0;
+
+/// Versioned, size-capped block payload carried by an [`MB`].
+///
+/// The consensus service treats `bytes` as opaque. The ethexe
+/// application schema lives inside as a SCALE-encoded [`Operations`]
+/// — `version` exists so a future protocol bump can change that
+/// encoding without breaking the [`MB`] wire shape.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
+pub struct BlockPayload {
+    pub version: u16,
+    pub bytes: LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>,
+}
+
+impl BlockPayload {
+    /// Wrap raw application bytes at the current
+    /// [`BLOCK_PAYLOAD_VERSION`]. Returns `Err` if `bytes` exceeds
+    /// [`MAX_BLOCK_PAYLOAD_BYTES`].
+    pub fn new(bytes: Vec<u8>) -> Result<Self> {
+        let len = bytes.len();
+        let bytes = LimitedVec::try_from(bytes).map_err(|_| {
+            anyhow!("block payload exceeds {MAX_BLOCK_PAYLOAD_BYTES}-byte cap (got {len})")
+        })?;
+        Ok(Self {
+            version: BLOCK_PAYLOAD_VERSION,
+            bytes,
+        })
+    }
+
+    /// Content-addressed hash of the application bytes (the value
+    /// stored in [`CompactMb::operations_hash`]). The `version` prefix
+    /// deliberately does NOT contribute to the digest: at v0 the
+    /// bytes are SCALE-encoded [`Operations`], so this hash matches
+    /// the legacy `Operations`-keyed CAS slot byte-for-byte.
+    pub fn hash(&self) -> H256 {
+        gear_core::utils::hash(self.bytes.as_ref()).into()
+    }
+}
+
+/// Malachite block envelope: opaque versioned payload plus
+/// chain-position fields (parent hash + height) and a [`Self::reserved`]
+/// tail for future protocol extensions.
+///
+/// The block hash ([`Self::hash`]) is [`gear_core::utils::hash`]
+/// (Blake2b-256) over a SCALE-encoded
+/// `(parent_hash, height, payload_hash, reserved)` tuple, where
+/// `payload_hash = BlockPayload::hash()`. Two nodes with the same
+/// envelope content produce the same hash.
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
+pub struct MB {
+    pub parent_hash: HashOf<MB>,
+    pub height: u64,
+    pub payload: BlockPayload,
+    pub reserved: [u8; 64],
+}
+
+impl MB {
+    /// Construct an MB with `reserved` zeroed out.
+    pub fn new(parent_hash: HashOf<MB>, height: u64, payload: BlockPayload) -> Self {
+        Self {
+            parent_hash,
+            height,
+            payload,
+            reserved: [0u8; 64],
+        }
+    }
+
+    /// Compute the canonical [`HashOf<MB>`] for this envelope.
+    pub fn hash(&self) -> HashOf<MB> {
+        let payload_hash = self.payload.hash();
+        let inner = (self.parent_hash, self.height, payload_hash, self.reserved).encode();
+        let raw: H256 = gear_core::utils::hash(&inner).into();
+        // SAFETY: `raw` is the canonical MB envelope digest. Wrapping
+        // it in `HashOf<MB>` is exactly what the constructor exists for.
+        unsafe { HashOf::new(raw) }
+    }
+}
+
+/// MB static identity. Same shape as [`MB`] but with the opaque
+/// payload bytes replaced by `operations_hash`. Existence implies the
+/// matching application-level [`Operations`] blob is in the
+/// content-addressed half of the ethexe DB at `operations_hash`.
+#[derive(
+    Debug, Clone, Copy, Encode, Decode, TypeInfo, PartialEq, Eq, Hash, derive_more::Display,
+)]
+#[display("MB(height {height}, parent {parent}, operations_hash {operations_hash})")]
+pub struct CompactMb {
+    pub parent: HashOf<MB>,
+    pub height: u64,
+    pub operations_hash: H256,
+    pub reserved: [u8; 64],
+}
+
+impl Default for CompactMb {
+    fn default() -> Self {
+        Self {
+            parent: HashOf::zero(),
+            height: 0,
+            operations_hash: H256::zero(),
+            reserved: [0u8; 64],
+        }
+    }
+}
+
+impl CompactMb {
+    /// Recompute the [`HashOf<MB>`] from this compact record. Matches
+    /// [`MB::hash`] byte-for-byte by construction (same SCALE tuple).
+    pub fn mb_hash(&self) -> HashOf<MB> {
+        let inner = (
+            self.parent,
+            self.height,
+            self.operations_hash,
+            self.reserved,
+        )
+            .encode();
+        let raw: H256 = gear_core::utils::hash(&inner).into();
+        // SAFETY: identical derivation to `MB::hash`.
+        unsafe { HashOf::new(raw) }
+    }
+}
+
 /// A single operation in the malachite block.
 #[derive(Clone, Debug, PartialEq, Eq, TypeInfo, derive_more::IsVariant)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[repr(u32)]
 pub enum Operation {
     /// Pin executor's view to a quarantine-passed Ethereum block.
-    AdvanceTillEthereumBlock { block_hash: H256 } = 0,
+    AdvanceTillEthereumBlock { block_hash: HashOf<EB> } = 0,
 
     /// Progress scheduled tasks (mailbox/waitlist/reservation cleanup).
     ProgressTasks = 1,
@@ -86,7 +227,7 @@ impl Decode for Operation {
         let tag = u32::decode(input)?;
         match tag {
             0 => Ok(Operation::AdvanceTillEthereumBlock {
-                block_hash: H256::decode(input)?,
+                block_hash: HashOf::<EB>::decode(input)?,
             }),
             1 => Ok(Operation::ProgressTasks),
             2 => Ok(Operation::ProcessQueues {
@@ -155,7 +296,8 @@ mod tests {
         let mut a = empty_txs();
         let b = empty_txs();
         a.push(Operation::AdvanceTillEthereumBlock {
-            block_hash: H256::from_low_u64_be(0xEB),
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            block_hash: unsafe { HashOf::<EB>::new(H256::from_low_u64_be(0xEB)) },
         });
         assert_ne!(a.hash(), b.hash());
     }
@@ -163,7 +305,7 @@ mod tests {
     #[test]
     fn operation_tag_distinguishes_variants() {
         let advance = Operation::AdvanceTillEthereumBlock {
-            block_hash: H256::zero(),
+            block_hash: HashOf::<EB>::zero(),
         };
         let progress = Operation::ProgressTasks;
         let queues = Operation::ProcessQueues {
@@ -183,7 +325,7 @@ mod tests {
         // consensus wire format and must stay frozen forever.
         assert_eq!(
             Operation::AdvanceTillEthereumBlock {
-                block_hash: H256::zero()
+                block_hash: HashOf::<EB>::zero()
             }
             .tag(),
             0
@@ -193,7 +335,7 @@ mod tests {
 
         assert_eq!(
             &Operation::AdvanceTillEthereumBlock {
-                block_hash: H256::zero()
+                block_hash: HashOf::<EB>::zero()
             }
             .encode()[..4],
             &[0, 0, 0, 0],
@@ -218,11 +360,46 @@ mod tests {
         use parity_scale_codec::Decode;
 
         let original = Operations::new(alloc::vec![Operation::AdvanceTillEthereumBlock {
-            block_hash: H256::from_low_u64_be(0xEB)
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            block_hash: unsafe { HashOf::<EB>::new(H256::from_low_u64_be(0xEB)) }
         }]);
         let encoded = original.encode();
         let decoded = Operations::decode(&mut encoded.as_slice()).expect("decode");
         assert_eq!(original, decoded);
         assert_eq!(original.hash(), decoded.hash());
+    }
+
+    #[test]
+    fn block_payload_new_accepts_at_or_below_cap() {
+        BlockPayload::new(alloc::vec![]).expect("empty payload");
+        BlockPayload::new(alloc::vec![0u8; MAX_BLOCK_PAYLOAD_BYTES]).expect("payload at cap");
+    }
+
+    #[test]
+    fn block_payload_new_rejects_above_cap() {
+        let err = BlockPayload::new(alloc::vec![0u8; MAX_BLOCK_PAYLOAD_BYTES + 1])
+            .expect_err("over-cap must reject");
+        assert!(
+            err.to_string()
+                .contains(&MAX_BLOCK_PAYLOAD_BYTES.to_string()),
+            "expected cap-sized error mention, got: {err}",
+        );
+    }
+
+    #[test]
+    fn block_payload_decode_rejects_oversized_bytes_field() {
+        // Hand-roll an encoded `BlockPayload` whose `bytes` length
+        // exceeds the cap. SCALE prefixes `Vec<u8>` with a `Compact<u32>`
+        // length; we use the 4-byte mode for clarity. Decode must reject
+        // before allocating the over-cap buffer.
+        use parity_scale_codec::DecodeAll;
+
+        let oversize = (MAX_BLOCK_PAYLOAD_BYTES + 1) as u32;
+        let mut encoded = alloc::vec::Vec::new();
+        encoded.extend_from_slice(&BLOCK_PAYLOAD_VERSION.encode());
+        encoded.extend_from_slice(&parity_scale_codec::Compact(oversize).encode());
+        encoded.extend(core::iter::repeat_n(0u8, oversize as usize));
+        BlockPayload::decode_all(&mut encoded.as_slice())
+            .expect_err("decode must reject over-cap payload");
     }
 }

@@ -337,7 +337,7 @@ impl Checker {
                 pb.inc(1);
             };
 
-            if current_compact_mb.parent == H256::zero() {
+            if current_compact_mb.parent.is_zero() {
                 break;
             }
             current_mb = current_compact_mb.parent;

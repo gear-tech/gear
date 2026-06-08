@@ -20,9 +20,10 @@ use std::{path::Path, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use ethexe_common::{
-    BlockHeader, SimpleBlockData,
+    BlockHeader, EB, HashOf, SimpleBlockData,
     db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
     injected::{PurgedTransaction, SignedInjectedTransaction},
+    malachite::MB,
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
@@ -77,11 +78,11 @@ impl Mempool for EmptyMempool {
 ///   compute service's `prepare_block` pipeline; tests that don't
 ///   run that pipeline must seed it manually.
 fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
-    // The producer builds the genesis MB with `parent == H256::zero()`; seed
+    // The producer builds the genesis MB with `parent == zero`; seed
     // that zero ancestor as a computed MB exactly as `initialize_empty_db` does.
     ethexe_common::mock::seed_genesis_zero_mb(db);
     let mut chain = Vec::with_capacity(len);
-    let mut parent = H256::zero();
+    let mut parent = HashOf::<EB>::zero();
     for i in 0..len {
         let mut hb = [0u8; 32];
         hb[0] = (seed & 0xff) as u8;
@@ -90,7 +91,8 @@ fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
         hb[3] = ((i >> 8) & 0xff) as u8;
         // bias high so the produced hash is always non-zero
         hb[4] = 0x80;
-        let hash = H256::from(hb);
+        // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+        let hash = unsafe { HashOf::<EB>::new(H256::from(hb)) };
         let header = BlockHeader {
             height: i as u32,
             timestamp: i as u64,
@@ -286,7 +288,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
 /// Walk back from `head` via [`CompactMb::parent`] and assert
 /// the height chain is contiguous (`expected_height`, `expected_height - 1`,
 /// …, 1) and that each step is reachable from the DB.
-fn assert_chain_contiguous(db: &Database, head: H256, expected_height: u64) {
+fn assert_chain_contiguous(db: &Database, head: HashOf<MB>, expected_height: u64) {
     let mut current = head;
     let mut expected = expected_height;
     loop {

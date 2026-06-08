@@ -41,7 +41,7 @@ use crate::{
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
-    Address, BlockHeader, ValidatorsVec,
+    Address, BlockHeader, EB, HashOf, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
     injected::{SignedCompactTxReceipt, SignedInjectedTransaction},
@@ -614,7 +614,7 @@ impl NetworkService {
     ///
     /// This updates both validator-message verification and validator
     /// discovery so they use the latest validator snapshot.
-    pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
+    pub fn set_chain_head(&mut self, chain_head: HashOf<EB>) -> anyhow::Result<()> {
         let snapshot = self.validator_list.set_chain_head(chain_head)?;
 
         self.validator_topic.on_new_snapshot(snapshot.clone());
@@ -922,7 +922,7 @@ mod tests {
             const GENESIS_BLOCK_HEADER: BlockHeader = BlockHeader {
                 height: 0,
                 timestamp: 0,
-                parent_hash: H256::zero(),
+                parent_hash: HashOf::<EB>::zero(),
             };
             const TIMELINES: ProtocolTimelines = ProtocolTimelines {
                 genesis_ts: GENESIS_BLOCK_HEADER.timestamp,

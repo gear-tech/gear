@@ -3,7 +3,7 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
-use crate::{Address, Digest, ToDigest, ValidatorsVec};
+use crate::{Address, Digest, EB, HashOf, ToDigest, ValidatorsVec};
 use alloc::vec::Vec;
 use alloy_primitives::U256 as AlloyU256;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
@@ -53,7 +53,7 @@ pub struct AddressBook {
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
     pub head: H256,
-    pub last_advanced_eth_block: H256,
+    pub last_advanced_eth_block: HashOf<EB>,
 }
 
 impl ToDigest for ChainCommitment {
@@ -66,7 +66,7 @@ impl ToDigest for ChainCommitment {
 
         hasher.update(transitions.to_digest());
         hasher.update(head.0);
-        hasher.update(last_advanced_eth_block.0);
+        hasher.update(last_advanced_eth_block.inner().0);
     }
 }
 
@@ -162,7 +162,7 @@ pub struct BatchCommitment {
     // Hash of ethereum block for which this batch has been created
     // This is used to identify whether router have to apply this batch,
     // it can be a batch from another branch and after reorg it's not actual anymore (currently we have predecessorBlock for this)
-    pub block_hash: H256,
+    pub block_hash: HashOf<EB>,
 
     /// Timestamp of ethereum block for which this batch has been created
     /// This timestamp is used to identify validator set to verify commitment (current or previous era)
@@ -198,7 +198,7 @@ impl ToDigest for BatchCommitment {
             rewards_commitment,
         } = self;
 
-        hasher.update(block_hash);
+        hasher.update(block_hash.inner());
         hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
         hasher.update(previous_batch);
         hasher.update(expiry.to_be_bytes());

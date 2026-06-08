@@ -37,7 +37,7 @@ use std::{
 
 use async_trait::async_trait;
 use ethexe_common::{
-    HashOf, SimpleBlockData,
+    EB, HashOf, SimpleBlockData,
     db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO},
     injected::{
         InjectedTransaction, InjectedTransactionAcceptance, PurgedTransaction,
@@ -45,7 +45,6 @@ use ethexe_common::{
     },
 };
 use ethexe_db::Database;
-use gprimitives::H256;
 use tokio::sync::Notify;
 use tracing::{info, trace};
 
@@ -178,7 +177,7 @@ pub const DEFAULT_POOL_CAPACITY: usize = 10_000;
 struct Inner {
     pool: HashMap<HashOf<InjectedTransaction>, SignedInjectedTransaction>,
     /// Recently committed txs (tx_hash → ref_block) for dedup. Aged out with the validity window.
-    seen: HashMap<HashOf<InjectedTransaction>, H256>,
+    seen: HashMap<HashOf<InjectedTransaction>, HashOf<EB>>,
     /// Latest chain head height — drives age-out of pool/seen entries.
     latest_head_height: Option<u32>,
 }
@@ -216,7 +215,7 @@ impl InjectedTxMempool {
 
     /// Resolve `reference_block` to its canonical height via the DB.
     /// Returns `None` if the block isn't in the DB yet.
-    fn ref_block_height(&self, reference_block: H256) -> Option<u32> {
+    fn ref_block_height(&self, reference_block: HashOf<EB>) -> Option<u32> {
         self.db.block_header(reference_block).map(|h| h.height)
     }
 
@@ -226,12 +225,12 @@ impl InjectedTxMempool {
     }
 
     /// Oldest block the local DB has a header for; walks stop here.
-    fn start_block_hash(&self) -> H256 {
+    fn start_block_hash(&self) -> HashOf<EB> {
         self.db.globals().start_block_hash
     }
 
     /// Set of ancestors of `head` within `VALIDITY_WINDOW` steps.
-    fn recent_ancestors(&self, head: &SimpleBlockData) -> HashSet<H256> {
+    fn recent_ancestors(&self, head: &SimpleBlockData) -> HashSet<HashOf<EB>> {
         let start_fence = self.start_block_hash();
 
         let mut ancestors = HashSet::with_capacity(VALIDITY_WINDOW as usize + 1);
@@ -240,7 +239,7 @@ impl InjectedTxMempool {
         let mut current = head.hash;
         let mut parent = head.header.parent_hash;
         for _ in 0..VALIDITY_WINDOW {
-            if current == start_fence || parent == H256::zero() {
+            if current == start_fence || parent.is_zero() {
                 break;
             }
             if !ancestors.insert(parent) {
@@ -464,7 +463,7 @@ mod tests {
         db::{BlockMetaStorageRW, GlobalsStorageRW, OnChainStorageRW},
         injected::{InjectedTransaction, InjectedTransactionAcceptance},
     };
-    use gprimitives::ActorId;
+    use gprimitives::{ActorId, H256};
     use std::time::Duration;
 
     /// Pins the `TxInsertionStatus -> InjectedTransactionAcceptance` split.
@@ -599,13 +598,14 @@ mod tests {
     /// (genesis-like), later ones link to the previous hash.
     fn linear_chain(db: &Database, len: usize) -> Vec<SimpleBlockData> {
         let mut chain = Vec::with_capacity(len);
-        let mut parent = H256::zero();
+        let mut parent = HashOf::<EB>::zero();
         for i in 0..len {
             let mut hb = [0u8; 32];
             hb[0] = 0x10 + (i as u8 % 0xF0);
             hb[1] = (i >> 8) as u8;
             hb[2] = i as u8;
-            let hash = H256::from(hb);
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            let hash = unsafe { HashOf::<EB>::new(H256::from(hb)) };
             let header = BlockHeader {
                 height: i as u32,
                 timestamp: i as u64,
@@ -622,7 +622,7 @@ mod tests {
     fn signed_tx(
         pk: &PrivateKey,
         destination: ActorId,
-        ref_block: H256,
+        ref_block: HashOf<EB>,
         salt: u8,
     ) -> SignedInjectedTransaction {
         SignedMessage::create(
@@ -643,7 +643,13 @@ mod tests {
         let db = Database::memory();
         let pool = InjectedTxMempool::new(db);
         let pk = PrivateKey::random();
-        let tx = signed_tx(&pk, ActorId::zero(), H256::random(), 1);
+        // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+        let tx = signed_tx(
+            &pk,
+            ActorId::zero(),
+            unsafe { HashOf::<EB>::new(H256::random()) },
+            1,
+        );
         pool.insert(tx);
         assert_eq!(pool.len(), 1);
     }
@@ -696,7 +702,8 @@ mod tests {
 
         // 100 txs each anchored at a random ref_block NOT in our DB.
         for salt in 0..100u8 {
-            let bogus_ref_block = H256::random();
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            let bogus_ref_block = unsafe { HashOf::<EB>::new(H256::random()) };
             pool.insert(signed_tx(&pk, ActorId::zero(), bogus_ref_block, salt));
         }
         assert_eq!(pool.len(), 100);
@@ -769,7 +776,8 @@ mod tests {
         let db = Database::memory();
         let chain = linear_chain(&db, 2);
         // alt block off the same parent as chain[1]
-        let alt_hash = H256::from([0xAA; 32]);
+        // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+        let alt_hash = unsafe { HashOf::<EB>::new(H256::from([0xAA; 32])) };
         let alt_header = BlockHeader {
             height: 1,
             timestamp: 1,
@@ -891,7 +899,7 @@ mod tests {
     /// proptest cases (same input → same chain).
     fn linear_chain_seeded(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
         let mut chain = Vec::with_capacity(len);
-        let mut parent = H256::zero();
+        let mut parent = HashOf::<EB>::zero();
         for i in 0..len {
             let mut hb = [0u8; 32];
             // Spread across the high bytes so different `seed`s never
@@ -902,7 +910,8 @@ mod tests {
             hb[3] = ((i >> 8) & 0xff) as u8;
             // Bias high so the hash is non-zero even if the seed is.
             hb[4] = 0x80;
-            let hash = H256::from(hb);
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            let hash = unsafe { HashOf::<EB>::new(H256::from(hb)) };
             let header = BlockHeader {
                 height: i as u32,
                 timestamp: i as u64,
@@ -994,7 +1003,8 @@ mod tests {
                 let mut hb = [0u8; 32];
                 hb[0] = 0xAA;
                 hb[1] = (seed & 0xff) as u8;
-                H256::from(hb)
+                // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+                unsafe { HashOf::<EB>::new(H256::from(hb)) }
             };
             let alt_header = BlockHeader {
                 height: 1,

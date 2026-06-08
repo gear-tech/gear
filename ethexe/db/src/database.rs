@@ -10,7 +10,7 @@ use crate::{
 use anyhow::{Context, Result};
 use delegate::delegate;
 use ethexe_common::{
-    BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
+    BlockHeader, CodeBlobInfo, EB, HashOf, ProgramStates, Schedule, ValidatorsVec,
     db::{
         BlockMeta, BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, CodesStorageRW,
         CompactMb, ConfigStorageRO, DBConfig, DBGlobals, GlobalsStorageRO, GlobalsStorageRW,
@@ -20,7 +20,7 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
-    malachite::Operations,
+    malachite::{MB, Operations},
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -362,9 +362,9 @@ impl RawDatabase {
 }
 
 impl MbStorageRO for RawDatabase {
-    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb> {
+    fn mb_compact_block(&self, mb_hash: HashOf<MB>) -> Option<CompactMb> {
         self.kv
-            .get(&Key::MbCompactBlock(mb_hash).to_bytes())
+            .get(&Key::MbCompactBlock(mb_hash.inner()).to_bytes())
             .map(|data| {
                 CompactMb::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `CompactMb`")
@@ -378,36 +378,36 @@ impl MbStorageRO for RawDatabase {
         })
     }
 
-    fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates> {
+    fn mb_program_states(&self, mb_hash: HashOf<MB>) -> Option<ProgramStates> {
         self.kv
-            .get(&Key::MbProgramStates(mb_hash).to_bytes())
+            .get(&Key::MbProgramStates(mb_hash.inner()).to_bytes())
             .map(|data| {
                 ProgramStates::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `ProgramStates`")
             })
     }
 
-    fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>> {
+    fn mb_outcome(&self, mb_hash: HashOf<MB>) -> Option<Vec<StateTransition>> {
         self.kv
-            .get(&Key::MbOutcome(mb_hash).to_bytes())
+            .get(&Key::MbOutcome(mb_hash.inner()).to_bytes())
             .map(|data| {
                 Vec::<StateTransition>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<StateTransition>`")
             })
     }
 
-    fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule> {
+    fn mb_schedule(&self, mb_hash: HashOf<MB>) -> Option<Schedule> {
         self.kv
-            .get(&Key::MbSchedule(mb_hash).to_bytes())
+            .get(&Key::MbSchedule(mb_hash.inner()).to_bytes())
             .map(|data| {
                 Schedule::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Schedule`")
             })
     }
 
-    fn mb_meta(&self, mb_hash: H256) -> MbMeta {
+    fn mb_meta(&self, mb_hash: HashOf<MB>) -> MbMeta {
         self.kv
-            .get(&Key::MbMeta(mb_hash).to_bytes())
+            .get(&Key::MbMeta(mb_hash.inner()).to_bytes())
             .map(|data| {
                 MbMeta::decode(&mut data.as_slice()).expect("Failed to decode data into `MbMeta`")
             })
@@ -416,53 +416,60 @@ impl MbStorageRO for RawDatabase {
 }
 
 impl MbStorageRW for RawDatabase {
-    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb) {
+    fn set_mb_compact_block(&self, mb_hash: HashOf<MB>, compact: CompactMb) {
         tracing::trace!(mb_hash = %mb_hash, "Set MB compact block");
-        self.kv
-            .put(&Key::MbCompactBlock(mb_hash).to_bytes(), compact.encode());
+        self.kv.put(
+            &Key::MbCompactBlock(mb_hash.inner()).to_bytes(),
+            compact.encode(),
+        );
     }
 
     fn set_operations(&self, operations: Operations) -> H256 {
         self.cas.write(&operations.encode())
     }
 
-    fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates) {
+    fn set_mb_program_states(&self, mb_hash: HashOf<MB>, program_states: ProgramStates) {
         tracing::trace!(mb_hash = %mb_hash, "Set MB program states");
         self.kv.put(
-            &Key::MbProgramStates(mb_hash).to_bytes(),
+            &Key::MbProgramStates(mb_hash.inner()).to_bytes(),
             program_states.encode(),
         );
     }
 
-    fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>) {
+    fn set_mb_outcome(&self, mb_hash: HashOf<MB>, outcome: Vec<StateTransition>) {
         tracing::trace!(mb_hash = %mb_hash, "Set MB outcome");
-        self.kv
-            .put(&Key::MbOutcome(mb_hash).to_bytes(), outcome.encode());
+        self.kv.put(
+            &Key::MbOutcome(mb_hash.inner()).to_bytes(),
+            outcome.encode(),
+        );
     }
 
-    fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule) {
+    fn set_mb_schedule(&self, mb_hash: HashOf<MB>, schedule: Schedule) {
         tracing::trace!(mb_hash = %mb_hash, "Set MB schedule");
-        self.kv
-            .put(&Key::MbSchedule(mb_hash).to_bytes(), schedule.encode());
+        self.kv.put(
+            &Key::MbSchedule(mb_hash.inner()).to_bytes(),
+            schedule.encode(),
+        );
     }
 
-    fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta)) {
+    fn mutate_mb_meta(&self, mb_hash: HashOf<MB>, f: impl FnOnce(&mut MbMeta)) {
         tracing::trace!(mb_hash = %mb_hash, "Mutate MB meta");
         let mut meta = self.mb_meta(mb_hash);
         f(&mut meta);
-        self.kv.put(&Key::MbMeta(mb_hash).to_bytes(), meta.encode());
+        self.kv
+            .put(&Key::MbMeta(mb_hash.inner()).to_bytes(), meta.encode());
     }
 }
 
 impl OnChainStorageRO for RawDatabase {
-    fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
+    fn block_header(&self, block_hash: HashOf<EB>) -> Option<BlockHeader> {
         self.kv
-            .with_small_data(block_hash, |data| data.block_header)?
+            .with_small_data(block_hash.inner(), |data| data.block_header)?
     }
 
-    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
+    fn block_events(&self, block_hash: HashOf<EB>) -> Option<Vec<BlockEvent>> {
         self.kv
-            .get(&Key::BlockEvents(block_hash).to_bytes())
+            .get(&Key::BlockEvents(block_hash.inner()).to_bytes())
             .map(|data| {
                 Vec::<BlockEvent>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<BlockEvent>`")
@@ -478,9 +485,9 @@ impl OnChainStorageRO for RawDatabase {
             })
     }
 
-    fn block_synced(&self, block_hash: H256) -> bool {
+    fn block_synced(&self, block_hash: HashOf<EB>) -> bool {
         self.kv
-            .with_small_data(block_hash, |data| data.block_is_synced)
+            .with_small_data(block_hash.inner(), |data| data.block_is_synced)
             .unwrap_or_default()
     }
 
@@ -495,16 +502,18 @@ impl OnChainStorageRO for RawDatabase {
 }
 
 impl OnChainStorageRW for RawDatabase {
-    fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
+    fn set_block_header(&self, block_hash: HashOf<EB>, header: BlockHeader) {
         tracing::trace!("Set block header for {block_hash}");
         self.kv
-            .mutate_small_data(block_hash, |data| data.block_header = Some(header));
+            .mutate_small_data(block_hash.inner(), |data| data.block_header = Some(header));
     }
 
-    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
+    fn set_block_events(&self, block_hash: HashOf<EB>, events: &[BlockEvent]) {
         tracing::trace!("Set block events for {block_hash}");
-        self.kv
-            .put(&Key::BlockEvents(block_hash).to_bytes(), events.encode());
+        self.kv.put(
+            &Key::BlockEvents(block_hash.inner()).to_bytes(),
+            events.encode(),
+        );
     }
 
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo) {
@@ -513,9 +522,9 @@ impl OnChainStorageRW for RawDatabase {
             .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
     }
 
-    fn set_block_synced(&self, block_hash: H256) {
+    fn set_block_synced(&self, block_hash: HashOf<EB>) {
         tracing::trace!("For block {block_hash} set synced");
-        self.kv.mutate_small_data(block_hash, |data| {
+        self.kv.mutate_small_data(block_hash.inner(), |data| {
             data.block_is_synced = true;
         });
     }
@@ -529,17 +538,17 @@ impl OnChainStorageRW for RawDatabase {
 }
 
 impl BlockMetaStorageRO for RawDatabase {
-    fn block_meta(&self, block_hash: H256) -> BlockMeta {
+    fn block_meta(&self, block_hash: HashOf<EB>) -> BlockMeta {
         self.kv
-            .with_small_data(block_hash, |data| data.meta)
+            .with_small_data(block_hash.inner(), |data| data.meta)
             .unwrap_or_default()
     }
 }
 
 impl BlockMetaStorageRW for RawDatabase {
-    fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta)) {
+    fn mutate_block_meta(&self, block_hash: HashOf<EB>, f: impl FnOnce(&mut BlockMeta)) {
         tracing::trace!("For block {block_hash} mutate meta");
-        self.kv.mutate_small_data(block_hash, |data| {
+        self.kv.mutate_small_data(block_hash.inner(), |data| {
             f(&mut data.meta);
         });
     }
@@ -774,16 +783,16 @@ impl Database {
                 election: 0,
                 slot: 1.try_into().unwrap(),
             },
-            genesis_block_hash: H256::zero(),
+            genesis_block_hash: HashOf::zero(),
             max_validators: 10,
         };
 
         let globals = DBGlobals {
-            start_block_hash: H256::zero(),
+            start_block_hash: HashOf::zero(),
             latest_synced_eb: SimpleBlockData::default(),
-            latest_prepared_eb_hash: H256::zero(),
-            latest_finalized_mb_hash: H256::zero(),
-            latest_computed_mb_hash: H256::zero(),
+            latest_prepared_eb_hash: HashOf::zero(),
+            latest_finalized_mb_hash: HashOf::zero(),
+            latest_computed_mb_hash: HashOf::zero(),
         };
 
         <dyn KVDatabase>::set_config(&mem_db, config);
@@ -826,7 +835,7 @@ pub(crate) struct BlockSmallData {
 impl BlockMetaStorageRO for Database {
     delegate::delegate! {
         to self.raw {
-            fn block_meta(&self, block_hash: H256) -> BlockMeta;
+            fn block_meta(&self, block_hash: HashOf<EB>) -> BlockMeta;
         }
     }
 }
@@ -834,7 +843,7 @@ impl BlockMetaStorageRO for Database {
 impl BlockMetaStorageRW for Database {
     delegate::delegate! {
         to self.raw {
-            fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta));
+            fn mutate_block_meta(&self, block_hash: HashOf<EB>, f: impl FnOnce(&mut BlockMeta));
         }
     }
 }
@@ -872,10 +881,10 @@ impl Storage for Database {
 impl OnChainStorageRO for Database {
     delegate::delegate! {
         to self.raw {
-            fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
-            fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
+            fn block_header(&self, block_hash: HashOf<EB>) -> Option<BlockHeader>;
+            fn block_events(&self, block_hash: HashOf<EB>) -> Option<Vec<BlockEvent>>;
             fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
-            fn block_synced(&self, block_hash: H256) -> bool;
+            fn block_synced(&self, block_hash: HashOf<EB>) -> bool;
             fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
         }
     }
@@ -884,10 +893,10 @@ impl OnChainStorageRO for Database {
 impl OnChainStorageRW for Database {
     delegate::delegate! {
         to self.raw {
-            fn set_block_header(&self, block_hash: H256, header: BlockHeader);
-            fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
+            fn set_block_header(&self, block_hash: HashOf<EB>, header: BlockHeader);
+            fn set_block_events(&self, block_hash: HashOf<EB>, events: &[BlockEvent]);
             fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
-            fn set_block_synced(&self, block_hash: H256);
+            fn set_block_synced(&self, block_hash: HashOf<EB>);
             fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
         }
     }
@@ -903,23 +912,23 @@ impl InjectedStorageRO for Database {
 
 impl MbStorageRO for Database {
     delegate!(to self.raw {
-        fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb>;
+        fn mb_compact_block(&self, mb_hash: HashOf<MB>) -> Option<CompactMb>;
         fn operations(&self, operations_hash: H256) -> Option<Operations>;
-        fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
-        fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
-        fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
-        fn mb_meta(&self, mb_hash: H256) -> MbMeta;
+        fn mb_program_states(&self, mb_hash: HashOf<MB>) -> Option<ProgramStates>;
+        fn mb_outcome(&self, mb_hash: HashOf<MB>) -> Option<Vec<StateTransition>>;
+        fn mb_schedule(&self, mb_hash: HashOf<MB>) -> Option<Schedule>;
+        fn mb_meta(&self, mb_hash: HashOf<MB>) -> MbMeta;
     });
 }
 
 impl MbStorageRW for Database {
     delegate!(to self.raw {
-        fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb);
+        fn set_mb_compact_block(&self, mb_hash: HashOf<MB>, compact: CompactMb);
         fn set_operations(&self, operations: Operations) -> H256;
-        fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
-        fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
-        fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
-        fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
+        fn set_mb_program_states(&self, mb_hash: HashOf<MB>, program_states: ProgramStates);
+        fn set_mb_outcome(&self, mb_hash: HashOf<MB>, outcome: Vec<StateTransition>);
+        fn set_mb_schedule(&self, mb_hash: HashOf<MB>, schedule: Schedule);
+        fn mutate_mb_meta(&self, mb_hash: HashOf<MB>, f: impl FnOnce(&mut MbMeta));
     });
 }
 
@@ -1031,7 +1040,7 @@ mod tests {
                 destination: ActorId::zero(),
                 payload: LimitedVec::new(),
                 value: 0,
-                reference_block: H256::random(),
+                reference_block: unsafe { HashOf::<EB>::new(H256::random()) },
                 salt: LimitedVec::new(),
             },
         )
@@ -1045,7 +1054,7 @@ mod tests {
     fn test_block_events() {
         let db = Database::memory();
 
-        let block_hash = H256::random();
+        let block_hash = unsafe { HashOf::<EB>::new(H256::random()) };
         let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged(
             StorageSlotChangedEvent {
                 slot: H256::random(),
@@ -1069,7 +1078,7 @@ mod tests {
     fn test_block_is_synced() {
         let db = Database::memory();
 
-        let block_hash = H256::random();
+        let block_hash = unsafe { HashOf::<EB>::new(H256::random()) };
         assert!(!db.block_synced(block_hash));
         db.set_block_synced(block_hash);
         assert!(db.block_synced(block_hash));
@@ -1166,7 +1175,7 @@ mod tests {
     fn test_block_header() {
         let db = Database::memory();
 
-        let block_hash = H256::random();
+        let block_hash = unsafe { HashOf::<EB>::new(H256::random()) };
         let block_header = BlockHeader::default();
         db.set_block_header(block_hash, block_header);
         assert_eq!(db.block_header(block_hash), Some(block_header));
