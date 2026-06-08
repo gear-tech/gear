@@ -4,6 +4,7 @@
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
 use core::hash::Hash;
+#[cfg(feature = "shielded")]
 use ferveo_tdec::{
     Result as TdecResult,
     bls12_381::{Ciphertext, DkgPublicKey, SharedSecret},
@@ -134,6 +135,7 @@ impl InjectedTransaction {
         MessageId::new(self.to_hash().inner().0)
     }
 
+    #[cfg(feature = "shielded")]
     pub fn shield(
         self,
         public_key: &DkgPublicKey,
@@ -398,6 +400,7 @@ impl TransactionPurgedReason {
     }
 }
 
+#[cfg(feature = "shielded")]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ShieldedFields {
     pub(crate) destination: ActorId,
@@ -405,6 +408,7 @@ pub struct ShieldedFields {
     pub(crate) payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
 }
 
+#[cfg(feature = "shielded")]
 impl ToDigest for ShieldedFields {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
@@ -418,6 +422,7 @@ impl ToDigest for ShieldedFields {
     }
 }
 
+#[cfg(feature = "shielded")]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 // #[cfg_attr(feature = "serde", derive(Hash))]
 // #[derive(Debug, Clone, PartialEq, Eq, MaxEncodedLen, TypeInfo, Encode, Decode)]
@@ -437,6 +442,7 @@ pub struct ShieldedTransaction {
     pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
 }
 
+#[cfg(feature = "shielded")]
 impl ShieldedTransaction {
     /// Decrypts [Ciphertext] with provided [SharedSecret].
     /// Returns initial [InjectedTransaction].
@@ -487,14 +493,14 @@ mod digest_hex {
     where
         S: serde::Serializer,
     {
-        alloy_primitives::hex::serialize(digest.as_ref(), serializer)
+        alloy_primitives::hex::serialize(digest.0, serializer)
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Digest, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        alloy_primitives::hex::deserialize::<D, [u8; 32]>(deserializer).map(|array| Digest(array))
+        alloy_primitives::hex::deserialize::<D, [u8; 32]>(deserializer).map(Digest)
     }
 }
 
@@ -660,11 +666,12 @@ mod tests {
         let mut rng = ferveo_tdec::rand_utils::test_rng();
         let dealer_out = ferveo_tdec::deal::<ferveo_tdec::bls12_381::E>(3, 2, &mut rng);
 
-        let shielded = injected_tx
+        let shielded_tx = injected_tx
             .shield(&dealer_out.public_key, &mut rng)
             .unwrap();
 
-        let serde_tx = serde_json::to_string_pretty(&shielded).unwrap();
-        println!("{serde_tx}");
+        let serialized = serde_json::to_string_pretty(&shielded_tx).unwrap();
+        let deserialized: ShieldedTransaction = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(shielded_tx, deserialized);
     }
 }
