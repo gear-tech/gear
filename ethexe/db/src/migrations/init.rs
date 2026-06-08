@@ -17,7 +17,7 @@ use ethexe_common::{
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_runtime_common::{RUNTIME_ID, ScheduleRestorer, state::Storage};
 use futures::{TryStreamExt, stream::FuturesUnordered};
-use gprimitives::{CodeId, H256};
+use gprimitives::CodeId;
 
 pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Database> {
     log::info!("Initializing database to version {LATEST_VERSION}...");

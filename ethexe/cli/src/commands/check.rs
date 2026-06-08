@@ -19,7 +19,6 @@ use ethexe_db::{
 };
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_runtime_common::FinalizedBlockTransitions;
-use gprimitives::H256;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{collections::HashSet, path::PathBuf};
 

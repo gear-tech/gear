@@ -31,7 +31,6 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
-use gprimitives::H256;
 use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 use tokio::sync::{Notify, mpsc};
 

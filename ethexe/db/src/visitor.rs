@@ -18,7 +18,7 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     memory::PageBuf,
 };
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, CodeId};
 use std::collections::BTreeSet;
 
 macro_rules! define_visitor {

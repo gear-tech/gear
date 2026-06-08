@@ -49,7 +49,6 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
-use gprimitives::H256;
 use gsigner::secp256k1::Signer;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,

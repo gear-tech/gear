@@ -751,7 +751,7 @@ impl EthexeExternalities {
 // HashOf<MB> / HashOf<EB> migration and assumes raw H256 throughout. Re-enable
 // after threading the typed hashes through synthetic-chain helpers and
 // `assert_eq!` boundary conversions.
-#[cfg(all(test, never_built))]
+#[cfg(any())]
 mod tests {
     use super::*;
     use crate::{MalachiteEvent, mempool::EmptyMempool};
