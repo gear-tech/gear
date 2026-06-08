@@ -7,8 +7,7 @@ use crate::Service;
 use alloy::eips::BlockId;
 use anyhow::{Context, Result, ensure};
 use ethexe_common::{
-    Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, SimpleBlockData,
-    StateHashWithQueueSize,
+    Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
     db::{
         BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, CompactMb, ConfigStorageRO,
         GlobalsStorageRW, MbStorageRW, OnChainStorageRW, PreparedBlockData,
@@ -658,15 +657,20 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     } = event_data;
 
     let latest_committed_eb = latest_committed_eb.unwrap_or(genesis_block_hash);
-    let BlockData {
-        hash: block_hash,
-        header,
-        events,
-    } = block_loader.load(latest_committed_eb, None).await?;
+    let block_data = block_loader.load(latest_committed_eb, None).await?;
 
-    let code_ids = collect_code_ids(observer, genesis_block.header.height, header.height).await?;
-    let program_code_ids =
-        collect_program_code_ids(observer, genesis_block.header.height, header.height).await?;
+    let code_ids = collect_code_ids(
+        observer,
+        genesis_block.header.height,
+        block_data.header.height,
+    )
+    .await?;
+    let program_code_ids = collect_program_code_ids(
+        observer,
+        genesis_block.header.height,
+        block_data.header.height,
+    )
+    .await?;
     let program_state_hashes =
         collect_program_state_hashes(observer, state_query_block, &program_code_ids).await?;
 
@@ -674,23 +678,25 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     instrument_codes(compute, db, code_ids).await?;
 
-    let schedule = ScheduleRestorer::from_storage(db, &program_states, header.height)?.restore();
+    let schedule =
+        ScheduleRestorer::from_storage(db, &program_states, block_data.header.height)?.restore();
 
-    set_tx_pool_data_requirement(db, &block_loader, header.height).await?;
+    set_tx_pool_data_requirement(db, &block_loader, block_data.header.height).await?;
 
     for (program_id, code_id) in program_code_ids {
         db.set_program_code_id(program_id, code_id);
     }
 
     let latest_era_with_committed_validators =
-        latest_era_with_committed_validators(db, &observer.router_query(), block_hash).await?;
+        latest_era_with_committed_validators(db, &observer.router_query(), latest_committed_eb)
+            .await?;
 
     ethexe_common::setup_block_in_db(
         db,
-        block_hash,
+        latest_committed_eb,
         PreparedBlockData {
-            header,
-            events,
+            header: block_data.header,
+            events: block_data.events.clone(),
             latest_era_with_committed_validators,
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Default::default(),
@@ -707,17 +713,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         meta.last_advanced_eb = latest_committed_eb;
     });
 
-    let transactions_hash = db.set_transactions(Transactions::default());
-    // The committed MB is a fast-sync boundary: chain data gives us the head
-    // hash, but not the Malachite envelope `(parent, height, payload_hash)`.
-    // Store a synthetic compact row so DB walks have an anchor without
-    // pretending to restore the pre-boundary MB chain.
-    let compact = CompactMb {
-        parent: H256::zero(),
-        height: 0,
-        transactions_hash,
-    };
-    db.set_mb_compact_block(latest_committed_mb, compact);
+    // NOTE: Malachite should restore `CompactMb` by itself
+    //db.set_mb_compact_block(latest_committed_mb, compact);
 
     db.set_mb_program_states(latest_committed_mb, program_states.clone());
     db.set_mb_schedule(latest_committed_mb, schedule);
@@ -727,33 +724,27 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     db.set_mb_outcome(latest_committed_mb, Default::default());
 
     db.globals_mutate(|globals| {
-        globals.start_block_hash = block_hash;
-        globals.latest_synced_eb = SimpleBlockData {
-            hash: block_hash,
-            header,
-        };
-        globals.latest_prepared_eb_hash = block_hash;
+        globals.start_block_hash = latest_committed_eb;
+        globals.latest_synced_eb = block_data.to_simple();
+        globals.latest_prepared_eb_hash = latest_committed_eb;
         globals.latest_finalized_mb_hash = latest_committed_mb;
         globals.latest_computed_mb_hash = latest_committed_mb;
     });
 
-    if !block_hash.is_zero()
-        && let Some(malachite) = malachite.as_mut()
-    {
-        malachite.receive_new_chain_head(SimpleBlockData {
-            hash: block_hash,
-            header,
-        });
+    if let Some(malachite) = malachite.as_mut() {
+        malachite.receive_new_chain_head(block_data.to_simple());
     }
 
     log::info!(
-        "Fast synchronization done: synced to {block_hash:?}, height {:?}, MB {latest_committed_mb}",
-        header.height
+        "Fast synchronization done: synced to {latest_committed_eb:?}, height {height:?}, MB {latest_committed_mb}",
+        height = block_data.header.height
     );
 
     #[cfg(test)]
     sender
-        .send(crate::tests::utils::TestingEvent::FastSyncDone(block_hash))
+        .send(crate::tests::utils::TestingEvent::FastSyncDone(
+            latest_committed_eb,
+        ))
         .await;
 
     Ok(())
