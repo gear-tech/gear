@@ -146,8 +146,9 @@ impl EthexeBackend {
                             program_id,
                             state_root: state.hash,
                             queue_type,
-                            instrumented_code,
-                            code_metadata,
+                            // gtest always has instrumented code for the current runtime, so the
+                            // reinstrumentation path (a `None` here) never applies.
+                            code: Some((instrumented_code, code_metadata)),
                             gas_allowance: GasAllowanceCounter::new(chunk_allowance),
                             block_info,
                             // gtest currently models promise syscalls as unavailable in ethexe mode.
