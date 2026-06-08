@@ -392,6 +392,7 @@ impl TransactionPurgedReason {
 }
 
 #[cfg(feature = "shielded")]
+#[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ShieldedFields {
     pub(crate) destination: ActorId,
@@ -415,8 +416,7 @@ impl ToDigest for ShieldedFields {
 
 #[cfg(feature = "shielded")]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-// #[cfg_attr(feature = "serde", derive(Hash))]
-// #[derive(Debug, Clone, PartialEq, Eq, MaxEncodedLen, TypeInfo, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct ShieldedTransaction {
     /// Encrypted fields of initial [InjectedTransaction].
