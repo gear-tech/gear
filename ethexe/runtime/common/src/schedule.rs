@@ -148,21 +148,22 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
 
 /// A [`Schedule`] restorer.
 ///
-/// Used primary for fast sync and tests
+/// Used primary for fast sync and tests.
+///
+/// No expiry filtering is applied: every scheduled task found in the dumped
+/// states is restored. Committed states never hold a task already expired at
+/// the dumped block, and the executor drains the full backlog with no lower
+/// bound, so any restored task fires at the first computed block regardless of
+/// its expiry.
+#[derive(Default)]
 pub struct Restorer {
-    current_block: u32,
     schedule: Schedule,
 }
 
 impl Restorer {
-    /// Creates restorer.
-    ///
-    /// A current block is required to detect whether a value expired or not
-    pub fn new(current_block: u32) -> Self {
-        Self {
-            current_block,
-            schedule: Default::default(),
-        }
+    /// Creates an empty restorer.
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Creates a restorer from storage.
@@ -171,7 +172,6 @@ impl Restorer {
     pub fn from_storage<T: Storage>(
         storage: &T,
         program_states: &ProgramStates,
-        current_block: u32,
     ) -> anyhow::Result<Self> {
         let program_states: BTreeMap<H256, BTreeSet<ActorId>> =
             program_states
@@ -181,7 +181,7 @@ impl Restorer {
                     acc
                 });
 
-        let mut restorer = Self::new(current_block);
+        let mut restorer = Self::new();
 
         for (hash, program_ids) in program_states {
             let program_state = storage
@@ -231,10 +231,6 @@ impl Restorer {
             },
         ) in waitlist.as_ref()
         {
-            if expiry <= self.current_block {
-                continue;
-            }
-
             debug_assert_eq!(message_id, dispatch.id);
 
             self.schedule
@@ -251,10 +247,6 @@ impl Restorer {
         user_mailbox: &UserMailbox,
     ) {
         for (&message_id, &Expiring { value: _, expiry }) in user_mailbox.as_ref() {
-            if expiry <= self.current_block {
-                continue;
-            }
-
             self.schedule
                 .entry(expiry)
                 .or_default()
@@ -275,10 +267,6 @@ impl Restorer {
         ) in stash.as_ref()
         {
             debug_assert_eq!(message_id, dispatch.id);
-
-            if expiry <= self.current_block {
-                continue;
-            }
 
             let task = if user_id.is_some() {
                 ScheduledTask::SendUserMessage {
@@ -323,7 +311,7 @@ mod tests {
         let mut waitlist = Waitlist::default();
         waitlist.wait(dispatch.clone(), 1000);
 
-        let mut restorer = Restorer::new(999);
+        let mut restorer = Restorer::new();
         restorer.waitlist(program_id, &waitlist);
         assert_eq!(
             restorer.restore(),
@@ -332,10 +320,6 @@ mod tests {
                 BTreeSet::from([ScheduledTask::WakeMessage(program_id, dispatch.id)])
             )])
         );
-
-        let mut restorer = Restorer::new(1000);
-        restorer.waitlist(program_id, &waitlist);
-        assert_eq!(restorer.restore(), BTreeMap::new());
     }
 
     #[test]
@@ -363,7 +347,7 @@ mod tests {
             })
             .unwrap();
 
-        let mut restorer = Restorer::new(999);
+        let mut restorer = Restorer::new();
         restorer.user_mailbox(program_id, user_id, &user_mailbox);
         assert_eq!(
             restorer.restore(),
@@ -375,10 +359,6 @@ mod tests {
                 )])
             )]),
         );
-
-        let mut restorer = Restorer::new(1000);
-        restorer.user_mailbox(program_id, user_id, &user_mailbox);
-        assert_eq!(restorer.restore(), BTreeMap::new());
     }
 
     #[test]
@@ -409,7 +389,7 @@ mod tests {
         stash.add_to_program(program_dispatch.clone(), 1000);
         stash.add_to_user(user_dispatch.clone(), 1000, user_id);
 
-        let mut restorer = Restorer::new(999);
+        let mut restorer = Restorer::new();
         restorer.stash(program_id, &stash);
         assert_eq!(
             restorer.restore(),
@@ -424,9 +404,5 @@ mod tests {
                 ])
             )]),
         );
-
-        let mut restorer = Restorer::new(1000);
-        restorer.stash(program_id, &stash);
-        assert_eq!(restorer.restore(), BTreeMap::new());
     }
 }
