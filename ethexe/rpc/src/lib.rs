@@ -48,7 +48,7 @@ use apis::{
 };
 #[cfg(feature = "server")]
 use ethexe_common::injected::{
-    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt,
+    InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt, SignedInjectedTransaction,
 };
 #[cfg(feature = "server")]
 use ethexe_db::Database;
@@ -84,6 +84,8 @@ mod metrics;
 #[cfg(feature = "server")]
 mod utils;
 
+#[cfg(test)]
+mod test_utils;
 #[cfg(all(test, feature = "client"))]
 mod tests;
 
@@ -93,7 +95,7 @@ pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
 #[derive(Debug)]
 pub enum RpcEvent {
     InjectedTransaction {
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
 }

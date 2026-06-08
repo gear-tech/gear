@@ -10,7 +10,6 @@
 //! which calls into this struct.
 
 use std::{
-    marker::PhantomData,
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -31,7 +30,6 @@ use crate::{
         Height, MalachiteCtx, ProposalData, ProposalFin, ProposalInit, ProposalPart, ValidatorSet,
         Value, sign_proposal_fin,
     },
-    externalities::BlockPayload,
     signing::MalachiteSigner,
     store::Store,
     streaming::{PartStreamsMap, ProposalParts},
@@ -71,25 +69,24 @@ impl SharedValidatorSet {
     }
 }
 
-pub(crate) struct State<P: BlockPayload> {
+pub(crate) struct State {
     pub signer: MalachiteSigner,
     pub validator_set: SharedValidatorSet,
     pub address: Address,
-    pub store: Store<P>,
+    pub store: Store,
     streams_map: PartStreamsMap,
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
     pub propose_timeout: Duration,
-    _phantom: PhantomData<fn() -> P>,
 }
 
-impl<P: BlockPayload> State<P> {
+impl State {
     pub fn new(
         signer: MalachiteSigner,
         validator_set: SharedValidatorSet,
         address: Address,
-        store: Store<P>,
+        store: Store,
         propose_timeout: Duration,
     ) -> Result<Self> {
         let start_height = store
@@ -106,7 +103,6 @@ impl<P: BlockPayload> State<P> {
             current_round: Round::new(0),
             current_proposer: None,
             propose_timeout,
-            _phantom: PhantomData,
         })
     }
 

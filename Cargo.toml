@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.10.0"
+version = "2.0.0"
 authors = ["Gear Technologies"]
 edition = "2024"
 license = "GPL-3.0"
@@ -296,7 +296,7 @@ gear-wasm-builder = { path = "sdk/wasm-builder", default-features = false }
 gear-wasm-optimizer = { path = "sdk/wasm-optimizer", default-features = false }
 gear-wasm-gen = { path = "protocol/wasm-gen" }
 gear-wasm-instrument = { path = "protocol/wasm-instrument", default-features = false }
-gear-wasmtime-cache = { version = "1.10.0", path = "protocol/wasmtime-cache" }
+gear-wasmtime-cache = { path = "protocol/wasmtime-cache" }
 junit-common = { path = "vara/tools/regression-analysis/junit-common" }
 actor-system-error = { path = "protocol/actor-system-error" }
 pallet-gear = { path = "vara/pallets/gear", default-features = false }

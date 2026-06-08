@@ -2,21 +2,23 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer,
-    RpcService,
+    CodeClient, InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent,
+    RpcServer, RpcService, test_utils::wasm_with_custom_section,
 };
 use ethexe_common::{
     SignedMessage, ValidatorsVec,
-    db::OnChainStorageRW,
+    db::{CodesStorageRW, OnChainStorageRW},
     ecdsa::{PrivateKey, PublicKey},
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, Promise, Receipt, SignedCompactTxReceipt},
+    injected::{
+        InjectedTransaction, Promise, Receipt, SignedCompactTxReceipt, SignedInjectedTransaction,
+    },
     mock::Mock,
 };
 use ethexe_db::Database;
 use futures::StreamExt;
 use gear_core::message::{ReplyCode, SuccessReplyReason};
-use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
+use jsonrpsee::{core::ClientError, server::ServerHandle, ws_client::WsClientBuilder};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
 
@@ -86,9 +88,9 @@ impl MockService {
 
     fn create_promise_for(
         &self,
-        tx: AddressedInjectedTransaction,
+        tx: SignedInjectedTransaction,
     ) -> (Promise, SignedCompactTxReceipt) {
-        let promise = Promise::mock(tx.tx.data().to_hash());
+        let promise = Promise::mock(tx.data().to_hash());
         let receipt = SignedMessage::create(
             self.validator_key.clone(),
             Receipt::Promise(promise.to_compact()),
@@ -120,6 +122,64 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
     }
 }
 
+fn mock_signed_transaction() -> SignedInjectedTransaction {
+    SignedMessage::create(PrivateKey::random(), InjectedTransaction::mock(())).unwrap()
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_code_read_wasm_custom_section_via_rpc() {
+    const SECTION_NAME: &str = "sails:idl";
+
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8011);
+    let db = Database::memory();
+    let section_data = b"wire idl";
+    let code_id = gprimitives::H256::from(
+        db.set_original_code(&wasm_with_custom_section(SECTION_NAME, section_data))
+            .into_bytes(),
+    );
+    let mut malformed_wasm = wasm_with_custom_section(SECTION_NAME, b"malformed");
+    malformed_wasm.extend_from_slice(b"trailing junk");
+    let malformed_code_id =
+        gprimitives::H256::from(db.set_original_code(&malformed_wasm).into_bytes());
+
+    let (handle, _rpc) = start_new_server(listen_addr, db).await;
+    let ws_client = WsClientBuilder::new()
+        .build(format!("ws://{}", listen_addr))
+        .await
+        .expect("WS client will be created");
+
+    let result = ws_client
+        .read_wasm_custom_section(code_id, SECTION_NAME.to_string())
+        .await
+        .expect("custom section read must succeed");
+
+    assert_eq!(result, Some(sp_core::Bytes(section_data.to_vec())));
+
+    let missing_section = ws_client
+        .read_wasm_custom_section(code_id, "missing".to_string())
+        .await
+        .expect("missing section must not be an error");
+    assert_eq!(missing_section, None);
+
+    let unknown_code = ws_client
+        .read_wasm_custom_section(gprimitives::H256::zero(), SECTION_NAME.to_string())
+        .await
+        .expect("unknown code must not be an error");
+    assert_eq!(unknown_code, None);
+
+    let err = ws_client
+        .read_wasm_custom_section(malformed_code_id, SECTION_NAME.to_string())
+        .await
+        .expect_err("malformed stored wasm must be an RPC error");
+    let ClientError::Call(err) = err else {
+        panic!("expected RPC call error for malformed Wasm");
+    };
+    assert_eq!(err.code(), 8000);
+
+    handle.stop().expect("RPC server must stop");
+}
+
 #[tokio::test]
 #[ntest::timeout(60_000)]
 async fn test_cleanup_promise_subscribers() {
@@ -142,7 +202,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut sub = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(mock_signed_transaction())
                 .await
                 .expect("Subscription will be created");
 
@@ -171,7 +231,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut subscription = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(mock_signed_transaction())
                 .await
                 .expect("Subscription will be created");
 
@@ -199,7 +259,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscriptions = vec![];
         for _ in 0..20 {
             let subscription = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(mock_signed_transaction())
                 .await
                 .expect("Subscription will be created");
             subscriptions.push(subscription);
@@ -236,7 +296,7 @@ async fn test_concurrent_multiple_clients() {
             let mut subscriptions = vec![];
             for _ in 0..50 {
                 let mut subscription = client
-                    .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                    .send_transaction_and_watch(mock_signed_transaction())
                     .await
                     .expect("Subscription will be created");
 

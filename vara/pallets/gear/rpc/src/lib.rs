@@ -20,8 +20,9 @@ use jsonrpsee::{
     types::{ErrorObjectOwned, error::ErrorObject},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
-use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
-use sc_client_api::BlockchainEvents;
+use pallet_gear_rpc_runtime_api::{CalculateReplyForHandleResult, GasInfo, HandleKind, ReplyInfo};
+use parity_scale_codec::DecodeAll;
+use sc_client_api::{Backend as ClientBackend, BlockchainEvents, StorageProvider};
 use sc_rpc::SubscriptionTaskExecutor;
 use sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
@@ -29,6 +30,32 @@ use sp_core::{Bytes, H256, twox_128};
 use sp_runtime::traits::Block as BlockT;
 use sp_storage::StorageKey;
 use std::{collections::BTreeSet, future::Future, pin::Pin, sync::Arc};
+
+/// Legacy reply information returned by `gear_calculateReplyForHandle`.
+///
+/// This preserves the historical JSON shape where `code` is serialized by
+/// serde as an enum, for example `{ "Success": "Manual" }`. The newer
+/// `gear_calculateReplyForHandleResult` endpoint intentionally returns
+/// `gear_core::rpc::ReplyInfo`, where `code` is a 0x-prefixed byte string.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LegacyReplyInfo {
+    /// Payload of the reply.
+    pub payload: Bytes,
+    /// Value attached to the reply.
+    pub value: u128,
+    /// Reply code of the reply.
+    pub code: ReplyCode,
+}
+
+impl From<ReplyInfo> for LegacyReplyInfo {
+    fn from(reply: ReplyInfo) -> Self {
+        Self {
+            payload: Bytes(reply.payload),
+            value: reply.value,
+            code: reply.code,
+        }
+    }
+}
 
 /// Subscription item describing programs whose states changed within a block.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -45,6 +72,10 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> ErrorObjectOwned {
     ErrorObject::owned(8000, "Runtime error", Some(format!("{err:?}")))
 }
 
+const GEAR_PROGRAM_PALLET: &[u8] = b"GearProgram";
+const PROGRAM_STORAGE: &[u8] = b"ProgramStorage";
+const ORIGINAL_CODE_STORAGE: &[u8] = b"OriginalCodeStorage";
+
 #[rpc(server)]
 pub trait GearApi<BlockHash, ResponseType> {
     #[method(name = "gear_calculateReplyForHandle")]
@@ -56,7 +87,18 @@ pub trait GearApi<BlockHash, ResponseType> {
         gas_limit: u64,
         value: RpcValue,
         at: Option<BlockHash>,
-    ) -> RpcResult<ReplyInfo>;
+    ) -> RpcResult<LegacyReplyInfo>;
+
+    #[method(name = "gear_calculateReplyForHandleResult")]
+    fn calculate_reply_for_handle_result(
+        &self,
+        origin: H256,
+        destination: H256,
+        payload: Bytes,
+        gas_limit: u64,
+        value: RpcValue,
+        at: Option<BlockHash>,
+    ) -> RpcResult<CalculateReplyForHandleResult>;
 
     #[method(name = "gear_calculateInitCreateGas", aliases = ["gear_calculateGasForCreate"])]
     fn get_init_create_gas_spent(
@@ -141,6 +183,14 @@ pub trait GearApi<BlockHash, ResponseType> {
     #[method(name = "gear_readMetahash")]
     fn read_metahash(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<H256>;
 
+    #[method(name = "gear_readWasmCustomSection")]
+    fn read_wasm_custom_section(
+        &self,
+        code_id: H256,
+        section_name: String,
+        at: Option<BlockHash>,
+    ) -> RpcResult<Option<Bytes>>;
+
     #[subscription(
         name = "gear_subscribeProgramStateChanges",
         item = ProgramStateChange<BlockHash>,
@@ -159,6 +209,7 @@ pub struct Gear<C, P> {
     max_batch_size: u64,
     subscription_executor: SubscriptionTaskExecutor,
     program_storage_prefix: Vec<u8>,
+    original_code_storage_prefix: Vec<u8>,
     _marker: std::marker::PhantomData<P>,
 }
 
@@ -170,8 +221,8 @@ impl<C, P> Gear<C, P> {
         max_batch_size: u64,
         subscription_executor: SubscriptionTaskExecutor,
     ) -> Self {
-        let mut program_storage_prefix = twox_128(b"GearProgram").to_vec();
-        program_storage_prefix.extend_from_slice(&twox_128(b"ProgramStorage"));
+        let program_storage_prefix = pallet_storage_prefix(PROGRAM_STORAGE);
+        let original_code_storage_prefix = pallet_storage_prefix(ORIGINAL_CODE_STORAGE);
 
         Self {
             client,
@@ -179,12 +230,13 @@ impl<C, P> Gear<C, P> {
             max_batch_size,
             subscription_executor,
             program_storage_prefix,
+            original_code_storage_prefix,
             _marker: Default::default(),
         }
     }
 }
 
-impl<Client, Block> Gear<Client, Block>
+impl<Client, Block, Backend> Gear<Client, (Block, Backend)>
 where
     Block: BlockT,
     Client: 'static + ProvideRuntimeApi<Block>,
@@ -257,6 +309,19 @@ where
     }
 }
 
+fn pallet_storage_prefix(storage: &[u8]) -> Vec<u8> {
+    let mut key = twox_128(GEAR_PROGRAM_PALLET).to_vec();
+    key.extend_from_slice(&twox_128(storage));
+    key
+}
+
+// GearProgram storage maps use Identity hasher for H256/CodeId keys, so the
+// map key suffix is the raw 32 bytes. Revisit this if the storage hasher changes.
+fn storage_map_key(mut key: Vec<u8>, code_id: H256) -> StorageKey {
+    key.extend_from_slice(code_id.as_bytes());
+    StorageKey(key)
+}
+
 /// Error type of this RPC api.
 pub enum Error {
     /// The transaction was not decodable.
@@ -275,10 +340,16 @@ impl From<Error> for i64 {
 }
 
 #[async_trait]
-impl<C, Block> GearApiServer<<Block as BlockT>::Hash, Result<u64, Vec<u8>>> for Gear<C, Block>
+impl<C, Block, Backend> GearApiServer<<Block as BlockT>::Hash, Result<u64, Vec<u8>>>
+    for Gear<C, (Block, Backend)>
 where
     Block: BlockT,
-    C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockchainEvents<Block>,
+    Backend: ClientBackend<Block> + 'static,
+    C: 'static
+        + ProvideRuntimeApi<Block>
+        + HeaderBackend<Block>
+        + BlockchainEvents<Block>
+        + StorageProvider<Block, Backend>,
     C::Api: GearRuntimeApi<Block>,
     <Block as BlockT>::Hash: serde::Serialize,
 {
@@ -290,11 +361,36 @@ where
         gas_limit: u64,
         value: RpcValue,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> RpcResult<ReplyInfo> {
+    ) -> RpcResult<LegacyReplyInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         self.run_with_api_copy(|api| {
             api.calculate_reply_for_handle(
+                at_hash,
+                origin,
+                destination,
+                payload.to_vec(),
+                gas_limit,
+                value.0,
+                self.allowance_multiplier,
+            )
+        })
+        .map(Into::into)
+    }
+
+    fn calculate_reply_for_handle_result(
+        &self,
+        origin: H256,
+        destination: H256,
+        payload: Bytes,
+        gas_limit: u64,
+        value: RpcValue,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<CalculateReplyForHandleResult> {
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        self.run_with_api_copy(|api| {
+            api.calculate_reply_for_handle_result(
                 at_hash,
                 origin,
                 destination,
@@ -639,6 +735,41 @@ where
                 api.read_metahash(at_hash, program_id, Some(self.allowance_multiplier))
             })
         }
+    }
+
+    fn read_wasm_custom_section(
+        &self,
+        code_id: H256,
+        section_name: String,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<Option<Bytes>> {
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+        let storage_key = storage_map_key(self.original_code_storage_prefix.clone(), code_id);
+        let Some(storage_data) = self.client.storage(at_hash, &storage_key).map_err(|e| {
+            ErrorObject::owned(
+                8000,
+                "WASM custom section storage read error",
+                Some(e.to_string()),
+            )
+        })?
+        else {
+            return Ok(None);
+        };
+
+        let mut original_code_cursor = storage_data.0.as_slice();
+        let original_code = Vec::<u8>::decode_all(&mut original_code_cursor).map_err(|e| {
+            ErrorObject::owned(
+                8000,
+                "WASM custom section storage decode error",
+                Some(e.to_string()),
+            )
+        })?;
+
+        gear_core::code::get_custom_section_data(&original_code, &section_name)
+            .map(|section| section.map(|section| Bytes(section.to_vec())))
+            .map_err(|e| {
+                ErrorObject::owned(8000, "WASM custom section read error", Some(e.to_string()))
+            })
     }
 
     fn subscribe_program_state_changes(

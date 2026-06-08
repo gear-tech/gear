@@ -11,6 +11,8 @@ use scale_decode::DecodeAsType;
 use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
+use crate::message::UserMessage;
+
 /// Pre-calculated gas consumption estimate for a message.
 ///
 /// Intended to be used as a result in `calculateGasFor*` RPC calls.
@@ -49,6 +51,18 @@ pub struct ReplyInfo {
     /// Reply code of the reply.
     #[cfg_attr(feature = "std", serde(with = "serialize_reply_code"))]
     pub code: ReplyCode,
+}
+
+/// Pre-calculated reply information with user messages produced during calculation.
+#[derive(
+    Clone, Debug, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo, Hash,
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct CalculateReplyForHandleResult {
+    /// Reply to the calculated handle message.
+    pub reply: ReplyInfo,
+    /// User messages sent during the calculated execution.
+    pub messages: Vec<UserMessage>,
 }
 
 impl ReplyInfo {

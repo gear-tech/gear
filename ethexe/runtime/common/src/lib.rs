@@ -41,7 +41,7 @@
 //!
 //! Protocol limit constants ([`MAX_OUTGOING_MESSAGES_PER_EXECUTION`],
 //! [`MAX_OUTGOING_MESSAGES_PER_RUN`], [`MAX_CALL_REPLIES_PER_RUN`], etc.) and runtime version
-//! constants ([`VERSION`], [`RUNTIME_ID`]) are also exported.
+//! constants ([`RUNTIME_ID`], [`CODES_INSTRUMENTATION_VERSION`]) are also exported.
 //!
 //! ## Invariants
 //!
@@ -105,10 +105,13 @@ mod journal;
 mod schedule;
 mod transitions;
 
-// TODO: consider format.
-/// Version of the runtime.
-pub const VERSION: u32 = 1;
-pub const RUNTIME_ID: u32 = 1;
+/// Runtime ID
+/// MUST BE BUMPED IF:
+/// - any instrumentation logic changes ([`CODES_INSTRUMENTATION_VERSION`] is updated);
+pub const RUNTIME_ID: u32 = 2;
+
+/// Gear program wasm codes instrumentation version.
+pub const CODES_INSTRUMENTATION_VERSION: u32 = 2;
 
 /// Maximum number of outgoing messages per execution of one dispatch.
 pub const MAX_OUTGOING_MESSAGES_PER_EXECUTION: u32 = 4;
@@ -130,11 +133,10 @@ pub struct ProcessQueueContext {
     pub program_id: ActorId,
     pub state_root: H256,
     pub queue_type: MessageType,
-    pub instrumented_code: InstrumentedCode,
-    pub code_metadata: CodeMetadata,
     pub gas_allowance: GasAllowanceCounter,
     pub block_info: BlockInfo,
     pub promise_policy: PromisePolicy,
+    pub code: Option<(InstrumentedCode, CodeMetadata)>,
 }
 
 pub trait RuntimeInterface: Storage {
@@ -413,8 +415,7 @@ where
 
     let &ProcessQueueContext {
         program_id,
-        instrumented_code: ref code,
-        ref code_metadata,
+        ref code,
         ..
     } = ctx;
 
@@ -431,6 +432,8 @@ where
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
     let context = ContextCharged::new(program_id, dispatch, ctx.gas_allowance.left());
+
+    // TODO #5561: change charging logic for ethexe, because we do not need to load all that data for each dispatch
 
     let context = match context.charge_for_program(block_config) {
         Ok(context) => context,
@@ -472,11 +475,18 @@ where
         Err(journal) => return journal,
     };
 
-    let context =
-        match context.charge_for_instrumented_code(block_config, code.bytes().len() as u32) {
-            Ok(context) => context,
-            Err(journal) => return journal,
-        };
+    // NOTE: code bytes are not loaded each dispatch in ethexe. Should be refactored in #5561
+    let context = match context.charge_for_instrumented_code(block_config, 0) {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
+
+    let Some((code, code_metadata)) = code else {
+        log::trace!(
+            "Missing instrumented code for program {program_id}, skipping execution of dispatch {dispatch_id} due to reinstrumentation failure"
+        );
+        return core_processor::process_reinstrumentation_error(context);
+    };
 
     let allocations = active_state
         .allocations_hash
@@ -560,20 +570,19 @@ mod tests {
             program_id: ActorId::from(42),
             state_root: storage.write_program_state(ProgramState::zero()),
             queue_type: MessageType::Canonical,
-            instrumented_code: InstrumentedCode::new(
-                Vec::new(),
-                InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
-            ),
-            code_metadata: CodeMetadata::new(
-                0,
-                BTreeSet::new(),
-                0.into(),
-                None,
-                InstrumentationStatus::NotInstrumented,
-            ),
             gas_allowance: GasAllowanceCounter::new(1_000_000),
             block_info: BlockInfo::default(),
             promise_policy: PromisePolicy::Disabled,
+            code: Some((
+                InstrumentedCode::new(Vec::new(), InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),
+                CodeMetadata::new(
+                    0,
+                    BTreeSet::new(),
+                    0.into(),
+                    None,
+                    InstrumentationStatus::NotInstrumented,
+                ),
+            )),
         }
     }
 

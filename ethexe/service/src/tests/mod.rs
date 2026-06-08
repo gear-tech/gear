@@ -6,8 +6,9 @@
 pub(crate) mod utils;
 
 use crate::tests::utils::{
-    EnvNetworkConfig, InfiniteStreamExt, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
-    TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, init_logger, stop_nodes, test_info,
+    EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, NodeConfig, TestEnv,
+    TestEnvConfig, TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig,
+    init_logger, stop_nodes, test_info,
 };
 use alloy::{
     primitives::U256,
@@ -22,15 +23,16 @@ use ethexe_common::{
     },
     gear::BatchCommitment,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Receipt,
-        TransactionPurgedReason,
+        InjectedTransaction, InjectedTransactionAcceptance, Receipt, TransactionPurgedReason,
     },
     mock::*,
 };
 use ethexe_consensus::BatchCommitter;
+use ethexe_db::{Database, dump::StateDump};
 use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
+use ethexe_processor::Processor;
 use ethexe_rpc::InjectedClient;
-use ethexe_runtime_common::state::Storage;
+use ethexe_runtime_common::{RUNTIME_ID, state::Storage};
 use gear_core::{
     ids::prelude::MessageIdExt,
     message::{ReplyCode, SuccessReplyReason},
@@ -139,7 +141,7 @@ async fn write_memory_to_last_byte() {
 
     let _ = node
         .db
-        .instrumented_code(1, code_id)
+        .instrumented_code(RUNTIME_ID, code_id)
         .expect("After approval, instrumented code is guaranteed to be in the database");
     let res = env
         .create_program(code_id, 500_000_000_000_000)
@@ -196,7 +198,7 @@ async fn ping() {
 
     let _ = node
         .db
-        .instrumented_code(1, code_id)
+        .instrumented_code(RUNTIME_ID, code_id)
         .expect("After approval, instrumented code is guaranteed to be in the database");
     let res = env
         .create_program(code_id, 500_000_000_000_000)
@@ -1831,7 +1833,6 @@ async fn send_injected_tx() {
     let mut env = TestEnv::new(test_env_config).await.unwrap();
 
     let validator0_pubkey = env.validators[0].public_key;
-    let validator1_pubkey = env.validators[1].public_key;
 
     test_info!("📗 Starting node 0");
     let mut node0 = env
@@ -1870,20 +1871,17 @@ async fn send_injected_tx() {
         salt: vec![1].try_into().unwrap(),
     };
 
-    let tx_for_node1 = AddressedInjectedTransaction {
-        recipient: validator1_pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(validator0_pubkey, tx.clone(), None)
-            .unwrap(),
-    };
+    let signed_tx = env
+        .signer
+        .signed_message(validator0_pubkey, tx.clone(), None)
+        .unwrap();
 
     // Send request
     test_info!("Sending transaction to node-1");
     let acceptance = node1
         .rpc_http_client()
         .unwrap()
-        .send_transaction(tx_for_node1.clone())
+        .send_transaction(signed_tx.clone())
         .await
         .expect("rpc server is set");
     assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
@@ -1892,11 +1890,8 @@ async fn send_injected_tx() {
     node1
         .events()
         .find(|event| {
-            // RPC fan-out emits one InjectedTransaction event per
-            // validator, so match on the v1-targeted one — that's
-            // the one whose recipient equals `tx_for_node1.recipient`.
             if let TestingEvent::Rpc(TestingRpcEvent::InjectedTransaction { transaction }) = event
-                && *transaction == tx_for_node1
+                && *transaction == signed_tx
             {
                 true
             } else {
@@ -1910,7 +1905,7 @@ async fn send_injected_tx() {
         .db
         .injected_transaction(tx.to_hash())
         .expect("tx not found");
-    assert_eq!(node1_db_tx, tx_for_node1.tx);
+    assert_eq!(node1_db_tx, signed_tx);
 
     stop_nodes([node0, node1]).await;
 }
@@ -1949,10 +1944,7 @@ async fn injected_tx_purged_receipt() {
         salt: vec![1].try_into().unwrap(),
     };
     let tx_hash = tx.to_hash();
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: pubkey.to_address(),
-        tx: env.signer.signed_message(pubkey, tx, None).unwrap(),
-    };
+    let rpc_tx = env.signer.signed_message(pubkey, tx, None).unwrap();
 
     let mut subscription = rpc_client
         .send_transaction_and_watch(rpc_tx)
@@ -2634,13 +2626,10 @@ async fn injected_tx_fungible_token() {
         salt: vec![1].try_into().unwrap(),
     };
 
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(pubkey, mint_tx.clone(), None)
-            .unwrap(),
-    };
+    let rpc_tx = env
+        .signer
+        .signed_message(pubkey, mint_tx.clone(), None)
+        .unwrap();
 
     let mut subscription = rpc_client
         .send_transaction_and_watch(rpc_tx)
@@ -2739,13 +2728,10 @@ async fn injected_tx_fungible_token() {
         salt: vec![1].try_into().unwrap(),
     };
 
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(pubkey, transfer_tx.clone(), None)
-            .unwrap(),
-    };
+    let rpc_tx = env
+        .signer
+        .signed_message(pubkey, transfer_tx.clone(), None)
+        .unwrap();
     let ws_client = node
         .rpc_ws_client()
         .await
@@ -2813,7 +2799,6 @@ async fn injected_tx_fungible_token_over_network() {
         .await
         .expect("RPC client provide by node");
 
-    let bob_pubkey = env.validators[0].public_key;
     let mut bob_node = env
         .new_node(NodeConfig::named("Bob").validator(env.validators[0]))
         .await;
@@ -2881,13 +2866,10 @@ async fn injected_tx_fungible_token_over_network() {
         salt: vec![1].try_into().unwrap(),
     };
 
-    let rpc_tx = AddressedInjectedTransaction {
-        recipient: bob_pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(user_pubkey, mint_tx.clone(), None)
-            .unwrap(),
-    };
+    let rpc_tx = env
+        .signer
+        .signed_message(user_pubkey, mint_tx.clone(), None)
+        .unwrap();
 
     alice_node
         .events()
@@ -3081,7 +3063,7 @@ async fn reply_callback() {
 
     let _ = node
         .db
-        .instrumented_code(1, code_id)
+        .instrumented_code(RUNTIME_ID, code_id)
         .expect("After approval, instrumented code is guaranteed to be in the database");
     let res = env
         .create_program(code_id, 500_000_000_000_000)
@@ -3165,9 +3147,346 @@ async fn reply_callback() {
 async fn fast_sync() {}
 
 #[tokio::test]
-#[ignore = "TODO: #5488 port to MB-driven test harness"]
-async fn re_genesis_with_state_dump() {}
+#[ntest::timeout(120_000)]
+async fn re_genesis_with_state_dump() {
+    init_logger();
 
+    let mut env = TestEnv::default().await;
+
+    log::info!("📗 Phase 1: start a node, deploy ping program, do ping-pong.");
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+    let ping_id = res.program_id;
+
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+
+    // Ensure the ping-pong state is committed on-chain before re-genesis, so the
+    // dump taken at the new genesis block carries it.
+    let latest_block = env.latest_block().await.hash;
+    node.events()
+        .wait_till_eth_block_finalized_in_mb(latest_block)
+        .await;
+
+    log::info!(
+        "📗 Phase 2: re-genesis the router via reinitialize + lookupGenesisHash. \
+         New genesis is the block where the reinitialize tx is mined."
+    );
+    env.ethereum.router().reinitialize().await.unwrap();
+    env.ethereum.router().lookup_genesis_hash().await.unwrap();
+
+    let new_genesis_hash: H256 = env
+        .ethereum
+        .router()
+        .query()
+        .genesis_block_hash()
+        .await
+        .unwrap()
+        .0
+        .into();
+    log::info!("New genesis block hash: {new_genesis_hash:?}");
+
+    // Wait until the node commits an MB covering the new genesis block before
+    // dumping from its DB.
+    node.events()
+        .wait_till_eth_block_finalized_in_mb(new_genesis_hash)
+        .await;
+
+    log::info!("📗 Phase 3: collect state dump at the new genesis block.");
+    let dump = StateDump::collect_from_storage(&node.db, new_genesis_hash).unwrap();
+    log::info!(
+        "Dump: {} codes, {} programs, {} blobs",
+        dump.codes.len(),
+        dump.programs.len(),
+        dump.blobs.len(),
+    );
+    assert_eq!(dump.eb_hash, new_genesis_hash);
+    assert!(!dump.codes.is_empty());
+    assert!(!dump.programs.is_empty());
+
+    // Stop the node.
+    stop_nodes([node]).await;
+
+    log::info!("📗 Phase 4: create a new node with a fresh DB initialized from the state dump.");
+
+    let memory_db = Database::memory();
+    let processor = Processor::new(memory_db).unwrap();
+    let initializer = GenesisInitializerFromDump {
+        dump: Some(dump),
+        processor,
+    };
+
+    let new_db = ethexe_db::create_initialized_empty_memory_db(ethexe_db::InitConfig {
+        ethereum_rpc: env.eth_cfg.rpc.clone(),
+        router_address: env.eth_cfg.router_address,
+        slot_duration_secs: env.eth_cfg.block_time.as_secs(),
+        genesis_initializer: Some(Box::new(initializer)),
+    })
+    .await
+    .unwrap();
+
+    // Start node again with the new db.
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .db(new_db)
+                .validator(env.validators[0]),
+        )
+        .await;
+    node.start_service().await;
+
+    log::info!("📗 Phase 5: verify ping still works after re-genesis.");
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.program_id, ping_id);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+
+    stop_nodes([node]).await;
+}
+
+/// Test re-genesis with a program that has pending delayed messages in the dispatch stash.
+///
+/// WAT program: on `handle`, sends a delayed message (delay=5 blocks) to the source,
+/// then replies with "DE". After re-genesis, the delayed task should be restored
+/// in the scheduler from the dispatch stash in the program state.
 #[tokio::test]
-#[ignore = "TODO: #5488 port to MB-driven test harness"]
-async fn re_genesis_delayed_message() {}
+#[ntest::timeout(120_000)]
+async fn re_genesis_delayed_message() {
+    init_logger();
+
+    let mut env = TestEnv::default().await;
+
+    // WAT program: on handle, sends a delayed message to source and replies.
+    //
+    // Memory layout:
+    //   0..32   : source ActorId (filled by gr_source)
+    //   32..48  : value u128 = 0 (for dest_with_value)
+    //   48..55  : payload "DELAYED"
+    //   64..100 : error(4) + message_id(32) result buffer
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_source" (func $gr_source (param i32)))
+            (import "env" "gr_send" (func $gr_send (param i32 i32 i32 i32 i32)))
+            (import "env" "gr_reply" (func $gr_reply (param i32 i32 i32 i32)))
+            (export "handle" (func $handle))
+            (data (i32.const 48) "DELAYED")
+            (func $handle
+                ;; Get source address into memory at offset 0.
+                (call $gr_source (i32.const 0))
+                ;; Send delayed message: dest_with_value=0, payload=48, len=7, delay=5, err_ptr=64
+                (call $gr_send (i32.const 0) (i32.const 48) (i32.const 7) (i32.const 5) (i32.const 64))
+                ;; Reply with "DE" via gr_reply: payload_ptr=48, len=2, value_ptr=32, err_ptr=64
+                (call $gr_reply (i32.const 48) (i32.const 2) (i32.const 32) (i32.const 64))
+            )
+        )
+    "#;
+
+    let wasm_binary = wat::parse_str(wat).expect("failed to parse WAT module");
+
+    log::info!("📗 Phase 1: deploy program and trigger delayed send.");
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let program_id = res.program_id;
+
+    // First message initializes the program (calls `init`).
+    let res = env
+        .send_message(program_id, b"init")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    // Second message triggers handle with delayed send.
+    let res = env
+        .send_message(program_id, b"trigger")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(&res.payload, b"DE"); // first 2 bytes of "DELAYED"
+
+    // Ensure the delayed-send state is committed before re-genesis.
+    let latest_block = env.latest_block().await.hash;
+    node.events()
+        .wait_till_eth_block_finalized_in_mb(latest_block)
+        .await;
+
+    // Phase 2: re-genesis via reinitialize + lookupGenesisHash; the new genesis
+    // is the block where the reinitialize tx was mined.
+    log::info!("📗 Phase 2: re-genesis the router.");
+    env.ethereum.router().reinitialize().await.unwrap();
+    env.ethereum.router().lookup_genesis_hash().await.unwrap();
+
+    let new_genesis_hash: H256 = env
+        .ethereum
+        .router()
+        .query()
+        .genesis_block_hash()
+        .await
+        .unwrap()
+        .0
+        .into();
+    log::info!("New genesis block hash: {new_genesis_hash:?}");
+
+    // Wait until the node commits an MB covering the new genesis block before
+    // dumping from its DB.
+    node.events()
+        .wait_till_eth_block_finalized_in_mb(new_genesis_hash)
+        .await;
+
+    // Phase 3: collect dump at the new genesis block; it should still carry the
+    // pending delayed send in the dispatch stash because the 5-block delay
+    // hasn't elapsed yet.
+    log::info!("📗 Phase 3: collect state dump at the new genesis block.");
+    let dump = StateDump::collect_from_storage(&node.db, new_genesis_hash).unwrap();
+    log::info!(
+        "Dump: {} codes, {} programs, {} blobs",
+        dump.codes.len(),
+        dump.programs.len(),
+        dump.blobs.len(),
+    );
+    assert_eq!(dump.eb_hash, new_genesis_hash);
+
+    // Verify the dispatch stash is non-empty (delayed message pending).
+    {
+        let (_code_id, state_hash) = dump.programs.values().next().unwrap();
+        let state = node.db.program_state(*state_hash).unwrap();
+        assert!(
+            !state.stash_hash.is_empty(),
+            "dispatch stash should contain the delayed message"
+        );
+    }
+
+    // Stop the node.
+    stop_nodes([node]).await;
+
+    // Phase 4: start new node with dump.
+    log::info!("📗 Phase 4: start new node with state dump.");
+    let memory_db = Database::memory();
+    let processor = Processor::new(memory_db).unwrap();
+    let initializer = GenesisInitializerFromDump {
+        dump: Some(dump),
+        processor,
+    };
+
+    let new_db = ethexe_db::create_initialized_empty_memory_db(ethexe_db::InitConfig {
+        ethereum_rpc: env.eth_cfg.rpc.clone(),
+        router_address: env.eth_cfg.router_address,
+        slot_duration_secs: env.eth_cfg.block_time.as_secs(),
+        genesis_initializer: Some(Box::new(initializer)),
+    })
+    .await
+    .unwrap();
+
+    // Verify the schedule was restored with the delayed task. The restored
+    // genesis state lives under the zero MB (ancestor of the malachite genesis
+    // block), seeded by `initialize_empty_db`.
+    {
+        let schedule = new_db.mb_schedule(H256::zero()).unwrap();
+        let total_tasks: usize = schedule.values().map(|tasks| tasks.len()).sum();
+        log::info!(
+            "Restored schedule: {total_tasks} tasks across {} blocks",
+            schedule.len()
+        );
+        assert!(
+            total_tasks > 0,
+            "schedule must contain the delayed send task"
+        );
+    }
+
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .db(new_db)
+                .validator(env.validators[0]),
+        )
+        .await;
+    node.start_service().await;
+
+    // skip 3 blocks to reach the delayed message execution slot
+    // delay=5 blocks, so execute at block N+5, but we are currently at N+2 after genesis.
+    env.skip_blocks(3).await;
+    env.new_observer_events()
+        .filter_map_block_synced()
+        .find_map(|event| match event {
+            BlockEvent::Mirror {
+                event: MirrorEvent::Message(event),
+                ..
+            } => Some(event),
+            _ => None,
+        })
+        .await
+        .tap(
+            |MessageEvent {
+                 destination,
+                 payload,
+                 value,
+                 ..
+             }| {
+                assert_eq!(*destination, env.sender_id);
+                assert_eq!(payload, b"DELAYED");
+                assert_eq!(*value, 0);
+            },
+        );
+
+    stop_nodes([node]).await;
+}

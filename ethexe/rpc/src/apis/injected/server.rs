@@ -11,8 +11,8 @@ use ethexe_common::{
     HashOf,
     db::InjectedStorageRO,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedTxReceipt,
+        InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
+        SignedTxReceipt,
     },
 };
 use ethexe_db::Database;
@@ -39,7 +39,7 @@ pub struct InjectedApi {
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         self.send_transaction(transaction).await
     }
@@ -47,7 +47,7 @@ impl InjectedServer for InjectedApi {
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
     ) -> SubscriptionResult {
         self.send_transaction_and_watch(pending, transaction).await
     }
@@ -80,7 +80,7 @@ impl InjectedApi {
         Self {
             db: db.clone(),
             manager: PromiseSubscriptionManager::new(db.clone()),
-            relayer: TransactionsRelayer::new(rpc_sender, db),
+            relayer: TransactionsRelayer::new(rpc_sender),
             metrics: InjectedApiMetrics::default(),
         }
     }
@@ -90,7 +90,7 @@ impl InjectedApi {
 impl InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         self.relayer.relay(transaction).await
     }
@@ -99,9 +99,9 @@ impl InjectedApi {
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
     ) -> SubscriptionResult {
-        let tx_hash = transaction.tx.data().to_hash();
+        let tx_hash = transaction.data().to_hash();
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
             Ok(subscriber) => subscriber,
