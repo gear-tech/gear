@@ -23,6 +23,7 @@ pub struct MBCommittedEvent(pub H256);
 pub struct EBCommittedEvent(pub H256);
 
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProtocolVersionChangedEvent {
     pub new_protocol_version: U256,
 }
@@ -94,11 +95,11 @@ impl Event {
             Self::ValidatorsCommittedForEra(event) => {
                 RequestEvent::ValidatorsCommittedForEra(event)
             }
+            Self::ProtocolVersionChanged(event) => RequestEvent::ProtocolVersionChanged(event),
             Self::CodeGotValidated { .. }
             | Self::MBCommitted(_)
             | Self::EBCommitted(_)
-            | Self::BatchCommitted { .. }
-            | Self::ProtocolVersionChanged { .. } => return None,
+            | Self::BatchCommitted { .. } => return None,
         })
     }
 }
@@ -111,4 +112,5 @@ pub enum RequestEvent {
     ProgramCreated(ProgramCreatedEvent),
     StorageSlotChanged(StorageSlotChangedEvent),
     ValidatorsCommittedForEra(ValidatorsCommittedForEraEvent),
+    ProtocolVersionChanged(ProtocolVersionChangedEvent),
 }

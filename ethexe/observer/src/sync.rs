@@ -16,14 +16,10 @@ use anyhow::{Context as _, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
     db::{GlobalsStorageRO, GlobalsStorageRW, OnChainStorageRO, OnChainStorageRW},
-    events::{
-        BlockEvent, RouterEvent,
-        router::{CodeValidationRequestedEvent, ProtocolVersionChangedEvent},
-    },
+    events::{BlockEvent, RouterEvent, router::CodeValidationRequestedEvent},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{
-    Ethereum,
     middleware::{ElectionProvider, MiddlewareQuery},
     router::RouterQuery,
 };
@@ -36,13 +32,6 @@ use std::collections::HashMap;
 pub enum SyncError {
     #[error("RPC error during sync: {0:?}")]
     RpcError(anyhow::Error),
-    #[error(
-        "Client protocol version mismatch. Expected {expected:?}, got {got:?}. Please make sure to use compatible version of Ethereum client with `Router` contract."
-    )]
-    ProtocolVersionMismatch {
-        expected: (u8, u8, u8),
-        got: (u8, u8, u8),
-    },
     #[error(transparent)]
     Fatal(anyhow::Error),
 }
@@ -118,7 +107,7 @@ impl ChainSync {
         &self,
         block: &SimpleBlockData,
         mut blocks_data: HashMap<H256, BlockData>,
-    ) -> SyncResult<Vec<SimpleBlockData>> {
+    ) -> Result<Vec<SimpleBlockData>> {
         let mut chain = Vec::new();
 
         let mut current_block_hash = block.hash;
@@ -143,36 +132,16 @@ impl ChainSync {
             }
 
             for event in block_data.events.iter() {
-                match *event {
-                    BlockEvent::Router(RouterEvent::CodeValidationRequested(
-                        CodeValidationRequestedEvent {
-                            code_id,
-                            timestamp,
-                            tx_hash,
-                        },
-                    )) => {
-                        self.db
-                            .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });
-                    }
-                    BlockEvent::Router(RouterEvent::ProtocolVersionChanged(
-                        ProtocolVersionChangedEvent {
-                            new_protocol_version,
-                        },
-                    )) => {
-                        let new_protocol_version = Ethereum::decode_protocol_version(
-                            new_protocol_version
-                                .try_into()
-                                .map_err(|_| anyhow!("Protocol version exceeds u64"))?,
-                        );
-                        let (new_major_protocol_version, _, _) = new_protocol_version;
-                        if new_major_protocol_version != Ethereum::CLIENT_MAJOR_PROTOCOL_VERSION {
-                            return Err(SyncError::ProtocolVersionMismatch {
-                                expected: Ethereum::CLIENT_PROTOCOL_VERSION,
-                                got: new_protocol_version,
-                            });
-                        }
-                    }
-                    _ => {}
+                if let &BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent {
+                        code_id,
+                        timestamp,
+                        tx_hash,
+                    },
+                )) = event
+                {
+                    self.db
+                        .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });
                 }
             }
 

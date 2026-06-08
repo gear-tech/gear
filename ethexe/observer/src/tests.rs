@@ -248,7 +248,7 @@ async fn validators_at_on_orphaned_block_is_recoverable_rpc_error() -> Result<()
         .expect_err("validators_at must error on a reorged-out block");
 
     match SyncError::from(err) {
+        SyncError::RpcError(_) => Ok(()),
         SyncError::Fatal(err) => panic!("expected RpcError, got Fatal: {err:?}"),
-        _ => Ok(()),
     }
 }

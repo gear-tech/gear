@@ -235,13 +235,6 @@ impl Stream for ObserverService {
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
-                Err(SyncError::ProtocolVersionMismatch { expected, got }) => {
-                    return Poll::Ready(Some(Err(SyncError::ProtocolVersionMismatch {
-                        expected,
-                        got,
-                    }
-                    .into())));
-                }
                 Err(SyncError::Fatal(err)) => {
                     return Poll::Ready(Some(Err(err)));
                 }
