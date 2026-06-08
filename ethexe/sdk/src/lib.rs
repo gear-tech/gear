@@ -58,12 +58,22 @@
 //! - Most methods are `async` and return `anyhow::Result`, assuming a live RPC WebSocket and a
 //!   reachable Ethereum endpoint.
 
-pub use crate::{api::VaraEthApi, mirror::Mirror, router::Router, wvara::WVara};
+pub use crate::{
+    api::{
+        DEFAULT_BLOB_GAS_MULTIPLIER, DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE,
+        DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI, DEFAULT_ETHEREUM_RPC, VaraEthApi,
+        VaraEthApiBuilder,
+    },
+    mirror::{InjectedMessageResult, Mirror},
+    router::Router,
+    wvara::WVara,
+};
 
 mod api;
 mod mirror;
 mod router;
 mod wvara;
 
-// Re-export the
+// Re-export node-wrapper helpers and SDK-visible data types.
+pub use ethexe_ethereum::{mirror::ClaimInfo, router::CodeValidationResult};
 pub use ethexe_node_wrapper::{Error, VaraEth, VaraEthInstance};
