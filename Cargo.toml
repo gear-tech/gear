@@ -240,7 +240,7 @@ metrics-derive = "0.1"
 metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
 
 # Patched ferveo threshold encrypt/decrypt library.
-ferveo-tdec = { version = "0.4.0", git = "https://github.com/gear-tech/ferveo-nucypher.git",  package = "ferveo-nucypher-tdec", branch="main"}
+ferveo-tdec = { version = "0.4.0", git = "https://github.com/gear-tech/ferveo-nucypher.git",  package = "ferveo-nucypher-tdec", rev="caa532a5959bd55adc22796191cb8c68f6686f4a"}
 
 # Published deps
 #
