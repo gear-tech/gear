@@ -603,11 +603,12 @@ impl Service {
             fast_sync: _,
             validator_address,
             validator_pub_key,
-            shutdown_rx,
+            mut shutdown_rx,
             #[cfg(test)]
             sender,
         } = self;
-        let mut shutdown_rx = shutdown_rx;
+
+        malachite.as_mut().expect("always Some").start_app_task();
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());

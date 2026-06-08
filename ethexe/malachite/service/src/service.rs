@@ -192,6 +192,12 @@ impl MalachiteService {
         })
     }
 
+    pub fn start_app_task(&mut self) {
+        if let Some(inner) = &mut self.inner {
+            inner.start_app_task();
+        }
+    }
+
     /// Hand an injected transaction to the mempool. The local
     /// producer pulls from the same pool when assembling the next MB.
     ///
