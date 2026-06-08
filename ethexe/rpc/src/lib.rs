@@ -33,18 +33,19 @@
 //! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
 //! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
 
+pub use crate::apis::RPC_VERSION;
 #[cfg(feature = "client")]
 pub use crate::apis::{
     BlockClient, CalculateReplyForHandleResult, CodeClient, DevClient, FullProgramState,
-    InjectedClient, ProgramClient,
+    InfoClient, InjectedClient, ProgramClient,
 };
 
 #[cfg(feature = "server")]
 use anyhow::Result;
 #[cfg(feature = "server")]
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InjectedApi, InjectedServer,
-    ProgramApi, ProgramServer,
+    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InfoApi, InfoServer,
+    InjectedApi, InjectedServer, ProgramApi, ProgramServer,
 };
 #[cfg(feature = "server")]
 use ethexe_common::injected::{
@@ -158,6 +159,7 @@ impl RpcServer {
                 .config
                 .with_dev_api
                 .then(|| DevApi::new(self.db.clone())),
+            info: InfoApi,
         };
         let injected_api = server_apis.injected.clone();
 
@@ -237,6 +239,7 @@ struct RpcServerApis {
     pub injected: InjectedApi,
     pub program: ProgramApi,
     pub dev: Option<DevApi>,
+    pub info: InfoApi,
 }
 
 #[cfg(feature = "server")]
@@ -261,6 +264,9 @@ impl RpcServerApis {
                 .merge(DevServer::into_rpc(dev))
                 .expect("No conflicts");
         }
+        module
+            .merge(InfoServer::into_rpc(self.info))
+            .expect("No conflicts");
 
         module
     }
