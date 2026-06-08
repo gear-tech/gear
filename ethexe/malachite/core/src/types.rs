@@ -3,12 +3,28 @@
 
 //! Core public types for [`crate::MalachiteService`].
 
-use derive_where::derive_where;
+use gear_core::limited::LimitedVec;
 pub use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-use crate::externalities::BlockPayload;
+/// Hard cap on a block's encoded application payload — the SCALE-encoded
+/// application operation list carried in [`Block::payload`] (the service treats
+/// it as opaque bytes; the schema lives in the application crate).
+///
+/// The whole [`Block`] ships as a single gossipsub message: the proposer
+/// streams it as one `Data` proposal part, and the value-sync path fetches a
+/// finalized block in one request-response round. Malachite's `pubsub_max_size`
+/// (the gossipsub `max_transmit_size`) defaults to 4 MiB, so the encoded block
+/// must stay well under that. Realistic content is ~127 KiB
+/// (`MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB` plus three protocol operations); the
+/// 1 MiB cap leaves ~8x headroom for future operation variants while staying
+/// ~4x under the 4 MiB transport ceiling (block envelope + SCALE / stream
+/// framing fit comfortably in the remaining margin).
+pub const MAX_BLOCK_PAYLOAD_BYTES: usize = 1024 * 1024;
+
+/// Size-capped opaque application payload carried by [`Block::payload`].
+pub type BlockPayload = LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>;
 
 /// 20-byte validator address.
 ///
@@ -60,18 +76,17 @@ impl Address {
 /// (Blake2b-256) over a SCALE-encoded
 /// `(parent_hash, height, payload_hash, reserved)` tuple, where
 /// `payload_hash = gear_core::utils::hash(payload.encode())`.
-#[derive_where(Clone)]
-#[derive(Encode, Decode)]
-pub struct Block<P: BlockPayload> {
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct Block {
     pub parent_hash: H256,
     pub height: u64,
-    pub payload: P,
+    pub payload: BlockPayload,
     pub reserved: [u8; 64],
 }
 
-impl<P: BlockPayload> Block<P> {
+impl Block {
     /// Construct a block with `reserved` zeroed out.
-    pub fn new(parent_hash: H256, height: u64, payload: P) -> Self {
+    pub fn new(parent_hash: H256, height: u64, payload: BlockPayload) -> Self {
         Self {
             parent_hash,
             height,

@@ -12,8 +12,8 @@ use ethexe_common::{
     db::*,
     events::BlockEvent,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedCompactPromise, SignedInjectedTransaction,
+        InjectedTransaction, InjectedTransactionAcceptance, SignedCompactTxReceipt,
+        SignedInjectedTransaction,
     },
     network::VerifiedValidatorMessage,
 };
@@ -77,7 +77,7 @@ impl TestingNetworkInjectedEvent {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
-    PromiseMessage(SignedCompactPromise),
+    TxReceiptMessage(SignedCompactTxReceipt),
     ValidatorIdentityUpdated(Address),
     InjectedTransaction(TestingNetworkInjectedEvent),
     PeerBlocked(PeerId),
@@ -88,7 +88,7 @@ impl TestingNetworkEvent {
     fn new(event: &NetworkEvent) -> Self {
         match event {
             NetworkEvent::ValidatorMessage(message) => Self::ValidatorMessage(message.clone()),
-            NetworkEvent::PromiseMessage(message) => Self::PromiseMessage(message.clone()),
+            NetworkEvent::TxReceiptMessage(message) => Self::TxReceiptMessage(message.clone()),
             NetworkEvent::ValidatorIdentityUpdated(address) => {
                 Self::ValidatorIdentityUpdated(*address)
             }
@@ -104,7 +104,7 @@ impl TestingNetworkEvent {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
     InjectedTransaction {
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
     },
 }
 

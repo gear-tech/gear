@@ -28,9 +28,7 @@ fn shortname<T: Any>() -> &'static str {
         .expect("name is empty")
 }
 
-#[derive(
-    Encode, Decode, TypeInfo, derive_more::Into, derive_more::Display, derive_more::Debug,
-)]
+#[derive(Encode, Decode, TypeInfo, derive_more::Into, derive_more::Display, derive_more::Debug)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(transparent))]
 #[display("{hash}")]

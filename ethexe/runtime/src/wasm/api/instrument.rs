@@ -20,8 +20,7 @@ pub fn instrument_code(original_code: Vec<u8>) -> Option<(InstrumentedCode, Code
 
     let code = Code::try_new(
         original_code,
-        // TODO: should we update it on each upgrade (?);
-        ethexe_runtime_common::VERSION,
+        ethexe_runtime_common::CODES_INSTRUMENTATION_VERSION,
         |module| schedule.rules(module),
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),

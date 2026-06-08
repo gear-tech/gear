@@ -1,6 +1,34 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+//! # Ethexe Blob Loader
+//!
+//! Fetches Gear program code blobs posted to Ethereum as EIP-4844 blob transactions,
+//! decoding them from the beacon chain into raw WASM bytes. Emits unverified bytes only;
+//! code validation and instrumentation happen later in `ethexe-processor`.
+//!
+//! ## Role in the Stack
+//!
+//! `ethexe-service` constructs a [`BlobLoader`] at startup, stores it as
+//! `Box<dyn BlobLoaderService>`, and drives it inside the main event loop, calling
+//! [`BlobLoaderService::load_codes`] whenever the compute service emits `RequestLoadCodes`.
+//! The loader reads code locations from the local database (via the [`Database`] bound)
+//! and fetches blob data from the execution-layer JSON-RPC and beacon node.
+//!
+//! ## Public API
+//!
+//! - [`BlobLoaderService`] — Trait stored by `ethexe-service`; a fused stream of fetched code blobs driven via `load_codes`
+//! - [`BlobLoader`] — Concrete implementation; constructed with `BlobLoader::new(db, cfg).await`
+//! - [`ConsensusLayerConfig`] — RPC endpoints (`ethereum_rpc`, `ethereum_beacon_rpc`), `beacon_block_time`, retry `attempts`
+//! - [`BlobLoaderEvent`] — Output event; the only variant is `BlobLoaded(CodeAndIdUnchecked)`
+//! - [`BlobLoaderError`] — Public error: `Transport` or `CodeBlobInfoNotFound(CodeId)`
+//! - [`Database`] — Blanket-implemented marker bound: `CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static`
+//!
+//! ## Invariants
+//!
+//! - Calling [`BlobLoaderService::load_codes`] with an already-pending [`CodeId`] is a no-op.
+//! - The stream never terminates; a failed fetch is logged and silently dropped (no error item).
+
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
     primitives::B256,

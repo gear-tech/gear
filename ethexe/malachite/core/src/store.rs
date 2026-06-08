@@ -28,17 +28,15 @@
 //! (a block becoming saveable unblocks its descendants) is in
 //! [`Store::cascade_save`] / [`Store::cascade_finalize`].
 
-use std::{marker::PhantomData, path::Path, sync::Arc};
+use std::{path::Path, sync::Arc};
 
 use anyhow::{Context as _, Result, anyhow};
-use derive_where::derive_where;
 use parity_scale_codec::{Decode, Encode};
 use rocksdb::{DB, Options, WriteBatch};
 
 use crate::{
     context::Height,
-    externalities::BlockPayload,
-    types::{Block, CommitCertificate, H256},
+    types::{Block, BlockPayload, CommitCertificate, H256},
 };
 
 mod prefix {
@@ -54,24 +52,23 @@ mod prefix {
 const META_LATEST_FINALIZED: &[u8] = b"latest_finalized";
 
 /// Single block record kept by the service.
-#[derive_where(Clone)]
-#[derive(Encode, Decode)]
-pub(crate) struct BlockEntry<P: BlockPayload> {
+#[derive(Clone, Encode, Decode)]
+pub(crate) struct BlockEntry {
     pub block_hash: H256,
     pub parent_hash: H256,
     pub height: u64,
-    pub payload: P,
+    pub payload: BlockPayload,
     pub reserved: [u8; 64],
     pub saved: bool,
     pub finalized: bool,
     pub cert: Option<CommitCertificate>,
 }
 
-impl<P: BlockPayload> BlockEntry<P> {
+impl BlockEntry {
     /// Reconstruct the [`Block`] form expected by
     /// [`crate::Externalities::process_mb_proposal`] /
     /// [`crate::Externalities::validate_block_above`].
-    pub fn block(&self) -> Block<P> {
+    pub fn block(&self) -> Block {
         Block {
             parent_hash: self.parent_hash,
             height: self.height,
@@ -88,31 +85,19 @@ struct LatestFinalized {
 }
 
 /// RocksDB-backed store. Cheap to clone (`Arc<DB>` inside).
-pub(crate) struct Store<P: BlockPayload> {
+#[derive(Clone)]
+pub(crate) struct Store {
     db: Arc<DB>,
-    _phantom: PhantomData<fn() -> P>,
 }
 
-impl<P: BlockPayload> Clone for Store<P> {
-    fn clone(&self) -> Self {
-        Self {
-            db: Arc::clone(&self.db),
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<P: BlockPayload> Store<P> {
+impl Store {
     /// Open (creating if missing) the RocksDB at `path`.
     pub fn open(path: &Path) -> Result<Self> {
         std::fs::create_dir_all(path).with_context(|| format!("creating store dir {path:?}"))?;
         let mut opts = Options::default();
         opts.create_if_missing(true);
         let db = DB::open(&opts, path).with_context(|| format!("opening rocksdb at {path:?}"))?;
-        Ok(Self {
-            db: Arc::new(db),
-            _phantom: PhantomData,
-        })
+        Ok(Self { db: Arc::new(db) })
     }
 
     fn key_block(hash: H256) -> [u8; 33] {
@@ -151,14 +136,11 @@ impl<P: BlockPayload> Store<P> {
     /// existing entry is preserved; only an absent `cert` field is
     /// filled in from the new entry. The children index is updated
     /// only on first insert.
-    pub fn insert_block(&self, entry: BlockEntry<P>) -> Result<()> {
+    pub fn insert_block(&self, entry: BlockEntry) -> Result<()> {
         let key = Self::key_block(entry.block_hash);
         let prev_bytes = self.db.get(key).context("reading existing block entry")?;
         let prev = match prev_bytes {
-            Some(b) => Some(Self::decode_one::<BlockEntry<P>>(
-                &b,
-                "previous block entry",
-            )?),
+            Some(b) => Some(Self::decode_one::<BlockEntry>(&b, "previous block entry")?),
             None => None,
         };
 
@@ -192,7 +174,7 @@ impl<P: BlockPayload> Store<P> {
     }
 
     /// Read a block entry by hash.
-    pub fn get_block(&self, block_hash: H256) -> Result<Option<BlockEntry<P>>> {
+    pub fn get_block(&self, block_hash: H256) -> Result<Option<BlockEntry>> {
         match self.db.get(Self::key_block(block_hash))? {
             Some(b) => Ok(Some(Self::decode_one(&b, "block entry")?)),
             None => Ok(None),
@@ -274,8 +256,8 @@ impl<P: BlockPayload> Store<P> {
     ///
     /// The returned chain is in chronological order
     /// (oldest-first), ready for sequential `process_mb_proposal` calls.
-    pub fn save_chain(&self, leaf_hash: H256) -> Result<Option<Vec<BlockEntry<P>>>> {
-        let mut chain_rev: Vec<BlockEntry<P>> = Vec::new();
+    pub fn save_chain(&self, leaf_hash: H256) -> Result<Option<Vec<BlockEntry>>> {
+        let mut chain_rev: Vec<BlockEntry> = Vec::new();
         let mut current = leaf_hash;
         loop {
             let entry = match self.get_block(current)? {
@@ -303,8 +285,8 @@ impl<P: BlockPayload> Store<P> {
     /// save first).
     ///
     /// The returned chain is chronological order (oldest-first).
-    pub fn finalize_chain(&self, leaf_hash: H256) -> Result<Option<Vec<BlockEntry<P>>>> {
-        let mut chain_rev: Vec<BlockEntry<P>> = Vec::new();
+    pub fn finalize_chain(&self, leaf_hash: H256) -> Result<Option<Vec<BlockEntry>>> {
+        let mut chain_rev: Vec<BlockEntry> = Vec::new();
         let mut current = leaf_hash;
         loop {
             let entry = match self.get_block(current)? {
@@ -354,7 +336,7 @@ impl<P: BlockPayload> Store<P> {
     /// flushed once the gap closes.
     pub async fn cascade_save<F, Fut>(&self, seeds: Vec<H256>, mut save_fn: F) -> Result<()>
     where
-        F: FnMut(H256, Block<P>) -> Fut,
+        F: FnMut(H256, Block) -> Fut,
         Fut: std::future::Future<Output = Result<()>>,
     {
         let mut to_try = seeds;
@@ -646,30 +628,26 @@ fn encode_round(round: malachitebft_core_types::Round) -> [u8; 8] {
 mod tests {
     use super::*;
     use crate::types::{CommitCertificate, H256};
-    use parity_scale_codec::{Decode, Encode};
     use proptest::prelude::*;
     use std::sync::Mutex;
     use tempfile::TempDir;
-
-    #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-    struct TestPayload(Vec<u8>);
 
     fn h(n: u64) -> H256 {
         H256::from_low_u64_be(n)
     }
 
-    fn open_store() -> (TempDir, Store<TestPayload>) {
+    fn open_store() -> (TempDir, Store) {
         let dir = TempDir::new().unwrap();
-        let store = Store::<TestPayload>::open(dir.path()).unwrap();
+        let store = Store::open(dir.path()).unwrap();
         (dir, store)
     }
 
-    fn mk_entry(block_hash: H256, parent_hash: H256, height: u64) -> BlockEntry<TestPayload> {
-        BlockEntry::<TestPayload> {
+    fn mk_entry(block_hash: H256, parent_hash: H256, height: u64) -> BlockEntry {
+        BlockEntry {
             block_hash,
             parent_hash,
             height,
-            payload: TestPayload(vec![]),
+            payload: BlockPayload::default(),
             reserved: [0u8; 64],
             saved: false,
             finalized: false,
@@ -947,7 +925,7 @@ mod tests {
     fn state_survives_reopen() {
         let dir = TempDir::new().unwrap();
         {
-            let store = Store::<TestPayload>::open(dir.path()).unwrap();
+            let store = Store::open(dir.path()).unwrap();
             for i in 1..=3u64 {
                 let parent = if i == 1 { H256::zero() } else { h(i - 1) };
                 let mut e = mk_entry(h(i), parent, i);
@@ -957,7 +935,7 @@ mod tests {
                 store.mark_finalized(h(i), mk_cert(i, h(i))).unwrap();
             }
         }
-        let store2 = Store::<TestPayload>::open(dir.path()).unwrap();
+        let store2 = Store::open(dir.path()).unwrap();
         assert_eq!(store2.latest_finalized().unwrap(), Some((3, h(3))));
         for i in 1..=3u64 {
             let e = store2.get_block(h(i)).unwrap().unwrap();

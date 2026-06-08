@@ -19,8 +19,8 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedInjectedTransaction},
-    malachite::Transactions,
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
+    malachite::Operations,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -66,7 +66,7 @@ enum Key {
     MbCompactBlock(H256) = 25,
 
     Promise(HashOf<InjectedTransaction>) = 26,
-    CompactPromise(HashOf<InjectedTransaction>) = 27,
+    TxReceipt(HashOf<InjectedTransaction>) = 27,
 }
 
 impl Key {
@@ -96,7 +96,7 @@ impl Key {
             | Self::MbMeta(hash)
             | Self::MbCompactBlock(hash) => bytes.extend(hash.as_ref()),
 
-            Self::InjectedTransaction(hash) | Self::Promise(hash) | Self::CompactPromise(hash) => {
+            Self::InjectedTransaction(hash) | Self::Promise(hash) | Self::TxReceipt(hash) => {
                 bytes.extend(hash.as_ref())
             }
 
@@ -371,10 +371,10 @@ impl MbStorageRO for RawDatabase {
             })
     }
 
-    fn transactions(&self, transactions_hash: H256) -> Option<Transactions> {
-        self.cas.read(transactions_hash).map(|data| {
-            Transactions::decode(&mut data.as_slice())
-                .expect("Failed to decode data into `Transactions`")
+    fn operations(&self, operations_hash: H256) -> Option<Operations> {
+        self.cas.read(operations_hash).map(|data| {
+            Operations::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `Operations`")
         })
     }
 
@@ -422,8 +422,8 @@ impl MbStorageRW for RawDatabase {
             .put(&Key::MbCompactBlock(mb_hash).to_bytes(), compact.encode());
     }
 
-    fn set_transactions(&self, transactions: Transactions) -> H256 {
-        self.cas.write(&transactions.encode())
+    fn set_operations(&self, operations: Operations) -> H256 {
+        self.cas.write(&operations.encode())
     }
 
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates) {
@@ -677,15 +677,12 @@ impl InjectedStorageRO for RawDatabase {
         })
     }
 
-    fn compact_promise(
-        &self,
-        tx_hash: HashOf<InjectedTransaction>,
-    ) -> Option<SignedCompactPromise> {
+    fn receipt(&self, tx_hash: HashOf<InjectedTransaction>) -> Option<SignedTxReceipt> {
         self.kv
-            .get(&Key::CompactPromise(tx_hash).to_bytes())
+            .get(&Key::TxReceipt(tx_hash).to_bytes())
             .map(|data| {
-                SignedCompactPromise::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into SignedCompactPromise")
+                SignedTxReceipt::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into SignedTxReceipt")
             })
     }
 }
@@ -706,12 +703,12 @@ impl InjectedStorageRW for RawDatabase {
             .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode())
     }
 
-    fn set_compact_promise(&self, promise: &SignedCompactPromise) {
-        let tx_hash = promise.data().tx_hash;
-        tracing::trace!(?promise, "Set compact promise for injected transaction");
+    fn set_receipt(&self, receipt: &SignedTxReceipt) {
+        let tx_hash = receipt.data().tx_hash();
+        tracing::trace!(?receipt, "Set receipt for injected transaction");
 
         self.kv
-            .put(&Key::CompactPromise(tx_hash).to_bytes(), promise.encode())
+            .put(&Key::TxReceipt(tx_hash).to_bytes(), receipt.encode())
     }
 }
 
@@ -900,14 +897,14 @@ impl InjectedStorageRO for Database {
     delegate!(to self.raw {
         fn injected_transaction(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedInjectedTransaction>;
         fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
-        fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise>;
+        fn receipt(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedTxReceipt>;
     });
 }
 
 impl MbStorageRO for Database {
     delegate!(to self.raw {
         fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb>;
-        fn transactions(&self, transactions_hash: H256) -> Option<Transactions>;
+        fn operations(&self, operations_hash: H256) -> Option<Operations>;
         fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
         fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
         fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
@@ -918,7 +915,7 @@ impl MbStorageRO for Database {
 impl MbStorageRW for Database {
     delegate!(to self.raw {
         fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb);
-        fn set_transactions(&self, transactions: Transactions) -> H256;
+        fn set_operations(&self, operations: Operations) -> H256;
         fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
         fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
         fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
@@ -930,7 +927,7 @@ impl InjectedStorageRW for Database {
     delegate!(to self.raw {
         fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
         fn set_promise(&self, promise: &Promise);
-        fn set_compact_promise(&self, promise: &SignedCompactPromise);
+        fn set_receipt(&self, receipt: &SignedTxReceipt);
     });
 }
 

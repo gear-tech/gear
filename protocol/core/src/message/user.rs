@@ -18,6 +18,7 @@ use scale_info::TypeInfo;
 #[derive(
     Clone, Debug, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct UserMessage {
     /// Message id.
     id: MessageId,

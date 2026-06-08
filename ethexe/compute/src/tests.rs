@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use super::*;
+use crate::service::SubService;
 use ethexe_common::{
     CodeBlobInfo,
     db::*,
@@ -13,13 +14,73 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_processor::{BoundPromiseSink, ValidCodeInfo};
-use futures::StreamExt;
+use futures::{Future, StreamExt};
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
 };
+use gprimitives::{CodeId, H256};
+use proptest::{collection, prelude::*};
 use std::time::Duration;
-use tokio::time::timeout;
+use tokio::{runtime::Builder, time::timeout};
+
+thread_local! {
+    // Reuse one current-thread runtime per test thread to avoid rebuilding it for every proptest case.
+    static TEST_RUNTIME: tokio::runtime::Runtime = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("failed to build tokio runtime");
+}
+
+pub(crate) const ASYNC_EVENT_TIMEOUT: Duration = Duration::from_secs(3);
+const NO_EVENT_TIMEOUT: Duration = Duration::from_millis(500);
+const PROPTEST_TIMEOUT_MS: u32 = 60_000;
+
+pub(crate) fn block_chain_strategy(len: u32) -> BoxedStrategy<BlockChain> {
+    any_with::<BlockChain>(BlockChainParams::from(len)).boxed()
+}
+
+pub(crate) fn distinct_code_ids_sorted(count: usize) -> BoxedStrategy<Vec<CodeId>> {
+    collection::btree_set(any::<[u8; 32]>().prop_map(CodeId::from), count)
+        .prop_map(|ids| ids.into_iter().collect())
+        .boxed()
+}
+
+pub(crate) fn run_async_test<F: Future>(future: F) -> F::Output {
+    TEST_RUNTIME.with(|runtime| runtime.block_on(future))
+}
+
+pub(crate) async fn next_compute_event<P: ProcessorExt>(
+    compute: &mut ComputeService<P>,
+) -> ComputeEvent {
+    timeout(ASYNC_EVENT_TIMEOUT, compute.next())
+        .await
+        .expect("timed out waiting for compute event")
+        .expect("compute stream ended")
+        .expect("compute service returned error")
+}
+
+pub(crate) async fn next_subservice_event<S: SubService>(service: &mut S) -> S::Output {
+    timeout(ASYNC_EVENT_TIMEOUT, service.next())
+        .await
+        .expect("timed out waiting for sub-service event")
+        .expect("sub-service returned error")
+}
+
+pub(crate) async fn assert_no_compute_event<P: ProcessorExt>(compute: &mut ComputeService<P>) {
+    assert!(
+        timeout(NO_EVENT_TIMEOUT, compute.next()).await.is_err(),
+        "unexpected follow-up compute event"
+    );
+}
+
+pub(crate) fn proptest_config(cases: u32) -> ProptestConfig {
+    ProptestConfig {
+        cases,
+        timeout: PROPTEST_TIMEOUT_MS,
+        ..ProptestConfig::default()
+    }
+}
 
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
 #[derive(Clone, Default)]
@@ -101,8 +162,7 @@ fn create_new_code(nonce: u32) -> Vec<u8> {
     code
 }
 
-// Generate codes for the given chain and store the events in the database
-// Return a map with `CodeId` and corresponding code bytes
+// Generate codes for the given chain and store the events in the database.
 fn insert_code_events(chain: &mut BlockChain, events_in_block: u32) {
     let mut nonce = 0;
     for data in chain.blocks.iter_mut().map(|data| data.as_synced_mut()) {
@@ -143,7 +203,6 @@ struct TestEnv {
 }
 
 impl TestEnv {
-    // Setup the chain and compute service.
     fn new(chain_len: u32, events_in_block: u32) -> TestEnv {
         let db = Database::memory();
 
@@ -160,45 +219,36 @@ impl TestEnv {
     async fn prepare_and_assert_block(&mut self, block: H256) {
         self.compute.prepare_block(block);
 
-        let event = self
-            .compute
-            .next()
-            .await
-            .unwrap()
-            .expect("expect compute service request codes to load");
-        let codes_to_load = event.unwrap_request_load_codes();
+        match next_compute_event(&mut self.compute).await {
+            ComputeEvent::RequestLoadCodes(codes_to_load) => {
+                for code_id in codes_to_load {
+                    let Some(CodeData {
+                        original_bytes: code,
+                        ..
+                    }) = self.chain.codes.remove(&code_id)
+                    else {
+                        continue;
+                    };
 
-        for code_id in codes_to_load {
-            let Some(CodeData {
-                original_bytes: code,
-                ..
-            }) = self.chain.codes.remove(&code_id)
-            else {
-                continue;
-            };
+                    self.compute
+                        .process_code(CodeAndIdUnchecked { code, code_id });
 
-            self.compute
-                .process_code(CodeAndIdUnchecked { code, code_id });
+                    let processed_code_id = next_compute_event(&mut self.compute)
+                        .await
+                        .unwrap_code_processed();
+                    assert_eq!(processed_code_id, code_id);
+                }
 
-            let event = self
-                .compute
-                .next()
-                .await
-                .unwrap()
-                .expect("expect code will be processing");
-            let processed_code_id = event.unwrap_code_processed();
-
-            assert_eq!(processed_code_id, code_id);
+                let prepared_block = next_compute_event(&mut self.compute)
+                    .await
+                    .unwrap_block_prepared();
+                assert_eq!(prepared_block, block);
+            }
+            ComputeEvent::BlockPrepared(prepared_block) => {
+                assert_eq!(prepared_block, block);
+            }
+            event => panic!("unexpected compute event while preparing block: {event:?}"),
         }
-
-        let event = self
-            .compute
-            .next()
-            .await
-            .unwrap()
-            .expect("expect block prepared after processing all codes");
-        let prepared_block = event.unwrap_block_prepared();
-        assert_eq!(prepared_block, block);
     }
 }
 
@@ -222,8 +272,6 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
     let mut env = TestEnv::new(1, 3);
 
     let mut block_events = env.chain.blocks[1].as_synced().events.clone();
-
-    // add invalid event which shouldn't stop block prepare
     block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
         CodeValidationRequestedEvent {
             code_id: CodeId::zero(),
@@ -231,6 +279,7 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
             tx_hash: H256::random(),
         },
     )));
+
     env.db
         .set_block_events(env.chain.blocks[1].hash, &block_events);
     env.prepare_and_assert_block(env.chain.blocks[1].hash).await;
@@ -251,15 +300,12 @@ async fn code_validation_request_for_already_processed_code_does_not_request_loa
     let code_id = db.set_original_code(&code);
     db.set_code_valid(code_id, true);
 
-    // Setup chain and mark blocks as not prepared
     let mut chain = BlockChain::mock(1);
     mark_as_not_prepared(&mut chain);
     let chain = chain.setup(&db);
     let block_hash = chain.blocks[1].hash;
 
-    // Add CodeValidationRequested event for the already-validated code
-    let events = db.block_events(block_hash).unwrap_or_default();
-    let mut new_events = events.clone();
+    let mut new_events = db.block_events(block_hash).unwrap_or_default();
     new_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
         CodeValidationRequestedEvent {
             code_id,
@@ -271,31 +317,12 @@ async fn code_validation_request_for_already_processed_code_does_not_request_loa
 
     compute.prepare_block(block_hash);
 
-    // The first event should be BlockPrepared, NOT RequestCodes
-    // because the code is already validated
-    let event = compute
-        .next()
+    let prepared_block = next_compute_event(&mut compute)
         .await
-        .unwrap()
-        .expect("expect compute service to produce an event");
-
-    // Verify block was prepared without requesting code loading
-    let prepared_block = event.unwrap_block_prepared();
+        .unwrap_block_prepared();
     assert_eq!(prepared_block, block_hash);
-
-    // Verify that no follow-up events are produced (no RequestCodes)
-    let no_follow_up_event = timeout(Duration::from_millis(100), compute.next()).await;
-    assert!(
-        no_follow_up_event.is_err(),
-        "unexpected follow-up compute event after block preparation: {no_follow_up_event:?}"
-    );
-
-    // Verify that the processor was NOT called
-    assert_eq!(
-        processor.process_code_call_count(),
-        0,
-        "Processor should not be called for already-validated code"
-    );
+    assert_no_compute_event(&mut compute).await;
+    assert_eq!(processor.process_code_call_count(), 0);
 
     Ok(())
 }
@@ -310,17 +337,13 @@ async fn code_validation_request_for_non_validated_code_requests_loading() -> Re
 
     let code = create_new_code(1);
     let code_id = db.set_original_code(&code);
-    // Note: code is NOT marked as valid (db.code_valid(code_id) is None)
 
-    // Setup chain and mark blocks as not prepared
     let mut chain = BlockChain::mock(1);
     mark_as_not_prepared(&mut chain);
     let chain = chain.setup(&db);
     let block_hash = chain.blocks[1].hash;
 
-    // Add CodeValidationRequested event for the non-validated code
-    let events = db.block_events(block_hash).unwrap_or_default();
-    let mut new_events = events.clone();
+    let mut new_events = db.block_events(block_hash).unwrap_or_default();
     new_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
         CodeValidationRequestedEvent {
             code_id,
@@ -332,19 +355,10 @@ async fn code_validation_request_for_non_validated_code_requests_loading() -> Re
 
     compute.prepare_block(block_hash);
 
-    // The first event should be RequestCodes because the code is NOT validated
-    let event = compute
-        .next()
+    let codes_to_load = next_compute_event(&mut compute)
         .await
-        .unwrap()
-        .expect("expect compute service to produce an event");
-
-    // Verify that RequestCodes is emitted for non-validated code
-    let codes_to_load = event.unwrap_request_load_codes();
-    assert!(
-        codes_to_load.contains(&code_id),
-        "CodeId should be requested for loading when not validated"
-    );
+        .unwrap_request_load_codes();
+    assert!(codes_to_load.contains(&code_id));
 
     Ok(())
 }
@@ -361,7 +375,7 @@ async fn process_code_for_already_processed_valid_code_emits_code_processed() ->
     let code_id = db.set_original_code(&code);
 
     db.set_instrumented_code(
-        ethexe_runtime_common::VERSION,
+        ethexe_runtime_common::RUNTIME_ID,
         code_id,
         InstrumentedCode::new(vec![0], InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),
     );
@@ -369,21 +383,11 @@ async fn process_code_for_already_processed_valid_code_emits_code_processed() ->
 
     compute.process_code(CodeAndIdUnchecked { code_id, code });
 
-    let event = compute
-        .next()
+    let processed_code_id = next_compute_event(&mut compute)
         .await
-        .unwrap()
-        .expect("expect already processed code to produce CodeProcessed event");
-    let processed_code_id = event.unwrap_code_processed();
+        .unwrap_code_processed();
     assert_eq!(processed_code_id, code_id);
-
-    // Verify that the processor was NOT called for already-validated code
-    // The CodesSubService should short-circuit and emit CodeProcessed without calling the processor
-    assert_eq!(
-        processor.process_code_call_count(),
-        0,
-        "Processor should not be called for already-validated code"
-    );
+    assert_eq!(processor.process_code_call_count(), 0);
 
     Ok(())
 }

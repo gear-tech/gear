@@ -3,6 +3,7 @@
 
 #[cfg(feature = "server")]
 use crate::{errors, utils};
+use ethexe_common::gear::Message;
 #[cfg(feature = "server")]
 use ethexe_common::{
     HashOf,
@@ -39,6 +40,12 @@ pub struct FullProgramState {
     pub executable_balance: u128,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CalculateReplyForHandleResult {
+    pub reply: ReplyInfo,
+    pub messages: Vec<Message>,
+}
+
 #[cfg_attr(all(feature = "server", feature = "client"), rpc(server, client))]
 #[cfg_attr(all(feature = "server", not(feature = "client")), rpc(server))]
 #[cfg_attr(all(not(feature = "server"), feature = "client"), rpc(client))]
@@ -51,7 +58,7 @@ pub trait Program {
         program_id: H160,
         payload: Bytes,
         value: u128,
-    ) -> jsonrpsee::core::RpcResult<ReplyInfo>;
+    ) -> jsonrpsee::core::RpcResult<CalculateReplyForHandleResult>;
 
     #[method(name = "program_ids")]
     async fn ids(&self) -> jsonrpsee::core::RpcResult<Vec<H160>>;
@@ -128,7 +135,7 @@ impl ProgramServer for ProgramApi {
         program_id: H160,
         payload: Bytes,
         value: u128,
-    ) -> jsonrpsee::core::RpcResult<ReplyInfo> {
+    ) -> jsonrpsee::core::RpcResult<CalculateReplyForHandleResult> {
         let mb_hash = utils::latest_computed_mb(&self.db)?;
         let block = utils::block_at_or_latest_synced(&self.db, None)?;
 
@@ -153,6 +160,10 @@ impl ProgramServer for ProgramApi {
             .clone()
             .execute_for_reply(executable)
             .await
+            .map(|outcome| CalculateReplyForHandleResult {
+                reply: outcome.reply,
+                messages: outcome.messages,
+            })
             .map_err(errors::runtime)
     }
 

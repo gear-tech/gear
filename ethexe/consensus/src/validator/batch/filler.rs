@@ -130,7 +130,9 @@ impl BatchFiller {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gprimitives::H256;
+    use alloy::sol_types::SolValue;
+    use ethexe_ethereum::abi::Gear;
+    use gprimitives::{CodeId, H256};
 
     /// Checkpoint chain commitments carry empty transitions but a
     /// non-zero `last_advanced_eth_block` — they exist *specifically*
@@ -150,6 +152,39 @@ mod tests {
             filler.has_chain_commitment(),
             "checkpoint with empty transitions but a non-zero advanced anchor must \
              be retained — dropping it strands the Ethereum-side anchor advance"
+        );
+    }
+
+    /// Once the running size budget is exhausted, further code commitments
+    /// must be rejected — and the rejected commitment must not leak into
+    /// the accumulated parts.
+    #[test]
+    fn size_limit_rejects_once_budget_exhausted() {
+        let first = CodeCommitment {
+            id: CodeId::from([1; 32]),
+            valid: true,
+        };
+        let encoded: Gear::CodeCommitment = first.clone().into();
+        // Budget fits exactly one commitment; the second include must fail.
+        let mut filler = BatchFiller::new(BatchLimits {
+            batch_size_limit: encoded.abi_encoded_size() as u64,
+            ..BatchLimits::default()
+        });
+
+        filler.include_code_commitment(first.clone()).unwrap();
+        assert_eq!(
+            filler.include_code_commitment(CodeCommitment {
+                id: CodeId::from([2; 32]),
+                valid: false,
+            }),
+            Err(BatchIncludeError::SizeLimitExceeded),
+        );
+
+        let parts = filler.into_parts();
+        assert_eq!(
+            parts.code_commitments,
+            vec![first],
+            "rejected commitment must not leak into the accumulated parts",
         );
     }
 }

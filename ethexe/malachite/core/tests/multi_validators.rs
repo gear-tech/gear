@@ -36,24 +36,12 @@ fn init_tracing() {
 use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_malachite_core::{
-    Block, CommitCertificate, Externalities, H256, MalachiteConfig, MalachiteService, Multiaddr,
-    NodeRole, ValidatorEntry, libp2p_peer_id,
+    Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteConfig, MalachiteService,
+    Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
 };
-use parity_scale_codec::{Decode, Encode};
 use proptest::prelude::*;
 use tempfile::TempDir;
 use tokio::time::sleep;
-
-// --------------------------------------------------------------------
-// TestPayload — minimal block payload type.
-// `BlockPayload` is satisfied by the blanket impl, so no manual
-// implementation needed.
-// --------------------------------------------------------------------
-
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-struct TestPayload {
-    nonce: u64,
-}
 
 // --------------------------------------------------------------------
 // TestExt — records every process_mb_proposal / process_mb_finalized
@@ -90,7 +78,7 @@ struct TestPayload {
 
 #[derive(Default)]
 struct TestState {
-    saved_blocks: HashMap<H256, Block<TestPayload>>,
+    saved_blocks: HashMap<H256, Block>,
     /// Linear finalized chain, ordered by `process_mb_finalized`
     /// arrival. Used to check gap-free finalize ordering and to
     /// detect duplicates.
@@ -114,8 +102,8 @@ impl TestExt {
 }
 
 #[async_trait]
-impl Externalities<TestPayload> for TestExt {
-    async fn process_mb_proposal(&self, hash: H256, block: Block<TestPayload>) -> Result<()> {
+impl Externalities for TestExt {
+    async fn process_mb_proposal(&self, hash: H256, block: Block) -> Result<()> {
         let mut s = self.state.lock().unwrap();
         if block.hash() != hash {
             s.violations
@@ -173,7 +161,7 @@ impl Externalities<TestPayload> for TestExt {
         Ok(())
     }
 
-    async fn build_block_above(&self, parent_hash: H256) -> Result<TestPayload> {
+    async fn build_block_above(&self, parent_hash: H256) -> Result<BlockPayload> {
         let mut s = self.state.lock().unwrap();
         if let Some(last_fin) = s.finalized.last().copied()
             && parent_hash != last_fin
@@ -183,10 +171,14 @@ impl Externalities<TestPayload> for TestExt {
                 last_fin, parent_hash
             ));
         }
-        Ok(TestPayload { nonce: 0 })
+        Ok(BlockPayload::default())
     }
 
-    async fn validate_block_above(&self, parent_hash: H256, _payload: TestPayload) -> Result<bool> {
+    async fn validate_block_above(
+        &self,
+        parent_hash: H256,
+        _payload: BlockPayload,
+    ) -> Result<bool> {
         let mut s = self.state.lock().unwrap();
         if let Some(last_fin) = s.finalized.last().copied()
             && parent_hash != last_fin
@@ -310,10 +302,10 @@ async fn start_service(
     setups: &[ValidatorSetup],
     idx: usize,
     ext: Arc<TestExt>,
-) -> MalachiteService<TestPayload, TestExt> {
+) -> MalachiteService<TestExt> {
     let peers = build_multiaddrs_excluding(setups, idx);
     let config = build_config(setup, setups, peers);
-    MalachiteService::<TestPayload, TestExt>::new(config, ext)
+    MalachiteService::<TestExt>::new(config, ext)
         .await
         .expect("service starts")
 }
@@ -439,7 +431,7 @@ async fn restart_one_validator_mid_run() {
     let setups = make_validators(3);
 
     let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
-    let mut services: Vec<Option<MalachiteService<TestPayload, TestExt>>> = Vec::with_capacity(3);
+    let mut services: Vec<Option<MalachiteService<TestExt>>> = Vec::with_capacity(3);
     for (i, setup) in setups.iter().enumerate() {
         let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
         services.push(Some(svc));
@@ -502,7 +494,7 @@ async fn full_node_syncs_from_validators() {
         };
         let peers = build_multiaddrs_excluding(&setups, i);
         let cfg = build_config_with_role(setup, peers, validator_set.clone(), role);
-        let svc = MalachiteService::<TestPayload, TestExt>::new(cfg, Arc::clone(&exts[i]))
+        let svc = MalachiteService::<TestExt>::new(cfg, Arc::clone(&exts[i]))
             .await
             .expect("service starts");
         services.push(svc);
@@ -572,8 +564,7 @@ fn run_churn_scenario(events: Vec<ChurnEvent>) {
 
         let setups = make_validators(n);
         let exts: Vec<Arc<TestExt>> = (0..n).map(|_| Arc::new(TestExt::default())).collect();
-        let mut services: Vec<Option<MalachiteService<TestPayload, TestExt>>> =
-            (0..n).map(|_| None).collect();
+        let mut services: Vec<Option<MalachiteService<TestExt>>> = (0..n).map(|_| None).collect();
 
         // Bootstrap all validators with a stagger.
         for (i, setup) in setups.iter().enumerate() {
@@ -629,5 +620,63 @@ proptest! {
     #[test]
     fn validator_churn_preserves_contracts(events in arb_churn_events(4, 6)) {
         run_churn_scenario(events);
+    }
+}
+
+/// Regression test for the WAL advisory-lock release post-condition of
+/// [`MalachiteService::shutdown`].
+///
+/// 3 validators × 50 rapid restart cycles. Each cycle:
+///   - start the cohort, give the WAL pre_start time to arm,
+///   - call `shutdown().await` on every service,
+///   - immediately probe each `consensus.wal` from a fresh fd: a
+///     fresh `try_lock(LOCK_EX)` MUST succeed.
+///
+/// Upstream Malachite owns the WAL file from a detached `std::thread`
+/// (`arc-malachitebft-engine::wal::thread`); the WAL actor's
+/// `post_stop` only sends a `Shutdown` message on a channel, so without
+/// the explicit lock-release wait in `MalachiteService::shutdown` the
+/// writer thread can still be alive (and still holding `flock`) after
+/// the engine actor's `JoinHandle` resolves. The probe below directly
+/// asserts the post-condition that downstream code relies on — that
+/// the same base dir can be re-opened immediately after `shutdown`.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn shutdown_releases_wal_advisory_lock() {
+    use advisory_lock::{AdvisoryFileLock, FileLockMode};
+    use std::fs::OpenOptions;
+
+    init_tracing();
+    let setups = make_validators(3);
+    let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
+    let wal_paths: Vec<std::path::PathBuf> = setups
+        .iter()
+        .map(|s| s.home.path().join("malachite").join("consensus.wal"))
+        .collect();
+
+    for cycle in 0..50 {
+        let mut services = Vec::with_capacity(3);
+        for (i, setup) in setups.iter().enumerate() {
+            services.push(start_service(setup, &setups, i, Arc::clone(&exts[i])).await);
+        }
+        // Let the WAL actor's pre_start run and the writer std::thread arm.
+        sleep(Duration::from_millis(10)).await;
+        for svc in services {
+            svc.shutdown().await;
+        }
+        // No await between here and the lock probe — we want to catch
+        // the race window the moment shutdown returns.
+        for (i, p) in wal_paths.iter().enumerate() {
+            let f = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(p)
+                .expect("WAL exists after the engine has written to it");
+            AdvisoryFileLock::try_lock(&f, FileLockMode::Exclusive).unwrap_or_else(|e| {
+                panic!(
+                    "cycle {cycle} v{i}: WAL still flocked after \
+                     MalachiteService::shutdown().await returned: {e:?}"
+                )
+            });
+        }
     }
 }
