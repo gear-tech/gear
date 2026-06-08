@@ -1,7 +1,66 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! ethexe common types and traits.
+//! # ethexe-common
+//!
+//! Shared vocabulary crate for the ethexe execution layer: block model, on-chain
+//! events, validator commitments, injected transactions, storage trait abstractions,
+//! and protocol constants. It defines shapes and trait interfaces only — the
+//! concrete storage backends live in `ethexe-db`. Being `no_std`-compatible, it
+//! links into both the WASM runtime
+//! (`ethexe-runtime`) and the native node binary.
+//!
+//! ## Role in the stack
+//!
+//! This crate depends on no other ethexe workspace member (it sits on `gear-core`,
+//! `gprimitives`, and `gsigner`) and nearly every other ethexe crate depends on it,
+//! making it a foundational leaf. For example, `ethexe-consensus` exchanges
+//! [`consensus::BatchCommitmentValidationRequest`] /
+//! [`consensus::BatchCommitmentValidationReply`] messages defined here, and
+//! `ethexe-db` provides backends for the [`db`] storage traits declared here.
+//!
+//! ## Public API
+//!
+//! - [`consensus`] — Validation request/reply messages and timeline helpers for the batch commitment protocol.
+//! - [`db`] — `*StorageRO` / `*StorageRW` trait abstractions and block-metadata types.
+//! - [`events`] — On-chain event model: `BlockEvent` (Mirror/Router variants) and `WVaraEvent`.
+//! - [`gear`] — Protocol commitments ([`gear::BatchCommitment`] and siblings) and [`gear::StateTransition`].
+//! - [`injected`] — Injected transactions, promises, and receipts for inbound cross-chain messaging.
+//! - [`malachite`] — Sequencer block-payload shape ([`malachite::Operations`], `Operation`).
+//! - [`network`] — Validator network messages (`ValidatorMessage` and signed/verified variants).
+//! - [`ecdsa`] — secp256k1 re-exports from `gsigner`.
+//! - [`mock`] — Test helpers and proptest fixtures (feature `mock`).
+//!
+//! Flattened crate-root re-exports include [`HashOf`], [`MaybeHashOf`],
+//! [`BlockHeader`], [`SimpleBlockData`], [`BlockData`], [`ValidatorsVec`],
+//! [`EmptyValidatorsError`], and the `gsigner` crypto surface ([`Address`],
+//! [`Digest`], [`PublicKey`], [`Signature`], [`SignedData`], [`ToDigest`],
+//! [`VerifiedData`], …).
+//!
+//! Crate-root constants include the per-MB soft execution limits
+//! ([`OUTGOING_MESSAGES_SOFT_LIMIT`], [`OUTGOING_MESSAGES_BYTES_SOFT_LIMIT`],
+//! [`CALL_REPLY_SOFT_LIMIT`], [`PROGRAM_MODIFICATIONS_SOFT_LIMIT`],
+//! [`MAX_TOUCHED_PROGRAMS_PER_MB`]) and [`DEFAULT_BLOCK_GAS_LIMIT`].
+//!
+//! ## Key types
+//!
+//! - [`HashOf<T>`] — phantom-typed `H256` wrapper preventing mixing of hashes of
+//!   different payload kinds; [`MaybeHashOf<T>`] is its optional sibling.
+//! - [`BlockHeader`] / [`SimpleBlockData`] / [`BlockData`] — the ethexe block model.
+//! - [`gear::BatchCommitment`] and sibling commitment types — the validator-submitted
+//!   commitment hierarchy; each implements [`ToDigest`] for Keccak256 hashing.
+//! - [`gear::StateTransition`] — a single validated program state change.
+//! - [`ValidatorsVec`] — a `NonEmpty<Address>` wrapper guaranteeing the validator set
+//!   is never empty.
+//! - [`injected::InjectedTransaction`] / [`injected::Promise`] — inbound cross-chain
+//!   transaction and its promise/receipt lifecycle.
+//!
+//! ## Invariants
+//!
+//! - [`ValidatorsVec`] cannot be constructed from an empty collection; `try_from`
+//!   returns [`EmptyValidatorsError`] on empty input.
+//! - [`DEFAULT_COMMITMENT_DELAY_LIMIT`] is a coordinator-local knob, not a protocol
+//!   constant — each coordinator selects its own value.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 

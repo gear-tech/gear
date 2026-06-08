@@ -60,8 +60,8 @@ jobs:
 
       - name: "Environment: Export versions"
         run: |
-          echo "VARA_PROD_SPEC=$(cat runtime/vara/src/lib.rs | grep "spec_version: " | head -n 1 | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
-          echo "VARA_DEV_SPEC=$(cat runtime/vara/src/lib.rs | grep "spec_version: " | tail -n 1 | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
+          echo "VARA_PROD_SPEC=$(cat vara/runtime/vara/src/lib.rs | grep "spec_version: " | head -n 1 | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
+          echo "VARA_DEV_SPEC=$(cat vara/runtime/vara/src/lib.rs | grep "spec_version: " | tail -n 1 | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
 
       - name: "Environment: Make `artifact` directory"
         run: mkdir -p artifact
@@ -79,7 +79,7 @@ jobs:
 
       - name: "Artifact: Production `vara-runtime` metadata"
         run: |
-          cp ./gsdk/vara_runtime_prod.scale "artifact/production_vara_runtime_v${VARA_PROD_SPEC}_metadata.scale"
+          cp ./vara/sdk/gsdk/vara_runtime_prod.scale "artifact/production_vara_runtime_v${VARA_PROD_SPEC}_metadata.scale"
 
       - name: "Artifact: Production `vara-runtime`"
         run: cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/production_vara_runtime_v${VARA_PROD_SPEC}.wasm"
@@ -95,7 +95,7 @@ jobs:
 
       - name: "Artifact: Development `vara-runtime` metadata"
         run: |
-          cp ./gsdk/vara_runtime.scale "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}_metadata.scale"
+          cp ./vara/sdk/gsdk/vara_runtime.scale "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}_metadata.scale"
 
       - name: "Artifact: Production node client and development `vara-runtime`"
         run: |

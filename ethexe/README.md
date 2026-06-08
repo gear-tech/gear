@@ -10,10 +10,10 @@
     };
     use ethexe_common::{
         Address,
-        injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
+        injected::InjectedTransaction,
     };
     use ethexe_rpc::InjectedClient as _;
-    use gsigner::secp256k1::Signer;
+    use gsigner::secp256k1::{Secp256k1SignerExt as _, Signer};
     use gprimitives::H256;
     use jsonrpsee::ws_client::WsClientBuilder;
     use std::str::FromStr as _;
@@ -53,10 +53,7 @@
             salt: H256::random().0.to_vec().into(),
         };
 
-        let transaction = RpcOrNetworkInjectedTx {
-            recipient: Address::default(),
-            tx: signer.signed_data(key, tx).unwrap(),
-        };
+        let transaction = signer.signed_message(key, tx, None).unwrap();
 
         println!("Sending transaction...");
 

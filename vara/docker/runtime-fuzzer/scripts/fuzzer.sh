@@ -64,7 +64,7 @@ function start_container_post {
      	--entrypoint "/bin/sh" \
      	-e TERM=xterm-256color \
      	-v "${CORPUS_DIR}:/corpus/main" \
-     	--workdir /gear/utils/runtime-fuzzer \
+        --workdir /gear/vara/tools/runtime-fuzzer \
      	--name ${CONTAINER_NAME_GEAR} ${IMAGE} \
      	-c "cargo install cargo-binutils && \
 		rustup component add llvm-tools && \
@@ -105,7 +105,7 @@ function start_container {
     	docker run -d --pull=always \
         	-e TERM=xterm-256color \
         	-v "${CORPUS_DIR}:/corpus/main" \
-        	-v "${ARTIFACT_DIR}:/gear/utils/runtime-fuzzer/fuzz/artifactis/main" \
+            -v "${ARTIFACT_DIR}:/gear/vara/tools/runtime-fuzzer/fuzz/artifactis/main" \
         	--name ${CONTAINER_NAME} ${IMAGE}
     fi
     # Wait for the container to stop
@@ -210,4 +210,3 @@ case "$1" in
        exit 1
        ;;
 esac
-

@@ -138,7 +138,7 @@ fn gas_allowance_respected() {
         .weight
         .ref_time();
 
-        let gas_cost_send_message_to_broker = 680_000_000; // Heuristic value
+        let broker_gas_allowance = 1;
 
         System::reset_events();
 
@@ -151,10 +151,7 @@ fn gas_allowance_respected() {
             0,
             false,
         ));
-        run_for_n_blocks(
-            1,
-            Some(gas_cost_send_message_to_broker + gas_cost_proxy_message),
-        );
+        run_for_n_blocks(1, Some(broker_gas_allowance + gas_cost_proxy_message));
 
         // The dispatch is still in the queue
         assert!(!message_queue_empty());

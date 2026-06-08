@@ -3,7 +3,7 @@
 
 #![allow(rustdoc::broken_intra_doc_links, missing_docs)]
 #![doc = r" This is auto-generated module that contains cost schedule from"]
-#![doc = r" `pallets/gear/src/schedule.rs`."]
+#![doc = r" `vara/pallets/gear/src/schedule.rs`."]
 #![doc = r""]
 #![doc = r" See `./scripts/weight-dump.sh` if you want to update it."]
 
@@ -47,7 +47,7 @@ impl Default for Schedule {
             instantiation_weights: InstantiationWeights::default(),
             instrumentation_weights: InstrumentationWeights::default(),
             load_allocations_weight: Weight {
-                ref_time: 23938,
+                ref_time: 20559,
                 proof_size: 0,
             },
         }
@@ -142,24 +142,21 @@ impl Default for Limits {
 #[derive(Debug, Clone)]
 #[doc = " Describes the weight for all categories of supported wasm instructions."]
 #[doc = ""]
-#[doc = " There there is one field for each wasm instruction that describes the weight to"]
+#[doc = " There is one field for each wasm instruction that describes the weight to"]
 #[doc = " execute one instruction of that name. There are a few exceptions:"]
 #[doc = ""]
-#[doc = " 1. If there is a i64 and a i32 variant of an instruction we use the weight"]
-#[doc = "    of the former for both."]
-#[doc = " 2. The following instructions are free of charge because they merely structure the"]
+#[doc = " 1. The following instructions are free of charge because they merely structure the"]
 #[doc = "    wasm module and cannot be spammed without making the module invalid (and rejected):"]
 #[doc = "    End, Unreachable, Return, Else"]
-#[doc = " 3. The following instructions cannot be benchmarked because they are removed by any"]
+#[doc = " 2. The following instructions cannot be benchmarked because they are removed by any"]
 #[doc = "    real world execution engine as a preprocessing step and therefore don't yield a"]
-#[doc = "    meaningful benchmark result. However, in contrast to the instructions mentioned"]
-#[doc = "    in 2. they can be spammed. We price them with the same weight as the \"default\""]
-#[doc = "    instruction (i64.const): Block, Loop, Nop"]
-#[doc = " 4. We price both i64.const and drop as InstructionWeights.i64const / 2. The reason"]
-#[doc = "    for that is that we cannot benchmark either of them on its own but we need their"]
-#[doc = "    individual values to derive (by subtraction) the weight of all other instructions"]
-#[doc = "    that use them as supporting instructions. Supporting means mainly pushing arguments"]
-#[doc = "    and dropping return values in order to maintain a valid module."]
+#[doc = "    meaningful benchmark result. However, in contrast to the instructions mentioned in"]
+#[doc = "    1 they can be spammed. We price them with the same weight as"]
+#[doc = "    the \"default\" instruction (i64.const): Block, Loop, Nop"]
+#[doc = " 3. We cannot benchmark i64.const or i32.const on their own, but we need a const"]
+#[doc = "    weight to derive other instruction weights by subtracting supporting instructions"]
+#[doc = "    used to push benchmark arguments. Drops are inserted only to keep benchmark"]
+#[doc = "    modules valid and are charged as free instructions during instrumentation."]
 pub struct InstructionWeights {
     #[doc = " Version of the instruction weights."]
     #[doc = ""]
@@ -266,94 +263,94 @@ pub struct InstructionWeights {
 impl Default for InstructionWeights {
     fn default() -> Self {
         Self {
-            version: 1900,
-            i64const: 191,
-            i64load: 5497,
-            i32load: 5319,
-            i64store: 10259,
-            i32store: 10439,
-            select: 7090,
-            r#if: 5412,
-            br: 3852,
-            br_if: 6362,
-            br_table: 11499,
-            br_table_per_entry: 173,
-            call: 5452,
-            call_indirect: 25203,
-            call_indirect_per_param: 1340,
+            version: 2000,
+            i64const: 539,
+            i64load: 4950,
+            i32load: 6194,
+            i64store: 8649,
+            i32store: 9571,
+            select: 2359,
+            r#if: 4660,
+            br: 75,
+            br_if: 2817,
+            br_table: 14024,
+            br_table_per_entry: 101,
+            call: 3113,
+            call_indirect: 31333,
+            call_indirect_per_param: 715,
             call_per_local: 0,
-            local_get: 679,
-            local_set: 1447,
-            local_tee: 1516,
-            global_get: 753,
-            global_set: 1187,
-            memory_current: 14236,
-            i64clz: 603,
-            i32clz: 291,
-            i64ctz: 612,
-            i32ctz: 270,
-            i64popcnt: 598,
-            i32popcnt: 288,
-            i64eqz: 2069,
-            i32eqz: 1068,
-            i32extend8s: 271,
-            i32extend16s: 286,
-            i64extend8s: 415,
-            i64extend16s: 420,
-            i64extend32s: 418,
-            i64extendsi32: 217,
-            i64extendui32: 240,
-            i32wrapi64: 239,
-            i64eq: 1754,
-            i32eq: 1095,
-            i64ne: 1822,
-            i32ne: 1095,
-            i64lts: 1736,
-            i32lts: 1151,
-            i64ltu: 1865,
-            i32ltu: 1109,
-            i64gts: 1867,
-            i32gts: 1117,
-            i64gtu: 1737,
-            i32gtu: 1085,
-            i64les: 1804,
-            i32les: 1097,
-            i64leu: 1760,
-            i32leu: 1014,
-            i64ges: 1889,
-            i32ges: 995,
-            i64geu: 1896,
-            i32geu: 1095,
-            i64add: 977,
-            i32add: 575,
-            i64sub: 1099,
-            i32sub: 538,
-            i64mul: 1734,
-            i32mul: 880,
-            i64divs: 3816,
-            i32divs: 2610,
-            i64divu: 3841,
-            i32divu: 2531,
-            i64rems: 21309,
-            i32rems: 17584,
-            i64remu: 3934,
-            i32remu: 2573,
-            i64and: 1090,
-            i32and: 599,
-            i64or: 974,
-            i32or: 636,
-            i64xor: 1023,
-            i32xor: 719,
-            i64shl: 825,
-            i32shl: 287,
-            i64shrs: 872,
-            i32shrs: 280,
-            i64shru: 811,
-            i32shru: 377,
-            i64rotl: 803,
-            i32rotl: 331,
-            i64rotr: 788,
-            i32rotr: 354,
+            local_get: 766,
+            local_set: 1569,
+            local_tee: 1917,
+            global_get: 647,
+            global_set: 982,
+            memory_current: 342,
+            i64clz: 785,
+            i32clz: 310,
+            i64ctz: 931,
+            i32ctz: 375,
+            i64popcnt: 881,
+            i32popcnt: 394,
+            i64eqz: 1591,
+            i32eqz: 976,
+            i32extend8s: 310,
+            i32extend16s: 321,
+            i64extend8s: 936,
+            i64extend16s: 978,
+            i64extend32s: 680,
+            i64extendsi32: 277,
+            i64extendui32: 226,
+            i32wrapi64: 627,
+            i64eq: 2003,
+            i32eq: 1199,
+            i64ne: 1895,
+            i32ne: 1117,
+            i64lts: 2232,
+            i32lts: 1099,
+            i64ltu: 1793,
+            i32ltu: 1175,
+            i64gts: 1743,
+            i32gts: 1320,
+            i64gtu: 1714,
+            i32gtu: 1052,
+            i64les: 1754,
+            i32les: 1242,
+            i64leu: 2914,
+            i32leu: 1298,
+            i64ges: 2305,
+            i32ges: 1167,
+            i64geu: 1722,
+            i32geu: 1184,
+            i64add: 1062,
+            i32add: 460,
+            i64sub: 1165,
+            i32sub: 439,
+            i64mul: 1240,
+            i32mul: 506,
+            i64divs: 2715,
+            i32divs: 1028,
+            i64divu: 1949,
+            i32divu: 716,
+            i64rems: 8224,
+            i32rems: 5862,
+            i64remu: 2082,
+            i32remu: 898,
+            i64and: 1074,
+            i32and: 422,
+            i64or: 1014,
+            i32or: 540,
+            i64xor: 1688,
+            i32xor: 520,
+            i64shl: 867,
+            i32shl: 497,
+            i64shrs: 939,
+            i32shrs: 407,
+            i64shru: 840,
+            i32shru: 314,
+            i64rotl: 879,
+            i32rotl: 310,
+            i64rotr: 1083,
+            i32rotr: 273,
         }
     }
 }
@@ -507,283 +504,283 @@ impl Default for SyscallWeights {
     fn default() -> Self {
         Self {
             alloc: Weight {
-                ref_time: 1812907,
+                ref_time: 1368698,
                 proof_size: 0,
             },
             free: Weight {
-                ref_time: 988979,
+                ref_time: 846782,
                 proof_size: 0,
             },
             free_range: Weight {
-                ref_time: 1039884,
+                ref_time: 873826,
                 proof_size: 0,
             },
             free_range_per_page: Weight {
-                ref_time: 54056,
+                ref_time: 35668,
                 proof_size: 0,
             },
             gr_reserve_gas: Weight {
-                ref_time: 2525760,
+                ref_time: 1918172,
                 proof_size: 0,
             },
             gr_unreserve_gas: Weight {
-                ref_time: 2532797,
+                ref_time: 1873602,
                 proof_size: 0,
             },
             gr_system_reserve_gas: Weight {
-                ref_time: 1185535,
+                ref_time: 974566,
                 proof_size: 0,
             },
             gr_gas_available: Weight {
-                ref_time: 1146762,
+                ref_time: 959492,
                 proof_size: 0,
             },
             gr_message_id: Weight {
-                ref_time: 1151957,
+                ref_time: 970380,
                 proof_size: 0,
             },
             gr_program_id: Weight {
-                ref_time: 1120070,
+                ref_time: 951514,
                 proof_size: 0,
             },
             gr_source: Weight {
-                ref_time: 1139630,
+                ref_time: 959814,
                 proof_size: 0,
             },
             gr_value: Weight {
-                ref_time: 1126695,
+                ref_time: 936151,
                 proof_size: 0,
             },
             gr_value_available: Weight {
-                ref_time: 1145572,
+                ref_time: 984048,
                 proof_size: 0,
             },
             gr_size: Weight {
-                ref_time: 1150442,
+                ref_time: 962155,
                 proof_size: 0,
             },
             gr_read: Weight {
-                ref_time: 1731319,
+                ref_time: 1406423,
                 proof_size: 0,
             },
             gr_read_per_byte: Weight {
-                ref_time: 209,
+                ref_time: 162,
                 proof_size: 0,
             },
             gr_env_vars: Weight {
-                ref_time: 1182566,
+                ref_time: 992225,
                 proof_size: 0,
             },
             gr_block_height: Weight {
-                ref_time: 1138331,
+                ref_time: 1001754,
                 proof_size: 0,
             },
             gr_block_timestamp: Weight {
-                ref_time: 1119604,
+                ref_time: 960966,
                 proof_size: 0,
             },
             gr_random: Weight {
-                ref_time: 2203066,
+                ref_time: 1668151,
                 proof_size: 0,
             },
             gr_reply_deposit: Weight {
-                ref_time: 5735765,
+                ref_time: 4133750,
                 proof_size: 0,
             },
             gr_send: Weight {
-                ref_time: 3126907,
+                ref_time: 2467510,
                 proof_size: 0,
             },
             gr_send_per_byte: Weight {
-                ref_time: 512,
+                ref_time: 302,
                 proof_size: 0,
             },
             gr_send_wgas: Weight {
-                ref_time: 3132748,
+                ref_time: 2504950,
                 proof_size: 0,
             },
             gr_send_wgas_per_byte: Weight {
-                ref_time: 513,
+                ref_time: 300,
                 proof_size: 0,
             },
             gr_send_init: Weight {
-                ref_time: 1285406,
+                ref_time: 1078023,
                 proof_size: 0,
             },
             gr_send_push: Weight {
-                ref_time: 2042357,
+                ref_time: 1755035,
                 proof_size: 0,
             },
             gr_send_push_per_byte: Weight {
-                ref_time: 511,
+                ref_time: 302,
                 proof_size: 0,
             },
             gr_send_commit: Weight {
-                ref_time: 2606128,
+                ref_time: 1938302,
                 proof_size: 0,
             },
             gr_send_commit_wgas: Weight {
-                ref_time: 2667235,
+                ref_time: 2033886,
                 proof_size: 0,
             },
             gr_reservation_send: Weight {
-                ref_time: 3793246,
+                ref_time: 2917265,
                 proof_size: 0,
             },
             gr_reservation_send_per_byte: Weight {
-                ref_time: 514,
+                ref_time: 304,
                 proof_size: 0,
             },
             gr_reservation_send_commit: Weight {
-                ref_time: 3289526,
+                ref_time: 2398214,
                 proof_size: 0,
             },
             gr_reply_commit: Weight {
-                ref_time: 13245088,
+                ref_time: 24565346,
                 proof_size: 0,
             },
             gr_reply_commit_wgas: Weight {
-                ref_time: 12897324,
+                ref_time: 26699262,
                 proof_size: 0,
             },
             gr_reservation_reply: Weight {
-                ref_time: 9593070,
+                ref_time: 15622176,
                 proof_size: 0,
             },
             gr_reservation_reply_per_byte: Weight {
-                ref_time: 742,
+                ref_time: 511,
                 proof_size: 0,
             },
             gr_reservation_reply_commit: Weight {
-                ref_time: 8510322,
+                ref_time: 9866788,
                 proof_size: 0,
             },
             gr_reply_push: Weight {
-                ref_time: 1878172,
+                ref_time: 1530857,
                 proof_size: 0,
             },
             gr_reply: Weight {
-                ref_time: 14760924,
+                ref_time: 26327624,
                 proof_size: 0,
             },
             gr_reply_per_byte: Weight {
-                ref_time: 754,
+                ref_time: 503,
                 proof_size: 0,
             },
             gr_reply_wgas: Weight {
-                ref_time: 14403406,
+                ref_time: 24633378,
                 proof_size: 0,
             },
             gr_reply_wgas_per_byte: Weight {
-                ref_time: 752,
+                ref_time: 513,
                 proof_size: 0,
             },
             gr_reply_push_per_byte: Weight {
-                ref_time: 691,
+                ref_time: 504,
                 proof_size: 0,
             },
             gr_reply_to: Weight {
-                ref_time: 1144751,
+                ref_time: 1046085,
                 proof_size: 0,
             },
             gr_signal_code: Weight {
-                ref_time: 1128953,
+                ref_time: 1038509,
                 proof_size: 0,
             },
             gr_signal_from: Weight {
-                ref_time: 1130529,
+                ref_time: 1017360,
                 proof_size: 0,
             },
             gr_reply_input: Weight {
-                ref_time: 11077460,
+                ref_time: 33962090,
                 proof_size: 0,
             },
             gr_reply_input_wgas: Weight {
-                ref_time: 13233944,
+                ref_time: 41166482,
                 proof_size: 0,
             },
             gr_reply_push_input: Weight {
-                ref_time: 1276099,
+                ref_time: 1118619,
                 proof_size: 0,
             },
             gr_reply_push_input_per_byte: Weight {
-                ref_time: 128,
+                ref_time: 105,
                 proof_size: 0,
             },
             gr_send_input: Weight {
-                ref_time: 3172905,
+                ref_time: 2369529,
                 proof_size: 0,
             },
             gr_send_input_wgas: Weight {
-                ref_time: 3112976,
+                ref_time: 2455528,
                 proof_size: 0,
             },
             gr_send_push_input: Weight {
-                ref_time: 1487036,
+                ref_time: 1270244,
                 proof_size: 0,
             },
             gr_send_push_input_per_byte: Weight {
-                ref_time: 152,
+                ref_time: 93,
                 proof_size: 0,
             },
             gr_debug: Weight {
-                ref_time: 1338403,
+                ref_time: 1056804,
                 proof_size: 0,
             },
             gr_debug_per_byte: Weight {
-                ref_time: 476,
+                ref_time: 280,
                 proof_size: 0,
             },
             gr_reply_code: Weight {
-                ref_time: 1137317,
+                ref_time: 1002478,
                 proof_size: 0,
             },
             gr_exit: Weight {
-                ref_time: 20969518,
+                ref_time: 17513156,
                 proof_size: 0,
             },
             gr_leave: Weight {
-                ref_time: 15865290,
+                ref_time: 7935870,
                 proof_size: 0,
             },
             gr_wait: Weight {
-                ref_time: 14931310,
+                ref_time: 9248904,
                 proof_size: 0,
             },
             gr_wait_for: Weight {
-                ref_time: 15026532,
+                ref_time: 9231352,
                 proof_size: 0,
             },
             gr_wait_up_to: Weight {
-                ref_time: 15584970,
+                ref_time: 7345560,
                 proof_size: 0,
             },
             gr_wake: Weight {
-                ref_time: 3233791,
+                ref_time: 2359007,
                 proof_size: 0,
             },
             gr_create_program: Weight {
-                ref_time: 3994391,
+                ref_time: 3057045,
                 proof_size: 0,
             },
             gr_create_program_payload_per_byte: Weight {
-                ref_time: 122,
+                ref_time: 226,
                 proof_size: 0,
             },
             gr_create_program_salt_per_byte: Weight {
-                ref_time: 1630,
+                ref_time: 1227,
                 proof_size: 0,
             },
             gr_create_program_wgas: Weight {
-                ref_time: 4036046,
+                ref_time: 3158869,
                 proof_size: 0,
             },
             gr_create_program_wgas_payload_per_byte: Weight {
-                ref_time: 122,
+                ref_time: 239,
                 proof_size: 0,
             },
             gr_create_program_wgas_salt_per_byte: Weight {
-                ref_time: 1630,
+                ref_time: 1238,
                 proof_size: 0,
             },
         }
@@ -836,43 +833,43 @@ impl Default for MemoryWeights {
     fn default() -> Self {
         Self {
             lazy_pages_signal_read: Weight {
-                ref_time: 29194036,
+                ref_time: 28491385,
                 proof_size: 0,
             },
             lazy_pages_signal_write: Weight {
-                ref_time: 35949090,
+                ref_time: 34056454,
                 proof_size: 0,
             },
             lazy_pages_signal_write_after_read: Weight {
-                ref_time: 10673729,
+                ref_time: 9410406,
                 proof_size: 0,
             },
             lazy_pages_host_func_read: Weight {
-                ref_time: 30804952,
+                ref_time: 29807270,
                 proof_size: 0,
             },
             lazy_pages_host_func_write: Weight {
-                ref_time: 36598046,
+                ref_time: 35496571,
                 proof_size: 0,
             },
             lazy_pages_host_func_write_after_read: Weight {
-                ref_time: 12751979,
+                ref_time: 10638755,
                 proof_size: 0,
             },
             load_page_data: Weight {
-                ref_time: 10588765,
+                ref_time: 10014933,
                 proof_size: 0,
             },
             upload_page_data: Weight {
-                ref_time: 103908832,
+                ref_time: 102822864,
                 proof_size: 0,
             },
             mem_grow: Weight {
-                ref_time: 737600,
+                ref_time: 611771,
                 proof_size: 0,
             },
             mem_grow_per_page: Weight {
-                ref_time: 3,
+                ref_time: 23,
                 proof_size: 0,
             },
             parachain_read_heuristic: Weight {
@@ -904,27 +901,27 @@ impl Default for InstantiationWeights {
     fn default() -> Self {
         Self {
             code_section_per_byte: Weight {
-                ref_time: 2798,
+                ref_time: 368,
                 proof_size: 0,
             },
             data_section_per_byte: Weight {
-                ref_time: 661,
+                ref_time: 616,
                 proof_size: 0,
             },
             global_section_per_byte: Weight {
-                ref_time: 2945,
+                ref_time: 1361,
                 proof_size: 0,
             },
             table_section_per_byte: Weight {
-                ref_time: 644,
+                ref_time: 574,
                 proof_size: 0,
             },
             element_section_per_byte: Weight {
-                ref_time: 2487,
+                ref_time: 222,
                 proof_size: 0,
             },
             type_section_per_byte: Weight {
-                ref_time: 22356,
+                ref_time: 1056,
                 proof_size: 0,
             },
         }
@@ -990,7 +987,7 @@ impl Default for DbWeights {
                 proof_size: 0,
             },
             read_per_byte: Weight {
-                ref_time: 853,
+                ref_time: 501,
                 proof_size: 0,
             },
             write: Weight {
@@ -998,7 +995,7 @@ impl Default for DbWeights {
                 proof_size: 0,
             },
             write_per_byte: Weight {
-                ref_time: 238,
+                ref_time: 172,
                 proof_size: 0,
             },
         }
@@ -1022,35 +1019,35 @@ impl Default for TaskWeights {
     fn default() -> Self {
         Self {
             remove_gas_reservation: Weight {
-                ref_time: 955875000,
+                ref_time: 941085000,
                 proof_size: 6196,
             },
             send_user_message_to_mailbox: Weight {
-                ref_time: 709814000,
+                ref_time: 699873000,
                 proof_size: 4290,
             },
             send_user_message: Weight {
-                ref_time: 1476556000,
+                ref_time: 1457731000,
                 proof_size: 6196,
             },
             send_dispatch: Weight {
-                ref_time: 815503000,
+                ref_time: 809788000,
                 proof_size: 4126,
             },
             wake_message: Weight {
-                ref_time: 857366000,
+                ref_time: 850858000,
                 proof_size: 4371,
             },
             wake_message_no_wake: Weight {
-                ref_time: 31777000,
+                ref_time: 30460000,
                 proof_size: 3545,
             },
             remove_from_waitlist: Weight {
-                ref_time: 1910937000,
+                ref_time: 1884961000,
                 proof_size: 7561,
             },
             remove_from_mailbox: Weight {
-                ref_time: 1865584000,
+                ref_time: 1841478000,
                 proof_size: 7321,
             },
         }
@@ -1070,11 +1067,11 @@ impl Default for InstrumentationWeights {
     fn default() -> Self {
         Self {
             base: Weight {
-                ref_time: 412026293,
+                ref_time: 282459000,
                 proof_size: 3760,
             },
             per_byte: Weight {
-                ref_time: 736133,
+                ref_time: 508124,
                 proof_size: 0,
             },
         }
