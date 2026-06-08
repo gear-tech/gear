@@ -27,7 +27,7 @@ use ethexe_ethereum::{
     middleware::{ElectionProvider, MiddlewareQuery},
     router::RouterQuery,
 };
-use gprimitives::{H256, U256};
+use gprimitives::H256;
 use std::collections::HashMap;
 
 /// Outcome of one chain-sync attempt. `RpcError` is recoverable (caller
@@ -37,9 +37,12 @@ pub enum SyncError {
     #[error("RPC error during sync: {0:?}")]
     RpcError(anyhow::Error),
     #[error(
-        "Client protocol version mismatch. Expected {expected}, got {got}. Please make sure to use compatible version of Ethereum client with `Router` contract."
+        "Client protocol version mismatch. Expected {expected:?}, got {got:?}. Please make sure to use compatible version of Ethereum client with `Router` contract."
     )]
-    ProtocolVersionMismatch { expected: U256, got: U256 },
+    ProtocolVersionMismatch {
+        expected: (u8, u8, u8),
+        got: (u8, u8, u8),
+    },
     #[error(transparent)]
     Fatal(anyhow::Error),
 }
@@ -156,11 +159,15 @@ impl ChainSync {
                             new_protocol_version,
                         },
                     )) => {
-                        let client_protocol_version: U256 =
-                            Ethereum::CLIENT_PROTOCOL_VERSION.into();
-                        if new_protocol_version > client_protocol_version {
+                        let new_protocol_version = Ethereum::decode_protocol_version(
+                            new_protocol_version
+                                .try_into()
+                                .map_err(|_| anyhow!("Protocol version exceeds u64"))?,
+                        );
+                        let (new_major_protocol_version, _, _) = new_protocol_version;
+                        if new_major_protocol_version != Ethereum::CLIENT_MAJOR_PROTOCOL_VERSION {
                             return Err(SyncError::ProtocolVersionMismatch {
-                                expected: client_protocol_version,
+                                expected: Ethereum::CLIENT_PROTOCOL_VERSION,
                                 got: new_protocol_version,
                             });
                         }

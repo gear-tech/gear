@@ -47,7 +47,17 @@ contract Router is
     bytes32 private constant REQUEST_CODE_VALIDATION_ON_BEHALF_TYPEHASH =
         0x375d2ef9b9e33c640a295f53873dc74833c3d019f349464ce2fe8899962b8097;
 
-    uint256 private constant PROTOCOL_VERSION = 1;
+    uint8 private constant MAJOR_PROTOCOL_VERSION = 0;
+    uint8 private constant MINOR_PROTOCOL_VERSION = 1;
+    uint8 private constant PATCH_PROTOCOL_VERSION = 0;
+
+    uint256 private constant MAJOR_PROTOCOL_VERSION_OFFSET = 16;
+    uint256 private constant MINOR_PROTOCOL_VERSION_OFFSET = 8;
+
+    uint256 private constant PROTOCOL_VERSION_COMPONENT_MASK = uint256(type(uint8).max);
+
+    uint256 private constant PROTOCOL_VERSION = (uint256(MAJOR_PROTOCOL_VERSION) << MAJOR_PROTOCOL_VERSION_OFFSET)
+        | (uint256(MINOR_PROTOCOL_VERSION) << MINOR_PROTOCOL_VERSION_OFFSET) | uint256(PATCH_PROTOCOL_VERSION);
 
     /**
      * @custom:oz-upgrades-unsafe-allow constructor
@@ -468,6 +478,22 @@ contract Router is
     }
 
     /**
+     * @dev Returns the sub-protocol version for the given version type.
+     * @param versionType The type of version (major, minor, patch).
+     * @return subProtocolVersion The sub-protocol version.
+     */
+    function subProtocolVersion(Gear.VersionType versionType) external view returns (uint256) {
+        uint256 currentProtocolVersion = _router().protocolData.protocolVersion;
+        if (versionType == Gear.VersionType.Major) {
+            return currentProtocolVersion >> MAJOR_PROTOCOL_VERSION_OFFSET;
+        } else if (versionType == Gear.VersionType.Minor) {
+            return (currentProtocolVersion >> MINOR_PROTOCOL_VERSION_OFFSET) & PROTOCOL_VERSION_COMPONENT_MASK;
+        } else {
+            return currentProtocolVersion & PROTOCOL_VERSION_COMPONENT_MASK;
+        }
+    }
+
+    /**
      * @dev Returns the timelines.
      * @return timelines The timelines.
      */
@@ -511,10 +537,27 @@ contract Router is
 
     /**
      * @dev Bumps the version of the protocol, used by nodes.
+     * @param _versionType The type of version bump (major, minor, patch).
      *      Emits `ProtocolVersionChanged` event.
      */
-    function bumpProtocolVersion() external onlyOwner {
-        uint256 newProtocolVersion = _router().protocolData.protocolVersion + 1;
+    function bumpProtocolVersion(Gear.VersionType _versionType) external onlyOwner {
+        uint256 currentProtocolVersion = _router().protocolData.protocolVersion;
+        uint256 majorVersion = currentProtocolVersion >> MAJOR_PROTOCOL_VERSION_OFFSET;
+        uint256 minorVersion =
+            (currentProtocolVersion >> MINOR_PROTOCOL_VERSION_OFFSET) & PROTOCOL_VERSION_COMPONENT_MASK;
+        uint256 patchVersion = currentProtocolVersion & PROTOCOL_VERSION_COMPONENT_MASK;
+
+        uint256 newProtocolVersion;
+        if (_versionType == Gear.VersionType.Major) {
+            newProtocolVersion = (majorVersion + 1) << MAJOR_PROTOCOL_VERSION_OFFSET;
+        } else if (_versionType == Gear.VersionType.Minor) {
+            newProtocolVersion =
+                (majorVersion << MAJOR_PROTOCOL_VERSION_OFFSET) | ((minorVersion + 1) << MINOR_PROTOCOL_VERSION_OFFSET);
+        } else {
+            newProtocolVersion = (majorVersion << MAJOR_PROTOCOL_VERSION_OFFSET)
+                | (minorVersion << MINOR_PROTOCOL_VERSION_OFFSET) | (patchVersion + 1);
+        }
+
         _router().protocolData.protocolVersion = newProtocolVersion;
 
         emit ProtocolVersionChanged(newProtocolVersion);

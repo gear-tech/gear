@@ -544,6 +544,15 @@ library Gear {
     }
 
     /**
+     * @dev Represents the type of version in `Router`.
+     */
+    enum VersionType {
+        Major,
+        Minor,
+        Patch
+    }
+
+    /**
      * @dev Computes the hash of `ChainCommitment`.
      * @param _transitionsHash The hash of the transitions in the chain commitment.
      * @param _head The head of the chain commitment.

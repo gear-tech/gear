@@ -489,6 +489,13 @@ interface IRouter {
     function protocolVersion() external view returns (uint256);
 
     /**
+     * @dev Returns the sub-protocol version for the given version type.
+     * @param versionType The type of version (major, minor, patch).
+     * @return subProtocolVersion The sub-protocol version.
+     */
+    function subProtocolVersion(Gear.VersionType versionType) external view returns (uint256);
+
+    /**
      * @dev Returns the timelines.
      * @return timelines The timelines.
      */
@@ -522,9 +529,10 @@ interface IRouter {
 
     /**
      * @dev Bumps the version of the protocol, used by nodes.
+     * @param versionType The type of version bump (major, minor, patch).
      *      Emits `ProtocolVersionChanged` event.
      */
-    function bumpProtocolVersion() external;
+    function bumpProtocolVersion(Gear.VersionType versionType) external;
 
     /**
      * @dev Pauses the contract.

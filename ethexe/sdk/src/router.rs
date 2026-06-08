@@ -192,7 +192,7 @@ impl<'a> Router<'a> {
             .await
     }
 
-    pub async fn protocol_version(&self) -> Result<u64> {
+    pub async fn protocol_version(&self) -> Result<(u8, u8, u8)> {
         self.router_query_client.protocol_version().await
     }
 
