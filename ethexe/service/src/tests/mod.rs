@@ -1479,9 +1479,7 @@ async fn reorg_deeper_than_quarantine() {
 
     let latest_block = env.latest_block().await;
     test_info!("Waiting for {latest_block} to be finalized in MB");
-    node.events()
-        .wait_till_eth_block_finalized_in_mb(latest_block.hash)
-        .await;
+    node.events().find_advanced_mb(latest_block.hash).await;
 
     test_info!("📗 Reverting Anvil to deep snapshot — past quarantine");
     env.provider
@@ -1499,7 +1497,7 @@ async fn reorg_deeper_than_quarantine() {
     let mut receiver = node.new_events();
     // Here we take in account kicking stream - latest_block is not passed quarantine yet,
     // but kicks will generate new anvil blocks, but still this block cannot be finalized in mb, because branch is broken.
-    let waiting_future = receiver.wait_till_eth_block_finalized_in_mb(latest_block.hash);
+    let waiting_future = receiver.find_advanced_mb(latest_block.hash);
     tokio::time::timeout(Duration::from_secs(20), waiting_future)
         .await
         .expect_err("block should not be finalized within 20 seconds after deep reorg");
@@ -3163,6 +3161,354 @@ async fn reply_callback() {
     assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
 
     stop_nodes([node]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn fast_sync2() {
+    init_logger();
+
+    //     let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
+    //         log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
+    //
+    //         IntegrityVerifier::new(alice.db.clone())
+    //             .verify_chain(latest_block, fast_synced_block)
+    //             .expect("failed to verify Alice database");
+    //
+    //         IntegrityVerifier::new(bob.db.clone())
+    //             .verify_chain(latest_block, fast_synced_block)
+    //             .expect("failed to verify Bob database");
+    //
+    //         let alice_globals = alice.db.globals();
+    //         let bob_globals = bob.db.globals();
+    //         assert_eq!(
+    //             alice_globals.latest_computed_announce_hash,
+    //             bob_globals.latest_computed_announce_hash
+    //         );
+    //         assert_eq!(
+    //             alice_globals.latest_prepared_block_hash,
+    //             bob_globals.latest_prepared_block_hash
+    //         );
+    //
+    //         let mut block = latest_block;
+    //         loop {
+    //             if fast_synced_block == block {
+    //                 break;
+    //             }
+    //
+    //             log::trace!("assert block {block}");
+    //
+    //             // Check block meta, exclude codes_queue and announces, which can vary, and it's ok
+    //             let alice_meta = alice.db.block_meta(block);
+    //             let bob_meta = bob.db.block_meta(block);
+    //             assert!(
+    //                 alice_meta.prepared && bob_meta.prepared,
+    //                 "Block {block} is not prepared for alice or bob"
+    //             );
+    //             assert_eq!(
+    //                 alice_meta.last_committed_announce,
+    //                 bob_meta.last_committed_announce
+    //             );
+    //             assert_eq!(
+    //                 alice_meta.last_committed_batch,
+    //                 bob_meta.last_committed_batch
+    //             );
+    //
+    //             let alice_announces = alice.db.block_announces(block);
+    //             let bob_announces = bob.db.block_announces(block);
+    //             let Some((alice_announces, bob_announces)) = alice_announces.zip(bob_announces) else {
+    //                 panic!("alice or bob has no announces");
+    //             };
+    //
+    //             for &announce_hash in alice_announces.intersection(&bob_announces) {
+    //                 if alice.db.announce_meta(announce_hash).computed
+    //                     != bob.db.announce_meta(announce_hash).computed
+    //                 {
+    //                     continue;
+    //                 }
+    //
+    //                 assert_eq!(
+    //                     alice.db.announce_program_states(announce_hash),
+    //                     bob.db.announce_program_states(announce_hash)
+    //                 );
+    //                 assert_eq!(
+    //                     alice.db.announce_outcome(announce_hash),
+    //                     bob.db.announce_outcome(announce_hash)
+    //                 );
+    //                 assert_eq!(
+    //                     alice.db.announce_outcome(announce_hash),
+    //                     bob.db.announce_outcome(announce_hash)
+    //                 );
+    //             }
+    //
+    //             assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
+    //             assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
+    //             assert_eq!(alice.db.block_synced(block), bob.db.block_synced(block));
+    //
+    //             let header = alice.db.block_header(block).unwrap();
+    //             block = header.parent_hash;
+    //         }
+    //     };
+
+    let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
+        log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
+
+        IntegrityVerifier::new(alice.db.clone())
+            .verify_chain(latest_block, fast_synced_block)
+            .expect("failed to verify Alice database");
+
+        IntegrityVerifier::new(bob.db.clone())
+            .verify_chain(latest_block, fast_synced_block)
+            .expect("failed to verify Bob database");
+
+        let mut eb_hash = latest_block;
+        loop {
+            if fast_synced_block == eb_hash {
+                break;
+            }
+
+            log::trace!("assert EB {eb_hash}");
+
+            // Check block meta, exclude codes_queue and announces, which can vary, and it's ok
+            let alice_meta = alice.db.block_meta(eb_hash);
+            let bob_meta = bob.db.block_meta(eb_hash);
+            assert_eq!(alice_meta, bob_meta);
+            // assert!(
+            //     alice_meta.prepared && bob_meta.prepared,
+            //     "Block {block} is not prepared for alice or bob"
+            // );
+            // assert_eq!(
+            //     alice_meta.last_committed_announce,
+            //     bob_meta.last_committed_announce
+            // );
+            // assert_eq!(
+            //     alice_meta.last_committed_batch,
+            //     bob_meta.last_committed_batch
+            // );
+
+            assert_eq!(alice.db.block_header(eb_hash), bob.db.block_header(eb_hash));
+            assert_eq!(alice.db.block_events(eb_hash), bob.db.block_events(eb_hash));
+            assert_eq!(alice.db.block_synced(eb_hash), bob.db.block_synced(eb_hash));
+
+            let mb_hash = bob_meta.last_committed_mb.unwrap();
+
+            let alice_compact_block = alice.db.mb_compact_block(mb_hash);
+            let bob_compact_block = bob.db.mb_compact_block(mb_hash);
+            assert_eq!(alice_compact_block, bob_compact_block);
+
+            if let (Some(alice_compact_block), Some(bob_compact_block)) =
+                (alice_compact_block, bob_compact_block)
+            {
+                let alice_transactions =
+                    alice.db.transactions(alice_compact_block.transactions_hash);
+                let bob_transactions = bob.db.transactions(bob_compact_block.transactions_hash);
+                assert_eq!(alice_transactions, bob_transactions);
+            }
+
+            let alice_program_states = alice.db.mb_program_states(mb_hash);
+            let bob_program_states = bob.db.mb_program_states(mb_hash);
+            assert_eq!(alice_program_states, bob_program_states);
+
+            let alice_outcome = alice.db.mb_outcome(mb_hash);
+            let bob_outcome = bob.db.mb_outcome(mb_hash);
+            assert_eq!(alice_outcome, bob_outcome);
+
+            let alice_schedule = alice.db.mb_schedule(mb_hash);
+            let bob_schedule = bob.db.mb_schedule(mb_hash);
+            assert_eq!(alice_schedule, bob_schedule);
+
+            let alice_meta = alice.db.mb_meta(mb_hash);
+            let bob_meta = bob.db.mb_meta(mb_hash);
+            assert_eq!(alice_meta, bob_meta);
+
+            let header = alice.db.block_header(eb_hash).unwrap();
+            eb_hash = header.parent_hash;
+        }
+
+        // let mut block_hash = latest_block;
+        // loop {
+        //     if fast_synced_block == block_hash {
+        //         break;
+        //     }
+        //
+        //     log::trace!("assert MB {mb_hash}");
+        //
+        //     // Check block meta, exclude codes_queue and announces, which can vary, and it's ok
+        //
+        //     let alice_compact_block = alice.db.mb_compact_block(block_hash);
+        //     let bob_compact_block = bob.db.mb_compact_block(block_hash);
+        //     assert_eq!(alice_compact_block, bob_compact_block);
+        //
+        //     if let (Some(alice_compact_block), Some(bob_compact_block)) =
+        //         (alice_compact_block, bob_compact_block)
+        //     {
+        //         let alice_transactions =
+        //             alice.db.transactions(alice_compact_block.transactions_hash);
+        //         let bob_transactions = alice.db.transactions(bob_compact_block.transactions_hash);
+        //         assert_eq!(alice_transactions, bob_transactions);
+        //     }
+        //
+        //     let alice_program_states = alice.db.mb_program_states(block_hash);
+        //     let bob_program_states = bob.db.mb_program_states(block_hash);
+        //     assert_eq!(alice_program_states, bob_program_states);
+        //
+        //     let alice_outcome = alice.db.mb_outcome(block_hash);
+        //     let bob_outcome = alice.db.mb_outcome(block_hash);
+        //     assert_eq!(alice_outcome, bob_outcome);
+        //
+        //     let alice_schedule = alice.db.mb_schedule(block_hash);
+        //     let bob_schedule = bob.db.mb_schedule(block_hash);
+        //     assert_eq!(alice_schedule, bob_schedule);
+        //
+        //     let alice_meta = alice.db.mb_meta(block_hash);
+        //     let bob_meta = bob.db.mb_meta(block_hash);
+        //     assert_eq!(alice_meta, bob_meta);
+        //
+        //     block_hash = alice_compact_block.unwrap().parent;
+        // }
+    };
+
+    let config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    test_info!("📗 Starting Alice");
+    let mut alice = env
+        .new_node(NodeConfig::named("Alice").validator(env.validators[0]))
+        .await;
+    alice.start_service().await;
+
+    test_info!("📗 Creating `demo-mul-by-const` programs");
+
+    let code_info = env
+        .upload_code(demo_mul_by_const::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = code_info.code_id;
+    let mut program_ids = [ActorId::zero(); 8];
+
+    for (i, program_id) in program_ids.iter_mut().enumerate() {
+        let program_info = env
+            .create_program_with_params(code_id, H256([i as u8; 32]), None, 500_000_000_000_000)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        *program_id = program_info.program_id;
+
+        let value = i as u64 % 3;
+        let _reply_info = env
+            .send_message(program_info.program_id, &value.encode())
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+    }
+
+    let latest_block = env.latest_block().await.hash;
+    alice.events().find_advanced_mb(latest_block).await;
+
+    test_info!("Starting Bob (fast-sync)");
+    let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync()).await;
+
+    bob.start_service().await;
+
+    test_info!("📗 Sending messages to programs");
+
+    for (i, program_id) in program_ids.into_iter().enumerate() {
+        let reply_info = env
+            .send_message(program_id, &(i as u64).encode())
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Manual)
+        );
+    }
+
+    let latest_block = env.latest_block().await.hash;
+    // alice
+    //     .events()
+    //     .find_mb_computed()
+    //     .find_announce_computed(latest_block)
+    //     .await;
+    let mut alice_events = alice.events();
+    let mut bob_events = bob.events();
+    let (alice_mb_hash, bob_mb_hash) = tokio::join!(
+        alice_events.find_advanced_mb(latest_block),
+        bob_events.find_advanced_mb(latest_block)
+    );
+    tokio::join!(
+        alice_events.find_mb_computed(alice_mb_hash),
+        bob_events.find_mb_computed(bob_mb_hash)
+    );
+
+    test_info!("📗 Stopping Bob");
+    bob.stop_service().await;
+
+    assert_chain(
+        latest_block,
+        bob.latest_fast_synced_block.take().unwrap(),
+        &alice,
+        &bob,
+    );
+
+    for (i, program_id) in program_ids.into_iter().enumerate() {
+        let i = (i * 3) as u64;
+        let reply_info = env
+            .send_message(program_id, &i.encode())
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Manual)
+        );
+    }
+
+    env.skip_blocks(100).await;
+
+    let latest_block = env.latest_block().await.hash;
+    alice.events().find_advanced_mb(latest_block).await;
+
+    test_info!("📗 Starting Bob again to check how it handles partially empty database");
+    bob.start_service().await;
+
+    // Mine some blocks so Bob can produce the event we will wait for.
+    // We mine several blocks here to ensure that Bob and Alice would converge to the same chain of announces.
+    // Why do we need that? Because Bob was disabled he missed some announces that Alice produced,
+    // this announces was not committed, so Bob would not see them during fast-sync
+    // and would not have them in his database. This is normal situation, after a few blocks Bob and Alice should
+    // converge to the same chain of announces.
+    for _ in 0..env.commitment_delay_limit.get() {
+        env.skip_blocks(1).await;
+    }
+
+    let latest_block = env.latest_block().await.hash;
+    let alice_latest_advanced_mb = alice.events().find_advanced_mb(latest_block).await;
+    let bob_latest_advanced_mb = bob.events().find_advanced_mb(latest_block).await;
+    assert_eq!(alice_latest_advanced_mb, bob_latest_advanced_mb);
+
+    assert_chain(
+        latest_block,
+        bob.latest_fast_synced_block.take().unwrap(),
+        &alice,
+        &bob,
+    );
 }
 
 #[tokio::test]
