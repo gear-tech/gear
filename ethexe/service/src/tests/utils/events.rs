@@ -309,7 +309,6 @@ impl<T: Clone> KickingStream<EventReceiver<T>> {
 }
 
 impl TestingEventReceiver {
-    #[allow(dead_code)]
     pub async fn find_block_synced(&mut self) -> H256 {
         self.find_map(|event| {
             if let TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) = event {
@@ -323,7 +322,6 @@ impl TestingEventReceiver {
 
     /// Drive the compute stream forward until a `BlockPrepared(target)` event
     /// arrives.
-    #[allow(dead_code)]
     pub async fn find_block_prepared(&mut self, target: H256) -> H256 {
         self.find_map(|event| match event {
             TestingEvent::Compute(ComputeEvent::BlockPrepared(h)) if h == target => Some(h),
@@ -333,10 +331,13 @@ impl TestingEventReceiver {
     }
 
     /// Wait until any MB becomes computed, returning its hash.
-    #[allow(dead_code)]
-    pub async fn find_any_mb_computed(&mut self) -> H256 {
+    pub async fn find_mb_computed(&mut self, mb_hash: H256) -> H256 {
         self.find_map(|event| match event {
-            TestingEvent::Compute(ComputeEvent::MbComputed(mb_hash)) => Some(mb_hash),
+            TestingEvent::Compute(ComputeEvent::MbComputed(event_mb_hash))
+                if event_mb_hash == mb_hash =>
+            {
+                Some(mb_hash)
+            }
             _ => None,
         })
         .await
@@ -348,7 +349,7 @@ impl TestingEventReceiver {
     /// ancestor of this MB's `last_advanced_eb` (i.e., it sits inside
     /// the eth-chain segment this MB advanced over).
     #[allow(dead_code)]
-    pub async fn wait_till_eth_block_finalized_in_mb(&mut self, target_eth_block: H256) {
+    pub async fn find_advanced_mb(&mut self, eb_hash: H256) -> H256 {
         self.find_map_with_db(|db, event| {
             let TestingEvent::Malachite(MalachiteEvent::BlockFinalized { mb_hash, .. }) = event
             else {
@@ -368,8 +369,8 @@ impl TestingEventReceiver {
             // covers it.
             let mut cursor = last_advanced;
             while cursor != prev_advanced {
-                if cursor == target_eth_block {
-                    return Some(());
+                if cursor == eb_hash {
+                    return Some(mb_hash);
                 }
                 let header = db.block_header(cursor)?;
                 if header.parent_hash.is_zero() {
