@@ -19,10 +19,10 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_processor::{BoundPromiseSink, ExecutableData};
-#[cfg(test)]
-use gprimitives::H256;
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture};
+#[cfg(test)]
+use gprimitives::H256;
 use std::{
     collections::VecDeque,
     pin::Pin,
