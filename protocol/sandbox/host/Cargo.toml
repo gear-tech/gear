@@ -21,7 +21,7 @@ defer.workspace = true
 environmental.workspace = true
 thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
-wasmtime.workspace = true
+wasmtime = { features = ["cache", "runtime", "winch"], workspace = true }
 wasmi.workspace = true
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface-common = { workspace = true, features = ["std"] }

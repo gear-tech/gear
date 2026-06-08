@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 #[cfg(feature = "server")]
-use jsonrpsee::{core::async_trait, proc_macros::rpc};
+use jsonrpsee::core::async_trait;
+use jsonrpsee::proc_macros::rpc;
 
 pub const RPC_VERSION: &str = env!("CARGO_PKG_VERSION");
 

@@ -22,3 +22,7 @@ members = ["foo", "bar"]
 
 [workspace.metadata.gbuild]
 programs = ["foo", "bar"]
+
+[patch."https://github.com/paritytech/polkadot-sdk.git"]
+sp-runtime-interface-proc-macro = { path = "../../../substrate/sp-runtime-interface-proc-macro" }
+sp-wasm-interface = { path = "../../../substrate/sp-wasm-interface" }
