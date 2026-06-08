@@ -85,6 +85,8 @@ mod metrics;
 #[cfg(feature = "server")]
 mod utils;
 
+#[cfg(test)]
+mod test_utils;
 #[cfg(all(test, feature = "client"))]
 mod tests;
 
