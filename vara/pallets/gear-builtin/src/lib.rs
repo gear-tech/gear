@@ -158,6 +158,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{GetDispatchInfo, PostDispatchInfo},
         pallet_prelude::*,
+        traits::Contains,
     };
     use frame_system::pallet_prelude::*;
     use sp_runtime::traits::Dispatchable;
@@ -176,6 +177,9 @@ pub mod pallet {
 
         /// Block limits.
         type BlockLimiter: BlockLimiter<Balance = u64>;
+
+        /// Filter that determines whether staking bond should be disallowed for an account.
+        type NonStakingAccountsFilter: Contains<Self::AccountId>;
 
         /// Weight cost incurred by builtin actors calls.
         type WeightInfo: WeightInfo;

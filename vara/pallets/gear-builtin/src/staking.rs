@@ -21,6 +21,7 @@
 use super::*;
 use common::Origin;
 use core::marker::PhantomData;
+use frame_support::traits::Contains;
 use gbuiltin_staking::*;
 use gear_core::limited::LimitedStr;
 use pallet_staking::{Config as StakingConfig, NominationsQuota, RewardDestination};
@@ -133,6 +134,14 @@ where
         // Decode the message payload to derive the desired action
         let request =
             Request::decode(&mut payload).map_err(|_| BuiltinActorError::DecodingError)?;
+
+        if matches!(request, Request::Bond { .. })
+            && T::NonStakingAccountsFilter::contains(&origin.cast())
+        {
+            return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                "Staking bond is disabled for account",
+            )));
+        }
 
         // Handle special cases that return custom response instead of just dispatching calls
         if let Request::ActiveEra = request {

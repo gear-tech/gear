@@ -20,7 +20,7 @@ use crate::{self as pallet_gear_eth_bridge};
 use common::Origin as _;
 use frame_support::{
     PalletId, construct_runtime, parameter_types,
-    traits::{ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
+    traits::{ConstU32, ConstU64, FindAuthor, Hooks, Nothing, SortedMembers},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, EnsureSignedBy, pallet_prelude::BlockNumberFor};
@@ -186,6 +186,7 @@ impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Builtins = (ActorWithId<BUILTIN_ID, crate::builtin::Actor<Test>>,);
     type BlockLimiter = GearGas;
+    type NonStakingAccountsFilter = Nothing;
     type WeightInfo = ();
 }
 

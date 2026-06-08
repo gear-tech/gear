@@ -20,7 +20,7 @@ use crate::{self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinReply
 use builtins_common::{BuiltinActorError, BuiltinContext};
 use frame_support::{
     PalletId, construct_runtime, parameter_types,
-    traits::{ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
+    traits::{ConstU32, ConstU64, FindAuthor, Nothing, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
@@ -122,6 +122,7 @@ impl pallet_gear_builtin::Config for Test {
         ActorWithId<2, SomeBuiltinActor>, // 2 already exists
     );
     type BlockLimiter = GearGas;
+    type NonStakingAccountsFilter = Nothing;
     type WeightInfo = ();
 }
 

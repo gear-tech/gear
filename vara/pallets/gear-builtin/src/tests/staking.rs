@@ -919,6 +919,7 @@ mod util {
         type RuntimeCall = RuntimeCall;
         type Builtins = (ActorWithId<2, StakingBuiltin<Self>>,);
         type BlockLimiter = GearGas;
+        type NonStakingAccountsFilter = NonStakingAccountsFilter;
         type WeightInfo = ();
     }
 

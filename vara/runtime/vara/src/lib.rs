@@ -1189,6 +1189,7 @@ impl pallet_gear_builtin::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type Builtins = BuiltinActors;
     type BlockLimiter = GearGas;
+    type NonStakingAccountsFilter = NonStakingAccountsFilter;
     type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
 }
 
