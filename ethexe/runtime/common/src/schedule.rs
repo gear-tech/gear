@@ -405,4 +405,106 @@ mod tests {
             )]),
         );
     }
+
+    // Regression for #5574: the genesis `from_storage` path must restore every
+    // scheduled task in the dumped states regardless of its expiry. The restorer
+    // used to drop tasks with `expiry <= genesis_block_height`; during re-genesis
+    // that height can sit far above a task's expiry, so still-pending tasks were
+    // silently lost. Here all expiries are tiny (1..=4) — exactly the entries the
+    // old cutoff would have discarded — and all four must survive restoration.
+    #[test]
+    fn from_storage_restores_tasks_below_genesis_height() {
+        use ethexe_common::StateHashWithQueueSize;
+
+        let storage = MemStorage::default();
+        let program_id = ActorId::from(1);
+        let user_id = ActorId::from(2);
+
+        let reply = |id: u64, fill: u8| {
+            Dispatch::reply(
+                MessageId::from(id),
+                ActorId::from(id + 1000),
+                PayloadLookup::Direct(Payload::repeat(fill)),
+                0xffffff,
+                SuccessReplyReason::Auto,
+                MessageType::Canonical,
+                false,
+            )
+        };
+
+        let waitlisted = reply(10, 0x11);
+        let stashed_to_program = reply(11, 0x22);
+        let stashed_to_user = reply(12, 0x33);
+        let mailbox_message_id = MessageId::from(13);
+
+        let mut waitlist = Waitlist::default();
+        waitlist.wait(waitlisted.clone(), 1);
+
+        let mut stash = DispatchStash::default();
+        stash.add_to_program(stashed_to_program.clone(), 2);
+        stash.add_to_user(stashed_to_user.clone(), 3, user_id);
+
+        let mut mailbox = Mailbox::default();
+        mailbox.add_and_store_user_mailbox(
+            &storage,
+            user_id,
+            mailbox_message_id,
+            MailboxMessage::new(
+                PayloadLookup::Direct(Payload::repeat(0x44)),
+                0xffffff,
+                MessageType::Canonical,
+            ),
+            4,
+        );
+
+        let mut state = ProgramState::zero();
+        state.waitlist_hash = waitlist.store(&storage).expect("waitlist changed");
+        state.stash_hash = stash.store(&storage);
+        state.mailbox_hash = mailbox.store(&storage).expect("mailbox changed");
+        let state_hash = storage.write_program_state(state);
+
+        let program_states = ProgramStates::from([(
+            program_id,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
+            },
+        )]);
+
+        let schedule = Restorer::from_storage(&storage, &program_states)
+            .expect("restore must succeed")
+            .restore();
+
+        assert_eq!(
+            schedule,
+            BTreeMap::from([
+                (
+                    1,
+                    BTreeSet::from([ScheduledTask::WakeMessage(program_id, waitlisted.id)])
+                ),
+                (
+                    2,
+                    BTreeSet::from([ScheduledTask::SendDispatch((
+                        program_id,
+                        stashed_to_program.id
+                    ))])
+                ),
+                (
+                    3,
+                    BTreeSet::from([ScheduledTask::SendUserMessage {
+                        message_id: stashed_to_user.id,
+                        to_mailbox: program_id,
+                    }])
+                ),
+                (
+                    4,
+                    BTreeSet::from([ScheduledTask::RemoveFromMailbox(
+                        (program_id, user_id),
+                        mailbox_message_id
+                    )])
+                ),
+            ]),
+        );
+    }
 }
