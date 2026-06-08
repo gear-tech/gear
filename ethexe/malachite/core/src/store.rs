@@ -16,6 +16,7 @@
 //! - `0x05` `(height,round,value_id)` → engine undecided proposal
 //! - `0x06` `(height,round,value_id)` → buffered proposal parts
 //! - `0x07` `height_be[8]`    → engine-side `CommitCertificate`
+//! - `0x08` `mb_hash[32]`     → callback origin for per-block processing
 //!
 //! Children of the genesis (parent_hash == [`H256::zero`]) live under
 //! the bare-zero parent key — same shape as any other parent.
@@ -37,7 +38,7 @@ use rocksdb::{DB, Options, WriteBatch};
 
 use crate::{
     context::Height,
-    externalities::BlockPayload,
+    externalities::{BlockPayload, CallbackOrigin},
     types::{Block, CommitCertificate, H256},
 };
 
@@ -49,6 +50,7 @@ mod prefix {
     pub const UNDECIDED: u8 = 0x05;
     pub const PENDING_PARTS: u8 = 0x06;
     pub const ENGINE_CERT: u8 = 0x07;
+    pub const MB_ORIGIN: u8 = 0x08;
 }
 
 const META_LATEST_FINALIZED: &[u8] = b"latest_finalized";
@@ -143,6 +145,13 @@ impl<P: BlockPayload> Store<P> {
         k
     }
 
+    fn key_mb_origin(hash: H256) -> [u8; 33] {
+        let mut k = [0u8; 33];
+        k[0] = prefix::MB_ORIGIN;
+        k[1..33].copy_from_slice(hash.as_bytes());
+        k
+    }
+
     fn decode_one<T: Decode>(bytes: &[u8], what: &'static str) -> Result<T> {
         T::decode(&mut &bytes[..]).with_context(|| format!("decoding {what}"))
     }
@@ -195,6 +204,27 @@ impl<P: BlockPayload> Store<P> {
     pub fn get_block(&self, block_hash: H256) -> Result<Option<BlockEntry<P>>> {
         match self.db.get(Self::key_block(block_hash))? {
             Some(b) => Ok(Some(Self::decode_one(&b, "block entry")?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Persist callback origin for this MB once. Already-present entries
+    /// are preserved so the first observer of this MB wins.
+    pub fn set_mb_origin_once(&self, block_hash: H256, origin: CallbackOrigin) -> Result<()> {
+        let key = Self::key_mb_origin(block_hash);
+        if self.db.get(&key)?.is_none() {
+            self.db.put(key, origin.encode())?;
+        }
+        Ok(())
+    }
+
+    /// Load the callback origin associated with this MB, if present.
+    pub fn mb_origin(&self, block_hash: H256) -> Result<Option<CallbackOrigin>> {
+        match self.db.get(Self::key_mb_origin(block_hash))? {
+            Some(b) => Ok(Some(Self::decode_one::<CallbackOrigin>(
+                &b,
+                "mb callback origin",
+            )?)),
             None => Ok(None),
         }
     }

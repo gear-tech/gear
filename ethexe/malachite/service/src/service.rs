@@ -36,7 +36,8 @@ use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 use tokio::sync::{Notify, mpsc};
 
 use crate::{
-    MalachiteConfig, MalachiteEvent, Mempool, ValidatorEntry, externalities::EthexeExternalities,
+    MalachiteConfig, MalachiteEvent, Mempool, ValidatorEntry,
+    externalities::{EthexeExternalities, ReplayBoundary},
 };
 
 /// Public consensus service.
@@ -166,6 +167,7 @@ impl MalachiteService {
             gas_allowance: config.gas_allowance,
             canonical_quarantine: config.canonical_quarantine,
             post_quarantine_delay: config.post_quarantine_delay,
+            replay_boundary: std::sync::RwLock::new(ReplayBoundary::Disabled),
         });
 
         // On-chain addresses → pub keys, so era rotations resolve back without an out-of-band lookup.
@@ -196,6 +198,14 @@ impl MalachiteService {
         if let Some(inner) = &mut self.inner {
             inner.start_app_task();
         }
+    }
+
+    /// Capture the execution-layer replay boundary from DB globals so
+    /// `ValueSyncReplay` callbacks can be suppressed for pre-boundary
+    /// Malachite MBs after fast-sync.
+    pub fn enable_replay_boundary_from_execution_snapshot(&self) {
+        self.externalities
+            .enable_replay_boundary_from_execution_snapshot();
     }
 
     /// Hand an injected transaction to the mempool. The local

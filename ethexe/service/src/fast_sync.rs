@@ -9,15 +9,14 @@ use anyhow::{Context, Result, ensure};
 use ethexe_common::{
     Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
     db::{
-        BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, CompactMb, ConfigStorageRO,
-        GlobalsStorageRW, MbStorageRW, OnChainStorageRW, PreparedBlockData,
+        BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, ConfigStorageRO, GlobalsStorageRW,
+        MbStorageRW, OnChainStorageRW, PreparedBlockData,
     },
     events::{
         BlockEvent, RouterEvent,
         router::{BatchCommittedEvent, EBCommittedEvent, MBCommittedEvent},
     },
     injected,
-    malachite::Transactions,
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::{
@@ -587,7 +586,7 @@ async fn latest_era_with_committed_validators(
         .context("failed to calculate era from validators timestamp")
 }
 
-pub(crate) async fn sync(service: &mut Service) -> Result<()> {
+pub(crate) async fn sync(service: &mut Service) -> Result<bool> {
     let Service {
         observer,
         compute,
@@ -600,7 +599,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     } = service;
     let Some(network) = network else {
         log::warn!("Network service is disabled. Skipping fast synchronization...");
-        return Ok(());
+        return Ok(false);
     };
 
     log::info!("Fast synchronization is in progress...");
@@ -638,7 +637,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                 EventData::collect(&block_loader, db, latest_block).await?
             else {
                 log::warn!("No committed MB found. Skipping fast synchronization...");
-                return Ok(());
+                return Ok(false);
             };
             log::warn!("No finalized committed MB found; trying latest block candidates");
             state_query_block = latest_block;
@@ -646,7 +645,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
         None => {
             log::warn!("No committed MB found. Skipping fast synchronization...");
-            return Ok(());
+            return Ok(false);
         }
     };
 
@@ -747,5 +746,5 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         ))
         .await;
 
-    Ok(())
+    Ok(true)
 }

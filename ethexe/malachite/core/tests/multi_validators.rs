@@ -115,7 +115,12 @@ impl TestExt {
 
 #[async_trait]
 impl Externalities<TestPayload> for TestExt {
-    async fn process_mb_proposal(&self, hash: H256, block: Block<TestPayload>) -> Result<()> {
+    async fn process_mb_proposal(
+        &self,
+        hash: H256,
+        block: Block<TestPayload>,
+        _origin: ethexe_malachite_core::CallbackOrigin,
+    ) -> Result<()> {
         let mut s = self.state.lock().unwrap();
         if block.hash() != hash {
             s.violations
@@ -136,7 +141,12 @@ impl Externalities<TestPayload> for TestExt {
         Ok(())
     }
 
-    async fn process_mb_finalized(&self, hash: H256, cert: CommitCertificate) -> Result<()> {
+    async fn process_mb_finalized(
+        &self,
+        hash: H256,
+        cert: CommitCertificate,
+        _origin: ethexe_malachite_core::CallbackOrigin,
+    ) -> Result<()> {
         let mut s = self.state.lock().unwrap();
         if cert.block_hash != hash {
             s.violations

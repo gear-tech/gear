@@ -6,6 +6,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use parity_scale_codec::{Decode, Encode};
+use serde::{Deserialize, Serialize};
 
 use crate::types::{Block, CommitCertificate, H256};
 
@@ -19,6 +20,19 @@ use crate::types::{Block, CommitCertificate, H256};
 pub trait BlockPayload: Clone + Encode + Decode + Send + Sync + 'static {}
 
 impl<T> BlockPayload for T where T: Clone + Encode + Decode + Send + Sync + 'static {}
+
+/// Indicates where a proposed/finalized MB callback originated.
+/// `CallbackOrigin::ValueSyncReplay` identifies callbacks produced by
+/// Malachite replay (ValueSync decided-values). It is *provenance only*:
+/// applications must decide how to act on this origin, and the default
+/// execution path is to treat it like a normal callback unless a higher
+/// layer explicitly opts into replay filtering.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Decode, Encode, Deserialize, Serialize)]
+pub enum CallbackOrigin {
+    #[default]
+    Live,
+    ValueSyncReplay,
+}
 
 /// Application-side callbacks the consensus service requires.
 ///
@@ -60,14 +74,34 @@ pub trait Externalities<P: BlockPayload>: Send + Sync + 'static {
     /// per `mb_hash` over the lifetime of an application instance,
     /// at proposal-assembly time, after every ancestor's
     /// `process_mb_proposal` has already returned `Ok`.
-    async fn process_mb_proposal(&self, mb_hash: H256, block: Block<P>) -> Result<()>;
+    /// `origin` indicates whether the callback came from local/live
+    /// operation (`Live`) or Malachite replay (`ValueSyncReplay`).
+    /// `ValueSyncReplay` is provenance only; downstream implementations
+    /// may apply additional policy (for example, replay suppression when
+    /// an execution snapshot boundary is explicitly enabled).
+    async fn process_mb_proposal(
+        &self,
+        mb_hash: H256,
+        block: Block<P>,
+        origin: CallbackOrigin,
+    ) -> Result<()>;
 
     /// Mark `mb_hash` as finalized and durable.
     ///
     /// `cert` is the BFT commit certificate for the height of
     /// `mb_hash`. The application typically forwards `cert` to
     /// downstream layers (on-chain commits, light clients, etc.).
-    async fn process_mb_finalized(&self, mb_hash: H256, cert: CommitCertificate) -> Result<()>;
+    /// `origin` indicates whether the callback came from local/live
+    /// operation (`Live`) or Malachite replay (`ValueSyncReplay`).
+    /// `ValueSyncReplay` is provenance only; downstream implementations
+    /// may apply additional policy (for example, replay suppression when
+    /// an execution snapshot boundary is explicitly enabled).
+    async fn process_mb_finalized(
+        &self,
+        mb_hash: H256,
+        cert: CommitCertificate,
+        origin: CallbackOrigin,
+    ) -> Result<()>;
 
     /// Build a fresh block payload whose parent has hash
     /// `parent_mb_hash`. Called only when this node has been elected

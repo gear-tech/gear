@@ -82,7 +82,7 @@ pub use crate::{
         Environment as MalachiteConfigEnvironment, MalachiteConfig, Multiaddr, NodeRole,
         ValidatorEntry,
     },
-    externalities::{BlockPayload, Externalities},
+    externalities::{BlockPayload, CallbackOrigin, Externalities},
     service::{MService, MalachiteService},
     signing::{
         MalachiteSigner, PrivateKey, PublicKey, Signature, derive_libp2p_secret,
