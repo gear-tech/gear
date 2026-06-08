@@ -139,6 +139,7 @@ pub trait Mempool: Send + Sync + 'static {
 /// externalities without spinning up the real pool. Kept out of the
 /// public API so consumers can't reach for a no-op pool in production.
 #[cfg(test)]
+#[allow(dead_code)]
 #[derive(Clone, Default)]
 pub(crate) struct EmptyMempool;
 
