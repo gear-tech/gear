@@ -55,7 +55,7 @@ use ethexe_consensus::{ConsensusEvent, ConsensusService, ValidatorConfig, Valida
 use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
 };
-use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
+use ethexe_ethereum::{Ethereum, EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_malachite::{
     InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService, ValidatorEntry,
 };
@@ -63,7 +63,7 @@ use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
 };
 use ethexe_observer::{
-    ObserverConfig, ObserverEvent, ObserverService, SyncError,
+    ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
 };
 use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeInfo};
@@ -664,36 +664,22 @@ impl Service {
         let mut network_injected_txs: HashMap<_, PendingNetworkInjectedTx> = HashMap::new();
 
         loop {
-            let event: Option<Event> = tokio::select! {
-                event = compute.select_next_some() => Some(event?.into()),
-                event = consensus.maybe_next_some() => Some(event?.into()),
-                event = malachite.maybe_next_some() => Some(event?.into()),
-                event = network.maybe_next_some() => Some(event.into()),
-                event = observer.select_next_some() => match event {
-                    Ok(event) => Some(event.into()),
-                    Err(err) => {
-                        if matches!(err.downcast_ref::<SyncError>(), Some(SyncError::ProtocolVersionMismatch { .. })) {
-                            log::info!("Observer requested graceful shutdown: {err:#}");
-                            None
-                        } else {
-                            return Err(err);
-                        }
-                    }
-                },
-                event = blob_loader.select_next_some() => Some(event?.into()),
-                event = rpc.maybe_next_some() => Some(event.into()),
-                event = prometheus.maybe_next_some() => Some(event.into()),
+            let event: Event = tokio::select! {
+                event = compute.select_next_some() => event?.into(),
+                event = consensus.maybe_next_some() => event?.into(),
+                event = malachite.maybe_next_some() => event?.into(),
+                event = network.maybe_next_some() => event.into(),
+                event = observer.select_next_some() => event?.into(),
+                event = blob_loader.select_next_some() => event?.into(),
+                event = rpc.maybe_next_some() => event.into(),
+                event = prometheus.maybe_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
-                    return Err(anyhow!("`RPCWorker` has terminated, shutting down..."));
+                    bail!("`RPCWorker` has terminated, shutting down...")
                 }
                 _ = async { shutdown_rx.as_mut().unwrap().await }, if shutdown_rx.is_some() => {
                     log::info!("Graceful shutdown requested");
-                    None
+                    break;
                 }
-            };
-
-            let Some(event) = event else {
-                break;
             };
 
             log::trace!("Primary service produced event, start handling: {event:?}");
@@ -785,6 +771,24 @@ impl Service {
                                 g.latest_computed_mb_hash = mb_hash;
                             }
                         });
+                    }
+                    ComputeEvent::ProtocolVersionChanged(mb_hash, version) => {
+                        let packed_version: u64 = version
+                            .try_into()
+                            .map_err(|_| anyhow!("ProtocolVersionChanged value exceeds u64"))?;
+                        let new_protocol_version =
+                            Ethereum::decode_protocol_version(packed_version);
+                        let (new_major_protocol_version, _, _) = new_protocol_version;
+
+                        if new_major_protocol_version > Ethereum::CLIENT_MAJOR_PROTOCOL_VERSION {
+                            log::info!(
+                                "Finalized MB {mb_hash} requests protocol version \
+                                 {new_protocol_version:?}; local client supports {:?}. \
+                                 Starting graceful shutdown.",
+                                Ethereum::CLIENT_PROTOCOL_VERSION,
+                            );
+                            break;
+                        }
                     }
                     ComputeEvent::Promise(promise, _mb_hash) => {
                         // The local node always feeds its computed body
@@ -1018,6 +1022,7 @@ impl Service {
                         // `BlockProposal` short-circuits on
                         // `mb_meta.computed`.
                         compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
+                        compute.process_finalized_mb_events(mb_hash);
                     }
                     MalachiteEvent::PurgedTransactions {
                         eb_hash,
