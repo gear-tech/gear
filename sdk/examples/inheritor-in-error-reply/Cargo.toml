@@ -6,9 +6,9 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+gear-workspace-hack.workspace = true
 gstd = { workspace = true, features = ["debug"] }
 parity-scale-codec.workspace = true
-gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gear-core.workspace = true

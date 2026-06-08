@@ -6,8 +6,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-gstd = { workspace = true, features = ["debug"] }
 gear-workspace-hack.workspace = true
+gstd = { workspace = true, features = ["debug"] }
 
 [dev-dependencies]
 gtest.workspace = true
