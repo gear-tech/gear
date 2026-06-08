@@ -4,12 +4,24 @@
 //! Application-level block shape produced by the Malachite sequencer
 //! and consumed by the ethexe executor.
 //!
-//! [`Transactions`] is the application's `BlockPayload` — an ordered
-//! list of [`Transaction`]s. Block-level identity (parent linkage,
-//! height) lives in [`crate::db::CompactMb`], indexed by the
-//! `ethexe_malachite_core::Block` envelope hash. The transaction list
-//! itself is stored in the content-addressed half of the ethexe db
-//! and referenced by `CompactMb::transactions_hash`.
+//! [`Operations`] is the application schema: an ordered list of
+//! [`Operation`]s. The consensus engine ships it SCALE-encoded as an
+//! opaque, size-capped byte string (the malachite `Block` payload);
+//! the encoding/decoding lives behind the consensus boundary.
+//!
+//! Protocol evolution is additive: a new behaviour gets a new
+//! [`Operation`] variant with the next free `#[repr(u32)]` discriminant
+//! (existing discriminants and their payloads are frozen forever, so
+//! every historical operation stays decodable). Which operations a
+//! validator *accepts* in a fresh proposal is gated separately, on the
+//! validator side — older operations can be retired from new blocks
+//! without ever losing the ability to decode and replay them.
+//!
+//! Block-level identity (parent linkage, height) lives in
+//! [`crate::db::CompactMb`], indexed by the consensus block envelope
+//! hash. The matching [`Operations`] blob is stored in the
+//! content-addressed half of the ethexe db and referenced by
+//! `CompactMb::operations_hash`.
 //!
 //! These types live in `ethexe-common` (rather than inside
 //! `ethexe-malachite`) so `ethexe-processor` can accept them without
@@ -25,58 +37,91 @@ use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
-/// A single transaction in the malachite block.
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
+/// A single operation in the malachite block.
+#[derive(Clone, Debug, PartialEq, Eq, TypeInfo, derive_more::IsVariant)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub enum Transaction {
+#[repr(u32)]
+pub enum Operation {
     /// Pin executor's view to a quarantine-passed Ethereum block.
-    AdvanceTillEthereumBlock { block_hash: H256 },
+    AdvanceTillEthereumBlock { block_hash: H256 } = 0,
 
     /// Progress scheduled tasks (mailbox/waitlist/reservation cleanup).
-    ProgressTasks { limits: ProgressTasksLimits },
+    ProgressTasks = 1,
 
     /// Drain message queues within `gas_allowance`; producer emits last.
-    ProcessQueues { limits: ProcessQueuesLimits },
+    ProcessQueues { gas_allowance: u64 } = 2,
 
     /// User-submitted transaction from the mempool.
-    Injected(SignedInjectedTransaction),
+    Injected(SignedInjectedTransaction) = 3,
 }
 
-/// Placeholder; shape firms up once executor plumbing lands.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct ProgressTasksLimits {}
-
-/// Per-MB execution budget, carried on the wire.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct ProcessQueuesLimits {
-    pub gas_allowance: u64,
-}
-
-impl Transaction {
-    /// Short human-readable tag, used in logs and debug dumps.
-    pub fn tag(&self) -> &'static str {
+impl Operation {
+    /// The `u32` discriminant identifying this variant — the value written
+    /// first by [`Encode`] and read back by [`Decode`].
+    ///
+    /// Discriminants are part of the consensus wire format: existing values
+    /// are frozen forever (a new operation gets the next free number), so a
+    /// node always decodes every historical operation it has ever seen.
+    pub fn tag(&self) -> u32 {
+        // Mirrors the `#[repr(u32)]` discriminants below and the `Decode`
+        // arms. These three must agree; `operation_encoding_is_frozen` pins
+        // the bytes so a divergence can't slip through.
         match self {
-            Self::AdvanceTillEthereumBlock { .. } => "advance-eth-block",
-            Self::ProgressTasks { .. } => "progress-tasks",
-            Self::ProcessQueues { .. } => "process-queues",
-            Self::Injected(_) => "injected",
+            Self::AdvanceTillEthereumBlock { .. } => 0,
+            Self::ProgressTasks => 1,
+            Self::ProcessQueues { .. } => 2,
+            Self::Injected(_) => 3,
         }
     }
 }
 
-// TODO: +_+_+ append versioning
-/// `BlockPayload`: ordered transactions; CAS key = Blake2b-256 of the SCALE-encoded list.
+// Custom encoder/decoder so the discriminant is always a fixed-width `u32`
+// tag, sidestepping parity-scale-codec's compact enum-index encoding (which
+// only addresses up to 255 variants) and keeping room for many operations.
+
+impl Decode for Operation {
+    fn decode<I: parity_scale_codec::Input>(
+        input: &mut I,
+    ) -> core::result::Result<Self, parity_scale_codec::Error> {
+        let tag = u32::decode(input)?;
+        match tag {
+            0 => Ok(Operation::AdvanceTillEthereumBlock {
+                block_hash: H256::decode(input)?,
+            }),
+            1 => Ok(Operation::ProgressTasks),
+            2 => Ok(Operation::ProcessQueues {
+                gas_allowance: u64::decode(input)?,
+            }),
+            3 => Ok(Operation::Injected(SignedInjectedTransaction::decode(
+                input,
+            )?)),
+            _ => Err(parity_scale_codec::Error::from("invalid operation tag")),
+        }
+    }
+}
+
+impl Encode for Operation {
+    fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+        self.tag().encode_to(dest);
+        match self {
+            Operation::AdvanceTillEthereumBlock { block_hash } => block_hash.encode_to(dest),
+            Operation::ProgressTasks => {}
+            Operation::ProcessQueues { gas_allowance } => gas_allowance.encode_to(dest),
+            Operation::Injected(signed_tx) => signed_tx.encode_to(dest),
+        }
+    }
+}
+
+/// Ordered list of [`Operation`]s; CAS key = Blake2b-256 of the SCALE-encoded list.
 #[derive(
     Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo, Deref, DerefMut, IntoIterator,
 )]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct Transactions(pub Vec<Transaction>);
+pub struct Operations(pub Vec<Operation>);
 
-impl Transactions {
-    pub fn new(transactions: Vec<Transaction>) -> Self {
-        Self(transactions)
+impl Operations {
+    pub fn new(operations: Vec<Operation>) -> Self {
+        Self(operations)
     }
 
     /// CAS key: Blake2b-256 over the SCALE-encoded list.
@@ -89,13 +134,11 @@ impl Transactions {
 mod tests {
     use super::*;
 
-    fn empty_txs() -> Transactions {
-        Transactions::new(alloc::vec![
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
+    fn empty_txs() -> Operations {
+        Operations::new(alloc::vec![
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: 1234,
             },
         ])
     }
@@ -108,44 +151,77 @@ mod tests {
     }
 
     #[test]
-    fn hash_changes_when_transactions_change() {
+    fn hash_changes_when_operations_change() {
         let mut a = empty_txs();
         let b = empty_txs();
-        a.push(Transaction::AdvanceTillEthereumBlock {
+        a.push(Operation::AdvanceTillEthereumBlock {
             block_hash: H256::from_low_u64_be(0xEB),
         });
         assert_ne!(a.hash(), b.hash());
     }
 
     #[test]
-    fn transaction_tag_distinguishes_variants() {
-        let advance = Transaction::AdvanceTillEthereumBlock {
+    fn operation_tag_distinguishes_variants() {
+        let advance = Operation::AdvanceTillEthereumBlock {
             block_hash: H256::zero(),
         };
-        let progress = Transaction::ProgressTasks {
-            limits: ProgressTasksLimits::default(),
+        let progress = Operation::ProgressTasks;
+        let queues = Operation::ProcessQueues {
+            gas_allowance: 1234,
         };
-        let queues = Transaction::ProcessQueues {
-            limits: ProcessQueuesLimits::default(),
-        };
-        assert_eq!(advance.tag(), "advance-eth-block");
-        assert_eq!(progress.tag(), "progress-tasks");
-        assert_eq!(queues.tag(), "process-queues");
+        assert!(advance.is_advance_till_ethereum_block());
+        assert!(progress.is_progress_tasks());
+        assert!(queues.is_process_queues());
+    }
+
+    #[test]
+    fn operation_encoding_is_frozen() {
+        // The `Encode`/`Decode` impls hand-roll a fixed-width little-endian
+        // `u32` tag, so the SCALE TypeInfo (derived) does NOT describe the real
+        // wire format and the type-info-hash guard can't see a tag change. Pin
+        // the exact leading tag bytes here: these discriminants are part of the
+        // consensus wire format and must stay frozen forever.
+        assert_eq!(
+            Operation::AdvanceTillEthereumBlock {
+                block_hash: H256::zero()
+            }
+            .tag(),
+            0
+        );
+        assert_eq!(Operation::ProgressTasks.tag(), 1);
+        assert_eq!(Operation::ProcessQueues { gas_allowance: 0 }.tag(), 2);
+
+        assert_eq!(
+            &Operation::AdvanceTillEthereumBlock {
+                block_hash: H256::zero()
+            }
+            .encode()[..4],
+            &[0, 0, 0, 0],
+        );
+        assert_eq!(Operation::ProgressTasks.encode(), [1, 0, 0, 0]);
+        assert_eq!(
+            &Operation::ProcessQueues { gas_allowance: 0 }.encode()[..4],
+            &[2, 0, 0, 0],
+        );
+
+        // Unknown tag must be rejected by `Decode`, not interpreted.
+        use parity_scale_codec::DecodeAll;
+        assert!(Operation::decode_all(&mut [4u8, 0, 0, 0].as_slice()).is_err());
     }
 
     #[test]
     fn scale_round_trip_preserves_hash() {
-        // `Transactions` is SCALE-encoded for both the CAS payload
+        // `Operations` is SCALE-encoded for both the CAS payload
         // and the consensus wire payload — make sure round-trip is
         // hash-preserving so peers and the executor agree on the
         // CAS key.
         use parity_scale_codec::Decode;
 
-        let original = Transactions::new(alloc::vec![Transaction::AdvanceTillEthereumBlock {
+        let original = Operations::new(alloc::vec![Operation::AdvanceTillEthereumBlock {
             block_hash: H256::from_low_u64_be(0xEB)
         }]);
         let encoded = original.encode();
-        let decoded = Transactions::decode(&mut encoded.as_slice()).expect("decode");
+        let decoded = Operations::decode(&mut encoded.as_slice()).expect("decode");
         assert_eq!(original, decoded);
         assert_eq!(original.hash(), decoded.hash());
     }

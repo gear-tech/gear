@@ -8,7 +8,7 @@ use crate::{
     codec::ScaleCodec,
     config::{MalachiteConfig, NodeRole},
     context::{MalachiteCtx, Validator, ValidatorSet},
-    externalities::{BlockPayload, Externalities},
+    externalities::Externalities,
     signing::{
         MalachiteSigner, libp2p_keypair_from, private_key_from_gsigner, public_key_from_gsigner,
     },
@@ -16,6 +16,7 @@ use crate::{
     store::Store,
     types::Address,
 };
+use advisory_lock::{AdvisoryFileLock, FileLockMode};
 use anyhow::{Context as _, Result};
 use bytes::Bytes;
 use futures::{Stream, stream::FusedStream};
@@ -32,10 +33,12 @@ use malachitebft_app_channel::{
 };
 use malachitebft_core_types::ValidatorProof;
 use std::{
-    marker::PhantomData,
+    fs::OpenOptions,
+    path::{Path, PathBuf},
     pin::Pin,
     sync::Arc,
     task::{Context as TaskContext, Poll},
+    time::Duration,
 };
 use tokio::{sync::mpsc, task::JoinHandle};
 
@@ -45,18 +48,71 @@ use tokio::{sync::mpsc, task::JoinHandle};
 pub trait MService: Stream<Item = anyhow::Error> + Send + Unpin {}
 
 /// Application-agnostic Malachite BFT consensus service.
-pub struct MalachiteService<P: BlockPayload, EXT: Externalities<P>> {
+pub struct MalachiteService<EXT: Externalities> {
     errors_rx: mpsc::UnboundedReceiver<anyhow::Error>,
     engine: EngineHandle,
     app_handle: JoinHandle<()>,
+    /// Path to the WAL file. [`Self::shutdown`] probes the advisory
+    /// lock on this path before returning so the next service
+    /// opening the same base dir does not race the WAL writer thread.
+    wal_path: PathBuf,
     /// Shared with the inner app loop; [`Self::update_validators`]
     /// writes here, the next `Finalized` / `ConsensusReady` reply reads.
     validator_set: SharedValidatorSet,
     _externalities: Arc<EXT>,
-    _phantom: PhantomData<fn() -> P>,
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> Drop for MalachiteService<P, EXT> {
+/// Upper bound on how long [`MalachiteService::shutdown`] will wait
+/// for the WAL advisory lock to be released after the engine actor
+/// has stopped. Empirically the writer thread drops the file within
+/// tens of milliseconds; this ceiling guards against pathological CI
+/// scheduling without ever blocking healthy shutdowns.
+const WAL_LOCK_RELEASE_TIMEOUT: Duration = Duration::from_secs(10);
+const WAL_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(25);
+
+/// Block until the WAL file at `wal_path` is no longer locked, or
+/// `timeout` has elapsed.
+///
+/// Malachite's WAL is owned by a [`std::thread`] (see
+/// `arc-malachitebft-engine`'s `wal::thread`); the engine actor's
+/// `post_stop` only sends a `Shutdown` message on a channel, and the
+/// thread releases its [`advisory_lock`] when it later drops the log.
+/// The actor's `JoinHandle` is therefore *not* a sufficient barrier —
+/// the writer thread can still be live (and the lock still held) after
+/// the engine task exits. We probe the lock here so callers of
+/// [`MalachiteService::shutdown`] can immediately re-open the same
+/// base dir without spurious "advisory lock held" errors.
+///
+/// A missing WAL file means we never wrote one; nothing to wait for.
+async fn wait_wal_lock_released(wal_path: &Path, timeout: Duration) {
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        match OpenOptions::new().read(true).write(true).open(wal_path) {
+            Ok(file) => match AdvisoryFileLock::try_lock(&file, FileLockMode::Exclusive) {
+                Ok(()) => return,
+                Err(_) => {
+                    if tokio::time::Instant::now() >= deadline {
+                        tracing::warn!(
+                            target: "ethexe-malachite-core",
+                            wal = %wal_path.display(),
+                            "WAL advisory lock did not release within {:?}; \
+                             the next service start on the same base dir may fail",
+                            timeout,
+                        );
+                        return;
+                    }
+                    tokio::time::sleep(WAL_LOCK_POLL_INTERVAL).await;
+                }
+            },
+            // No WAL on disk → nothing to wait for. Any other I/O
+            // error (permissions, etc.) is not a lock issue — surface
+            // it lazily on the next `new()` instead of blocking here.
+            Err(_) => return,
+        }
+    }
+}
+
+impl<EXT: Externalities> Drop for MalachiteService<EXT> {
     fn drop(&mut self) {
         // Stop the engine actor so its libp2p / consensus children
         // shut down cleanly, then abort the app and engine join handles.
@@ -70,24 +126,27 @@ impl<P: BlockPayload, EXT: Externalities<P>> Drop for MalachiteService<P, EXT> {
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
+impl<EXT: Externalities> MalachiteService<EXT> {
     /// Block until the engine actor tree has finished shutting down
     /// and any open file locks (RocksDB, WAL) have been released.
     /// Use this before re-opening the same `base` to avoid
     /// "advisory lock held" errors at the second `new()` call.
     pub async fn shutdown(mut self) {
         self.engine.actor.kill();
-        // Best-effort: wait for the engine and app tasks to drain.
         // `kill` is asynchronous — the actor finishes its current
         // message and then stops, so we await the JoinHandles.
         let _ = (&mut self.engine.handle).await;
         self.app_handle.abort();
         let _ = (&mut self.app_handle).await;
-        // Drop self normally so the channels close.
+        // The engine task exiting doesn't synchronously release the
+        // WAL advisory lock — the writer is a detached std::thread.
+        // Probe the lock so callers can immediately re-open the same
+        // base dir.
+        wait_wal_lock_released(&self.wal_path, WAL_LOCK_RELEASE_TIMEOUT).await;
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
+impl<EXT: Externalities> MalachiteService<EXT> {
     /// Bootstrap the service.
     pub async fn new(config: MalachiteConfig, externalities: Arc<EXT>) -> Result<Self> {
         // The service owns `<base>/malachite/`. We `mkdir -p` it so
@@ -176,7 +235,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
         let ctx = MalachiteCtx::new();
         let consensus_signer = MalachiteSigner::new(signer.private_key().clone());
         let (channels, engine) = EngineBuilder::new(ctx.clone(), inner_cfg)
-            .with_default_wal(WalContext::new(wal_path, ScaleCodec))
+            .with_default_wal(WalContext::new(wal_path.clone(), ScaleCodec))
             .with_default_network(NetworkContext::new(identity, ScaleCodec))
             .with_default_consensus(ConsensusContext::new(address, consensus_signer))
             .with_default_sync(SyncContext::new(ScaleCodec))
@@ -190,8 +249,8 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
         let _registry = SharedRegistry::global().with_moniker(&moniker);
 
         // ---- store + state ----
-        let store = Store::<P>::open(&store_path).context("opening Store")?;
-        let state = State::<P>::new(
+        let store = Store::open(&store_path).context("opening Store")?;
+        let state = State::new(
             signer,
             validator_set.clone(),
             address,
@@ -203,7 +262,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
         let (errors_tx, errors_rx) = mpsc::unbounded_channel();
         let externalities_for_task = Arc::clone(&externalities);
         let app_handle = tokio::spawn(async move {
-            if let Err(e) = app::run::<P, EXT>(state, channels, externalities_for_task).await {
+            if let Err(e) = app::run::<EXT>(state, channels, externalities_for_task).await {
                 tracing::error!(target: "ethexe-malachite-core", error = %e, "app task terminated");
                 let _ = errors_tx.send(e);
             }
@@ -213,9 +272,9 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
             errors_rx,
             engine,
             app_handle,
+            wal_path,
             validator_set,
             _externalities: externalities,
-            _phantom: PhantomData,
         })
     }
 
@@ -246,7 +305,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> Stream for MalachiteService<P, EXT> {
+impl<EXT: Externalities> Stream for MalachiteService<EXT> {
     type Item = anyhow::Error;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
@@ -254,13 +313,13 @@ impl<P: BlockPayload, EXT: Externalities<P>> Stream for MalachiteService<P, EXT>
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> FusedStream for MalachiteService<P, EXT> {
+impl<EXT: Externalities> FusedStream for MalachiteService<EXT> {
     fn is_terminated(&self) -> bool {
         self.errors_rx.is_closed()
     }
 }
 
-impl<P: BlockPayload, EXT: Externalities<P>> MService for MalachiteService<P, EXT> {}
+impl<EXT: Externalities> MService for MalachiteService<EXT> {}
 
 fn build_inner_config(cfg: &MalachiteConfig, moniker: &str) -> InnerNodeConfig {
     let transport = TransportProtocol::Tcp;

@@ -44,7 +44,7 @@ use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedCompactPromise},
+    injected::{SignedCompactTxReceipt, SignedInjectedTransaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -64,7 +64,10 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll, time::Duration};
+use std::{
+    collections::HashSet, fmt::Write, num::NonZeroUsize, pin::Pin, sync::Arc, task::Poll,
+    time::Duration,
+};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 /// Default listen port.
@@ -88,7 +91,7 @@ pub enum NetworkEvent {
     /// A validator-signed message from the validator gossipsub topic.
     ValidatorMessage(VerifiedValidatorMessage),
     /// A public promise observed on the promise gossipsub topic.
-    PromiseMessage(SignedCompactPromise),
+    TxReceiptMessage(SignedCompactTxReceipt),
     /// Validator discovery learned or refreshed the network identity of the
     /// given validator address.
     ValidatorIdentityUpdated(Address),
@@ -534,11 +537,11 @@ impl NetworkService {
                             .verify_validator_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Promise(compact_promise) => {
+                    gossipsub::Message::TxReceipt(receipt) => {
                         // FIXME: previous era validators are ignored
-                        let (acceptance, promise) =
-                            self.validator_topic.verify_promise(source, compact_promise);
-                        (acceptance, promise.map(NetworkEvent::PromiseMessage))
+                        let (acceptance, receipt) =
+                            self.validator_topic.verify_receipt(source, receipt);
+                        (acceptance, receipt.map(NetworkEvent::TxReceiptMessage))
                     }
                 })
             }
@@ -628,23 +631,20 @@ impl NetworkService {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
-    /// Send an injected transaction privately to the destination validator.
-    pub fn send_injected_transaction(
+    /// Send an injected transaction privately to all known validators.
+    pub fn broadcast_injected_transaction(
         &mut self,
-        data: AddressedInjectedTransaction,
-    ) -> Result<(), injected::SendTransactionError> {
+        transaction: SignedInjectedTransaction,
+    ) -> Result<NonZeroUsize, injected::SendTransactionError> {
         let behaviour = self.swarm.behaviour_mut();
         behaviour
             .injected
-            .send_transaction(behaviour.validator_discovery.identities(), data)
+            .broadcast_transaction(behaviour.validator_discovery.identities(), transaction)
     }
 
     /// Publish a signed promise to the public promise gossipsub topic.
-    pub fn publish_promise(&mut self, compact_promise: SignedCompactPromise) {
-        self.swarm
-            .behaviour_mut()
-            .gossipsub
-            .publish(compact_promise)
+    pub fn publish_tx_receipt(&mut self, receipt: SignedCompactTxReceipt) {
+        self.swarm.behaviour_mut().gossipsub.publish(receipt)
     }
 }
 

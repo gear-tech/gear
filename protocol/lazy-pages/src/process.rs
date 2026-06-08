@@ -106,6 +106,11 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
                         "Gas limit or allowance exceed, so removes protection from all wasm memory \
                         and continues execution until the end of current wasm block"
                     );
+                    // `ACTIVE_WASM_REGION` is deliberately left untouched here:
+                    // the whole buffer is now unprotected, so no in-region
+                    // fault can occur while the stale region stays set. It is
+                    // refreshed on the next `initialize_for_program` and
+                    // cleared by `unset_lazy_pages_protection`.
                     mprotect::mprotect_interval(wasm_mem_addr, wasm_mem_size, true, true)
                         .map(|_| true)
                 }

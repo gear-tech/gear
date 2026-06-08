@@ -35,7 +35,8 @@
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
-    BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient,
+    BlockClient, CalculateReplyForHandleResult, CodeClient, DevClient, FullProgramState,
+    InjectedClient, ProgramClient,
 };
 
 #[cfg(feature = "server")]
@@ -47,7 +48,7 @@ use apis::{
 };
 #[cfg(feature = "server")]
 use ethexe_common::injected::{
-    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactPromise,
+    InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt, SignedInjectedTransaction,
 };
 #[cfg(feature = "server")]
 use ethexe_db::Database;
@@ -92,7 +93,7 @@ pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
 #[derive(Debug)]
 pub enum RpcEvent {
     InjectedTransaction {
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
 }
@@ -206,8 +207,8 @@ impl RpcService {
         self.injected_api.on_computed_promise(promise);
     }
 
-    pub fn receive_compact_promise(&self, compact_promise: SignedCompactPromise) {
-        self.injected_api.on_compact_promise(compact_promise);
+    pub fn receive_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
+        self.injected_api.on_tx_receipt(receipt);
     }
 }
 

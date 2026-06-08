@@ -5,7 +5,7 @@
 //!
 //! `compute_mb` walks the parent chain via [`CompactMb::parent`], runs any
 //! uncomputed ancestors oldest-first, then the target. DB layout:
-//! `mb_compact_block` (persisted by the service at finalize), `transactions`
+//! `mb_compact_block` (persisted by the service at finalize), `operations`
 //! (CAS payload), `mb_meta` (`computed` flips here), and the per-MB program
 //! states / outcome / schedule rows on success.
 
@@ -15,7 +15,7 @@ use ethexe_common::{
     db::{CodesStorageRW, CompactMb, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
     events::BlockRequestEvent,
     injected::Promise,
-    malachite::{Transaction, Transactions},
+    malachite::{Operation, Operations},
 };
 use ethexe_db::Database;
 use ethexe_processor::{BoundPromiseSink, ExecutableData, ProcessorTransaction};
@@ -220,29 +220,28 @@ pub fn prepare_executable_for_mb(
 ) -> Result<ExecutableData> {
     let CompactMb {
         parent,
-        transactions_hash,
+        operations_hash,
         ..
     } = compact_mb;
 
     let mb_payload = db
-        .transactions(transactions_hash)
+        .operations(operations_hash)
         .ok_or(ComputeError::MbPayloadNotFound {
             mb_hash,
-            payload_hash: transactions_hash,
+            payload_hash: operations_hash,
         })?;
 
-    let (program_states, schedule, initial_advanced_block) = if parent.is_zero() {
-        // Genesis MB has no parent, so start with empty states and the router's genesis block as the anchor.
-        (Default::default(), Default::default(), H256::zero())
-    } else {
-        let states = db
-            .mb_program_states(parent)
-            .ok_or(ComputeError::ParentMbStatesMissing(parent))?;
-        let schedule = db
-            .mb_schedule(parent)
-            .ok_or(ComputeError::ParentMbScheduleMissing(parent))?;
-        (states, schedule, db.mb_meta(parent).last_advanced_eb)
-    };
+    // Read the parent MB's computed state from the DB. The genesis MB's parent
+    // is the zero MB seeded by `initialize_empty_db` (carrying the genesis /
+    // re-genesis state); it is a normal computed record like any other parent,
+    // so no special-casing of the zero parent is needed here.
+    let program_states = db
+        .mb_program_states(parent)
+        .ok_or(ComputeError::ParentMbStatesMissing(parent))?;
+    let schedule = db
+        .mb_schedule(parent)
+        .ok_or(ComputeError::ParentMbScheduleMissing(parent))?;
+    let initial_advanced_block = db.mb_meta(parent).last_advanced_eb;
 
     build_executable_data(
         db,
@@ -253,27 +252,27 @@ pub fn prepare_executable_for_mb(
     )
 }
 
-/// Walk the MB's `Transactions` list and prepare processor input.
+/// Walk the MB's `Operations` list and prepare processor input.
 ///
 /// Synthetic block height/timestamp come from `last_advanced_eb` (the latest
 /// EB pinned by this MB or any ancestor); if none, fall back to the router's
 /// genesis block from [`ConfigStorageRO::config`].
 fn build_executable_data(
     db: &Database,
-    transactions: Transactions,
+    operations: Operations,
     program_states: ethexe_common::ProgramStates,
     schedule: ethexe_common::Schedule,
     initial_advanced_block: H256,
 ) -> Result<ExecutableData> {
-    let mut processor_txs: Vec<ProcessorTransaction> = Vec::with_capacity(transactions.0.len());
+    let mut processor_txs: Vec<ProcessorTransaction> = Vec::with_capacity(operations.0.len());
     let mut current_anchor = initial_advanced_block;
 
-    // Map each MB transaction 1:1 into a `ProcessorTransaction`,
+    // Map each MB operation 1:1 into a `ProcessorTransaction`,
     // preserving order. `AdvanceTillEthereumBlock` is resolved here
     // (compute has DB access) into the concrete events it pins.
-    for tx in transactions.0 {
-        match tx {
-            Transaction::AdvanceTillEthereumBlock { block_hash } => {
+    for op in operations.0 {
+        match op {
+            Operation::AdvanceTillEthereumBlock { block_hash } => {
                 let chain = collect_advance_chain(db, block_hash, current_anchor)?;
                 let mut events: Vec<BlockRequestEvent> = Vec::new();
                 for hash in chain {
@@ -285,14 +284,14 @@ fn build_executable_data(
                 current_anchor = block_hash;
                 processor_txs.push(ProcessorTransaction::EthereumEvents { events });
             }
-            Transaction::Injected(signed) => {
+            Operation::Injected(signed) => {
                 processor_txs.push(ProcessorTransaction::Injected(signed.into_verified()));
             }
-            Transaction::ProgressTasks { limits } => {
-                processor_txs.push(ProcessorTransaction::ProgressTasks { limits });
+            Operation::ProgressTasks => {
+                processor_txs.push(ProcessorTransaction::ProgressTasks);
             }
-            Transaction::ProcessQueues { limits } => {
-                processor_txs.push(ProcessorTransaction::ProcessQueues { limits });
+            Operation::ProcessQueues { gas_allowance } => {
+                processor_txs.push(ProcessorTransaction::ProcessQueues { gas_allowance });
             }
         }
     }
@@ -444,7 +443,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::MockProcessor;
+    use crate::tests::{MockProcessor, proptest_config};
     use ethexe_common::{
         BlockHeader, CodeAndIdUnchecked, DEFAULT_BLOCK_GAS_LIMIT, PrivateKey, SignedMessage,
         db::*,
@@ -454,16 +453,17 @@ mod tests {
             router::ProgramCreatedEvent,
         },
         injected::{InjectedTransaction, SignedInjectedTransaction},
-        malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction},
+        mock::seed_genesis_zero_mb,
     };
     use ethexe_processor::{Processor, ValidCodeInfo};
     use ethexe_runtime_common::RUNTIME_ID;
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::{ActorId, CodeId, MessageId};
+    use proptest::prelude::*;
 
-    fn dummy_txs(db: &Database, tag: u8) -> Transactions {
+    fn dummy_ops(db: &Database, tag: u8) -> Operations {
         // Tag-derived AdvanceTillEthereumBlock makes each block's
-        // transaction list (and thus its CAS hash) unique across heights.
+        // operations list (and thus its CAS hash) unique across heights.
         // The referenced EB also needs a header in the DB so the
         // compute-side advance walk picks it up.
         let eth_block_hash = H256::from_low_u64_be(0xEB00 + tag as u64);
@@ -476,28 +476,26 @@ mod tests {
             },
         );
         db.set_block_events(eth_block_hash, &[]);
-        Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock {
+        Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock {
                 block_hash: eth_block_hash,
             },
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ])
     }
 
     /// Mimics malachite `process_mb_proposal`: CAS write + `CompactMb`.
-    fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, txs: Transactions) {
-        let transactions_hash = db.set_transactions(txs);
+    fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, ops: Operations) {
+        let operations_hash = db.set_operations(ops);
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent,
                 height,
-                transactions_hash,
+                operations_hash,
             },
         );
     }
@@ -509,6 +507,7 @@ mod tests {
         gear_utils::init_default_logger();
 
         let db = Database::memory();
+        seed_genesis_zero_mb(&db);
         let processor = MockProcessor::default();
         let mut sub = ComputeSubService::new(db.clone(), processor);
 
@@ -518,7 +517,7 @@ mod tests {
         let mut parent = H256::zero();
         for i in 1..=N {
             let mb_hash = H256::from_low_u64_be(0x1000 + i);
-            seed_mb(&db, mb_hash, parent, i, dummy_txs(&db, i as u8));
+            seed_mb(&db, mb_hash, parent, i, dummy_ops(&db, i as u8));
             hashes.push((i, mb_hash));
             parent = mb_hash;
         }
@@ -544,6 +543,36 @@ mod tests {
                 db.mb_meta(*hash).computed,
                 "MB at height {i} should be computed"
             );
+        }
+    }
+
+    proptest! {
+        #![proptest_config(proptest_config(64))]
+
+        #[test]
+        fn collect_uncomputed_chain_returns_oldest_first(chain_len in 2u64..=16) {
+            let db = Database::memory();
+            let mut hashes = Vec::with_capacity(chain_len as usize);
+            let mut parent = H256::zero();
+
+            for i in 1..=chain_len {
+                let mb_hash = H256::from_low_u64_be(0xB000 + i);
+                seed_mb(&db, mb_hash, parent, i, dummy_ops(&db, i as u8));
+                hashes.push(mb_hash);
+                parent = mb_hash;
+            }
+
+            db.mutate_mb_meta(hashes[0], |meta| {
+                meta.computed = true;
+            });
+
+            let collected = collect_uncomputed_chain(&db, *hashes.last().unwrap())
+                .unwrap()
+                .into_iter()
+                .map(|(mb_hash, _)| mb_hash)
+                .collect::<Vec<_>>();
+
+            prop_assert_eq!(collected, hashes[1..].to_vec());
         }
     }
 
@@ -601,7 +630,7 @@ mod tests {
         let mut sub = ComputeSubService::new(db.clone(), processor);
 
         let mb_hash = H256::from_low_u64_be(0xCAFE);
-        seed_mb(&db, mb_hash, H256::zero(), 1, dummy_txs(&db, 0));
+        seed_mb(&db, mb_hash, H256::zero(), 1, dummy_ops(&db, 0));
         db.mutate_mb_meta(mb_hash, |meta| {
             meta.computed = true;
         });
@@ -675,15 +704,11 @@ mod tests {
         SignedMessage::create(PrivateKey::random(), tx).expect("failed to sign injected tx")
     }
 
-    fn mb_bookend() -> [Transaction; 2] {
+    fn mb_bookend() -> [Operation; 2] {
         [
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits {
-                    gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-                },
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]
     }
@@ -732,28 +757,28 @@ mod tests {
             ],
         );
         let creator = H256::from_low_u64_be(0x1000);
-        let mut txs = vec![Transaction::AdvanceTillEthereumBlock {
+        let mut ops = vec![Operation::AdvanceTillEthereumBlock {
             block_hash: create_eb,
         }];
-        txs.extend(mb_bookend());
-        seed_mb(db, creator, H256::zero(), 0, Transactions::new(txs));
+        ops.extend(mb_bookend());
+        seed_mb(db, creator, H256::zero(), 0, Operations::new(ops));
         mb_hashes.push(creator);
 
         // MB #1.. — each injects a single PING into the ping program.
         for i in 1..=pinger_count {
             let eb = synthetic_eb(db, i as u8, vec![]);
             let mb_hash = H256::from_low_u64_be(0x1000 + i);
-            let mut txs = vec![
-                Transaction::AdvanceTillEthereumBlock { block_hash: eb },
-                Transaction::Injected(ping_injected(ping_id)),
+            let mut ops = vec![
+                Operation::AdvanceTillEthereumBlock { block_hash: eb },
+                Operation::Injected(ping_injected(ping_id)),
             ];
-            txs.extend(mb_bookend());
+            ops.extend(mb_bookend());
             seed_mb(
                 db,
                 mb_hash,
                 *mb_hashes.last().unwrap(),
                 i,
-                Transactions::new(txs),
+                Operations::new(ops),
             );
             mb_hashes.push(mb_hash);
         }
@@ -769,6 +794,7 @@ mod tests {
         pinger_count: u64,
     ) -> (Vec<H256>, Vec<(H256, Promise)>) {
         let db = Database::memory();
+        seed_genesis_zero_mb(&db);
         let mut processor = Processor::new(db.clone()).expect("failed to create processor");
         let mb_hashes = build_ping_mb_chain(&db, &mut processor, pinger_count).await;
 

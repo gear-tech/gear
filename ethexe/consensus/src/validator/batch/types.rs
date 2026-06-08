@@ -128,7 +128,7 @@ pub enum ValidationRejectReason {
     #[display("batch commitment is empty")]
     EmptyBatch,
     #[display("batch commitment request contains duplicate code ids")]
-    CodesHasDuplicates,
+    CodesHaveDuplicates,
     #[display("code id {_0} is not waiting for commitment")]
     CodeNotWaitingForCommitment(CodeId),
     #[display("code id {_0} is not processed yet")]
@@ -156,7 +156,3 @@ pub enum ValidationRejectReason {
     #[display("batch size exceeded the maximum size limit")]
     BatchSizeLimitExceeded,
 }
-
-#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]
-#[display("Code not found: {_0}")]
-pub struct CodeNotValidatedError(pub CodeId);

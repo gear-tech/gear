@@ -6,7 +6,7 @@
 use crate::{GasInfo, SignedApi, result::Result};
 use gear_core::{
     ids::{ActorId, CodeId, MessageId},
-    rpc::ReplyInfo,
+    rpc::{CalculateReplyForHandleResult, ReplyInfo},
 };
 use gsdk_codegen::at_block;
 use subxt::utils::H256;
@@ -127,6 +127,28 @@ impl SignedApi {
     ) -> Result<ReplyInfo> {
         self.unsigned()
             .calculate_reply_for_handle_at(
+                self.account_id(),
+                destination,
+                payload,
+                gas_limit,
+                value,
+                block_hash,
+            )
+            .await
+    }
+
+    /// Calls `gear_calculateReplyForHandleResult` RPC method at specified block.
+    #[at_block]
+    pub async fn calculate_reply_for_handle_result_at(
+        &self,
+        destination: ActorId,
+        payload: impl AsRef<[u8]>,
+        gas_limit: u64,
+        value: u128,
+        block_hash: Option<H256>,
+    ) -> Result<CalculateReplyForHandleResult> {
+        self.unsigned()
+            .calculate_reply_for_handle_result_at(
                 self.account_id(),
                 destination,
                 payload,

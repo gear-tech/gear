@@ -13,7 +13,7 @@ use gsdk::{AccountKeyring, Api, Error, Result, gear};
 use parity_scale_codec::Encode;
 use std::{process::Command, str::FromStr, time::Instant};
 use subxt::{
-    ext::subxt_rpcs::{Error as SubxtRpcError, UserError},
+    ext::subxt_rpcs::{Error as SubxtRpcError, UserError, rpc_params},
     utils::{AccountId32, H256},
 };
 use tokio::time::{Duration, timeout};
@@ -80,6 +80,51 @@ async fn test_calculate_create_gas() -> Result<()> {
 
     api.create_program_bytes(code_id, vec![], vec![], gas_info.min_limit, 0)
         .await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_read_wasm_custom_section() -> Result<()> {
+    let (_node, api) = dev_node().await;
+
+    let wat_code = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (export "init" (func $init))
+            (func $init)
+            (@custom "sails:idl" "hello idl")
+        )
+    "#;
+    let wasm = wat::parse_str(wat_code).unwrap();
+
+    let upload = api.upload_code(wasm).await?;
+    let upload_block_hash = upload.block_hash;
+    let code_id = upload.value;
+
+    let present = api.read_wasm_custom_section(code_id, "sails:idl").await?;
+    assert_eq!(
+        present.as_ref().map(|bytes| bytes.0.as_slice()),
+        Some(b"hello idl".as_ref())
+    );
+
+    let present_at_upload = api
+        .read_wasm_custom_section_at(code_id, "sails:idl", upload_block_hash)
+        .await?;
+    assert_eq!(
+        present_at_upload.as_ref().map(|bytes| bytes.0.as_slice()),
+        Some(b"hello idl".as_ref())
+    );
+
+    let missing_section = api
+        .read_wasm_custom_section(code_id, "no:such:section")
+        .await?;
+    assert!(missing_section.is_none());
+
+    let unknown_code = api
+        .read_wasm_custom_section(CodeId::from([0u8; 32]), "sails:idl")
+        .await?;
+    assert!(unknown_code.is_none());
 
     Ok(())
 }
@@ -347,6 +392,22 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     let reply_info = api
         .calculate_reply_for_handle(pid, message_in.encode(), 100_000_000_000, 0)
         .await?;
+    let raw_reply_info: serde_json::Value = api
+        .rpc()
+        .request(
+            "gear_calculateReplyForHandle",
+            rpc_params![
+                H256::from_slice(api.account_id().as_ref()),
+                H256(pid.into_bytes()),
+                hex::encode(message_in.encode()),
+                100_000_000_000u64,
+                0
+            ],
+        )
+        .await?;
+    let reply_result = api
+        .calculate_reply_for_handle_result(pid, message_in.encode(), 100_000_000_000, 0)
+        .await?;
 
     // 3. assert
     assert_eq!(
@@ -357,6 +418,18 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
             code: ReplyCode::Success(SuccessReplyReason::Manual)
         }
     );
+    assert_eq!(
+        raw_reply_info,
+        serde_json::json!({
+            "payload": format!("0x{}", hex::encode(message_out.encode())),
+            "value": 0,
+            "code": {
+                "Success": "Manual"
+            }
+        })
+    );
+    assert_eq!(reply_result.reply, reply_info);
+    assert!(reply_result.messages.is_empty());
 
     Ok(())
 }

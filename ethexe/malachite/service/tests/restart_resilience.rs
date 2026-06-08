@@ -18,17 +18,46 @@
 
 use std::{path::Path, sync::Arc, time::Duration};
 
+use async_trait::async_trait;
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
     db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
+    injected::{PurgedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
-    EmptyMempool, MalachiteConfig, MalachiteEvent, MalachiteService, ValidatorEntry,
+    MalachiteConfig, MalachiteEvent, MalachiteService, Mempool, TxInsertionStatus, ValidatorEntry,
 };
 use futures::StreamExt as _;
 use gprimitives::H256;
 use gsigner::{Signer, schemes::secp256k1::Secp256k1};
+
+/// Test-local no-op mempool. The crate's own [`EmptyMempool`] is not part
+/// of the public API on purpose — production should never assemble a
+/// `MalachiteService` around a pool that swallows transactions.
+#[derive(Clone, Default)]
+struct EmptyMempool;
+
+#[async_trait]
+impl Mempool for EmptyMempool {
+    fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
+        TxInsertionStatus::Inserted
+    }
+
+    fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
+        Vec::new()
+    }
+
+    async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+        Vec::new()
+    }
+
+    async fn forget(&self, _committed: &[SignedInjectedTransaction]) {}
+
+    async fn wait_for_new_tx(&self) {
+        std::future::pending().await
+    }
+}
 
 /// Push synthetic linear Ethereum chain headers into the DB and
 /// return blocks oldest-first. Headers are deterministic per `seed`,
@@ -48,6 +77,9 @@ use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 ///   compute service's `prepare_block` pipeline; tests that don't
 ///   run that pipeline must seed it manually.
 fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
+    // The producer builds the genesis MB with `parent == H256::zero()`; seed
+    // that zero ancestor as a computed MB exactly as `initialize_empty_db` does.
+    ethexe_common::mock::seed_genesis_zero_mb(db);
     let mut chain = Vec::with_capacity(len);
     let mut parent = H256::zero();
     for i in 0..len {
@@ -152,6 +184,9 @@ async fn collect_until_finalized(
             }
             Ok(Some(Ok(MalachiteEvent::BlockProposal { .. }))) => {
                 // ignored — the test is keyed on finalized heights
+            }
+            Ok(Some(Ok(MalachiteEvent::PurgedTransactions { .. }))) => {
+                // ignore
             }
             Ok(Some(Err(e))) => panic!("service error: {e}"),
             Ok(None) | Err(_) => break,
@@ -263,12 +298,12 @@ fn assert_chain_contiguous(db: &Database, head: H256, expected_height: u64) {
             "chain height mismatch at {current}: expected {expected}, got {}",
             compact.height
         );
-        // Transactions blob must be reachable too — that's the
+        // Operations blob must be reachable too — that's the
         // contract behind CompactMb existence.
         assert!(
-            db.transactions(compact.transactions_hash).is_some(),
-            "missing transactions blob {} for MB {current}",
-            compact.transactions_hash
+            db.operations(compact.operations_hash).is_some(),
+            "missing operations blob {} for MB {current}",
+            compact.operations_hash
         );
         if expected == 1 {
             assert!(

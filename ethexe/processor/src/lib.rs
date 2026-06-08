@@ -149,8 +149,8 @@ use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
+    gear::Message,
     injected::InjectedTransaction,
-    malachite::{ProcessQueuesLimits, ProgressTasksLimits},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -184,9 +184,6 @@ pub enum ProcessorError {
 
     #[error("code id not found for created program {0}")]
     MissingCodeIdForProgram(ActorId),
-
-    #[error("missing instrumented code for code id {0}")]
-    MissingInstrumentedCodeForProgram(CodeId),
 
     #[error("missing original code for code id {0}")]
     MissingOriginalCodeForProgram(CodeId),
@@ -331,18 +328,15 @@ impl Processor {
                     self.handle_events(transitions, events)?
                 }
                 ProcessorTransaction::Injected(tx) => self.handle_injected(transitions, tx)?,
-                // `ProgressTasksLimits` is an empty placeholder — nothing to thread.
-                ProcessorTransaction::ProgressTasks { limits: _ } => {
-                    self.process_tasks(transitions)
-                }
-                ProcessorTransaction::ProcessQueues { limits } => {
+                ProcessorTransaction::ProgressTasks => self.process_tasks(transitions),
+                ProcessorTransaction::ProcessQueues { gas_allowance } => {
                     // `take` hands the sink to this single (by MB shape)
                     // `ProcessQueues`, leaving `None` for any other.
                     self.process_queues(
                         transitions,
                         height,
                         timestamp,
-                        limits.gas_allowance,
+                        gas_allowance,
                         promise_sink.take(),
                     )
                     .await?
@@ -459,9 +453,9 @@ pub enum ProcessorTransaction {
     /// A signature-verified user transaction from the mempool.
     Injected(VerifiedData<InjectedTransaction>),
     /// Progress scheduled tasks due at the block height.
-    ProgressTasks { limits: ProgressTasksLimits },
+    ProgressTasks,
     /// Drain message queues within the carried gas allowance.
-    ProcessQueues { limits: ProcessQueuesLimits },
+    ProcessQueues { gas_allowance: u64 },
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -497,6 +491,12 @@ pub struct ExecutableDataForReply {
     pub gas_allowance: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecuteForReplyOutcome {
+    pub reply: ReplyInfo,
+    pub messages: Vec<Message>,
+}
+
 #[derive(Clone, derive_more::AsRef, derive_more::AsMut)]
 pub struct OverlaidProcessor(Processor);
 
@@ -504,7 +504,7 @@ impl OverlaidProcessor {
     pub async fn execute_for_reply(
         &mut self,
         executable: ExecutableDataForReply,
-    ) -> Result<ReplyInfo, ExecuteForReplyError> {
+    ) -> Result<ExecuteForReplyOutcome, ExecuteForReplyError> {
         log::debug!("{executable}");
 
         let ExecutableDataForReply {
@@ -517,6 +517,8 @@ impl OverlaidProcessor {
             value,
             gas_allowance,
         } = executable;
+
+        let known_programs = program_states.keys().copied().collect::<Vec<_>>();
 
         let state_hash = program_states
             .get(&program_id)
@@ -564,20 +566,29 @@ impl OverlaidProcessor {
         .run()
         .await?;
 
-        let res = transitions
-            .current_messages()
-            .into_iter()
-            .find_map(|(_, message)| {
-                message.reply_details.and_then(|details| {
-                    (details.to_message_id() == MessageId::zero()).then(|| ReplyInfo {
-                        payload: message.payload,
-                        value: message.value,
-                        code: details.to_reply_code(),
-                    })
-                })
-            })
-            .ok_or(ExecuteForReplyError::ReplyNotFound)?;
+        let mut reply = None;
+        let mut messages = Vec::new();
 
-        Ok(res)
+        for (_, message) in transitions.current_messages() {
+            if let Some(details) = &message.reply_details
+                && details.to_message_id() == MessageId::zero()
+            {
+                reply = Some(ReplyInfo {
+                    payload: message.payload,
+                    value: message.value,
+                    code: details.to_reply_code(),
+                });
+                continue;
+            }
+
+            if !known_programs.contains(&message.destination) {
+                messages.push(message);
+            }
+        }
+
+        Ok(ExecuteForReplyOutcome {
+            reply: reply.ok_or(ExecuteForReplyError::ReplyNotFound)?,
+            messages,
+        })
     }
 }

@@ -22,7 +22,7 @@ use clap::{Parser, Subcommand};
 use ethexe_common::{
     Address, BlockHeader, SimpleBlockData,
     gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
-    injected::{AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE},
+    injected::{InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE, Receipt},
 };
 use ethexe_ethereum::{Ethereum, EthereumBuilder, mirror::ClaimInfo, router::CodeValidationResult};
 use ethexe_rpc::{InjectedClient, ProgramClient};
@@ -1075,12 +1075,9 @@ impl TxCommand {
                         let message_id = injected_transaction.to_message_id();
                         let tx_hash = injected_transaction.to_hash().into();
 
-                        let transaction = AddressedInjectedTransaction {
-                            recipient: Address::default(),
-                            tx: signer
-                                .signed_message(public_key, injected_transaction, None)
-                                .with_context(|| "failed to create signed injected transaction")?,
-                        };
+                        let transaction = signer
+                            .signed_message(public_key, injected_transaction, None)
+                            .with_context(|| "failed to create signed injected transaction")?;
 
                         if !watch {
                             ws_client
@@ -1111,12 +1108,19 @@ impl TxCommand {
                                     || "failed to send injected transaction to Vara.eth RPC",
                                 )?;
 
-                            let promise = subscription
+                            let receipt = subscription
                                 .next()
                                 .await
                                 .ok_or_else(|| anyhow!("no promise received from subscription"))?
                                 .with_context(|| "failed to receive transaction promise")?
-                                .into_data();
+                                .data()
+                                .clone();
+                            let promise = match receipt {
+                                Receipt::Promise(promise) => promise,
+                                Receipt::Purged(err) => {
+                                    bail!("injected transaction was purged: {err}")
+                                }
+                            };
                             let ReplyInfo {
                                 payload,
                                 value,
