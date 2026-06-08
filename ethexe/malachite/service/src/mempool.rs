@@ -935,10 +935,7 @@ mod tests {
         futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
 
         // Sanity: dedup gate is active immediately after forget.
-        assert_eq!(
-            pool.insert(tx.clone()),
-            TxInsertionStatus::AlreadyIncluded,
-        );
+        assert_eq!(pool.insert(tx.clone()), TxInsertionStatus::AlreadyIncluded,);
 
         // Next chain-head advance fires `purge_expired`. With the
         // grace-window fix the seen entry survives — dedup gate
