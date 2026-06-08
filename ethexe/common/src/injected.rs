@@ -7,14 +7,14 @@ use core::hash::Hash;
 use ferveo_tdec::{
     Result as TdecResult,
     bls12_381::{Ciphertext, DkgPublicKey, SharedSecret},
-    rand_traits::Rng,
+    rand_utils::Rng,
 };
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
 use gsigner::Signature;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use sha3::{Digest, Keccak256};
+use sha3::{Digest as _, Keccak256};
 
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
@@ -72,7 +72,7 @@ pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
-    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    #[cfg_attr(feature = "std", serde(with = "limited_vec_hex"))]
     pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
@@ -82,7 +82,7 @@ pub struct InjectedTransaction {
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
-    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    #[cfg_attr(feature = "std", serde(with = "limited_vec_hex"))]
     pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
 }
 
@@ -145,8 +145,8 @@ impl InjectedTransaction {
             value: self.value,
         };
         // AAD is a keccak256 hash over shielded fields
-        let aad = shielded_fields.to_digest().0;
-        let ciphertext = ferveo_tdec::encrypt(&shielded_fields, &aad, public_key, rng)?;
+        let aad = shielded_fields.to_digest();
+        let ciphertext = ferveo_tdec::encrypt(&shielded_fields, aad.as_ref(), public_key, rng)?;
 
         Ok(ShieldedTransaction {
             ciphertext,
@@ -425,13 +425,15 @@ impl ToDigest for ShieldedFields {
 pub struct ShieldedTransaction {
     /// Encrypted fields of initial [InjectedTransaction].
     pub ciphertext: Ciphertext<ShieldedFields>,
-    pub aad: [u8; 32],
+    /// Keccak256 hash over [ShieldedFields].
+    #[cfg_attr(feature = "std", serde(with = "digest_hex"))]
+    pub aad: gsigner::Digest,
     /// Reference block number.
     pub reference_block: H256,
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
-    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    #[cfg_attr(feature = "std", serde(with = "limited_vec_hex"))]
     pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
 }
 
@@ -439,7 +441,8 @@ impl ShieldedTransaction {
     /// Decrypts [Ciphertext] with provided [SharedSecret].
     /// Returns initial [InjectedTransaction].
     pub fn unshield(self, shared_secret: &SharedSecret) -> TdecResult<InjectedTransaction> {
-        let unshielded_fields = ferveo_tdec::decrypt(&self.ciphertext, &self.aad, shared_secret)?;
+        let unshielded_fields =
+            ferveo_tdec::decrypt(&self.ciphertext, self.aad.as_ref(), shared_secret)?;
 
         Ok(InjectedTransaction {
             destination: unshielded_fields.destination,
@@ -453,7 +456,7 @@ impl ShieldedTransaction {
 
 /// Encoding and decoding of [LimitedVec<u8, N>] as hex string.
 #[cfg(feature = "std")]
-mod serde_hex {
+mod limited_vec_hex {
     pub fn serialize<S, const N: usize>(
         data: &super::LimitedVec<u8, N>,
         serializer: S,
@@ -473,6 +476,25 @@ mod serde_hex {
         let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
         super::LimitedVec::<u8, N>::try_from(vec)
             .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
+    }
+}
+
+#[cfg(feature = "std")]
+mod digest_hex {
+    use gsigner::Digest;
+
+    pub fn serialize<S>(digest: &Digest, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        alloy_primitives::hex::serialize(digest.as_ref(), serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Digest, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        alloy_primitives::hex::deserialize::<D, [u8; 32]>(deserializer).map(|array| Digest(array))
     }
 }
 
@@ -630,5 +652,19 @@ mod tests {
         let receipt2 = Receipt::<CompactPromise>::Purged(purged);
 
         assert_eq!(receipt1.to_digest(), receipt2.to_digest());
+    }
+
+    #[test]
+    fn shielded_tx_serde() {
+        let injected_tx = InjectedTransaction::mock(());
+        let mut rng = ferveo_tdec::rand_utils::test_rng();
+        let dealer_out = ferveo_tdec::deal::<ferveo_tdec::bls12_381::E>(3, 2, &mut rng);
+
+        let shielded = injected_tx
+            .shield(&dealer_out.public_key, &mut rng)
+            .unwrap();
+
+        let serde_tx = serde_json::to_string_pretty(&shielded).unwrap();
+        println!("{serde_tx}");
     }
 }
