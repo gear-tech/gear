@@ -8,7 +8,7 @@
 - Run try-runtime against production and development snapshots for the wired
   identity lazy migration and child-bounties v0-to-v1 migration, confirming
   storage versions, cardinality, and weight bounds.
-- Revisit ethexe Malachite once its `libp2p` dependency can coexist with the
-  stable2603 Polkadot SDK graph. The current blocker is the exact
-  `libp2p-swarm-derive` conflict between stable2603 `sc-network` and
-  Malachite's `libp2p` stack.
+- Port the prior ethexe Malachite hardening items on top of the stable2603
+  dependency graph: validator identity/peer gating, bounded stream cleanup,
+  injected transaction caps and duplicate checks, quarantine liveness, and
+  typed-hash audit items.

@@ -89,10 +89,13 @@ In this branch:
 ## Deferred Items
 
 - Evaluate `system_version >= 3` pending-code runtime-upgrade semantics.
-- Re-enable or realign ethexe Malachite integration after resolving the
-  stable2603 `libp2p` version conflict. The concrete resolver blocker is
-  stable2603 `sc-network` pulling `libp2p` 0.54 / `libp2p-swarm` 0.45 while
-  Malachite pulls `libp2p` 0.56 / `libp2p-swarm` 0.47, whose exact
-  `libp2p-swarm-derive` requirements cannot coexist in the same workspace.
+- ethexe Malachite is re-enabled through the Gear compatibility fork at
+  `gear-tech/malachite` commit
+  `c53a7a2b424b5d951de8284529c2e7d36901f3b3`. The fork keeps Malachite on
+  the stable2603 `libp2p` 0.54 / `libp2p-swarm` 0.45 line so the workspace has
+  one `libp2p-swarm-derive` identity.
+- Port prior Malachite hardening work after the stable2603 dependency update:
+  validator identity/peer gating, bounded stream cleanup, injected transaction
+  caps and duplicate checks, quarantine liveness, and typed-hash audit items.
 - Run try-runtime against production and development snapshots before shipping
   the wired identity and child-bounties runtime migrations.
