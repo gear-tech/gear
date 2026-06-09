@@ -39,6 +39,7 @@ macro_rules! impl_pallet_balances_inner {
             type ExistentialDeposit = ExistentialDeposit;
             type AccountStore = System;
             type WeightInfo = ();
+            type DoneSlashHandler = ();
         }
     };
 
@@ -111,6 +112,7 @@ macro_rules! impl_pallet_system_inner {
             type PreInherents = ();
             type PostInherents = ();
             type PostTransactions = ();
+            type ExtensionsWeightInfo = ();
         }
     };
 
@@ -250,8 +252,10 @@ macro_rules! impl_pallet_staking_inner {
 
         impl pallet_staking::Config for Test {
             type Currency = Balances;
+            type OldCurrency = Balances;
             type UnixTime = Timestamp;
             type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
+            type RuntimeHoldReason = RuntimeHoldReason;
             type CurrencyToVote = ();
             type ElectionProvider = StakingConfigElectionProvider;
             type GenesisElectionProvider = StakingConfigGenesisElectionProvider;
@@ -267,16 +271,17 @@ macro_rules! impl_pallet_staking_inner {
             type EraPayout = StakingConfigEraPayout;
             type NextNewSession = StakingConfigNextNewSession;
             type MaxExposurePageSize = MaxExposurePageSize;
+            type MaxValidatorSet = ConstU32<100>;
             type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Self>;
             type TargetList = pallet_staking::UseValidatorsMap<Self>;
             type NominationsQuota = pallet_staking::FixedNominationsQuota<16>;
             type MaxUnlockingChunks = ConstU32<32>;
             type HistoryDepth = HistoryDepth;
             type EventListeners = ();
+            type Filter = frame_support::traits::Nothing;
             type WeightInfo = ();
             type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
             type MaxControllersInDeprecationBatch = MaxControllersInDeprecationBatch;
-            type DisablingStrategy = pallet_staking::UpToLimitDisablingStrategy;
         }
     };
 

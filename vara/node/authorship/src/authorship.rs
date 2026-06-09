@@ -14,10 +14,11 @@ use parity_scale_codec::Encode;
 use sc_block_builder::BlockBuilderApi;
 use sc_telemetry::{CONSENSUS_INFO, TelemetryHandle, telemetry};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool, TxInvalidityReportMap};
-use sp_api::{ApiExt, ApiRef, CallApiAt, ProvideRuntimeApi};
+use sp_api::{ApiExt, ApiRef, CallApiAt, ProofRecorder, ProvideRuntimeApi};
 use sp_blockchain::{ApplyExtrinsicFailed::Validity, Error::ApplyExtrinsicFailed, HeaderBackend};
 use sp_consensus::{Proposal, ProposeArgs};
 use sp_core::traits::SpawnNamed;
+use sp_externalities::Extensions;
 use sp_inherents::InherentData;
 use sp_runtime::{
     Digest, Percent, SaturatedConversion,
@@ -340,11 +341,15 @@ where
             max_duration,
             block_size_limit,
             storage_proof_recorder,
-            extra_extensions: _,
+            extra_extensions,
         } = args;
         let (tx, rx) = oneshot::channel();
         let spawn_handle = self.spawn_handle.clone();
-        let record_proof = PR::ENABLED || storage_proof_recorder.is_some();
+        let proof_recorder = if PR::ENABLED {
+            storage_proof_recorder.or_else(|| Some(Default::default()))
+        } else {
+            storage_proof_recorder
+        };
 
         spawn_handle.spawn_blocking(
             "gear-authorship-proposer",
@@ -358,7 +363,8 @@ where
                         inherent_digests,
                         deadline,
                         block_size_limit,
-                        record_proof,
+                        proof_recorder,
+                        extra_extensions,
                     )
                     .await;
                 if tx.send(res).is_err() {
@@ -391,14 +397,16 @@ where
         inherent_digests: Digest,
         deadline: Instant,
         block_size_limit: Option<usize>,
-        record_proof: bool,
+        proof_recorder: Option<ProofRecorder<Block>>,
+        extra_extensions: Extensions,
     ) -> Result<Proposal<Block>, sp_blockchain::Error> {
         let block_timer = Instant::now();
         let mut block_builder = BlockBuilderBuilder::new(self.client.as_ref())
             .on_parent_block(self.parent_hash)
             .with_parent_block_number(self.parent_number)
-            .with_proof_recording(record_proof)
+            .with_proof_recorder(proof_recorder)
             .with_inherent_digests(inherent_digests)
+            .with_extra_extensions(extra_extensions)
             .build()?;
 
         self.apply_inherents(&mut block_builder, inherent_data)?;

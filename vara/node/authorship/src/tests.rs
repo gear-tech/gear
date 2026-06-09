@@ -23,15 +23,15 @@ use pallet_gear_rpc_runtime_api::GearApi;
 use parity_scale_codec::{Decode, Encode};
 use parking_lot::Mutex;
 use runtime_primitives::{Block as TestBlock, BlockNumber};
-use sc_client_api::Backend as _;
+use sc_client_api::{Backend as _, TrieCacheContext};
 use sc_service::client::Client;
-use sc_transaction_pool::{BasicPool, FullPool};
+use sc_transaction_pool::{BasicPool, FullChainApi};
 use sc_transaction_pool_api::{
     ChainEvent, MaintainedTransactionPool, TransactionPool, TransactionSource,
 };
 use sp_api::{ApiExt, Core, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
-use sp_consensus::{BlockOrigin, Environment, Proposer};
+use sp_consensus::{BlockOrigin, Environment, ProposeArgs, Proposer};
 use sp_consensus_babe::{
     BABE_ENGINE_ID, Slot,
     digests::{PreDigest, SecondaryPlainPreDigest},
@@ -39,16 +39,20 @@ use sp_consensus_babe::{
 use sp_inherents::InherentDataProvider;
 use sp_runtime::{
     Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
-    generic::BlockId,
+    generic::{BlockId, ExtrinsicFormat},
     traits::{Block as BlockT, Header as HeaderT, NumberFor},
 };
 use sp_state_machine::Backend;
 use sp_timestamp::Timestamp;
 use std::{
+    any::{Any, TypeId},
     env, fs,
     ops::Deref,
     path::PathBuf,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::{self, SystemTime, UNIX_EPOCH},
 };
 use testing::{
@@ -62,10 +66,28 @@ use vara_runtime::{
     AccountId, Runtime, RuntimeApi as RA, RuntimeCall, SLOT_DURATION, UncheckedExtrinsic, VERSION,
 };
 
-type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
+type TestPool = BasicPool<FullChainApi<TestClient, TestBlock>, TestBlock>;
+type TestProposal = sp_consensus::Proposal<TestBlock>;
 
 const SOURCE: TransactionSource = TransactionSource::External;
 const DEFAULT_GAS_LIMIT: u64 = 10_000_000_000;
+
+#[derive(Clone)]
+struct CountingExtension(Arc<AtomicUsize>);
+
+impl sp_externalities::Extension for CountingExtension {
+    fn as_mut_any(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<Self>()
+    }
+
+    fn start_transaction(&mut self, _: sp_externalities::TransactionType) {
+        self.0.fetch_add(1, Ordering::SeqCst);
+    }
+}
 
 fn cache_base_path() -> PathBuf {
     static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
@@ -133,11 +155,19 @@ where
 {
     let last_nonce = starting_nonce + n;
     (starting_nonce..last_nonce)
-        .map(|nonce| CheckedExtrinsic {
-            signed: Some((signer.clone(), signed_extra(nonce))),
-            function: f(),
-        })
+        .map(|nonce| signed_checked_extrinsic(f(), signer.clone(), nonce))
         .collect()
+}
+
+fn signed_checked_extrinsic(
+    function: RuntimeCall,
+    signer: AccountId,
+    nonce: u32,
+) -> CheckedExtrinsic {
+    CheckedExtrinsic {
+        format: ExtrinsicFormat::Signed(signer, signed_extra(nonce)),
+        function,
+    }
 }
 
 fn sign_extrinsics<E>(
@@ -238,7 +268,7 @@ pub(crate) fn init_logger() {
 pub fn init() -> (
     Arc<TestClient>,
     Arc<TestBackend>,
-    Arc<FullPool<TestBlock, TestClient>>,
+    Arc<TestPool>,
     sp_core::testing::TaskExecutor,
     [u8; 32],
 ) {
@@ -265,7 +295,7 @@ pub fn init() -> (
 
     let genesis_hash =
         <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
-    (client, backend, txpool, spawner, genesis_hash)
+    (client, backend, txpool.into(), spawner, genesis_hash)
 }
 
 pub fn create_proposal<A>(
@@ -301,9 +331,13 @@ where
     let inherent_data =
         block_on(timestamp_provider.create_inherent_data()).expect("Create inherent data failed");
 
-    let proposal =
-        block_on(proposer.propose(inherent_data, pre_digest(time_slot, 0), deadline, None))
-            .unwrap();
+    let proposal = block_on(proposer.propose(ProposeArgs {
+        inherent_data,
+        inherent_digests: pre_digest(time_slot, 0),
+        max_duration: deadline,
+        ..Default::default()
+    }))
+    .unwrap();
 
     // Import last block
     block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
@@ -370,10 +404,11 @@ fn test_queue_remains_intact_if_processing_fails() {
     let nonce = 5_u32; // Bob's nonce for the future
 
     // Disable queue processing in Gear pallet as the root
-    checked.push(CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(0))),
-        function: CallBuilder::toggle_run_queue(false).build(),
-    });
+    checked.push(signed_checked_extrinsic(
+        CallBuilder::toggle_run_queue(false).build(),
+        alice(),
+        0,
+    ));
     let extrinsics = sign_extrinsics(
         checked,
         VERSION.spec_version,
@@ -415,7 +450,9 @@ fn test_queue_remains_intact_if_processing_fails() {
     let best_hash = block.hash();
 
     // Ensure message queue still has 5 messages
-    let state = backend.state_at(best_hash).unwrap();
+    let state = backend
+        .state_at(best_hash, TrieCacheContext::Untrusted)
+        .unwrap();
     let queue_entry_prefix = storage_prefix(
         pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
         "Dispatches".as_bytes(),
@@ -459,7 +496,9 @@ fn test_queue_remains_intact_if_processing_fails() {
 
     let best_hash = block.hash();
 
-    let state = backend.state_at(best_hash).unwrap();
+    let state = backend
+        .state_at(best_hash, TrieCacheContext::Untrusted)
+        .unwrap();
     // Ensure message queue has not been drained again, and now has 8 messages
     let mut queue_len = 0_u32;
     let mut queue_entry_args = IterArgs::default();
@@ -551,7 +590,9 @@ fn test_block_max_gas_works() {
     // All extrinsics have been included in the block: 1 inherent + 5 normal + 1 terminal
     assert_eq!(block.extrinsics().len(), 7);
 
-    let state = backend.state_at(block.hash()).unwrap();
+    let state = backend
+        .state_at(block.hash(), TrieCacheContext::Untrusted)
+        .unwrap();
     // Ensure message queue still has 5 messages as none of the messages fit into the gas allowance
     let queue_entry_prefix = storage_prefix(
         pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
@@ -595,14 +636,13 @@ fn test_pseudo_inherent_discarded_from_txpool() {
 
     // Create Gear::run() extrinsic - both unsigned and signed
     let unsigned_gear_run_xt =
-        UncheckedExtrinsic::new_unsigned(RuntimeCall::Gear(pallet_gear::Call::run {
-            max_gas: None,
-        }));
+        UncheckedExtrinsic::new_bare(RuntimeCall::Gear(pallet_gear::Call::run { max_gas: None }));
     let signed_gear_run_xt = sign(
-        CheckedExtrinsic {
-            signed: Some((bob(), signed_extra(0))),
-            function: RuntimeCall::Gear(pallet_gear::Call::run { max_gas: None }),
-        },
+        signed_checked_extrinsic(
+            RuntimeCall::Gear(pallet_gear::Call::run { max_gas: None }),
+            bob(),
+            0,
+        ),
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
@@ -610,10 +650,7 @@ fn test_pseudo_inherent_discarded_from_txpool() {
     );
     // A `DispatchClass::Normal` extrinsic - supposed to end up in the txpool
     let legit_xt = sign(
-        CheckedExtrinsic {
-            signed: Some((alice(), signed_extra(0))),
-            function: CallBuilder::noop().build(),
-        },
+        signed_checked_extrinsic(CallBuilder::noop().build(), alice(), 0),
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
@@ -727,10 +764,11 @@ fn test_proposal_timing_consistent() {
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
     // Disable queue processing in block #1
-    let mut checked = vec![CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(0))),
-        function: CallBuilder::toggle_run_queue(false).build(),
-    }];
+    let mut checked = vec![signed_checked_extrinsic(
+        CallBuilder::toggle_run_queue(false).build(),
+        alice(),
+        0,
+    )];
 
     // Creating a bunch of extrinsics that will put N time-consuming init messages
     // to the message queue. The number of extrinsics should better allow all of
@@ -766,7 +804,9 @@ fn test_proposal_timing_consistent() {
     )
     .block;
 
-    let state = backend.state_at(block.hash()).unwrap();
+    let state = backend
+        .state_at(block.hash(), TrieCacheContext::Untrusted)
+        .unwrap();
 
     let queue_entry_prefix = storage_prefix(
         pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
@@ -780,10 +820,11 @@ fn test_proposal_timing_consistent() {
     // Preparing block #2
     // Re-enable queue processing in block #2
     let extrinsics = sign_extrinsics(
-        vec![CheckedExtrinsic {
-            signed: Some((alice(), signed_extra(1))),
-            function: CallBuilder::toggle_run_queue(true).build(),
-        }],
+        vec![signed_checked_extrinsic(
+            CallBuilder::toggle_run_queue(true).build(),
+            alice(),
+            1,
+        )],
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
@@ -825,7 +866,9 @@ fn test_proposal_timing_consistent() {
     )
     .block;
 
-    let state = backend.state_at(block.hash()).unwrap();
+    let state = backend
+        .state_at(block.hash(), TrieCacheContext::Untrusted)
+        .unwrap();
 
     // Check that the message queue has all messages pushed to it
     let queue_entry_prefix = storage_prefix(
@@ -864,7 +907,9 @@ fn test_proposal_timing_consistent() {
     )
     .block;
 
-    let state = backend.state_at(block.hash()).unwrap();
+    let state = backend
+        .state_at(block.hash(), TrieCacheContext::Untrusted)
+        .unwrap();
 
     let mut queue_entry_args = IterArgs::default();
     queue_entry_args.prefix = Some(&queue_entry_prefix);
@@ -910,10 +955,11 @@ mod basic_tests {
         E: From<UncheckedExtrinsic> + Clone,
     {
         sign_extrinsics::<E>(
-            vec![CheckedExtrinsic {
-                signed: Some((alice(), signed_extra(nonce))),
-                function: CallBuilder::toggle_run_queue(false).build(),
-            }],
+            vec![signed_checked_extrinsic(
+                CallBuilder::toggle_run_queue(false).build(),
+                alice(),
+                nonce,
+            )],
             VERSION.spec_version,
             VERSION.transaction_version,
             genesis_hash,
@@ -1038,9 +1084,12 @@ mod basic_tests {
 
         let api = client.runtime_api();
         let genesis_hash = genesis_hash.into();
-        api.execute_block(genesis_hash, proposal.block).unwrap();
+        api.execute_block(genesis_hash, proposal.block.into())
+            .unwrap();
 
-        let state = backend.state_at(genesis_hash).unwrap();
+        let state = backend
+            .state_at(genesis_hash, TrieCacheContext::Untrusted)
+            .unwrap();
 
         let storage_changes = api.into_storage_changes(&state, genesis_hash).unwrap();
 
@@ -1175,12 +1224,13 @@ mod basic_tests {
         let inherent_data = block_on(timestamp_provider.create_inherent_data())
             .expect("Create inherent data failed");
 
-        let block = block_on(proposer.propose(
-            inherent_data.clone(),
-            pre_digest(time_slot, 0),
-            deadline,
-            Some(block_limit),
-        ))
+        let block = block_on(proposer.propose(ProposeArgs {
+            inherent_data: inherent_data.clone(),
+            inherent_digests: pre_digest(time_slot, 0),
+            max_duration: deadline,
+            block_size_limit: Some(block_limit),
+            ..Default::default()
+        }))
         .map(|r| r.block)
         .unwrap();
 
@@ -1190,12 +1240,12 @@ mod basic_tests {
 
         let proposer = block_on(proposer_factory.init(&genesis_header)).unwrap();
 
-        let block = block_on(proposer.propose(
-            inherent_data.clone(),
-            pre_digest(time_slot, 0),
-            deadline,
-            None,
-        ))
+        let block = block_on(proposer.propose(ProposeArgs {
+            inherent_data: inherent_data.clone(),
+            inherent_digests: pre_digest(time_slot, 0),
+            max_duration: deadline,
+            ..Default::default()
+        }))
         .map(|r| r.block)
         .unwrap();
 
@@ -1214,12 +1264,13 @@ mod basic_tests {
         let proposer = block_on(proposer_factory.init(&genesis_header)).unwrap();
 
         // Give it enough time
-        let block = block_on(proposer.propose(
+        let block = block_on(proposer.propose(ProposeArgs {
             inherent_data,
-            pre_digest(time_slot, 0),
-            deadline,
-            Some(block_limit),
-        ))
+            inherent_digests: pre_digest(time_slot, 0),
+            max_duration: deadline,
+            block_size_limit: Some(block_limit),
+            ..Default::default()
+        }))
         .map(|r| r.block)
         .unwrap();
 
@@ -1227,6 +1278,55 @@ mod basic_tests {
         // block size and thus, we fit in the block one ordinary extrinsic less as opposed to
         // `extrinsics_num - 1` extrinsics we could fit earlier (mind the inherents, as usually).
         assert_eq!(block.extrinsics().len(), extrinsics_num - 2 + 2);
+    }
+
+    #[test]
+    fn test_proposer_forwards_proof_recorder_and_extra_extensions() {
+        init_logger();
+        let (client, _, txpool, spawner, _) = init();
+
+        let block_id = BlockId::number(0);
+        let genesis_header = client
+            .header(client.block_hash_from_id(&block_id).unwrap().unwrap())
+            .expect("header get error")
+            .expect("there should be header");
+
+        let mut proposer_factory = ProposerFactory::new(
+            spawner.clone(),
+            client.clone(),
+            txpool.clone(),
+            None,
+            None,
+            None,
+        );
+        let proposer = block_on(proposer_factory.init(&genesis_header)).unwrap();
+
+        let deadline = time::Duration::from_secs(300_000);
+        let timestamp = Timestamp::current();
+        let timestamp_provider = sp_timestamp::InherentDataProvider::new(timestamp);
+        let time_slot = timestamp.as_millis() / SLOT_DURATION;
+        let inherent_data = block_on(timestamp_provider.create_inherent_data())
+            .expect("Create inherent data failed");
+
+        let proof_recorder = sp_api::ProofRecorder::<TestBlock>::default();
+        let extension_transactions = Arc::new(AtomicUsize::new(0));
+        let mut extra_extensions = sp_externalities::Extensions::default();
+        extra_extensions.register(CountingExtension(extension_transactions.clone()));
+
+        let block = block_on(proposer.propose(ProposeArgs {
+            inherent_data,
+            inherent_digests: pre_digest(time_slot, 0),
+            max_duration: deadline,
+            storage_proof_recorder: Some(proof_recorder.clone()),
+            extra_extensions,
+            ..Default::default()
+        }))
+        .map(|r| r.block)
+        .unwrap();
+
+        assert!(!block.extrinsics().is_empty());
+        assert!(proof_recorder.drain_storage_proof().encoded_size() > 0);
+        assert!(extension_transactions.load(Ordering::SeqCst) > 0);
     }
 
     #[test]
