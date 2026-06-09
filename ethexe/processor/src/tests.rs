@@ -1504,16 +1504,19 @@ async fn overlay_execution_returns_messages_sent_to_users() {
     let block2 = chain.blocks[2].to_simple();
     let mut overlaid_processor = processor.clone().overlaid();
     let reply_result = overlaid_processor
-        .execute_for_reply(ExecutableDataForReply {
-            height: block2.header.height,
-            timestamp: block2.header.timestamp,
-            program_states: states,
-            source: user_id,
-            program_id: actor_id,
-            payload: b"PING".to_vec(),
-            value: 0,
-            gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-        }, None)
+        .execute_for_reply(
+            ExecutableDataForReply {
+                height: block2.header.height,
+                timestamp: block2.header.timestamp,
+                program_states: states,
+                source: user_id,
+                program_id: actor_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+            },
+            None,
+        )
         .await
         .unwrap();
 
