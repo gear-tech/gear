@@ -2,7 +2,7 @@
 name = "ethexe-rpc"
 description = "JSON-RPC server and client APIs for ethexe"
 documentation = "https://docs.rs/ethexe-rpc"
-version = "0.1.0"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
