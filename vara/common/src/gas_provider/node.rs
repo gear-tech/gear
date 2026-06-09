@@ -8,7 +8,7 @@ use gear_core::ids::ReservationId;
 use scale_decode::DecodeAsType;
 use scale_encode::EncodeAsType;
 use sp_runtime::{
-    codec::{self, MaxEncodedLen},
+    codec::{self, DecodeWithMemTracking, MaxEncodedLen},
     scale_info,
     traits::Zero,
 };
@@ -27,6 +27,7 @@ use sp_runtime::{
     EncodeAsType,
     Decode,
     DecodeAsType,
+    DecodeWithMemTracking,
     TypeInfo,
 )]
 #[codec(crate = codec)]
@@ -77,7 +78,19 @@ impl<T> From<ReservationId> for GasNodeId<T, ReservationId> {
     }
 }
 
-#[derive(Clone, Copy, Decode, Encode, Debug, Default, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
+#[derive(
+    Clone,
+    Copy,
+    Decode,
+    DecodeWithMemTracking,
+    Encode,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    TypeInfo,
+    MaxEncodedLen,
+)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub struct NodeLock<Balance>([Balance; cardinality::<LockId>()]);
@@ -132,7 +145,9 @@ impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
 }
 
 /// Node of the ['Tree'] gas tree
-#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
+#[derive(
+    Clone, Decode, DecodeWithMemTracking, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq,
+)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone, Funds> {
@@ -204,7 +219,19 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone, Funds> {
 }
 
 /// Children references convenience struct
-#[derive(Clone, Copy, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
+#[derive(
+    Clone,
+    Copy,
+    Default,
+    Decode,
+    DecodeWithMemTracking,
+    Debug,
+    Encode,
+    MaxEncodedLen,
+    TypeInfo,
+    PartialEq,
+    Eq,
+)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub struct ChildrenRefs {

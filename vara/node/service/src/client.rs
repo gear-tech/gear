@@ -186,6 +186,7 @@ macro_rules! with_client {
         match $self {
             #[cfg(feature = "vara-native")]
             Self::Vara($client) => { $( $code )* },
+            Self::Unsupported => panic!("native runtime support is not enabled"),
         }
     }
 }
@@ -195,6 +196,7 @@ macro_rules! with_client {
 pub enum Client {
     #[cfg(feature = "vara-native")]
     Vara(Arc<crate::FullClient<vara_runtime::RuntimeApi>>),
+    Unsupported,
 }
 
 #[cfg(feature = "vara-native")]

@@ -39,8 +39,9 @@ mod tests;
 use frame_support::{
     PalletId,
     traits::{
-        Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced, WithdrawReasons,
-        fungible,
+        Contains, Get, Imbalance, OnUnbalanced,
+        fungible::{self, Balanced, Inspect, Mutate},
+        tokens::Preservation,
     },
     weights::Weight,
 };
@@ -60,12 +61,8 @@ pub use weights::WeightInfo;
 
 pub type BalanceOf<T> = <T as pallet_staking::Config>::CurrencyBalance;
 pub type CurrencyOf<T> = <T as pallet_staking::Config>::Currency;
-pub type PositiveImbalanceOf<T> = <<T as pallet_staking::Config>::Currency as Currency<
-    <T as frame_system::Config>::AccountId,
->>::PositiveImbalance;
-pub type NegativeImbalanceOf<T> = <<T as pallet_staking::Config>::Currency as Currency<
-    <T as frame_system::Config>::AccountId,
->>::NegativeImbalance;
+pub type PositiveImbalanceOf<T> = fungible::Debt<AccountIdOf<T>, CurrencyOf<T>>;
+pub type NegativeImbalanceOf<T> = fungible::Credit<AccountIdOf<T>, CurrencyOf<T>>;
 type AccountIdLookupOf<T> = <<T as frame_system::Config>::Lookup as StaticLookup>::Source;
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 
@@ -180,14 +177,14 @@ pub mod pallet {
             let amount = self
                 .pool_balance
                 .saturating_add(T::Currency::minimum_balance());
-            if T::Currency::free_balance(&account_id) < amount {
+            if T::Currency::balance(&account_id) < amount {
                 // Set the staking rewards pool account balance to the initial value.
                 // Dropping the resulting imbalance as the funds are minted out of thin air.
-                let _ = T::Currency::make_free_balance_be(&account_id, amount);
+                let _ = T::Currency::set_balance(&account_id, amount);
             }
 
             // create account for the rent pool
-            let _ = T::Currency::make_free_balance_be(
+            let _ = T::Currency::set_balance(
                 &Pallet::<T>::rent_pool_account_id(),
                 T::Currency::minimum_balance(),
             );
@@ -254,7 +251,7 @@ pub mod pallet {
                 &who,
                 &Self::account_id(),
                 value,
-                ExistenceRequirement::AllowDeath,
+                Preservation::Expendable,
             )
             .map_err(|e| {
                 log::error!("Failed to replenish the staking rewards pool: {e:?}");
@@ -278,7 +275,7 @@ pub mod pallet {
                 &from,
                 &Self::account_id(),
                 value,
-                ExistenceRequirement::AllowDeath,
+                Preservation::Expendable,
             )
             .map_err(|e| {
                 log::error!("Failed to replenish the staking rewards pool: {e:?}");
@@ -302,7 +299,7 @@ pub mod pallet {
                 &Self::account_id(),
                 &to,
                 value,
-                ExistenceRequirement::AllowDeath,
+                Preservation::Expendable,
             )
             .map_err(|e| {
                 log::error!("Failed to withdraw funds from the staking rewards pool: {e:?}");
@@ -358,7 +355,7 @@ pub mod pallet {
         /// Return the amount in the staking rewards pool.
         // The existential deposit is not a part of the pool so rewards account never gets deleted.
         pub fn pool() -> BalanceOf<T> {
-            T::Currency::free_balance(&Self::account_id())
+            T::Currency::balance(&Self::account_id())
                 // Must never be less than 0 but better be safe.
                 .saturating_sub(T::Currency::minimum_balance())
         }
@@ -410,7 +407,7 @@ pub mod pallet {
         /// Return the amount in the rent pool.
         // The existential deposit is not a part of the pool so the account never gets deleted.
         pub fn rent_pool_balance() -> BalanceOf<T> {
-            T::Currency::free_balance(&Self::rent_pool_account_id())
+            T::Currency::balance(&Self::rent_pool_account_id())
                 // Must never be less than 0 but better be safe.
                 .saturating_sub(T::Currency::minimum_balance())
         }
@@ -433,13 +430,16 @@ fn pay_rent_rewards_out<T: Config>(maybe_active_era_info: Option<ActiveEraInfo>)
     for (account_id, points) in reward_points.individual {
         let payout = funds.saturating_mul(u128::from(points)) / total;
         if payout > 0 {
-            CurrencyOf::<T>::transfer(
+            if let Err(e) = CurrencyOf::<T>::transfer(
                 &pallet::Pallet::<T>::rent_pool_account_id(),
                 &account_id,
                 payout.unique_saturated_into(),
-                ExistenceRequirement::KeepAlive,
-            )
-            .unwrap_or_else(|e| log::error!("Failed to transfer rent reward: {e:?}; account_id = {account_id:#?}, points = {points}, payout = {payout}"));
+                Preservation::Preserve,
+            ) {
+                log::error!(
+                    "Failed to transfer rent reward: {e:?}; account_id = {account_id:#?}, points = {points}, payout = {payout}"
+                );
+            }
         }
     }
 }
@@ -474,15 +474,9 @@ impl<T: Config> OnUnbalanced<PositiveImbalanceOf<T>> for Pallet<T> {
     fn on_nonzero_unbalanced(minted: PositiveImbalanceOf<T>) {
         let amount = minted.peek();
 
-        if let Ok(burned) = T::Currency::withdraw(
-            &Self::account_id(),
-            amount,
-            WithdrawReasons::TRANSFER,
-            ExistenceRequirement::KeepAlive,
-        ) {
+        if T::Currency::settle(&Self::account_id(), minted, Preservation::Preserve).is_ok() {
             // Offsetting rewards against rewards pool until the latter is not depleted.
-            // After that the positive imbalance is dropped adding up to the total supply.
-            let _ = minted.offset(burned);
+            // After that the imbalance is dropped according to the currency implementation.
 
             Self::deposit_event(Event::Burned { amount });
         } else {
@@ -501,11 +495,12 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for OffsetPool<T> {
         let numeric_amount = amount.peek();
 
         // Should resolve into existing but resolving with creation is a safer bet anyway
-        T::Currency::resolve_creating(&Pallet::<T>::account_id(), amount);
-
-        Pallet::deposit_event(Event::<T>::Minted {
-            amount: numeric_amount,
-        });
+        match T::Currency::resolve(&Pallet::<T>::account_id(), amount) {
+            Ok(()) => Pallet::deposit_event(Event::<T>::Minted {
+                amount: numeric_amount,
+            }),
+            Err(amount) => log::error!("Balanced::resolve() err: {:?}", amount.peek()),
+        }
     }
 }
 
@@ -549,12 +544,8 @@ where
         // Try to burn the respective amount from the staking rewards pool and drop
         // the output to offset the total issuance increase which should have taken place
         // somewhere upstream when the incoming negative imbalance `amount` was created
-        let _ = T::Currency::withdraw(
-            &Pallet::<T>::account_id(),
-            numeric_amount,
-            WithdrawReasons::TRANSFER,
-            ExistenceRequirement::KeepAlive,
-        );
+        let debt = T::Currency::rescind(numeric_amount);
+        let _ = T::Currency::settle(&Pallet::<T>::account_id(), debt, Preservation::Preserve);
 
         U::on_unbalanced(amount);
     }

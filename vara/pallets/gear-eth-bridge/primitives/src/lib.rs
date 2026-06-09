@@ -13,9 +13,114 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use binary_merkle_tree::MerkleProof;
-use gprimitives::{ActorId, H160, H256, U256};
-use parity_scale_codec::{Decode, Encode};
+use gprimitives::{ActorId, U256};
+use parity_scale_codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
+
+/// Ethereum address used by the bridge.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    TypeInfo,
+    MaxEncodedLen,
+)]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+pub struct H160(gprimitives::H160);
+
+impl DecodeWithMemTracking for H160 {}
+
+impl H160 {
+    /// Zero address.
+    pub fn zero() -> Self {
+        Self(gprimitives::H160::zero())
+    }
+
+    /// Returns bytes of the address.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl From<gprimitives::H160> for H160 {
+    fn from(value: gprimitives::H160) -> Self {
+        Self(value)
+    }
+}
+
+impl From<H160> for gprimitives::H160 {
+    fn from(value: H160) -> Self {
+        value.0
+    }
+}
+
+/// Ethereum/Gear bridge hash.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    TypeInfo,
+    MaxEncodedLen,
+)]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+pub struct H256(gprimitives::H256);
+
+impl DecodeWithMemTracking for H256 {}
+
+impl H256 {
+    /// Zero hash.
+    pub fn zero() -> Self {
+        Self(gprimitives::H256::zero())
+    }
+
+    /// Returns the hash as bytes.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    /// Returns the underlying fixed-size byte array.
+    pub fn to_fixed_bytes(self) -> [u8; 32] {
+        self.0.to_fixed_bytes()
+    }
+}
+
+impl AsRef<[u8]> for H256 {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl From<gprimitives::H256> for H256 {
+    fn from(value: gprimitives::H256) -> Self {
+        Self(value)
+    }
+}
+
+impl From<H256> for gprimitives::H256 {
+    fn from(value: H256) -> Self {
+        value.0
+    }
+}
+
+impl From<[u8; 32]> for H256 {
+    fn from(value: [u8; 32]) -> Self {
+        Self(value.into())
+    }
+}
 
 /// Type representing merkle proof of message's inclusion into bridging queue.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
@@ -33,14 +138,16 @@ pub struct Proof {
     pub leaf: H256,
 }
 
-impl From<MerkleProof<H256, H256>> for Proof {
-    fn from(value: MerkleProof<H256, H256>) -> Self {
+impl DecodeWithMemTracking for Proof {}
+
+impl From<MerkleProof<gprimitives::H256, gprimitives::H256>> for Proof {
+    fn from(value: MerkleProof<gprimitives::H256, gprimitives::H256>) -> Self {
         Self {
-            root: value.root,
-            proof: value.proof,
+            root: value.root.into(),
+            proof: value.proof.into_iter().map(Into::into).collect(),
             number_of_leaves: value.number_of_leaves as u64,
             leaf_index: value.leaf_index as u64,
-            leaf: value.leaf,
+            leaf: value.leaf.into(),
         }
     }
 }
@@ -53,6 +160,8 @@ pub struct EthMessage {
     destination: H160,
     payload: Vec<u8>,
 }
+
+impl DecodeWithMemTracking for EthMessage {}
 
 impl EthMessage {
     /// Creates a new [`EthMessage`] with unchecked parameters.

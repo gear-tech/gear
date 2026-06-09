@@ -16,7 +16,10 @@ use gear_core::{
 use gear_lazy_pages_common::{GlobalsAccessConfig, Status};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime_interface::{
-    pass_by::{Codec, PassBy},
+    pass_by::{
+        AllocateAndReturnByCodec, PassFatPointerAndDecode, PassFatPointerAndDecodeSlice,
+        PassFatPointerAndRead, PassFatPointerAndReadWrite,
+    },
     runtime_interface,
 };
 use sp_std::{result::Result, vec::Vec};
@@ -54,10 +57,6 @@ pub struct LazyPagesProgramContext {
     pub globals_config: GlobalsAccessConfig,
     /// Lazy-pages access costs.
     pub costs: Vec<u64>,
-}
-
-impl PassBy for LazyPagesProgramContext {
-    type PassBy = Codec<LazyPagesProgramContext>;
 }
 
 #[derive(Debug, Clone, Encode, Decode)]
@@ -99,10 +98,6 @@ impl From<LazyPagesInitContext> for gear_lazy_pages_common::LazyPagesInitContext
     }
 }
 
-impl PassBy for LazyPagesInitContext {
-    type PassBy = Codec<LazyPagesInitContext>;
-}
-
 #[cfg(feature = "std")]
 #[derive(Debug, Default)]
 struct SpIoProgramStorage;
@@ -130,26 +125,34 @@ pub enum ProcessAccessErrorVer1 {
 #[runtime_interface]
 pub trait GearRI {
     #[version(2)]
-    fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
-        let mut gas_counter = u64::from_le_bytes(*gas_bytes);
+    fn pre_process_memory_accesses(
+        reads: PassFatPointerAndRead<&[u8]>,
+        writes: PassFatPointerAndRead<&[u8]>,
+        gas_bytes: PassFatPointerAndReadWrite<&mut [u8]>,
+    ) -> u8 {
+        let mut gas_counter = u64::from_le_bytes(
+            gas_bytes
+                .try_into()
+                .expect("gas counter must be encoded as 8 bytes"),
+        );
         let res = lazy_pages_detail::pre_process_memory_accesses(reads, writes, &mut gas_counter);
         gas_bytes.copy_from_slice(&gas_counter.to_le_bytes());
         res
     }
 
-    fn lazy_pages_status() -> (Status,) {
+    fn lazy_pages_status() -> AllocateAndReturnByCodec<(Status,)> {
         lazy_pages_detail::lazy_pages_status()
     }
 
     /// Init lazy-pages.
     /// Returns whether initialization was successful.
-    fn init_lazy_pages(ctx: LazyPagesInitContext) -> bool {
+    fn init_lazy_pages(ctx: PassFatPointerAndDecode<LazyPagesInitContext>) -> bool {
         lazy_pages_detail::init_lazy_pages(ctx)
     }
 
     /// Init lazy pages context for current program.
     /// Panic if some goes wrong during initialization.
-    fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
+    fn init_lazy_pages_for_program(ctx: PassFatPointerAndDecode<LazyPagesProgramContext>) {
         lazy_pages_detail::init_lazy_pages_for_program(ctx)
     }
 
@@ -160,20 +163,23 @@ pub trait GearRI {
         lazy_pages_detail::mprotect_lazy_pages(protect)
     }
 
-    fn change_wasm_memory_addr_and_size(addr: Option<HostPointer>, size: Option<u32>) {
+    fn change_wasm_memory_addr_and_size(
+        addr: PassFatPointerAndDecode<Option<HostPointer>>,
+        size: PassFatPointerAndDecode<Option<u32>>,
+    ) {
         lazy_pages_detail::change_wasm_memory_addr_and_size(addr, size)
     }
 
-    fn write_accessed_pages() -> Vec<u32> {
+    fn write_accessed_pages() -> AllocateAndReturnByCodec<Vec<u32>> {
         lazy_pages_detail::write_accessed_pages()
     }
 
     /* Below goes deprecated runtime interface functions. */
     fn pre_process_memory_accesses(
-        reads: &[MemoryInterval],
-        writes: &[MemoryInterval],
-        gas_left: (GasLeft,),
-    ) -> (GasLeft, Result<(), ProcessAccessErrorVer1>) {
+        reads: PassFatPointerAndDecodeSlice<&[MemoryInterval]>,
+        writes: PassFatPointerAndDecodeSlice<&[MemoryInterval]>,
+        gas_left: PassFatPointerAndDecode<(GasLeft,)>,
+    ) -> AllocateAndReturnByCodec<(GasLeft, Result<(), ProcessAccessErrorVer1>)> {
         let mut gas_left = gas_left.0;
         let gas_before = gas_left.gas;
         let res = gear_lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left.gas);
@@ -297,18 +303,18 @@ pub mod lazy_pages_detail {
 /// this interface allows to do it partially.
 #[runtime_interface]
 pub trait GearDebug {
-    fn println(msg: &[u8]) {
+    fn println(msg: PassFatPointerAndRead<&[u8]>) {
         println!("{}", sp_std::str::from_utf8(msg).unwrap());
     }
 
-    fn file_write(path: &str, data: Vec<u8>) {
+    fn file_write(path: PassFatPointerAndRead<&str>, data: PassFatPointerAndRead<Vec<u8>>) {
         use std::{fs::File, io::Write};
 
         let mut file = File::create(path).unwrap();
         file.write_all(&data).unwrap();
     }
 
-    fn file_read(path: &str) -> Vec<u8> {
+    fn file_read(path: PassFatPointerAndRead<&str>) -> AllocateAndReturnByCodec<Vec<u8>> {
         use std::{fs::File, io::Read};
 
         let mut file = File::open(path).unwrap();
@@ -317,7 +323,7 @@ pub trait GearDebug {
         data
     }
 
-    fn time_in_nanos() -> u128 {
+    fn time_in_nanos() -> AllocateAndReturnByCodec<u128> {
         use std::time::SystemTime;
 
         SystemTime::now()
@@ -332,13 +338,17 @@ pub trait GearBls12_381 {
     /// Aggregate provided G1-points. Useful for cases with hundreds or more items.
     /// Accepts scale-encoded `ArkScale<Vec<G1Projective>>`.
     /// Result is scale-encoded `ArkScale<G1Projective>`.
-    fn aggregate_g1(points: Vec<u8>) -> Result<Vec<u8>, u32> {
+    fn aggregate_g1(
+        points: PassFatPointerAndRead<Vec<u8>>,
+    ) -> AllocateAndReturnByCodec<Result<Vec<u8>, u32>> {
         Bls12_381OpsLowLevel::aggregate_g1(points).map_err(|e| e.as_u32())
     }
 
     /// Map a message to G2Affine-point using the domain separation tag from `milagro_bls`.
     /// Result is encoded `ArkScale<G2Affine>`.
-    fn map_to_g2affine(message: Vec<u8>) -> Result<Vec<u8>, u32> {
+    fn map_to_g2affine(
+        message: PassFatPointerAndRead<Vec<u8>>,
+    ) -> AllocateAndReturnByCodec<Result<Vec<u8>, u32>> {
         Bls12_381OpsLowLevel::map_to_g2affine(message).map_err(|e| e.as_u32())
     }
 }

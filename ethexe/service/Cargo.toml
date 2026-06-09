@@ -19,7 +19,6 @@ ethexe-observer.workspace = true
 ethexe-blob-loader.workspace = true
 ethexe-processor.workspace = true
 ethexe-consensus.workspace = true
-ethexe-malachite.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common = { workspace = true, features = ["std", "mock"] }
 ethexe-runtime-common.workspace = true

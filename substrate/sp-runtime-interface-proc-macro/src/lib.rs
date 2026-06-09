@@ -18,24 +18,15 @@
 //! This crate provides procedural macros for usage within the context of the Substrate runtime
 //! interface.
 //!
-//! The following macros are provided:
-//!
-//! 1. The [`#[runtime_interface]`](attr.runtime_interface.html) attribute macro for generating the
-//!    runtime interfaces.
-//! 2. The [`PassByCodec`](derive.PassByCodec.html) derive macro for implementing `PassBy` with
-//!    `Codec`.
-//! 3. The [`PassByEnum`](derive.PassByInner.html) derive macro for implementing `PassBy` with
-//!    `Enum`.
-//! 4. The [`PassByInner`](derive.PassByInner.html) derive macro for implementing `PassBy` with
-//!    `Inner`.
+//! It provides the [`#[runtime_interface]`](attr.runtime_interface.html) attribute macro
+//! for generating the runtime interfaces.
 
 use syn::{
-    DeriveInput, ItemTrait, Result, Token,
+    ItemTrait, Result, Token,
     parse::{Parse, ParseStream},
     parse_macro_input,
 };
 
-mod pass_by;
 mod runtime_interface;
 mod utils;
 
@@ -88,30 +79,6 @@ pub fn runtime_interface(
     let (wasm_only, tracing) = parse_macro_input!(attrs as Options).unpack();
 
     runtime_interface::runtime_interface_impl(trait_def, wasm_only, tracing)
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
-
-#[proc_macro_derive(PassByCodec)]
-pub fn pass_by_codec(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    pass_by::codec_derive_impl(input)
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
-
-#[proc_macro_derive(PassByInner)]
-pub fn pass_by_inner(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    pass_by::inner_derive_impl(input)
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
-
-#[proc_macro_derive(PassByEnum)]
-pub fn pass_by_enum(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    pass_by::enum_derive_impl(input)
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }

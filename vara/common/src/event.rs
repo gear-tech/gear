@@ -8,7 +8,7 @@
 
 use gear_core::{env::MessageWaitedType, ids::MessageId};
 use sp_runtime::{
-    codec::{self, Decode, Encode},
+    codec::{self, Decode, DecodeWithMemTracking, Encode},
     scale_info::{self, TypeInfo},
 };
 
@@ -16,7 +16,7 @@ use sp_runtime::{
 ///
 /// Same as `gear_core::message::DispatchKind`,
 /// but with additional info about reply.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[derive(Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum MessageEntry {
@@ -31,7 +31,7 @@ pub enum MessageEntry {
 }
 
 /// Status of dispatch dequeue and execution.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[derive(Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum DispatchStatus {
@@ -67,7 +67,7 @@ pub trait SystemReason: Sized {
 impl SystemReason for () {}
 
 /// Composite reason type for any action happened on chain.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[derive(Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum Reason<R: RuntimeReason, S: SystemReason> {
@@ -84,7 +84,9 @@ pub enum Reason<R: RuntimeReason, S: SystemReason> {
 }
 
 /// Runtime reason for messages waiting.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
+#[derive(
+    Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo, RuntimeReason,
+)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum MessageWaitedRuntimeReason {
@@ -112,7 +114,9 @@ impl From<MessageWaitedType> for MessageWaitedRuntimeReason {
 }
 
 /// System reason for messages waiting.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
+#[derive(
+    Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo, SystemReason,
+)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum MessageWaitedSystemReason {}
@@ -121,7 +125,9 @@ pub enum MessageWaitedSystemReason {}
 pub type MessageWaitedReason = Reason<MessageWaitedRuntimeReason, MessageWaitedSystemReason>;
 
 /// Runtime reason for messages waking.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
+#[derive(
+    Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo, RuntimeReason,
+)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum MessageWokenRuntimeReason {
@@ -130,7 +136,9 @@ pub enum MessageWokenRuntimeReason {
 }
 
 /// System reason for messages waking.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
+#[derive(
+    Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo, SystemReason,
+)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum MessageWokenSystemReason {
@@ -149,7 +157,7 @@ pub enum MessageWokenSystemReason {
 pub type MessageWokenReason = Reason<MessageWokenRuntimeReason, MessageWokenSystemReason>;
 
 /// Type of changes applied to code in storage.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[derive(Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum CodeChangeKind<BlockNumber> {
@@ -170,7 +178,9 @@ pub enum CodeChangeKind<BlockNumber> {
 }
 
 /// Runtime reason for messages reading from `Mailbox`.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
+#[derive(
+    Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo, RuntimeReason,
+)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum UserMessageReadRuntimeReason {
@@ -181,7 +191,9 @@ pub enum UserMessageReadRuntimeReason {
 }
 
 /// System reason for messages reading from `Mailbox`.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
+#[derive(
+    Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo, SystemReason,
+)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum UserMessageReadSystemReason {
@@ -193,7 +205,7 @@ pub enum UserMessageReadSystemReason {
 pub type UserMessageReadReason = Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>;
 
 /// Type of changes applied to program in storage.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[derive(Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum ProgramChangeKind<BlockNumber> {

@@ -1,6 +1,6 @@
 # Gear-maintained Polkadot SDK crates
 
-This directory contains selected Polkadot SDK crates copied into the Gear workspace from Polkadot SDK `stable2409`, source reference [`298f676c91d64f15f38ea7fd78f125c5889ab09c`](https://github.com/paritytech/polkadot-sdk/tree/298f676c91d64f15f38ea7fd78f125c5889ab09c), plus Gear-local compatibility crates needed to isolate the remaining fork delta.
+This directory contains selected Polkadot SDK crates copied into the Gear workspace and refreshed for Polkadot SDK `polkadot-stable2603-3`, source reference [`e3737178ec726cffe506c907263aaaa417893fd0`](https://github.com/paritytech/polkadot-sdk/tree/e3737178ec726cffe506c907263aaaa417893fd0), plus Gear-local compatibility crates needed to isolate the remaining fork delta.
 
 Copied crates are modified under the terms of their upstream open-source licenses. Original SPDX headers and upstream copyright notices remain in the copied source files; original copyright ownership remains with the upstream rightsholders as indicated there, including Parity Technologies where present. Gear maintains local changes to isolate the remaining fork delta while the rest of the workspace depends on upstream Polkadot SDK.
 
@@ -17,6 +17,9 @@ Local Cargo package names intentionally stay compatible with upstream package na
 | `substrate/runtime-executor/wasmtime` | `sc-executor-wasmtime` | `gsc-executor-wasmtime` | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/runtime-executor` | `sc-executor` | not published by Gear | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/substrate-wasm-builder` | `substrate-wasm-builder` | `gsubstrate-wasm-builder` | Apache-2.0 |
+
+`sc-mixnet` is no longer copied locally. Gear resolves it from upstream
+Polkadot SDK `polkadot-stable2603-3`.
 
 ## Gear Compatibility Crates
 

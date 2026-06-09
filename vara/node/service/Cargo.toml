@@ -65,7 +65,7 @@ sc-sysinfo.workspace = true
 sp-core = { workspace = true, features = ["std"] }
 sp-crypto-ec-utils = { workspace = true, features = ["std", "bls12-381"] }
 sp-api = { workspace = true, features = ["std"] }
-sp-authority-discovery = { workspace = true, optional = true, features = ["std"] }
+sp-authority-discovery = { workspace = true, features = ["std"] }
 sp-consensus.workspace = true
 sp-consensus-babe = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
@@ -101,7 +101,6 @@ gear-workspace-hack.workspace = true
 [features]
 vara-native = [
 	"vara-runtime",
-	"sp-authority-discovery"
 ]
 runtime-benchmarks = [
  	"frame-benchmarking/runtime-benchmarks",

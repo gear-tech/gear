@@ -15,7 +15,7 @@
 
 pub use builtin::Actor;
 pub use pallet::*;
-pub use pallet_gear_eth_bridge_primitives::{EthMessage, Proof};
+pub use pallet_gear_eth_bridge_primitives::{EthMessage, H160, H256, Proof};
 pub use weights::WeightInfo;
 
 /// Pallet migrations.
@@ -57,7 +57,7 @@ pub mod pallet {
         ensure_root, ensure_signed,
         pallet_prelude::{BlockNumberFor, OriginFor},
     };
-    use gprimitives::{H160, H256, U256};
+    use gprimitives::U256;
     use sp_runtime::{
         BoundToRuntimeAppPublic,
         traits::{Keccak256, Zero},
@@ -442,7 +442,10 @@ pub mod pallet {
 
             // Generating proof.
             let idx = u32::try_from(idx).expect("queue index fits into u32");
-            let proof = binary_merkle_tree::merkle_proof_raw::<Keccak256, _>(queue, idx);
+            let proof = binary_merkle_tree::merkle_proof_raw::<Keccak256, _>(
+                queue.iter().copied().map(Into::<gprimitives::H256>::into),
+                idx,
+            );
 
             // Returning appropriate type.
             Some(proof.into())

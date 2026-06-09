@@ -1,6 +1,6 @@
 [package]
 name = "sc-executor-wasmtime"
-version = "0.35.0"
+version = "0.44.0"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -24,10 +24,16 @@ parking_lot = { workspace = true, default-features = true }
 # When bumping wasmtime do not forget to also bump rustix
 # to exactly the same version as used by wasmtime!
 wasmtime = { features = [
+	"addr2line",
 	"cache",
 	"cranelift",
+	"demangle",
+	"gc",
+	"gc-null",
 	"parallel-compilation",
 	"pooling-allocator",
+	"profiling",
+	"threads",
 ], workspace = true }
 sp-allocator.workspace = true
 sp-allocator.default-features = true

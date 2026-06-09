@@ -11,7 +11,7 @@ use crate::{
 };
 use core::ops::Deref;
 use gear_core_errors::ReplyCode;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, DecodeWithMemTracking, Encode};
 use scale_decode::DecodeAsType;
 use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
@@ -20,7 +20,17 @@ use scale_info::TypeInfo;
 ///
 /// Gasless Message for storing.
 #[derive(
-    Clone, Debug, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    Decode,
+    DecodeAsType,
+    DecodeWithMemTracking,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
 )]
 pub struct StoredMessage {
     /// Message id.
@@ -145,7 +155,17 @@ impl StoredMessage {
 
 /// Stored message with entry point and previous execution context, if exists.
 #[derive(
-    Clone, Debug, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    Decode,
+    DecodeAsType,
+    DecodeWithMemTracking,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
 )]
 pub struct StoredDispatch {
     /// Entry point.
@@ -222,7 +242,17 @@ impl From<StoredDelayedDispatch> for StoredDispatch {
 /// but delayed messages always don't have [`ContextStore`]
 /// so we designate this fact via new type.
 #[derive(
-    Clone, Debug, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    Decode,
+    DecodeAsType,
+    DecodeWithMemTracking,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
 )]
 pub struct StoredDelayedDispatch {
     /// Entry point.

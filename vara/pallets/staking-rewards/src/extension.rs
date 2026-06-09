@@ -2,62 +2,70 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::Config;
-use frame_support::{dispatch::DispatchInfo, traits::Contains};
+use frame_support::{dispatch::DispatchInfo, traits::Contains, weights::Weight};
 use scale_info::TypeInfo;
 use sp_runtime::{
-    codec::{Decode, Encode},
-    traits::{DispatchInfoOf, Dispatchable, SignedExtension},
-    transaction_validity::{InvalidTransaction, TransactionValidity, TransactionValidityError},
+    codec::{Decode, DecodeWithMemTracking, Encode},
+    traits::{DispatchInfoOf, Dispatchable, Implication, TransactionExtension},
+    transaction_validity::{
+        InvalidTransaction, TransactionSource, TransactionValidityError, ValidTransaction,
+    },
 };
 
 /// Filter `Staking::bond()` extrinsic sent from accounts that are not allowed to stake.
 ///
 /// This will remain until all locked tokens for accounts in question are fully vested.
-#[derive(Encode, Decode, Clone, Eq, PartialEq, Default, TypeInfo)]
+#[derive(Encode, Decode, DecodeWithMemTracking, Clone, Eq, PartialEq, Default, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct StakingBlackList<T: Config>(sp_std::marker::PhantomData<T>);
 
 impl<T: Config + Send + Sync> StakingBlackList<T> {
-    /// Creates new `SignedExtension` to check the call validity.
+    /// Creates new transaction extension to check the call validity.
     pub fn new() -> Self {
         Self(Default::default())
     }
 }
 
-impl<T: Config + Send + Sync> SignedExtension for StakingBlackList<T>
+impl<T: Config + Send + Sync> TransactionExtension<T::RuntimeCall> for StakingBlackList<T>
 where
-    T::RuntimeCall: Dispatchable<Info = DispatchInfo>,
+    T::RuntimeOrigin: Clone,
+    T::RuntimeCall: Dispatchable<Info = DispatchInfo, RuntimeOrigin = T::RuntimeOrigin>,
 {
     const IDENTIFIER: &'static str = "StakingBlackList";
-    type AccountId = T::AccountId;
-    type Call = T::RuntimeCall;
-    type AdditionalSigned = ();
+    type Implicit = ();
+    type Val = ();
     type Pre = ();
-    fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
-        Ok(())
+
+    fn weight(&self, _: &T::RuntimeCall) -> Weight {
+        Weight::zero()
     }
+
     fn validate(
         &self,
-        from: &Self::AccountId,
-        call: &Self::Call,
-        _: &DispatchInfoOf<Self::Call>,
+        origin: T::RuntimeOrigin,
+        call: &T::RuntimeCall,
+        _: &DispatchInfoOf<T::RuntimeCall>,
         _: usize,
-    ) -> TransactionValidity {
+        _: Self::Implicit,
+        _: &impl Implication,
+        _: TransactionSource,
+    ) -> Result<(ValidTransaction, Self::Val, T::RuntimeOrigin), TransactionValidityError> {
         if T::BondCallFilter::contains(call) {
-            if T::AccountFilter::contains(from) {
-                Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
-            } else {
-                Ok(Default::default())
+            if let Ok(from) = frame_system::ensure_signed(origin.clone()) {
+                if T::AccountFilter::contains(&from) {
+                    return Err(TransactionValidityError::Invalid(InvalidTransaction::Call));
+                }
             }
-        } else {
-            Ok(Default::default())
         }
+        Ok((Default::default(), (), origin))
     }
-    fn pre_dispatch(
+
+    fn prepare(
         self,
-        _: &Self::AccountId,
-        _: &Self::Call,
-        _: &DispatchInfoOf<Self::Call>,
+        _: Self::Val,
+        _: &T::RuntimeOrigin,
+        _: &T::RuntimeCall,
+        _: &DispatchInfoOf<T::RuntimeCall>,
         _: usize,
     ) -> Result<Self::Pre, TransactionValidityError> {
         Ok(())

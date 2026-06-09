@@ -11,7 +11,6 @@ use crate::{
 use alloc::{format, string::String};
 use gear_sandbox_env::WasmReturnValue;
 use gear_sandbox_interface::sandbox;
-use sp_core::RuntimeDebug;
 use sp_std::{marker, mem, prelude::*, rc::Rc, slice, vec};
 use sp_wasm_interface_common::HostPointer;
 
@@ -41,7 +40,7 @@ mod ffi {
 
 pub trait AsContext {}
 
-#[derive(RuntimeDebug)]
+#[derive(Debug)]
 pub struct Store<T>(T);
 
 impl<T> SandboxStore for Store<T> {

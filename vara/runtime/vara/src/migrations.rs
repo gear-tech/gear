@@ -2,6 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::Runtime;
+use frame_support::{parameter_types, weights::Weight};
+
+parameter_types! {
+    pub ChildBountiesMigrationTransferWeight: Weight =
+        <<Runtime as pallet_balances::Config>::WeightInfo as pallet_balances::WeightInfo>::transfer_allow_death()
+            .saturating_add(<Runtime as frame_system::Config>::DbWeight::get().reads(1));
+}
 
 /// All migrations that will run on the next runtime upgrade for dev chain.
 #[cfg(feature = "dev")]
@@ -9,15 +16,17 @@ pub type Migrations = (
     pallet_gear_eth_bridge::migrations::set_hash::Migration<Runtime>,
     // migrate to v3 of the Gear Scheduler with removal of program pause tasks
     pallet_gear_scheduler::migrations::v3_remove_program_pause_tasks::MigrateRemoveProgramPauseTasks<Runtime>,
+    pallet_child_bounties::migration::MigrateV0ToV1<Runtime, ChildBountiesMigrationTransferWeight>,
 );
 
 /// All migrations that will run on the next runtime upgrade for prod chain.
 #[cfg(not(feature = "dev"))]
 pub type Migrations = (
     pallet_gear_eth_bridge::migrations::set_hash::Migration<Runtime>,
-	LockEdForBuiltin<crate::GearEthBridgeBuiltinAddress>,
-	// migrate to v3 of the Gear Scheduler with removal of program pause tasks
+    LockEdForBuiltin<crate::GearEthBridgeBuiltinAddress>,
+    // migrate to v3 of the Gear Scheduler with removal of program pause tasks
     pallet_gear_scheduler::migrations::v3_remove_program_pause_tasks::MigrateRemoveProgramPauseTasks<Runtime>,
+    pallet_child_bounties::migration::MigrateV0ToV1<Runtime, ChildBountiesMigrationTransferWeight>,
 );
 
 /// This migration is used to top up the ED for the builtin actor from the treasury,

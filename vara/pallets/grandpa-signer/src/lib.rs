@@ -8,13 +8,13 @@ use frame_support::{
 };
 use frame_system::{
     ensure_root,
-    offchain::{SendTransactionTypes, SubmitTransaction},
+    offchain::{CreateBare, SubmitTransaction},
     pallet_prelude::*,
 };
 use log::{debug, trace};
 use sp_core::ed25519;
 use sp_runtime::{
-    RuntimeDebug, Saturating,
+    Saturating,
     traits::{SaturatedConversion, Verify},
     transaction_validity::{
         InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
@@ -44,7 +44,7 @@ pub const KEY_TYPE: sp_core::crypto::KeyTypeId = sp_consensus_grandpa::KEY_TYPE;
 pub mod pallet {
     use super::*;
 
-    #[derive(Clone, PartialEq, Eq, Encode, Decode, TypeInfo, MaxEncodedLen, RuntimeDebug)]
+    #[derive(Clone, PartialEq, Eq, Encode, Decode, TypeInfo, MaxEncodedLen, Debug)]
     #[scale_info(skip_type_params(T))]
     pub struct SigningRequest<T: Config> {
         pub id: RequestId,
@@ -54,9 +54,17 @@ pub mod pallet {
         pub expires_at: Option<BlockNumberFor<T>>,
     }
 
-    #[derive(RuntimeDebug)]
     struct SubmissionContext<T: Config> {
         request: SigningRequest<T>,
+    }
+
+    impl<T: Config> sp_std::fmt::Debug for SubmissionContext<T> {
+        fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+            f.debug_struct("SubmissionContext")
+                .field("request_id", &self.request.id)
+                .field("set_id", &self.request.set_id)
+                .finish()
+        }
     }
 
     #[pallet::pallet]
@@ -436,7 +444,7 @@ pub mod pallet {
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
     where
-        T: SendTransactionTypes<Call<T>>,
+        T: CreateBare<Call<T>>,
         T::AuthorityId: From<ed25519::Public>,
         T::AuthoritySignature: From<ed25519::Signature>,
     {
@@ -507,9 +515,8 @@ pub mod pallet {
                             authority,
                             signature,
                         };
-                        match SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(
-                            call.into(),
-                        ) {
+                        let xt = T::create_bare(call.into());
+                        match SubmitTransaction::<T, Call<T>>::submit_transaction(xt) {
                             Ok(()) => {
                                 submissions = submissions.saturating_add(1);
                                 submitted = true;

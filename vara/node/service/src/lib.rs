@@ -28,6 +28,7 @@ pub use client::*;
 pub use sc_client_api::AuxStore;
 use sc_consensus_babe::{self, SlotProportion};
 pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
+use sp_consensus_babe::inherents::BabeCreateInherentDataProviders;
 
 #[cfg(feature = "vara-native")]
 pub use vara_runtime;
@@ -58,7 +59,16 @@ type FullGrandpaBlockImport<RuntimeApi, ChainSelection = FullSelectChain> =
     >;
 
 /// The transaction pool type definition.
-type TransactionPool<RuntimeApi> = sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi>>;
+type TransactionPool<RuntimeApi> =
+    sc_transaction_pool::TransactionPoolHandle<Block, FullClient<RuntimeApi>>;
+
+type FullBabeBlockImport<RuntimeApi> = sc_consensus_babe::BabeBlockImport<
+    Block,
+    FullClient<RuntimeApi>,
+    FullGrandpaBlockImport<RuntimeApi>,
+    BabeCreateInherentDataProviders<Block>,
+    FullSelectChain,
+>;
 
 /// The minimum period of blocks on which justifications will be
 /// imported and generated.
@@ -130,18 +140,14 @@ pub fn new_partial<RuntimeApi>(
         FullBackend,
         FullSelectChain,
         sc_consensus::DefaultImportQueue<Block>,
-        sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi>>,
+        TransactionPool<RuntimeApi>,
         (
             impl Fn(
                 sc_rpc::SubscriptionTaskExecutor,
             ) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error>
             + use<RuntimeApi>,
             (
-                sc_consensus_babe::BabeBlockImport<
-                    Block,
-                    FullClient<RuntimeApi>,
-                    FullGrandpaBlockImport<RuntimeApi>,
-                >,
+                FullBabeBlockImport<RuntimeApi>,
                 sc_consensus_grandpa::LinkHalf<Block, FullClient<RuntimeApi>, FullSelectChain>,
                 sc_consensus_babe::BabeLink<Block>,
             ),
@@ -188,6 +194,7 @@ where
             config,
             telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
             executor,
+            vec![Arc::new(sc_consensus_grandpa::GrandpaPruningFilter)],
         )?;
     let client = Arc::new(client);
 
@@ -200,12 +207,15 @@ where
 
     let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
-    let transaction_pool = sc_transaction_pool::BasicPool::new_full(
-        config.transaction_pool.clone(),
-        config.role.is_authority().into(),
-        config.prometheus_registry(),
-        task_manager.spawn_essential_handle(),
-        client.clone(),
+    let transaction_pool = Arc::from(
+        sc_transaction_pool::Builder::new(
+            task_manager.spawn_essential_handle(),
+            client.clone(),
+            config.role.is_authority().into(),
+        )
+        .with_options(config.transaction_pool.clone())
+        .with_prometheus(config.prometheus_registry())
+        .build(),
     );
 
     let (grandpa_block_import, grandpa_link) = sc_consensus_grandpa::block_import(
@@ -217,37 +227,37 @@ where
     )?;
     let justification_import = grandpa_block_import.clone();
 
+    let babe_config = sc_consensus_babe::configuration(&*client)?;
+    let slot_duration = babe_config.slot_duration();
     let (block_import, babe_link) = sc_consensus_babe::block_import(
-        sc_consensus_babe::configuration(&*client)?,
+        babe_config,
         grandpa_block_import,
         client.clone(),
-    )?;
+        Arc::new(move |_, ()| async move {
+            let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-    let slot_duration = babe_link.config().slot_duration();
-    let (import_queue, babe_worker_handle) = sc_consensus_babe::import_queue(
-        sc_consensus_babe::ImportQueueParams {
-            link: babe_link.clone(),
-            block_import: block_import.clone(),
-            justification_import: Some(Box::new(justification_import)),
-            client: client.clone(),
-            select_chain: select_chain.clone(),
-            create_inherent_data_providers: move |_, ()| async move {
-                let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-                let slot =
+            let slot =
                 sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
                     *timestamp,
                     slot_duration,
                 );
 
-                Ok((slot, timestamp))
-            },
+            Ok((slot, timestamp))
+        }) as BabeCreateInherentDataProviders<Block>,
+        select_chain.clone(),
+        OffchainTransactionPoolFactory::new(transaction_pool.clone()),
+    )?;
+    let (import_queue, babe_worker_handle) =
+        sc_consensus_babe::import_queue(sc_consensus_babe::ImportQueueParams {
+            link: babe_link.clone(),
+            block_import: block_import.clone(),
+            justification_import: Some(Box::new(justification_import)),
+            client: client.clone(),
+            slot_duration,
             spawner: &task_manager.spawn_essential_handle(),
             registry: config.prometheus_registry(),
             telemetry: telemetry.as_ref().map(|x| x.handle()),
-            offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
-        },
-    )?;
+        })?;
 
     let import_setup = (block_import, grandpa_link, babe_link);
 
@@ -344,11 +354,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>, RuntimeA
     config: Configuration,
     disable_hardware_benchmarks: bool,
     with_startup_data: impl FnOnce(
-        &sc_consensus_babe::BabeBlockImport<
-            Block,
-            FullClient<RuntimeApi>,
-            FullGrandpaBlockImport<RuntimeApi>,
-        >,
+        &FullBabeBlockImport<RuntimeApi>,
         &sc_consensus_babe::BabeLink<Block>,
     ),
     max_gas: Option<u64>,
@@ -418,13 +424,14 @@ where
         Vec::default(),
     ));
 
-    let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
+    let (network, system_rpc_tx, tx_handler_controller, sync_service) =
         sc_service::build_network(sc_service::BuildNetworkParams {
             config: &config,
             net_config,
             client: client.clone(),
             transaction_pool: transaction_pool.clone(),
             spawn_handle: task_manager.spawn_handle(),
+            spawn_essential_handle: task_manager.spawn_essential_handle(),
             import_queue,
             block_announce_validator_builder: None,
             warp_sync_config: Some(WarpSyncConfig::WithProvider(warp_sync)),
@@ -454,6 +461,7 @@ where
         tx_handler_controller,
         sync_service: sync_service.clone(),
         telemetry: telemetry.as_mut(),
+        tracing_execute_block: None,
     })?;
 
     if let Some(hwbench) = hwbench {
@@ -516,6 +524,7 @@ where
                         sp_transaction_storage_proof::registration::new_data_provider(
                             &*client_clone,
                             &parent,
+                            Default::default(),
                         )?;
 
                     Ok((slot, timestamp, storage_proof))
@@ -567,6 +576,7 @@ where
                 Box::pin(dht_event_stream),
                 authority_discovery_role,
                 prometheus_registry.clone(),
+                task_manager.spawn_handle(),
             );
 
         task_manager.spawn_handle().spawn(
@@ -639,13 +649,12 @@ where
                 network_provider: Arc::new(network.clone()),
                 enable_http_requests: true,
                 custom_extensions: |_| vec![],
-            })
+            })?
             .run(client.clone(), task_manager.spawn_handle())
             .boxed(),
         );
     }
 
-    network_starter.start_network();
     Ok(NewFullBase {
         task_manager,
         client,

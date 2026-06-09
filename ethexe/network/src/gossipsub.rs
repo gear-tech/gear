@@ -73,7 +73,7 @@ impl MessageValidator {
             &propagation_source,
             acceptance,
         );
-        debug_assert!(validated);
+        debug_assert!(validated.unwrap_or(false));
         message
     }
 }
@@ -123,12 +123,13 @@ impl Behaviour {
             .validate_messages()
             .build()
             .map_err(|e| anyhow!("`gossipsub::ConfigBuilder::build()` error: {e}"))?;
-        let mut inner = gossipsub::Behaviour::new(MessageAuthenticity::Signed(keypair), inner)
-            .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?
-            .with_metrics(
-                registry.sub_registry_with_prefix("libp2p_gossipsub"),
-                MetricsConfig::default(),
-            );
+        let mut inner = gossipsub::Behaviour::new_with_metrics(
+            MessageAuthenticity::Signed(keypair),
+            inner,
+            registry.sub_registry_with_prefix("libp2p_gossipsub"),
+            MetricsConfig::default(),
+        )
+        .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
         inner
             .with_peer_score(PeerScoreParams::default(), PeerScoreThresholds::default())
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
@@ -189,7 +190,7 @@ impl Behaviour {
                             &propagation_source,
                             MessageAcceptance::Reject,
                         );
-                        debug_assert!(validated);
+                        debug_assert!(validated.unwrap_or(false));
                         self.peer_score.invalid_data(source);
                         return Poll::Pending;
                     }
@@ -213,14 +214,6 @@ impl Behaviour {
             } => Poll::Pending,
             gossipsub::Event::GossipsubNotSupported { peer_id } => {
                 log::trace!("peer doesn't support gossipsub: {peer_id}");
-                Poll::Pending
-            }
-            gossipsub::Event::SlowPeer {
-                peer_id,
-                failed_messages: _,
-            } => {
-                // TODO: consider to score peer
-                log::trace!("SlowPeer received {peer_id}");
                 Poll::Pending
             }
         }
@@ -310,7 +303,7 @@ impl NetworkBehaviour for Behaviour {
                 Ok(_msg_id) => {
                     let _ = self.message_queue.pop_front().expect("checked above");
                 }
-                Err(PublishError::NoPeersSubscribedToTopic) => break,
+                Err(PublishError::InsufficientPeers) => break,
                 Err(error) => {
                     let message = self.message_queue.pop_front().expect("checked above");
                     return Poll::Ready(ToSwarm::GenerateEvent(Event::PublishFailure {

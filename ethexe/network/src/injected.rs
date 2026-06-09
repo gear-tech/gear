@@ -188,11 +188,14 @@ impl Behaviour {
         }
 
         for (recipient, identity) in recipients {
-            let id = self.inner.send_request_with_addresses(
-                &identity.peer_id(),
-                InnerRequest(transaction.clone()),
-                identity.addresses().iter().cloned().collect(),
-            );
+            let peer_id = identity.peer_id();
+            for address in identity.addresses() {
+                self.inner.add_address(&peer_id, address.clone());
+            }
+
+            let id = self
+                .inner
+                .send_request(&peer_id, InnerRequest(transaction.clone()));
             self.pending_requests.insert(id, tx_hash);
 
             self.transaction_cache
@@ -210,7 +213,6 @@ impl Behaviour {
         match event {
             request_response::Event::Message {
                 peer,
-                connection_id: _,
                 message:
                     Message::Request {
                         request_id: _,
@@ -235,7 +237,6 @@ impl Behaviour {
             }
             request_response::Event::Message {
                 peer: _,
-                connection_id: _,
                 message:
                     Message::Response {
                         request_id,
@@ -255,7 +256,6 @@ impl Behaviour {
             }
             request_response::Event::OutboundFailure {
                 peer,
-                connection_id: _,
                 request_id,
                 error,
             } => {
@@ -278,7 +278,6 @@ impl Behaviour {
             }
             request_response::Event::InboundFailure {
                 peer,
-                connection_id: _,
                 request_id: _,
                 error: InboundFailure::UnsupportedProtocols,
             } => {

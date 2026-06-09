@@ -298,10 +298,8 @@ where
 
     /// Consume the builder to build a valid `Block` containing all pushed extrinsics.
     ///
-    /// Returns the build `Block`, the changes to the storage and an optional `StorageProof`
-    /// supplied by `self.api`, combined as [`BuiltBlock`].
-    /// The storage proof will be `Some(_)` when proof recording was enabled.
-    pub fn build(mut self) -> Result<BuiltBlock<Block>, Error> {
+    /// Returns the build `Block` and the changes to the storage, combined as [`BuiltBlock`].
+    pub fn build(self) -> Result<BuiltBlock<Block>, Error> {
         let header = self.api.finalize_block(self.parent_hash)?;
 
         debug_assert_eq!(
@@ -311,8 +309,6 @@ where
                 sp_runtime::StateVersion::V0,
             ),
         );
-
-        let proof = self.api.extract_proof();
 
         let state = self.call_api_at.state_at(self.parent_hash)?;
 
@@ -324,7 +320,6 @@ where
         Ok(BuiltBlock {
             block: <Block as BlockT>::new(header, self.extrinsics),
             storage_changes,
-            proof,
         })
     }
 

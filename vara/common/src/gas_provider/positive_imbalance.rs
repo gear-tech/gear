@@ -5,7 +5,7 @@ use super::*;
 
 /// Opaque, move-only struct with private field to denote that value has been
 /// created without any equal and opposite accounting
-#[derive(RuntimeDebug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct PositiveImbalance<Balance: BalanceTrait>(Balance);
 
 impl<Balance: BalanceTrait> PositiveImbalance<Balance> {

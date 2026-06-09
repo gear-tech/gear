@@ -13,8 +13,9 @@ use gear_core::{
     limited::LimitedStr,
     message::{StoredDispatch, Value},
 };
-use gprimitives::{ActorId, H160};
+use gprimitives::ActorId;
 use pallet_gear_builtin::{BuiltinActor, BuiltinReply};
+use pallet_gear_eth_bridge_primitives::H160;
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;
@@ -57,7 +58,7 @@ where
                 destination,
                 payload,
             } => Ok(BuiltinReply {
-                payload: send_message_request::<T>(source, destination, payload, context)?,
+                payload: send_message_request::<T>(source, destination.into(), payload, context)?,
                 value: refund,
             }),
         }
@@ -88,7 +89,7 @@ where
 
             Response::EthMessageQueued {
                 block_number,
-                hash,
+                hash: hash.into(),
                 nonce,
                 queue_id,
             }

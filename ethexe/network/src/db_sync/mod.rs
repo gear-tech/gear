@@ -408,7 +408,6 @@ impl Behaviour {
         match event {
             request_response::Event::Message {
                 peer,
-                connection_id: _,
                 message:
                     Message::Request {
                         request_id: _,
@@ -434,7 +433,6 @@ impl Behaviour {
             }
             request_response::Event::Message {
                 peer: _,
-                connection_id: _,
                 message:
                     Message::Response {
                         request_id,
@@ -445,7 +443,6 @@ impl Behaviour {
             }
             request_response::Event::OutboundFailure {
                 peer,
-                connection_id: _,
                 request_id,
                 error,
             } => {
@@ -461,7 +458,6 @@ impl Behaviour {
             }
             request_response::Event::InboundFailure {
                 peer,
-                connection_id: _,
                 request_id: _,
                 error: InboundFailure::UnsupportedProtocols,
             } => {

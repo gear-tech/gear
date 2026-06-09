@@ -18,7 +18,7 @@ runtime-primitives.workspace = true
 vara-runtime = { workspace = true, features = ["dev"] }
 gear-runtime-interface.workspace = true
 service = { workspace = true, features = ["vara-native"] }
-sc-service = { workspace = true, features = [ "test-helpers", "rocksdb" ] }
+sc-service = { workspace = true, features = ["rocksdb"] }
 substrate-test-client.workspace = true
 
 # Substrate Primitives
