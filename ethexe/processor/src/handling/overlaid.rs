@@ -170,7 +170,7 @@ impl RunContext for OverlaidRunContext {
         &self,
         program_id: ActorId,
         instrumentation_instance: &mut Option<InstanceWrapper>,
-    ) -> Result<(InstrumentedCode, CodeMetadata)> {
+    ) -> Result<Option<(InstrumentedCode, CodeMetadata)>> {
         let code_id = self
             .inner
             .db

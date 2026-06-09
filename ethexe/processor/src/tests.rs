@@ -12,17 +12,18 @@ use ethexe_common::{
         mirror::{ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent},
         router::ProgramCreatedEvent,
     },
+    gear::Message,
     mock::*,
 };
 use ethexe_runtime_common::{
-    RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION,
-    state::{MessageQueue, Storage},
+    CODES_INSTRUMENTATION_VERSION, RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue,
 };
 use gear_core::{
+    code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
     ids::prelude::CodeIdExt,
     message::{ErrorReplyReason, ReplyCode, SuccessReplyReason},
 };
-use gear_core_errors::SimpleExecutionError;
+use gear_core_errors::{SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use tokio::sync::mpsc;
@@ -375,6 +376,260 @@ async fn process_programs_instruments_valid_code_missing_current_runtime_instrum
 
     assert!(db.instrumented_code(RUNTIME_ID, code_id).is_some());
     assert!(db.code_metadata(code_id).is_some());
+}
+
+/// Create a fresh program and let its first (init) message force lazy
+/// (re)instrumentation under the current runtime via `process_queues`.
+///
+/// `wat` decides whether instrumentation succeeds (`VALID_PROGRAM`) or is
+/// rejected (`INVALID_PROGRAM`); `seed_previous_runtime` pre-stores a stale
+/// instrumented artifact + metadata under the *previous* runtime id, modelling a
+/// program that was instrumented before a runtime bump.
+async fn run_first_dispatch_with_reinstrumentation(
+    wat: &str,
+    seed_previous_runtime: bool,
+) -> (Database, CodeId, Vec<(ActorId, Message)>) {
+    let db = Database::memory();
+
+    let (code_id, code) = utils::wat_to_wasm(wat);
+    assert_eq!(db.set_original_code(&code), code_id);
+    db.set_code_valid(code_id, true);
+
+    if seed_previous_runtime {
+        // Program already had instrumented code under the previous runtime.
+        let prev_runtime_id = RUNTIME_ID - 1;
+        db.set_instrumented_code(
+            prev_runtime_id,
+            code_id,
+            InstrumentedCode::new(vec![0], InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),
+        );
+        db.set_code_metadata(
+            code_id,
+            CodeMetadata::new(
+                code.len() as u32,
+                Default::default(),
+                0.into(),
+                None,
+                InstrumentationStatus::Instrumented {
+                    version: CODES_INSTRUMENTATION_VERSION - 1,
+                    code_len: 1,
+                },
+            ),
+        );
+    }
+
+    // Nothing is instrumented for the current runtime, so execution must (re)instrument.
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_none());
+
+    let to_users = create_program_and_run_first_dispatch(db.clone(), code_id).await;
+    (db, code_id, to_users)
+}
+
+/// Create a program for `code_id`, queue one (init) message to it, run the block,
+/// and return the user-facing messages (the program's reply).
+async fn create_program_and_run_first_dispatch(
+    db: Database,
+    code_id: CodeId,
+) -> Vec<(ActorId, Message)> {
+    let mut processor = Processor::new(db.clone()).expect("failed to create processor");
+    let chain = BlockChain::mock(2).setup(&db);
+    let block1 = chain.blocks[1].to_simple();
+
+    let actor_id = ActorId::from(0x10000);
+    let mut handler = setup_handler(db.clone(), block1.header.height);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: ActorId::from(10),
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue message");
+
+    processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        // The whole point of the patch: a failed (re)instrumentation must NOT abort the block.
+        .expect("process_queues must succeed even when (re)instrumentation fails")
+        .current_messages()
+}
+
+fn sole_reply_code(to_users: &[(ActorId, Message)]) -> ReplyCode {
+    assert_eq!(
+        to_users.len(),
+        1,
+        "expected exactly one reply to the source"
+    );
+    to_users[0]
+        .1
+        .reply_details
+        .expect("user message must be a reply")
+        .to_reply_code()
+}
+
+fn assert_reinstrumentation_failed(
+    db: &Database,
+    code_id: CodeId,
+    to_users: &[(ActorId, Message)],
+) {
+    // Failure is persisted as InstrumentationFailed for the current version...
+    assert_eq!(
+        db.code_metadata(code_id)
+            .expect("metadata must be created on failed (re)instrumentation")
+            .instrumentation_status(),
+        InstrumentationStatus::InstrumentationFailed {
+            version: CODES_INSTRUMENTATION_VERSION,
+        },
+    );
+    // ...no instrumented artifact is stored for the current runtime...
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_none());
+    // ...and the dispatch gets an explicit "reinstrumentation failed" error reply.
+    assert_eq!(
+        sole_reply_code(to_users),
+        ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+            SimpleUnavailableActorError::ReinstrumentationFailure
+        )),
+    );
+}
+
+fn assert_reinstrumentation_succeeded(
+    db: &Database,
+    code_id: CodeId,
+    to_users: &[(ActorId, Message)],
+) {
+    // Fresh instrumented code + metadata for the current runtime are added...
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_some());
+    assert!(matches!(
+        db.code_metadata(code_id)
+            .expect("metadata must be created on successful (re)instrumentation")
+            .instrumentation_status(),
+        InstrumentationStatus::Instrumented { version, .. } if version == CODES_INSTRUMENTATION_VERSION
+    ));
+    // ...and the dispatch produces a normal (non-error) reply.
+    assert!(
+        !sole_reply_code(to_users).is_error(),
+        "expected a normal reply after successful (re)instrumentation"
+    );
+}
+
+/// 1. Stale instrumented code under the previous runtime + a code the current
+///    instrumenter rejects: reinstrumentation fails (`Ok(None)`), the failure is
+///    recorded, and the dispatch gets a `ReinstrumentationFailure` error reply.
+#[tokio::test]
+async fn reinstrumentation_failed_with_previous_runtime_code() {
+    init_logger();
+    let (db, code_id, to_users) =
+        run_first_dispatch_with_reinstrumentation(utils::INVALID_PROGRAM, true).await;
+    assert_reinstrumentation_failed(&db, code_id, &to_users);
+}
+
+/// 2. Stale instrumented code under the previous runtime + a valid code:
+///    reinstrumentation succeeds, fresh artifacts are added, normal reply returned.
+#[tokio::test]
+async fn reinstrumentation_succeeded_with_previous_runtime_code() {
+    init_logger();
+    let (db, code_id, to_users) =
+        run_first_dispatch_with_reinstrumentation(utils::VALID_PROGRAM, true).await;
+    assert_reinstrumentation_succeeded(&db, code_id, &to_users);
+}
+
+/// 3. No instrumented code or metadata at all + a code the current instrumenter
+///    rejects: reinstrumentation fails, the failure is recorded, error reply returned.
+#[tokio::test]
+async fn reinstrumentation_failed_without_existing_code() {
+    init_logger();
+    let (db, code_id, to_users) =
+        run_first_dispatch_with_reinstrumentation(utils::INVALID_PROGRAM, false).await;
+    assert_reinstrumentation_failed(&db, code_id, &to_users);
+}
+
+/// 4. No instrumented code or metadata at all + a valid code: reinstrumentation
+///    succeeds, fresh artifacts are added, normal reply returned.
+#[tokio::test]
+async fn reinstrumentation_succeeded_without_existing_code() {
+    init_logger();
+    let (db, code_id, to_users) =
+        run_first_dispatch_with_reinstrumentation(utils::VALID_PROGRAM, false).await;
+    assert_reinstrumentation_succeeded(&db, code_id, &to_users);
+}
+
+/// 5. A code already recorded as `InstrumentationFailed` for the current version
+///    must NOT be re-instrumented again: the dispatch short-circuits straight to
+///    the error reply. We prove "no retry" by using a perfectly *valid* code — if
+///    it were re-instrumented it would succeed and produce a normal reply with a
+///    fresh artifact; the short-circuit instead keeps the error reply and adds
+///    nothing.
+#[tokio::test]
+async fn reinstrumentation_not_retried_when_already_failed() {
+    init_logger();
+
+    let db = Database::memory();
+    let (code_id, code) = utils::wat_to_wasm(utils::VALID_PROGRAM);
+    assert_eq!(db.set_original_code(&code), code_id);
+    db.set_code_valid(code_id, true);
+    // Pre-record a failure for the CURRENT instrumentation version.
+    db.set_code_metadata(
+        code_id,
+        CodeMetadata::new(
+            code.len() as u32,
+            Default::default(),
+            0.into(),
+            None,
+            InstrumentationStatus::InstrumentationFailed {
+                version: CODES_INSTRUMENTATION_VERSION,
+            },
+        ),
+    );
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_none());
+
+    let to_users = create_program_and_run_first_dispatch(db.clone(), code_id).await;
+
+    // Despite the code being instrumentable, the recorded failure short-circuits:
+    // error reply, and crucially NO fresh instrumented artifact was produced.
+    assert_eq!(
+        sole_reply_code(&to_users),
+        ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+            SimpleUnavailableActorError::ReinstrumentationFailure
+        )),
+    );
+    assert!(
+        db.instrumented_code(RUNTIME_ID, code_id).is_none(),
+        "a recorded failure must not be re-instrumented"
+    );
+    assert_eq!(
+        db.code_metadata(code_id)
+            .expect("metadata is still present")
+            .instrumentation_status(),
+        InstrumentationStatus::InstrumentationFailed {
+            version: CODES_INSTRUMENTATION_VERSION,
+        },
+    );
 }
 
 #[tokio::test]

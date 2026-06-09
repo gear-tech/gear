@@ -1,13 +1,19 @@
 #!/usr/bin/env sh
 
 bold() {
-  tput bold
+  if [ -t 1 ] && [ -n "${TERM:-}" ]; then
+    tput bold || true
+  fi
 }
 
 normal() {
-  tput sgr0
+  if [ -t 1 ] && [ -n "${TERM:-}" ]; then
+    tput sgr0 || true
+  fi
 }
 
 header() {
-  bold && printf "\n  >> $1\n" && normal
+  bold
+  printf "\n  >> %s\n" "$1"
+  normal
 }

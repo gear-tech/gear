@@ -16,6 +16,27 @@ use toml::value::Table;
 
 const OPT_LEVEL: &str = "z";
 
+/// Strip path-based patches from the generated WASM sub-project manifest.
+///
+/// The sub-project is written outside the workspace root, so workspace-relative
+/// patch paths like local `substrate/` overrides cannot be resolved there.
+fn remove_local_path_patches(patch: &mut Table) {
+    patch.retain(|_, section| {
+        let Some(entries) = section.as_table_mut() else {
+            return true;
+        };
+
+        entries.remove("gear-workspace-hack");
+        entries.retain(|_, dependency| {
+            dependency
+                .as_table()
+                .is_none_or(|dependency| !dependency.contains_key("path"))
+        });
+
+        !entries.is_empty()
+    });
+}
+
 /// Temporary project generated to build a WASM output.
 ///
 /// This project is required due to the cargo locking during build.
@@ -200,9 +221,7 @@ impl WasmProject {
         self.features = Some(features.keys().cloned().collect());
 
         let mut patch = crate_info.patch.clone();
-        if let Some(crates_io) = patch.get_mut("crates-io").and_then(|v| v.as_table_mut()) {
-            crates_io.remove("gear-workspace-hack");
-        }
+        remove_local_path_patches(&mut patch);
 
         let mut cargo_toml = Table::new();
         cargo_toml.insert("package".into(), package.into());

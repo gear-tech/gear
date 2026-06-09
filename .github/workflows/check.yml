@@ -234,6 +234,16 @@ jobs:
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
 
+      - name: "Install: protobuf compiler"
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 5
+          retry_wait_seconds: 10
+          command: |
+            sudo apt update
+            sudo apt install -y protobuf-compiler
+
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 

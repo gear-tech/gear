@@ -6,9 +6,10 @@ use gear_wasm_builder::{
     code_validator::validate_program,
     optimize::{self, Optimizer},
 };
-use gear_wasm_instrument::{Module, SyscallKind, TypeRef};
+use gear_wasm_instrument::SyscallKind;
 use std::{collections::HashSet, fs, path::PathBuf};
 use tracing_subscriber::EnvFilter;
+use wasmparser::{Parser as WasmParser, Payload, TypeRef};
 
 const RT_ALLOWED_IMPORTS: [&str; 78] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
@@ -136,15 +137,7 @@ struct Args {
 
 fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), String> {
     let wasm = fs::read(path_to_wasm).map_err(|e| format!("Read error: {e}"))?;
-    let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
-
-    let is_dev = module
-        .custom_sections
-        .as_ref()
-        .iter()
-        .copied()
-        .flatten()
-        .any(|v| v.0 == "dev_runtime");
+    let is_dev = has_custom_section(&wasm, "dev_runtime")?;
 
     match (expected_to_be_dev, is_dev) {
         (true, false) => Err(String::from("Runtime expected to be DEV, but it's NOT DEV")),
@@ -155,18 +148,26 @@ fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), S
 
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
     let wasm = fs::read(path_to_wasm).map_err(|e| format!("Read error: {e}"))?;
-    let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
-    let imports = module
-        .import_section
-        .as_ref()
-        .ok_or("Import section not found")?;
-
+    let mut has_import_section = false;
     let mut unexpected_imports = vec![];
 
-    for import in imports {
-        if matches!(import.ty, TypeRef::Func(_) if !allowed_imports.contains(&*import.name)) {
-            unexpected_imports.push(import.name.clone());
+    for payload in WasmParser::new(0).parse_all(&wasm) {
+        if let Payload::ImportSection(section) =
+            payload.map_err(|e| format!("Deserialization error: {e}"))?
+        {
+            has_import_section = true;
+
+            for import in section {
+                let import = import.map_err(|e| format!("Deserialization error: {e}"))?;
+                if matches!(import.ty, TypeRef::Func(_) if !allowed_imports.contains(import.name)) {
+                    unexpected_imports.push(import.name.to_string());
+                }
+            }
         }
+    }
+
+    if !has_import_section {
+        return Err(String::from("Import section not found"));
     }
 
     if !unexpected_imports.is_empty() {
@@ -178,6 +179,19 @@ fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Resu
 
     log::info!("{path_to_wasm} -> Ok");
     Ok(())
+}
+
+fn has_custom_section(wasm: &[u8], expected_section: &str) -> Result<bool, String> {
+    for payload in WasmParser::new(0).parse_all(wasm) {
+        if let Payload::CustomSection(section) =
+            payload.map_err(|e| format!("Deserialization error: {e}"))?
+            && section.name() == expected_section
+        {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
