@@ -1141,13 +1141,12 @@ mod tests {
         #[test]
         fn restorer_waitlist_restores_all(program_id in actor_id_strategy(), waitlist in any::<Waitlist>()) {
             let expected: Schedule = waitlist
-                .clone()
-                .into_inner()
-                .into_iter()
+                .as_ref()
+                .iter()
                 .map(|(message_id, expiring)| {
                     (
                         expiring.expiry,
-                        BTreeSet::from([ScheduledTask::WakeMessage(program_id, message_id)]),
+                        BTreeSet::from([ScheduledTask::WakeMessage(program_id, *message_id)]),
                     )
                 })
                 .fold(BTreeMap::new(), |mut acc, (expiry, tasks)| {
