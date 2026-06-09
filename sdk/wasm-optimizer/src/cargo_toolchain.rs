@@ -18,11 +18,11 @@ static TOOLCHAIN_CHANNELS: &[&str] = &[
 pub(crate) struct Toolchain(String);
 
 impl Toolchain {
-    /// This is a version of nightly toolchain, tested on our CI.
-    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2025-10-20";
+    /// This is a toolchain version tested on our CI.
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "1.96";
 
     /// Returns `Toolchain` representing the recommended nightly version.
-    pub fn recommended_nightly() -> Self {
+    pub fn recommended_stable() -> Self {
         Self(Self::PINNED_NIGHTLY_TOOLCHAIN.into())
     }
 

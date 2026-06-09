@@ -215,7 +215,7 @@ pub fn build() -> Option<(PathBuf, PathBuf)> {
 /// Shorthand function to be used in `build.rs`.
 ///
 /// See [WasmBuilder::build()].
-pub fn recommended_nightly() -> Option<(PathBuf, PathBuf)> {
+pub fn recommended_stable() -> Option<(PathBuf, PathBuf)> {
     WasmBuilder::new()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
         .with_recommended_toolchain()

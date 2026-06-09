@@ -116,10 +116,10 @@
 //! ```
 
 #![no_std]
-#![cfg_attr(
-    all(target_arch = "wasm32", feature = "oom-handler"),
-    feature(alloc_error_handler)
-)]
+// #![cfg_attr(
+//     all(target_arch = "wasm32", feature = "oom-handler"),
+//     feature(alloc_error_handler)
+// )]
 #![allow(ambiguous_glob_reexports)]
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]

@@ -13,6 +13,7 @@ use ethexe_service::Service;
 use std::time::Duration;
 use tokio::runtime::Builder;
 
+
 /// Run the node.
 #[derive(Debug, Args)]
 pub struct RunCommand {
@@ -41,10 +42,12 @@ impl RunCommand {
     /// In development mode this command also provisions an Anvil-backed environment and
     /// injects the generated validator key, session key, Router address, and RPC endpoints
     /// into the effective configuration before the service starts.
+    #[allow(unused_assignments)]
     pub fn run(mut self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
         crate::enable_logging(default)?;
 
+        #[allow(unused_variables)]
         let mut anvil_instance = None;
         let mut dev_validator_pub_key = None;
         let is_dev_node = self.params.node.as_ref().map(|n| n.dev).unwrap_or_default();

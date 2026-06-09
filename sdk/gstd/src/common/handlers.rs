@@ -12,7 +12,7 @@
 
 #[cfg(target_arch = "wasm32")]
 #[cfg(feature = "oom-handler")]
-#[alloc_error_handler]
+// #[alloc_error_handler]
 pub fn oom(_: core::alloc::Layout) -> ! {
     crate::ext::oom_panic()
 }

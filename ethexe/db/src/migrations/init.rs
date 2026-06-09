@@ -283,7 +283,7 @@ async fn genesis_data_initialization(
             .restore();
     log::info!(
         "Genesis schedule restored, tasks amount {}",
-        schedule.iter().flat_map(|(_, tasks)| tasks.iter()).count()
+        schedule.values().flat_map(|tasks| tasks.iter()).count()
     );
 
     log::info!("Genesis data initialization completed");

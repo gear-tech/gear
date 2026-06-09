@@ -110,7 +110,7 @@ impl CargoCommand {
         }
 
         let toolchain = if self.force_recommended_toolchain {
-            Toolchain::recommended_nightly()
+            Toolchain::recommended_stable()
         } else {
             self.toolchain.clone()
         };

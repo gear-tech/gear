@@ -155,14 +155,14 @@ impl RuntimeInterface {
         &self,
     ) -> impl Iterator<Item = (u32, &RuntimeInterfaceFunction)> {
         self.items
-            .iter()
-            .filter_map(|(_, item)| item.latest_version_to_call())
+            .values()
+            .filter_map(|item| item.latest_version_to_call())
     }
 
     pub fn all_versions(&self) -> impl Iterator<Item = (u32, &RuntimeInterfaceFunction)> {
         self.items
-            .iter()
-            .flat_map(|(_, item)| item.versions.iter())
+            .values()
+            .flat_map(|item| item.versions.iter())
             .map(|(v, i)| (*v, i))
     }
 }
@@ -377,8 +377,7 @@ pub fn get_runtime_interface(trait_def: &ItemTrait) -> Result<RuntimeInterface> 
     }
 
     for function in functions.values() {
-        let mut next_expected = 1;
-        for (version, item) in function.versions.iter() {
+        for (next_expected, (version, item)) in (1..).zip(function.versions.iter()) {
             if next_expected != *version {
                 return Err(Error::new(
                     item.span(),
@@ -388,7 +387,6 @@ pub fn get_runtime_interface(trait_def: &ItemTrait) -> Result<RuntimeInterface> 
                     ),
                 ));
             }
-            next_expected += 1;
         }
     }
 

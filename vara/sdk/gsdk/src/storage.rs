@@ -327,6 +327,7 @@ impl Api {
     }
 
     /// Get pages of an active program at specified block.
+    #[allow(clippy::result_large_err)]
     #[at_block]
     pub async fn program_pages_at(
         &self,

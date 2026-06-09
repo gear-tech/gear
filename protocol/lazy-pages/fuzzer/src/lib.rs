@@ -66,10 +66,7 @@ impl RunResult {
         for (
             (wasmtime_addr, (wasmtime_page_info, wasmtime_page_mem)),
             (wasmi_addr, (wasmi_page_info, wasmi_page_mem)),
-        ) in wasmtime_res
-            .pages
-            .into_iter()
-            .zip(wasmi_res.pages.into_iter())
+        ) in wasmtime_res.pages.into_iter().zip(wasmi_res.pages)
         {
             assert_eq!(
                 wasmtime_page_info, wasmi_page_info,

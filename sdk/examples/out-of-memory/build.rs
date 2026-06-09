@@ -4,7 +4,7 @@
 use gear_wasm_builder::WasmBuilder;
 
 fn main() {
-    // We are forcing recommended nightly toolchain due to the need to compile this
+    // We are forcing recommended toolchain due to the need to compile this
     // program with `oom-handler` feature. The WASM binary of this program is then
     // used by the `oom_handler_works` pallet test.
     WasmBuilder::new()

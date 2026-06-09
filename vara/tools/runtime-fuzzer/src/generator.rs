@@ -200,13 +200,11 @@ impl RuntimeStateViewProducer {
                 GearEvent::UserMessageSent {
                     message,
                     expiration: Some(_),
-                } => {
-                    if message.destination() == sender_program_id {
-                        if let Some(mailbox) = self.mailbox.as_mut() {
-                            mailbox.push(message.id())
-                        } else {
-                            self.mailbox = Some(NonEmpty::new(message.id()));
-                        }
+                } if message.destination() == sender_program_id => {
+                    if let Some(mailbox) = self.mailbox.as_mut() {
+                        mailbox.push(message.id())
+                    } else {
+                        self.mailbox = Some(NonEmpty::new(message.id()));
                     }
                 }
                 _ => {}

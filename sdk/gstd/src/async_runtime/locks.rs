@@ -155,8 +155,8 @@ impl LocksMap {
         //
         // Locks with `deadline <= now`, they will be removed in the following polling.
         let now = exec::block_height();
-        map.iter()
-            .filter_map(|(_, lock)| (lock.deadline() > now).then_some(lock))
+        map.values()
+            .filter(|lock| lock.deadline() > now)
             .min_by(|lock1, lock2| lock1.cmp(lock2))
             .expect("Cannot find lock to be waited")
             .wait();
