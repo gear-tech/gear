@@ -32,7 +32,27 @@ cfg_if! {
         }
     } else if #[cfg(all(any(target_os = "linux", target_os = "android"), target_arch = "aarch64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
+            #[cfg(target_os = "linux")]
             let esr = linux_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
+
+            /// `libc::ucontext_t` is bit different on Android, it has padding.
+            /// See https://android.googlesource.com/platform/bionic/+/refs/tags/ndk-r29/libc/include/sys/ucontext.h#386
+            #[cfg(target_os = "android")]
+            #[repr(C)]
+            pub struct android_ucontext_t {
+                pub uc_flags: nix::libc::c_ulong,
+                pub uc_link: *mut nix::libc::ucontext_t,
+                pub uc_stack: nix::libc::stack_t,
+                pub uc_sigmask: nix::libc::sigset_t,
+                pub __padding: [u8; 128 - size_of::<nix::libc::sigset_t>()],
+                pub uc_mcontext: nix::libc::mcontext_t,
+            }
+
+            #[cfg(target_os = "android")]
+            let ucontext = ucontext as *mut android_ucontext_t;
+            #[cfg(target_os = "android")]
+            let esr = linux_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
+
             // Use the WNR bit to determine if it was a write access.
             // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-?lang=en#fieldset_0-24_0_15-6_6
             let is_wnr = (esr & 0b100_0000) != 0;
