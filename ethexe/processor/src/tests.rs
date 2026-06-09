@@ -1,40 +1,29 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, HashOf, OUTGOING_MESSAGES_SOFT_LIMIT,
-    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PrivateKey, ScheduledTask, SignedMessage, SimpleBlockData,
+    DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
+    PrivateKey, ScheduledTask, SignedMessage,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
         mirror::{ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent},
         router::ProgramCreatedEvent,
     },
+    gear::Message,
     mock::*,
 };
-use ethexe_runtime_common::{RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue};
+use ethexe_runtime_common::{
+    CODES_INSTRUMENTATION_VERSION, RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue,
+};
 use gear_core::{
+    code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
     ids::prelude::CodeIdExt,
     message::{ErrorReplyReason, ReplyCode, SuccessReplyReason},
 };
-use gear_core_errors::SimpleExecutionError;
+use gear_core_errors::{SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use tokio::sync::mpsc;
@@ -114,9 +103,8 @@ mod utils {
         (processor, chain, code_ids.try_into().unwrap())
     }
 
-    pub fn setup_handler(db: Database, block: SimpleBlockData) -> ProcessingHandler {
-        let transitions =
-            InBlockTransitions::new(block.header.height, Default::default(), Default::default());
+    pub fn setup_handler(db: Database, height: u32) -> ProcessingHandler {
+        let transitions = InBlockTransitions::new(height, Default::default(), Default::default());
 
         ProcessingHandler::new(db, transitions)
     }
@@ -140,7 +128,7 @@ mod utils {
             setup_test_env_and_load_codes([code.as_ref()]).await;
         let block1 = chain.blocks[1].to_simple();
 
-        let mut handler = setup_handler(processor.db.clone(), block1);
+        let mut handler = setup_handler(processor.db.clone(), block1.header.height);
         let actor_id = ActorId::from(0x10000);
         handler
             .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -172,7 +160,13 @@ mod utils {
             .expect("failed to queue message");
 
         processor
-            .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+            .process_queues(
+                handler.transitions,
+                block1.header.height,
+                block1.header.timestamp,
+                DEFAULT_BLOCK_GAS_LIMIT,
+                None,
+            )
             .await
             .unwrap()
     }
@@ -186,8 +180,10 @@ async fn ping_init() {
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
 
     // Empty processing for block1
+    let block1 = chain.blocks[1].to_simple();
     let executable = ExecutableData {
-        block: chain.blocks[1].to_simple(),
+        height: block1.header.height,
+        timestamp: block1.header.timestamp,
         ..Default::default()
     };
     let FinalizedBlockTransitions {
@@ -228,8 +224,10 @@ async fn ping_init() {
     ];
 
     // Process for block2
+    let block2 = chain.blocks[2].to_simple();
     let executable = ExecutableData {
-        block: chain.blocks[2].to_simple(),
+        height: block2.header.height,
+        timestamp: block2.header.timestamp,
         program_states: states,
         schedule,
         events: create_program_events,
@@ -260,8 +258,10 @@ async fn ping_init() {
     };
 
     // Process for block3
+    let block3 = chain.blocks[3].to_simple();
     let executable = ExecutableData {
-        block: chain.blocks[3].to_simple(),
+        height: block3.header.height,
+        timestamp: block3.header.timestamp,
         program_states: states,
         schedule,
         events: vec![send_message_event],
@@ -319,6 +319,320 @@ async fn handle_new_code_invalid() {
 }
 
 #[tokio::test]
+async fn process_programs_instruments_valid_code_missing_current_runtime_instrumentation() {
+    init_logger();
+
+    let db = Database::memory();
+    let mut processor = Processor::new(db.clone()).expect("failed to create processor");
+    let chain = BlockChain::mock(2).setup(&db);
+    let block1 = chain.blocks[1].to_simple();
+
+    let (code_id, code) = utils::wat_to_wasm(utils::VALID_PROGRAM);
+    assert_eq!(db.set_original_code(&code), code_id);
+    db.set_code_valid(code_id, true);
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_none());
+
+    let actor_id = ActorId::from(0x10000);
+    let mut handler = setup_handler(db.clone(), block1.header.height);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: ActorId::from(10),
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue message");
+
+    processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .expect("failed to process queues");
+
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_some());
+    assert!(db.code_metadata(code_id).is_some());
+}
+
+/// Create a fresh program and let its first (init) message force lazy
+/// (re)instrumentation under the current runtime via `process_queues`.
+///
+/// `wat` decides whether instrumentation succeeds (`VALID_PROGRAM`) or is
+/// rejected (`INVALID_PROGRAM`); `seed_previous_runtime` pre-stores a stale
+/// instrumented artifact + metadata under the *previous* runtime id, modelling a
+/// program that was instrumented before a runtime bump.
+async fn run_first_dispatch_with_reinstrumentation(
+    wat: &str,
+    seed_previous_runtime: bool,
+) -> (Database, CodeId, Vec<(ActorId, Message)>) {
+    let db = Database::memory();
+
+    let (code_id, code) = utils::wat_to_wasm(wat);
+    assert_eq!(db.set_original_code(&code), code_id);
+    db.set_code_valid(code_id, true);
+
+    if seed_previous_runtime {
+        // Program already had instrumented code under the previous runtime.
+        let prev_runtime_id = RUNTIME_ID - 1;
+        db.set_instrumented_code(
+            prev_runtime_id,
+            code_id,
+            InstrumentedCode::new(vec![0], InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),
+        );
+        db.set_code_metadata(
+            code_id,
+            CodeMetadata::new(
+                code.len() as u32,
+                Default::default(),
+                0.into(),
+                None,
+                InstrumentationStatus::Instrumented {
+                    version: CODES_INSTRUMENTATION_VERSION - 1,
+                    code_len: 1,
+                },
+            ),
+        );
+    }
+
+    // Nothing is instrumented for the current runtime, so execution must (re)instrument.
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_none());
+
+    let to_users = create_program_and_run_first_dispatch(db.clone(), code_id).await;
+    (db, code_id, to_users)
+}
+
+/// Create a program for `code_id`, queue one (init) message to it, run the block,
+/// and return the user-facing messages (the program's reply).
+async fn create_program_and_run_first_dispatch(
+    db: Database,
+    code_id: CodeId,
+) -> Vec<(ActorId, Message)> {
+    let mut processor = Processor::new(db.clone()).expect("failed to create processor");
+    let chain = BlockChain::mock(2).setup(&db);
+    let block1 = chain.blocks[1].to_simple();
+
+    let actor_id = ActorId::from(0x10000);
+    let mut handler = setup_handler(db.clone(), block1.header.height);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: ActorId::from(10),
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue message");
+
+    processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        // The whole point of the patch: a failed (re)instrumentation must NOT abort the block.
+        .expect("process_queues must succeed even when (re)instrumentation fails")
+        .current_messages()
+}
+
+fn sole_reply_code(to_users: &[(ActorId, Message)]) -> ReplyCode {
+    assert_eq!(
+        to_users.len(),
+        1,
+        "expected exactly one reply to the source"
+    );
+    to_users[0]
+        .1
+        .reply_details
+        .expect("user message must be a reply")
+        .to_reply_code()
+}
+
+fn assert_reinstrumentation_failed(
+    db: &Database,
+    code_id: CodeId,
+    to_users: &[(ActorId, Message)],
+) {
+    // Failure is persisted as InstrumentationFailed for the current version...
+    assert_eq!(
+        db.code_metadata(code_id)
+            .expect("metadata must be created on failed (re)instrumentation")
+            .instrumentation_status(),
+        InstrumentationStatus::InstrumentationFailed {
+            version: CODES_INSTRUMENTATION_VERSION,
+        },
+    );
+    // ...no instrumented artifact is stored for the current runtime...
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_none());
+    // ...and the dispatch gets an explicit "reinstrumentation failed" error reply.
+    assert_eq!(
+        sole_reply_code(to_users),
+        ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+            SimpleUnavailableActorError::ReinstrumentationFailure
+        )),
+    );
+}
+
+fn assert_reinstrumentation_succeeded(
+    db: &Database,
+    code_id: CodeId,
+    to_users: &[(ActorId, Message)],
+) {
+    // Fresh instrumented code + metadata for the current runtime are added...
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_some());
+    assert!(matches!(
+        db.code_metadata(code_id)
+            .expect("metadata must be created on successful (re)instrumentation")
+            .instrumentation_status(),
+        InstrumentationStatus::Instrumented { version, .. } if version == CODES_INSTRUMENTATION_VERSION
+    ));
+    // ...and the dispatch produces a normal (non-error) reply.
+    assert!(
+        !sole_reply_code(to_users).is_error(),
+        "expected a normal reply after successful (re)instrumentation"
+    );
+}
+
+/// 1. Stale instrumented code under the previous runtime + a code the current
+///    instrumenter rejects: reinstrumentation fails (`Ok(None)`), the failure is
+///    recorded, and the dispatch gets a `ReinstrumentationFailure` error reply.
+#[tokio::test]
+async fn reinstrumentation_failed_with_previous_runtime_code() {
+    init_logger();
+    let (db, code_id, to_users) =
+        run_first_dispatch_with_reinstrumentation(utils::INVALID_PROGRAM, true).await;
+    assert_reinstrumentation_failed(&db, code_id, &to_users);
+}
+
+/// 2. Stale instrumented code under the previous runtime + a valid code:
+///    reinstrumentation succeeds, fresh artifacts are added, normal reply returned.
+#[tokio::test]
+async fn reinstrumentation_succeeded_with_previous_runtime_code() {
+    init_logger();
+    let (db, code_id, to_users) =
+        run_first_dispatch_with_reinstrumentation(utils::VALID_PROGRAM, true).await;
+    assert_reinstrumentation_succeeded(&db, code_id, &to_users);
+}
+
+/// 3. No instrumented code or metadata at all + a code the current instrumenter
+///    rejects: reinstrumentation fails, the failure is recorded, error reply returned.
+#[tokio::test]
+async fn reinstrumentation_failed_without_existing_code() {
+    init_logger();
+    let (db, code_id, to_users) =
+        run_first_dispatch_with_reinstrumentation(utils::INVALID_PROGRAM, false).await;
+    assert_reinstrumentation_failed(&db, code_id, &to_users);
+}
+
+/// 4. No instrumented code or metadata at all + a valid code: reinstrumentation
+///    succeeds, fresh artifacts are added, normal reply returned.
+#[tokio::test]
+async fn reinstrumentation_succeeded_without_existing_code() {
+    init_logger();
+    let (db, code_id, to_users) =
+        run_first_dispatch_with_reinstrumentation(utils::VALID_PROGRAM, false).await;
+    assert_reinstrumentation_succeeded(&db, code_id, &to_users);
+}
+
+/// 5. A code already recorded as `InstrumentationFailed` for the current version
+///    must NOT be re-instrumented again: the dispatch short-circuits straight to
+///    the error reply. We prove "no retry" by using a perfectly *valid* code — if
+///    it were re-instrumented it would succeed and produce a normal reply with a
+///    fresh artifact; the short-circuit instead keeps the error reply and adds
+///    nothing.
+#[tokio::test]
+async fn reinstrumentation_not_retried_when_already_failed() {
+    init_logger();
+
+    let db = Database::memory();
+    let (code_id, code) = utils::wat_to_wasm(utils::VALID_PROGRAM);
+    assert_eq!(db.set_original_code(&code), code_id);
+    db.set_code_valid(code_id, true);
+    // Pre-record a failure for the CURRENT instrumentation version.
+    db.set_code_metadata(
+        code_id,
+        CodeMetadata::new(
+            code.len() as u32,
+            Default::default(),
+            0.into(),
+            None,
+            InstrumentationStatus::InstrumentationFailed {
+                version: CODES_INSTRUMENTATION_VERSION,
+            },
+        ),
+    );
+    assert!(db.instrumented_code(RUNTIME_ID, code_id).is_none());
+
+    let to_users = create_program_and_run_first_dispatch(db.clone(), code_id).await;
+
+    // Despite the code being instrumentable, the recorded failure short-circuits:
+    // error reply, and crucially NO fresh instrumented artifact was produced.
+    assert_eq!(
+        sole_reply_code(&to_users),
+        ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+            SimpleUnavailableActorError::ReinstrumentationFailure
+        )),
+    );
+    assert!(
+        db.instrumented_code(RUNTIME_ID, code_id).is_none(),
+        "a recorded failure must not be re-instrumented"
+    );
+    assert_eq!(
+        db.code_metadata(code_id)
+            .expect("metadata is still present")
+            .instrumentation_status(),
+        InstrumentationStatus::InstrumentationFailed {
+            version: CODES_INSTRUMENTATION_VERSION,
+        },
+    );
+}
+
+#[tokio::test]
 async fn ping_pong() {
     init_logger();
 
@@ -329,7 +643,7 @@ async fn ping_pong() {
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -376,7 +690,13 @@ async fn ping_pong() {
         .expect("failed to send message");
 
     let to_users = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap()
         .current_messages();
@@ -406,7 +726,7 @@ async fn async_and_ping() {
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     let user_id = ActorId::from(10);
     let ping_id = ActorId::from(0x10000000);
@@ -490,7 +810,13 @@ async fn async_and_ping() {
         .expect("failed to send message");
 
     let transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
 
@@ -546,7 +872,7 @@ async fn many_waits() {
     let block1 = chain.blocks[1].to_simple();
     let wake_block = chain.blocks[1 + blocks_to_wait].to_simple();
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     let amount = OUTGOING_MESSAGES_SOFT_LIMIT.min(PROGRAM_MODIFICATIONS_SOFT_LIMIT);
     for i in 0..amount {
@@ -586,7 +912,13 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     handler.transitions.modifications_mut().clear();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -613,7 +945,13 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     handler.transitions.modifications_mut().clear();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -640,7 +978,13 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     handler.transitions.modifications_mut().clear();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -661,10 +1005,173 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     transitions.modifications_mut().clear();
     let transitions = processor
-        .process_queues(transitions, wake_block, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            transitions,
+            wake_block.header.height,
+            wake_block.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(transitions.current_messages().len(), amount as usize);
+    for (_pid, message) in transitions.current_messages() {
+        assert_eq!(message.payload, b"Hello, world!");
+    }
+}
+
+/// `process_tasks` at height H must drain every scheduled height ≤ H, so a
+/// `wait_for` task scheduled at H still fires when the wake block sits past H.
+#[tokio::test]
+async fn cross_height_wake_drain() {
+    init_logger();
+
+    let blocks_to_wait = 10;
+    let extra_skip = 5;
+    let wat = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (import "env" "gr_wait_for" (func $wait_for (param i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (if
+                    (i32.eqz (i32.load (i32.const 0x200)))
+                    (then
+                        (i32.store (i32.const 0x200) (i32.const 1))
+                        (call $wait_for (i32.const {blocks_to_wait}))
+                    )
+                    (else
+                        (call $reply (i32.const 0) (i32.const 13) (i32.const 0x400) (i32.const 0x600))
+                    )
+                )
+            )
+            (data (i32.const 0) "Hello, world!")
+        )
+        "#
+    );
+
+    let (_, code) = wat_to_wasm(wat.as_str());
+
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]).await;
+    let block1 = chain.blocks[1].to_simple();
+    let wake_block = chain.blocks[1 + blocks_to_wait + extra_skip].to_simple();
+    let scheduled_wake_height = block1.header.height + blocks_to_wait as u32;
+    assert!(
+        wake_block.header.height > scheduled_wake_height,
+        "test setup: wake_block must be past scheduled wake height"
+    );
+
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
+
+    let amount = OUTGOING_MESSAGES_SOFT_LIMIT.min(PROGRAM_MODIFICATIONS_SOFT_LIMIT);
+    for i in 0..amount {
+        let program_id = ActorId::from(i as u64);
+
+        handler
+            .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+                actor_id: program_id,
+                code_id,
+            }))
+            .expect("failed to create new program");
+
+        handler
+            .handle_mirror_event(
+                program_id,
+                MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                    ExecutableBalanceTopUpRequestedEvent {
+                        value: 300_000_000_000,
+                    },
+                ),
+            )
+            .expect("failed to top up balance");
+
+        handler
+            .handle_mirror_event(
+                program_id,
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: H256::random().0.into(),
+                    source: H256::random().0.into(),
+                    payload: Default::default(),
+                    value: 0,
+                    call_reply: false,
+                }),
+            )
+            .expect("failed to send message");
+    }
+    handler.transitions.modifications_mut().clear();
+    handler.transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        handler.transitions.current_messages().len(),
+        amount as usize
+    );
+
+    // Second handle batch — all 64 dispatches enter `wait_for`, no replies.
+    let known_programs = handler.transitions.known_programs();
+    for &pid in &known_programs {
+        handler
+            .handle_mirror_event(
+                pid,
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: H256::random().0.into(),
+                    source: H256::random().0.into(),
+                    payload: Default::default(),
+                    value: 0,
+                    call_reply: false,
+                }),
+            )
+            .expect("failed to send message");
+    }
+    handler.transitions.modifications_mut().clear();
+    handler.transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        handler.transitions.current_messages().len(),
+        0,
+        "wait_for path must not produce replies"
+    );
+
+    // Jump past the scheduled wake height (block1 + blocks_to_wait + 5):
+    // `process_tasks` must still drain the wakes despite the height gap.
+    let transitions = handler
+        .transitions
+        .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
+    let mut transitions = processor.process_tasks(transitions);
+    transitions.modifications_mut().clear();
+    let transitions = processor
+        .process_queues(
+            transitions,
+            wake_block.header.height,
+            wake_block.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        transitions.current_messages().len(),
+        amount as usize,
+        "every waited dispatch must be woken even though wake_block is past the scheduled height"
+    );
     for (_pid, message) in transitions.current_messages() {
         assert_eq!(message.payload, b"Hello, world!");
     }
@@ -754,7 +1261,8 @@ async fn overlay_execution() {
     ];
 
     let executable_data = ExecutableData {
-        block: block1,
+        height: block1.header.height,
+        timestamp: block1.header.timestamp,
         events,
         gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
         ..Default::default()
@@ -904,7 +1412,8 @@ async fn overlay_execution() {
     // Send message using overlay on the block3.
     let mut overlaid_processor = processor.clone().overlaid();
     let executable = ExecutableDataForReply {
-        block: block3,
+        height: block3.header.height,
+        timestamp: block3.header.timestamp,
         program_states: states,
         source: user_id,
         program_id: async_id,
@@ -912,11 +1421,109 @@ async fn overlay_execution() {
         value: 0,
         gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
     };
-    let reply_info = overlaid_processor
+    let reply_result = overlaid_processor
         .execute_for_reply(executable)
         .await
         .unwrap();
-    assert_eq!(reply_info.payload, MessageId::zero().encode());
+    assert_eq!(reply_result.reply.payload, MessageId::zero().encode());
+    assert!(reply_result.messages.is_empty());
+}
+
+#[tokio::test]
+async fn overlay_execution_returns_messages_sent_to_users() {
+    init_logger();
+
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_source" (func $gr_source (param i32)))
+            (import "env" "gr_send" (func $gr_send (param i32 i32 i32 i32 i32)))
+            (import "env" "gr_reply" (func $gr_reply (param i32 i32 i32 i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (data (i32.const 48) "USER")
+            (data (i32.const 64) "OK")
+            (func $init)
+            (func $handle
+                (call $gr_source (i32.const 0))
+                (call $gr_send (i32.const 0) (i32.const 48) (i32.const 4) (i32.const 0) (i32.const 96))
+                (call $gr_reply (i32.const 64) (i32.const 2) (i32.const 32) (i32.const 96))
+            )
+        )
+    "#;
+    let wasm = wat::parse_str(wat).expect("failed to parse WAT module");
+
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([wasm.as_slice()]).await;
+    let block1 = chain.blocks[1].to_simple();
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: user_id,
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue init");
+
+    let transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .expect("failed to initialize program");
+    processor.db.set_program_code_id(actor_id, code_id);
+    let FinalizedBlockTransitions { states, .. } = transitions.finalize();
+
+    let block2 = chain.blocks[2].to_simple();
+    let mut overlaid_processor = processor.clone().overlaid();
+    let reply_result = overlaid_processor
+        .execute_for_reply(ExecutableDataForReply {
+            height: block2.header.height,
+            timestamp: block2.header.timestamp,
+            program_states: states,
+            source: user_id,
+            program_id: actor_id,
+            payload: b"PING".to_vec(),
+            value: 0,
+            gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(reply_result.reply.payload, b"OK");
+    assert_eq!(reply_result.messages.len(), 1);
+
+    let message = &reply_result.messages[0];
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"USER");
+    assert!(message.reply_details.is_none());
 }
 
 #[tokio::test]
@@ -924,7 +1531,7 @@ async fn injected_ping_pong() {
     init_logger();
 
     let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
-    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::random());
+    let promise_sink = BoundPromiseSink::new(promise_sender, H256::zero());
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
@@ -933,7 +1540,7 @@ async fn injected_ping_pong() {
     let user_2 = ActorId::from(20);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -967,7 +1574,13 @@ async fn injected_ping_pong() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
 
@@ -992,7 +1605,8 @@ async fn injected_ping_pong() {
     handler.transitions = processor
         .process_queues(
             handler.transitions,
-            block1,
+            block1.header.height,
+            block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
             Some(promise_sink.clone()),
         )
@@ -1037,7 +1651,7 @@ async fn injected_prioritized_over_canonical() {
     init_logger();
 
     let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
-    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::random());
+    let promise_sink = BoundPromiseSink::new(promise_sender, H256::zero());
 
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
@@ -1047,7 +1661,7 @@ async fn injected_prioritized_over_canonical() {
     let injected_user = ActorId::from(20);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -1081,7 +1695,13 @@ async fn injected_prioritized_over_canonical() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
 
@@ -1114,7 +1734,8 @@ async fn injected_prioritized_over_canonical() {
     let transitions = processor
         .process_queues(
             handler.transitions,
-            block1,
+            block1.header.height,
+            block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
             Some(promise_sink.clone()),
         )
@@ -1156,7 +1777,7 @@ async fn executable_balance_charged() {
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
@@ -1196,7 +1817,13 @@ async fn executable_balance_charged() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
 
@@ -1240,7 +1867,7 @@ async fn executable_balance_injected_panic_not_charged() {
     init_logger();
 
     let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
-    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::random());
+    let promise_sink = BoundPromiseSink::new(promise_sender, H256::zero());
 
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY]).await;
@@ -1249,7 +1876,7 @@ async fn executable_balance_injected_panic_not_charged() {
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -1288,7 +1915,8 @@ async fn executable_balance_injected_panic_not_charged() {
     handler.transitions = processor
         .process_queues(
             handler.transitions,
-            block1,
+            block1.header.height,
+            block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
             Some(promise_sink.clone()),
         )
@@ -1305,7 +1933,8 @@ async fn executable_balance_injected_panic_not_charged() {
     handler.transitions = processor
         .process_queues(
             handler.transitions,
-            block1,
+            block1.header.height,
+            block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
             Some(promise_sink.clone()),
         )
@@ -1354,7 +1983,8 @@ async fn executable_balance_injected_panic_not_charged() {
     let transitions = processor
         .process_queues(
             handler.transitions,
-            block1,
+            block1.header.height,
+            block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
             Some(promise_sink.clone()),
         )
@@ -1381,7 +2011,7 @@ async fn insufficient_executable_balance_still_charged() {
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
@@ -1419,7 +2049,13 @@ async fn insufficient_executable_balance_still_charged() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
 
@@ -1558,7 +2194,8 @@ async fn injected_and_events_then_tasks_then_queues() {
     ];
 
     let executable = ExecutableData {
-        block: block1,
+        height: block1.header.height,
+        timestamp: block1.header.timestamp,
         events: create_and_init_events,
         gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
         ..Default::default()
@@ -1588,7 +2225,8 @@ async fn injected_and_events_then_tasks_then_queues() {
     }];
 
     let executable = ExecutableData {
-        block: block2,
+        height: block2.header.height,
+        timestamp: block2.header.timestamp,
         program_states: states,
         schedule,
         events: wait_message_event,
@@ -1636,10 +2274,11 @@ async fn injected_and_events_then_tasks_then_queues() {
     }];
 
     let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
-    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::random());
+    let promise_sink = BoundPromiseSink::new(promise_sender, H256::zero());
 
     let executable = ExecutableData {
-        block: block3,
+        height: block3.header.height,
+        timestamp: block3.header.timestamp,
         program_states: states,
         schedule,
         injected_transactions: vec![verified_injected],

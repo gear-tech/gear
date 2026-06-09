@@ -1,29 +1,15 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Common db types and traits.
 
 use crate::{
-    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, SimpleBlockData, ValidatorsVec,
+    Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
+    SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
+    malachite::Operations,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -45,10 +31,12 @@ pub struct BlockMeta {
     pub prepared: bool,
     /// Queue of code ids waiting for validation status commitment on-chain.
     pub codes_queue: Option<VecDeque<CodeId>>,
-    /// Last committed on-chain batch hash.
+    /// Last committed on-chain batch hash (digest).
     pub last_committed_batch: Option<Digest>,
-    /// Last committed on-chain announce hash.
-    pub last_committed_announce: Option<HashOf<Announce>>,
+    /// Last committed MB hash.
+    pub last_committed_mb: Option<H256>,
+    /// Last committed EB hash.
+    pub last_committed_eb: Option<H256>,
     /// Latest era with committed validators.
     pub latest_era_validators_committed: Option<u64>,
 }
@@ -78,6 +66,8 @@ pub trait CodesStorageRO {
     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
+
+    // TODO #5562: code valid, metadata, valid codes can be runtime specific, so should be stored with runtime_id as well.
     fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn valid_codes(&self) -> BTreeSet<CodeId>;
@@ -99,6 +89,13 @@ pub trait OnChainStorageRO {
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_synced(&self, block_hash: H256) -> bool;
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
+
+    fn block_simple_data(&self, block_hash: H256) -> Option<SimpleBlockData> {
+        self.block_header(block_hash).map(|header| SimpleBlockData {
+            hash: block_hash,
+            header,
+        })
+    }
 }
 
 #[auto_impl::auto_impl(&)]
@@ -121,8 +118,8 @@ pub trait InjectedStorageRO {
     /// Returns the promise by its transaction hash.
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 
-    /// Returns the compact promise by its transaction hash.
-    fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise>;
+    /// Returns the receipt by its transaction hash.
+    fn receipt(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedTxReceipt>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -131,46 +128,54 @@ pub trait InjectedStorageRW: InjectedStorageRO {
 
     fn set_promise(&self, promise: &Promise);
 
-    fn set_compact_promise(&self, promise: &SignedCompactPromise);
+    fn set_receipt(&self, receipt: &SignedTxReceipt);
 }
 
+/// MB static identity. Keyed by the Blake2b envelope hash; existence implies
+/// the matching `Operations` blob is in CAS at `operations_hash`.
+#[derive(
+    Debug, Clone, Copy, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash, derive_more::Display,
+)]
+#[display("MB(height {height}, parent {parent}, operations_hash {operations_hash})")]
+pub struct CompactMb {
+    pub parent: H256,
+    pub height: u64,
+    pub operations_hash: H256,
+}
+
+/// MB dynamic state. `last_advanced_eb` is propagated forward at save time
+/// (resets on `AdvanceTillEthereumBlock`); `synced` requires this MB and every
+/// ancestor to be persisted.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
-pub struct AnnounceMeta {
+pub struct MbMeta {
     pub computed: bool,
+    pub last_advanced_eb: H256,
 }
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait AnnounceStorageRO {
-    fn announce(&self, hash: HashOf<Announce>) -> Option<Announce>;
-    fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates>;
-    fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
-    fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
-    fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
-    fn block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>>;
+pub trait MbStorageRO {
+    /// Static identity (parent + height + `operations_hash`).
+    /// Existence implies the matching [`Operations`] blob is in the
+    /// CAS at `operations_hash`.
+    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb>;
+    /// Read the [`Operations`] blob from CAS by its content hash.
+    fn operations(&self, operations_hash: H256) -> Option<Operations>;
+    fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
+    fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
+    fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
+    fn mb_meta(&self, mb_hash: H256) -> MbMeta;
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait AnnounceStorageRW: AnnounceStorageRO {
-    fn set_announce(&self, announce: Announce) -> HashOf<Announce>;
-    fn set_block_announces(&self, block_hash: H256, announces: BTreeSet<HashOf<Announce>>);
-    fn set_announce_program_states(
-        &self,
-        announce_hash: HashOf<Announce>,
-        program_states: ProgramStates,
-    );
-    fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
-    fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
-
-    fn mutate_announce_meta(
-        &self,
-        announce_hash: HashOf<Announce>,
-        f: impl FnOnce(&mut AnnounceMeta),
-    );
-    fn mutate_block_announces(
-        &self,
-        block_hash: H256,
-        f: impl FnOnce(&mut BTreeSet<HashOf<Announce>>),
-    );
+pub trait MbStorageRW: MbStorageRO {
+    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb);
+    /// Write an [`Operations`] blob into the CAS and return its hash
+    /// (the value stored in [`CompactMb::operations_hash`]).
+    fn set_operations(&self, operations: Operations) -> H256;
+    fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
+    fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
+    fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
+    fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
 }
 
 pub struct PreparedBlockData {
@@ -178,16 +183,9 @@ pub struct PreparedBlockData {
     pub events: Vec<BlockEvent>,
     pub latest_era_with_committed_validators: u64,
     pub codes_queue: VecDeque<CodeId>,
-    pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,
-    pub last_committed_announce: HashOf<Announce>,
-}
-
-pub struct ComputedAnnounceData {
-    pub announce: Announce,
-    pub program_states: ProgramStates,
-    pub outcome: Vec<StateTransition>,
-    pub schedule: Schedule,
+    pub last_committed_mb: H256,
+    pub last_committed_eb: H256,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
@@ -197,17 +195,23 @@ pub struct DBConfig {
     pub router_address: Address,
     pub timelines: ProtocolTimelines,
     pub genesis_block_hash: H256,
-    pub genesis_announce_hash: HashOf<Announce>,
     pub max_validators: u16,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct DBGlobals {
     pub start_block_hash: H256,
-    pub start_announce_hash: HashOf<Announce>,
-    pub latest_synced_block: SimpleBlockData,
-    pub latest_prepared_block_hash: H256,
-    pub latest_computed_announce_hash: HashOf<Announce>,
+    pub latest_synced_eb: SimpleBlockData,
+    pub latest_prepared_eb_hash: H256,
+    /// Latest MB BFT-finalized by Malachite. Rows
+    /// (`mb_program_states`/`mb_outcome`/`mb_schedule`) may not yet
+    /// be persisted — use [`Self::latest_computed_mb_hash`] for any
+    /// read that depends on those rows existing.
+    pub latest_finalized_mb_hash: H256,
+    /// Latest MB whose per-row state has been written by the compute
+    /// pipeline. Trails `latest_finalized_mb_hash` until compute
+    /// catches up.
+    pub latest_computed_mb_hash: H256,
 }
 
 #[cfg(feature = "std")]
@@ -255,6 +259,7 @@ pub use mock_interfaces::{SetConfig, SetGlobals};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::malachite::Operations;
     use indoc::formatdoc;
     use scale_info::{PortableRegistry, Registry, meta_type};
     use sha3::{Digest, Sha3_256};
@@ -262,7 +267,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "af71cfe84dbd11ee47246e10dc1ad27e20a73ac080f7bf48ae9f3cf82848c85d";
+            "600c7b8ccc11ab8c87a94170473bad7cf7c1c87973f5f56f3734ff4ad7473a2a";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -275,11 +280,15 @@ mod tests {
             meta_type::<ProtocolTimelines>(),
             meta_type::<HashOf<InjectedTransaction>>(),
             meta_type::<SignedInjectedTransaction>(),
-            meta_type::<Announce>(),
             meta_type::<ProgramStates>(),
             meta_type::<StateTransition>(),
             meta_type::<Schedule>(),
-            meta_type::<AnnounceMeta>(),
+            meta_type::<MbMeta>(),
+            meta_type::<CompactMb>(),
+            // NOTE: `Operation` hand-rolls its `Encode`/`Decode` (fixed-width
+            // u32 tag), so this TypeInfo hash does NOT cover its wire format —
+            // the exact bytes are pinned by `malachite::tests::operation_encoding_is_frozen`.
+            meta_type::<Operations>(),
             meta_type::<DBConfig>(),
             meta_type::<DBGlobals>(),
         ];

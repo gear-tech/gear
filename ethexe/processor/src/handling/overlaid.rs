@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     ProcessorError, Result,
@@ -22,10 +7,10 @@ use crate::{
         self, CommonRunContext, RunContext,
         chunks_splitting::{ActorStateHashWithQueueSize, ExecutionChunks},
     },
-    host::InstanceCreator,
+    host::{InstanceCreator, InstanceWrapper},
 };
 use core_processor::common::JournalNote;
-use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType};
+use ethexe_common::{db::CodesStorageRO, gear::MessageType};
 use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
 use gear_core::{
@@ -48,6 +33,7 @@ pub(crate) struct OverlaidRunContext {
 }
 
 impl OverlaidRunContext {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: Database,
         base_program: ActorId,
@@ -55,7 +41,8 @@ impl OverlaidRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         instance_creator: InstanceCreator,
-        block_header: BlockHeader,
+        height: u32,
+        timestamp: u64,
     ) -> Self {
         let mut transition_controller = TransitionController {
             transitions: &mut transitions,
@@ -83,7 +70,8 @@ impl OverlaidRunContext {
                 transitions,
                 gas_allowance,
                 chunk_size,
-                block_header,
+                height,
+                timestamp,
                 None,
             ),
             base_program,
@@ -178,14 +166,23 @@ impl RunContext for OverlaidRunContext {
         &mut self.inner
     }
 
-    fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
+    fn program_code(
+        &self,
+        program_id: ActorId,
+        instrumentation_instance: &mut Option<InstanceWrapper>,
+    ) -> Result<Option<(InstrumentedCode, CodeMetadata)>> {
         let code_id = self
             .inner
             .db
             .program_code_id(program_id)
             .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))?;
 
-        run::instrumented_code_and_metadata(&self.inner.db, code_id)
+        run::instrumented_code_and_metadata(
+            &self.inner.db,
+            &self.inner.instance_creator,
+            instrumentation_instance,
+            code_id,
+        )
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {

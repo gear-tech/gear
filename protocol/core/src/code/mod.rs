@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Module for checked code.
 
@@ -34,7 +19,9 @@ pub use errors::*;
 pub use gear_wasm_instrument::SyscallKind;
 pub use instrumented::*;
 pub use metadata::*;
-pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
+pub use utils::{
+    ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS, get_custom_section_data,
+};
 
 use utils::CodeTypeSectionSizes;
 
@@ -190,6 +177,8 @@ impl Code {
         let table_section_size = utils::get_instantiated_table_section_size(&module);
         let element_section_size = utils::get_instantiated_element_section_size(&module)?;
 
+        module.strip_custom_sections();
+
         let code = module.serialize()?;
 
         // Use instrumented code to get section sizes.
@@ -262,7 +251,7 @@ impl Code {
     ///   (import "env" "memory" (memory 1))
     ///   (export "init" (func $init_export))
     ///   (func $gas_charge
-    ///      <-- gas charge impl --> ;; see utils/wasm-instrument/src/lib.rs
+    ///      <-- gas charge impl --> ;; see protocol/wasm-instrument/src/lib.rs
     ///   )
     ///   (func $f1
     ///      i32.const 123
@@ -1252,5 +1241,131 @@ mod tests {
                 InstrumentationError::GasInjection
             ))
         ));
+    }
+
+    mod custom_section_tests {
+        use crate::code::get_custom_section_data;
+        use alloc::{vec, vec::Vec};
+        use wasm_encoder::{CustomSection, Module, TypeSection};
+
+        fn make_wasm_with_custom_sections(sections: &[(&str, &[u8])]) -> Vec<u8> {
+            let mut module = Module::new();
+            let mut types = TypeSection::new();
+            types.ty().function(vec![], vec![]);
+            module.section(&types);
+
+            for (name, data) in sections {
+                module.section(&CustomSection {
+                    name: (*name).into(),
+                    data: (*data).into(),
+                });
+            }
+
+            module.finish()
+        }
+
+        #[test]
+        fn section_found() {
+            let wasm = make_wasm_with_custom_sections(&[("sails:idl", b"hello idl")]);
+            let result = get_custom_section_data(&wasm, "sails:idl");
+
+            assert_eq!(result.unwrap().unwrap(), b"hello idl");
+        }
+
+        #[test]
+        fn section_not_found() {
+            let wasm = make_wasm_with_custom_sections(&[("other", b"data")]);
+            let result = get_custom_section_data(&wasm, "sails:idl");
+
+            assert_eq!(result.unwrap(), None);
+        }
+
+        #[test]
+        fn first_match_returned() {
+            let wasm = make_wasm_with_custom_sections(&[
+                ("sails:idl", b"first"),
+                ("sails:idl", b"second"),
+            ]);
+            let result = get_custom_section_data(&wasm, "sails:idl");
+
+            assert_eq!(result.unwrap().unwrap(), b"first");
+        }
+
+        #[test]
+        fn invalid_wasm() {
+            let result = get_custom_section_data(b"not wasm at all", "sails:idl");
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn malformed_after_section_errors() {
+            let mut wasm = make_wasm_with_custom_sections(&[("sails:idl", b"hello idl")]);
+            wasm.extend_from_slice(b"trailing junk");
+
+            let result = get_custom_section_data(&wasm, "sails:idl");
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn empty_input() {
+            let result = get_custom_section_data(b"", "sails:idl");
+
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn instrumented_code_strips_custom_sections_but_original_keeps_them() {
+        // Build a valid gear program and inject a `sails:idl` custom section
+        // into its bytes before instrumentation.
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#;
+        let base_bytes = wat2wasm(wat);
+
+        // Same mechanism sails tooling uses to embed the IDL.
+        let idl_payload: Vec<u8> = (0..64u8).collect();
+        let module = gear_wasm_instrument::Module::new(&base_bytes).unwrap();
+        let mut builder = gear_wasm_instrument::ModuleBuilder::from_module(module);
+        builder.push_custom_section("sails:idl", idl_payload);
+        let original_with_idl = builder.build();
+
+        // Sanity: the constructed original actually carries the section.
+        assert!(
+            original_with_idl
+                .custom_sections
+                .as_ref()
+                .is_some_and(|cs| cs.iter().any(|(section, _)| section == "sails:idl")),
+            "test fixture must contain the sails:idl custom section before instrumentation"
+        );
+        let original_with_idl = original_with_idl.serialize().unwrap();
+
+        // Run through the full Code pipeline.
+        let code = Code::try_new_mock_const_or_no_rules(
+            original_with_idl.clone(),
+            true,
+            TryNewCodeConfig::default(),
+        )
+        .expect("valid gear program must instrument");
+
+        // OriginalCode preserves the section; IDL readers (RPC) rely on this.
+        assert_eq!(code.original_code(), original_with_idl);
+
+        // InstrumentedCode must have the sails:idl section stripped.
+        let instrumented = gear_wasm_instrument::Module::new(code.instrumented_code().bytes())
+            .expect("instrumented code must parse");
+        assert!(
+            instrumented
+                .custom_sections
+                .as_ref()
+                .is_none_or(|cs| cs.is_empty()),
+            "InstrumentedCode must have no non-name custom sections"
+        );
     }
 }

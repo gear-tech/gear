@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Vara.eth RPC client and server APIs.
 //!
@@ -44,25 +29,27 @@
 //! The RPC server is configured from [`RpcConfig`]. It provides the following configuration:
 //! - [`RpcConfig::listen_addr`] - the address of RPC server running on
 //! - [`RpcConfig::cors`] - the list of allowed CORS origins
-//! - [`RpcConfig::gas_allowance`] - the gas allowace for program reply calculation
+//! - [`RpcConfig::gas_allowance`] - the gas allowance for program reply calculation
 //! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
 //! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
 
+pub use crate::apis::RPC_VERSION;
 #[cfg(feature = "client")]
 pub use crate::apis::{
-    BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient,
+    BlockClient, CalculateReplyForHandleResult, CodeClient, DevClient, FullProgramState,
+    InfoClient, InjectedClient, ProgramClient,
 };
 
 #[cfg(feature = "server")]
 use anyhow::Result;
 #[cfg(feature = "server")]
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InjectedApi, InjectedServer,
-    ProgramApi, ProgramServer,
+    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InfoApi, InfoServer,
+    InjectedApi, InjectedServer, ProgramApi, ProgramServer,
 };
 #[cfg(feature = "server")]
 use ethexe_common::injected::{
-    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactPromise,
+    InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt, SignedInjectedTransaction,
 };
 #[cfg(feature = "server")]
 use ethexe_db::Database;
@@ -98,6 +85,8 @@ mod metrics;
 #[cfg(feature = "server")]
 mod utils;
 
+#[cfg(test)]
+mod test_utils;
 #[cfg(all(test, feature = "client"))]
 mod tests;
 
@@ -107,7 +96,7 @@ pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
 #[derive(Debug)]
 pub enum RpcEvent {
     InjectedTransaction {
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
 }
@@ -170,6 +159,7 @@ impl RpcServer {
                 .config
                 .with_dev_api
                 .then(|| DevApi::new(self.db.clone())),
+            info: InfoApi,
         };
         let injected_api = server_apis.injected.clone();
 
@@ -221,8 +211,8 @@ impl RpcService {
         self.injected_api.on_computed_promise(promise);
     }
 
-    pub fn receive_compact_promise(&self, compact_promise: SignedCompactPromise) {
-        self.injected_api.on_compact_promise(compact_promise);
+    pub fn receive_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
+        self.injected_api.on_tx_receipt(receipt);
     }
 }
 
@@ -249,6 +239,7 @@ struct RpcServerApis {
     pub injected: InjectedApi,
     pub program: ProgramApi,
     pub dev: Option<DevApi>,
+    pub info: InfoApi,
 }
 
 #[cfg(feature = "server")]
@@ -273,6 +264,9 @@ impl RpcServerApis {
                 .merge(DevServer::into_rpc(dev))
                 .expect("No conflicts");
         }
+        module
+            .merge(InfoServer::into_rpc(self.info))
+            .expect("No conflicts");
 
         module
     }

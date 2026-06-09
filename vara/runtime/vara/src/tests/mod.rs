@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Weight tests for the runtime.
 
@@ -159,15 +144,15 @@ fn instruction_weights_heuristics_test() {
         version: 0,
         _phantom: core::marker::PhantomData,
 
-        i64const: 160,
+        i64const: 500,
         i64load: 5_800,
         i32load: 8_000,
         i64store: 10_000,
         i32store: 10_000,
-        select: 7_100,
+        select: 2_400,
         r#if: 8_000,
-        br: 3_300,
-        br_if: 6_000,
+        br: 100,
+        br_if: 2_800,
         br_table: 10_900,
         br_table_per_entry: 150,
 
@@ -181,30 +166,30 @@ fn instruction_weights_heuristics_test() {
         local_tee: 2_500,
         global_get: 700,
         global_set: 1_000,
-        memory_current: 14_200,
+        memory_current: 300,
 
         i64clz: 600,
         i32clz: 300,
-        i64ctz: 610,
+        i64ctz: 900,
         i32ctz: 250,
-        i64popcnt: 450,
+        i64popcnt: 900,
         i32popcnt: 350,
         i64eqz: 2_100,
         i32eqz: 1_200,
-        i32extend8s: 200,
-        i32extend16s: 200,
-        i64extend8s: 400,
-        i64extend16s: 400,
-        i64extend32s: 400,
+        i32extend8s: 300,
+        i32extend16s: 300,
+        i64extend8s: 900,
+        i64extend16s: 1_000,
+        i64extend32s: 700,
         i64extendsi32: 200,
         i64extendui32: 200,
-        i32wrapi64: 200,
+        i32wrapi64: 600,
         i64eq: 1_800,
         i32eq: 1_100,
         i64ne: 1_700,
         i32ne: 1_000,
 
-        i64lts: 1_200,
+        i64lts: 2_200,
         i32lts: 1_000,
         i64ltu: 1_800,
         i32ltu: 1_000,
@@ -214,10 +199,10 @@ fn instruction_weights_heuristics_test() {
         i32gtu: 1_000,
         i64les: 1_900,
         i32les: 1_000,
-        i64leu: 1_200,
+        i64leu: 3_000,
         i32leu: 1_000,
 
-        i64ges: 1_300,
+        i64ges: 2_300,
         i32ges: 1_000,
         i64geu: 1_300,
         i32geu: 1_000,
@@ -228,30 +213,30 @@ fn instruction_weights_heuristics_test() {
         i64mul: 2_000,
         i32mul: 1_000,
         i64divs: 3_500,
-        i32divs: 3_500,
+        i32divs: 1_000,
 
         i64divu: 3_500,
-        i32divu: 3_500,
-        i64rems: 18_000,
-        i32rems: 15_000,
+        i32divu: 700,
+        i64rems: 8_000,
+        i32rems: 6_000,
         i64remu: 3_500,
-        i32remu: 3_500,
+        i32remu: 900,
         i64and: 1_000,
         i32and: 500,
         i64or: 1_000,
         i32or: 500,
-        i64xor: 1_000,
+        i64xor: 1_700,
         i32xor: 500,
 
-        i64shl: 1_000,
-        i32shl: 200,
-        i64shrs: 1_000,
-        i32shrs: 250,
-        i64shru: 1_000,
+        i64shl: 1_200,
+        i32shl: 500,
+        i64shrs: 1_200,
+        i32shrs: 500,
+        i64shru: 1_200,
         i32shru: 400,
-        i64rotl: 750,
+        i64rotl: 900,
         i32rotl: 400,
-        i64rotr: 1_000,
+        i64rotr: 1_200,
         i32rotr: 300,
     };
 
@@ -266,76 +251,76 @@ fn syscall_weights_test() {
     let weights = SyscallWeights::<Runtime>::default();
 
     let expected = SyscallWeights {
-        alloc: 1_800_000.into(),
-        free: 1_000_000.into(),
-        free_range: 1_100_000.into(),
-        free_range_per_page: 50_000.into(),
-        gr_reserve_gas: 2_600_000.into(),
-        gr_unreserve_gas: 2_600_000.into(),
-        gr_system_reserve_gas: 1_200_000.into(),
-        gr_gas_available: 1_200_000.into(),
-        gr_message_id: 1_200_000.into(),
-        gr_program_id: 1_200_000.into(),
-        gr_source: 1_200_000.into(),
-        gr_value: 1_200_000.into(),
-        gr_value_available: 1_200_000.into(),
-        gr_size: 1_200_000.into(),
-        gr_read: 1_800_000.into(),
-        gr_read_per_byte: 200.into(),
-        gr_env_vars: 1_200_000.into(),
-        gr_block_height: 1_200_000.into(),
-        gr_block_timestamp: 1_200_000.into(),
-        gr_random: 2_300_000.into(),
-        gr_reply_deposit: 6_000_000.into(),
-        gr_send: 3_200_000.into(),
-        gr_send_per_byte: 550.into(),
-        gr_send_wgas: 3_300_000.into(),
-        gr_send_wgas_per_byte: 550.into(),
-        gr_send_init: 1_300_000.into(),
-        gr_send_push: 2_050_000.into(),
-        gr_send_push_per_byte: 550.into(),
-        gr_send_commit: 2_700_000.into(),
-        gr_send_commit_wgas: 2_800_000.into(),
-        gr_reservation_send: 4_000_000.into(),
-        gr_reservation_send_per_byte: 500.into(),
-        gr_reservation_send_commit: 3_300_000.into(),
-        gr_reply_commit: 13_000_000.into(),
-        gr_reply_commit_wgas: 12_000_000.into(),
-        gr_reservation_reply: 9_500_000.into(),
-        gr_reservation_reply_per_byte: 800.into(),
-        gr_reservation_reply_commit: 8_000_000.into(),
-        gr_reply_push: 2_000_000.into(),
-        gr_reply: 14_500_000.into(),
-        gr_reply_per_byte: 750.into(),
-        gr_reply_wgas: 13_500_000.into(),
-        gr_reply_wgas_per_byte: 750.into(),
-        gr_reply_push_per_byte: 740.into(),
-        gr_reply_to: 1_200_000.into(),
-        gr_signal_code: 1_200_000.into(),
-        gr_signal_from: 1_200_000.into(),
-        gr_reply_input: 11_000_000.into(),
-        gr_reply_input_wgas: 13_000_000.into(),
-        gr_reply_push_input: 1_400_000.into(),
-        gr_reply_push_input_per_byte: 130.into(),
-        gr_send_input: 3_100_000.into(),
-        gr_send_input_wgas: 3_400_000.into(),
-        gr_send_push_input: 1_500_000.into(),
-        gr_send_push_input_per_byte: 150.into(),
-        gr_debug: 1_300_000.into(),
-        gr_debug_per_byte: 500.into(),
-        gr_reply_code: 1_200_000.into(),
-        gr_exit: 21_000_000.into(),
-        gr_leave: 17_000_000.into(),
-        gr_wait: 16_000_000.into(),
-        gr_wait_for: 16_000_000.into(),
-        gr_wait_up_to: 16_500_000.into(),
-        gr_wake: 3_300_000.into(),
-        gr_create_program: 4_100_000.into(),
-        gr_create_program_payload_per_byte: 120.into(),
-        gr_create_program_salt_per_byte: 1_600.into(),
-        gr_create_program_wgas: 4_100_000.into(),
-        gr_create_program_wgas_payload_per_byte: 130.into(),
-        gr_create_program_wgas_salt_per_byte: 1_500.into(),
+        alloc: 1_400_000.into(),
+        free: 850_000.into(),
+        free_range: 900_000.into(),
+        free_range_per_page: 36_000.into(),
+        gr_reserve_gas: 1_900_000.into(),
+        gr_unreserve_gas: 1_900_000.into(),
+        gr_system_reserve_gas: 980_000.into(),
+        gr_gas_available: 960_000.into(),
+        gr_message_id: 970_000.into(),
+        gr_program_id: 950_000.into(),
+        gr_source: 960_000.into(),
+        gr_value: 940_000.into(),
+        gr_value_available: 980_000.into(),
+        gr_size: 960_000.into(),
+        gr_read: 1_400_000.into(),
+        gr_read_per_byte: 160.into(),
+        gr_env_vars: 990_000.into(),
+        gr_block_height: 1_000_000.into(),
+        gr_block_timestamp: 960_000.into(),
+        gr_random: 1_700_000.into(),
+        gr_reply_deposit: 4_100_000.into(),
+        gr_send: 2_500_000.into(),
+        gr_send_per_byte: 300.into(),
+        gr_send_wgas: 2_500_000.into(),
+        gr_send_wgas_per_byte: 300.into(),
+        gr_send_init: 1_100_000.into(),
+        gr_send_push: 1_800_000.into(),
+        gr_send_push_per_byte: 300.into(),
+        gr_send_commit: 1_900_000.into(),
+        gr_send_commit_wgas: 2_000_000.into(),
+        gr_reservation_send: 2_900_000.into(),
+        gr_reservation_send_per_byte: 300.into(),
+        gr_reservation_send_commit: 2_400_000.into(),
+        gr_reply_commit: 25_000_000.into(),
+        gr_reply_commit_wgas: 27_000_000.into(),
+        gr_reservation_reply: 16_000_000.into(),
+        gr_reservation_reply_per_byte: 500.into(),
+        gr_reservation_reply_commit: 10_000_000.into(),
+        gr_reply_push: 1_500_000.into(),
+        gr_reply: 26_000_000.into(),
+        gr_reply_per_byte: 500.into(),
+        gr_reply_wgas: 25_000_000.into(),
+        gr_reply_wgas_per_byte: 500.into(),
+        gr_reply_push_per_byte: 500.into(),
+        gr_reply_to: 1_000_000.into(),
+        gr_signal_code: 1_000_000.into(),
+        gr_signal_from: 1_000_000.into(),
+        gr_reply_input: 34_000_000.into(),
+        gr_reply_input_wgas: 41_000_000.into(),
+        gr_reply_push_input: 1_100_000.into(),
+        gr_reply_push_input_per_byte: 100.into(),
+        gr_send_input: 2_400_000.into(),
+        gr_send_input_wgas: 2_500_000.into(),
+        gr_send_push_input: 1_300_000.into(),
+        gr_send_push_input_per_byte: 100.into(),
+        gr_debug: 1_100_000.into(),
+        gr_debug_per_byte: 300.into(),
+        gr_reply_code: 1_000_000.into(),
+        gr_exit: 18_000_000.into(),
+        gr_leave: 8_000_000.into(),
+        gr_wait: 9_200_000.into(),
+        gr_wait_for: 9_200_000.into(),
+        gr_wait_up_to: 7_300_000.into(),
+        gr_wake: 2_400_000.into(),
+        gr_create_program: 3_100_000.into(),
+        gr_create_program_payload_per_byte: 250.into(),
+        gr_create_program_salt_per_byte: 1_200.into(),
+        gr_create_program_wgas: 3_200_000.into(),
+        gr_create_program_wgas_payload_per_byte: 250.into(),
+        gr_create_program_wgas_salt_per_byte: 1_200.into(),
         _phantom: Default::default(),
     };
 
@@ -352,8 +337,8 @@ fn page_costs_heuristic_test() {
     let expected_page_costs = PagesCosts {
         load_page_data: 10_000_000.into(),
         upload_page_data: 105_000_000.into(),
-        mem_grow: 700_000.into(),
-        mem_grow_per_page: 3.into(),
+        mem_grow: 600_000.into(),
+        mem_grow_per_page: 25.into(),
         parachain_read_heuristic: 0.into(),
     };
 
@@ -387,7 +372,7 @@ fn lazy_page_costs_heuristic_test() {
 fn load_allocations_costs_heuristic_test() {
     let process_costs: ProcessCosts = Schedule::<Runtime>::default().process_costs();
 
-    let expected_load_allocations_costs = 25197;
+    let expected_load_allocations_costs = 21_000;
 
     let result = check_load_allocations_costs(
         process_costs.load_allocations_per_interval.into(),
@@ -403,12 +388,12 @@ fn instantiation_costs_heuristic_test() {
     let instantiation_costs = InstantiationWeights::<Runtime>::default().into();
 
     let expected_instantiation_costs = InstantiationCosts {
-        code_section_per_byte: 2582.into(),
-        data_section_per_byte: 661.into(),
-        global_section_per_byte: 3000.into(),
-        table_section_per_byte: 651.into(),
-        element_section_per_byte: 2523.into(),
-        type_section_per_byte: 22356.into(),
+        code_section_per_byte: 400.into(),
+        data_section_per_byte: 650.into(),
+        global_section_per_byte: 1_400.into(),
+        table_section_per_byte: 600.into(),
+        element_section_per_byte: 220.into(),
+        type_section_per_byte: 1_100.into(),
     };
 
     let result = check_instantiation_costs(instantiation_costs, expected_instantiation_costs);
@@ -422,10 +407,10 @@ fn db_costs_heuristic_test() {
     let db_costs = DbWeights::<Runtime>::default().into();
 
     let expected_db_costs = DbCosts {
-        read: 25000000.into(),
-        read_per_byte: 800.into(),
-        write: 100000000.into(),
-        write_per_byte: 250.into(),
+        read: 25_000_000.into(),
+        read_per_byte: 500.into(),
+        write: 100_000_000.into(),
+        write_per_byte: 170.into(),
     };
 
     let result = check_db_costs(db_costs, expected_db_costs);
@@ -439,8 +424,8 @@ fn code_instrumentation_costs_heuristic_test() {
     let code_instrumentation_costs = InstrumentationWeights::<Runtime>::default().into();
 
     let expected_code_instrumentation_costs = InstrumentationCosts {
-        base: 412026293.into(),
-        per_byte: 715243.into(),
+        base: 280_000_000.into(),
+        per_byte: 500_000.into(),
     };
 
     let result = check_code_instrumentation_costs(

@@ -1,52 +1,36 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2026 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloy::sol_types::SolValue;
+use core::num::NonZero;
 use ethexe_common::{
-    Announce, COMMITMENT_DELAY_LIMIT, Digest, HashOf,
-    consensus::{
-        BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT,
-        DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
-    },
-    gear::{
-        ChainCommitment, CodeCommitment, RewardsCommitment, StateTransition, ValidatorsCommitment,
-    },
+    DEFAULT_COMMITMENT_DELAY_LIMIT, Digest,
+    consensus::{BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT},
+    gear::{ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment},
 };
 use ethexe_ethereum::abi::Gear;
-use gprimitives::CodeId;
+use gprimitives::{CodeId, H256};
 
 /// Batch building limits.
 #[derive(Debug, Clone)]
 pub struct BatchLimits {
-    /// Minimum deepness threshold to create chain commitment even if there are no transitions.
-    pub chain_deepness_threshold: u32,
-    /// Time limit in blocks for announce to be committed after its creation.
-    pub commitment_delay_limit: u32,
-    /// The maximum size of abi encoded [`ethexe_common::gear::BatchCommitment`].
+    /// Coordinator-local: how many Ethereum blocks the resulting
+    /// `BatchCommitment` stays valid past its target block. Encoded into
+    /// `BatchCommitment::expiry` (also `u8`). Set freely per-coordinator.
+    pub commitment_delay_limit: NonZero<u8>,
     pub batch_size_limit: u64,
+    /// Force a checkpoint chain commitment when the producer's view of
+    /// `last_advanced_eth_block` is more than this many blocks ahead of the
+    /// last committed advanced block.
+    pub uncommitted_chain_len_threshold: NonZero<u32>,
 }
 
 impl Default for BatchLimits {
     fn default() -> Self {
         BatchLimits {
-            chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
-            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+            commitment_delay_limit: DEFAULT_COMMITMENT_DELAY_LIMIT,
             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
+            uncommitted_chain_len_threshold: NonZero::new(500).expect("500 != 0"),
         }
     }
 }
@@ -90,12 +74,6 @@ impl BatchSizeCounter {
         self.charge_optional::<_, Gear::ChainCommitment>(commitment.clone())
     }
 
-    /// Charges only for appended transitions after the chain commitment header
-    /// has already been accounted for.
-    pub fn charge_for_additional_transitions(&mut self, transitions: &[StateTransition]) -> bool {
-        self.charge_many::<_, Gear::StateTransition>(transitions)
-    }
-
     pub fn charge_for_code_commitment(&mut self, commitment: &CodeCommitment) -> bool {
         let commitment: Gear::CodeCommitment = commitment.clone().into();
 
@@ -109,18 +87,6 @@ impl BatchSizeCounter {
     {
         let encoded: Vec<V> = value.into_iter().map(Into::into).collect();
         self.charge_value(&encoded)
-    }
-
-    fn charge_many<T, V>(&mut self, values: &[T]) -> bool
-    where
-        V: SolValue,
-        T: Into<V> + Clone,
-    {
-        let mut encoded_size = 0;
-        values.iter().cloned().for_each(|v| {
-            encoded_size += v.into().abi_encoded_size() as u64;
-        });
-        self.charge(encoded_size)
     }
 
     fn charge_value<V: SolValue>(&mut self, value: &V) -> bool {
@@ -162,20 +128,21 @@ pub enum ValidationRejectReason {
     #[display("batch commitment is empty")]
     EmptyBatch,
     #[display("batch commitment request contains duplicate code ids")]
-    CodesHasDuplicates,
+    CodesHaveDuplicates,
     #[display("code id {_0} is not waiting for commitment")]
     CodeNotWaitingForCommitment(CodeId),
     #[display("code id {_0} is not processed yet")]
     CodeIsNotProcessedYet(CodeId),
-    #[display("requested head announce {requested} is not the best announce {best}")]
-    HeadAnnounceIsNotFromBestChain {
-        requested: HashOf<Announce>,
-        best: HashOf<Announce>,
-    },
-    #[display("requested head announce {_0} is not computed by this node")]
-    HeadAnnounceNotComputed(HashOf<Announce>),
-    #[display("cannot collect not committed predecessors for best announce {_0}")]
-    BestHeadAnnounceChainInvalid(HashOf<Announce>),
+    #[display("requested head MB {_0} is not finalized locally")]
+    HeadMbNotFinalized(H256),
+    #[display("requested head MB {_0} is at or below last committed MB")]
+    HeadMbAlreadyCommitted(H256),
+    #[display("requested head MB {_0} is not computed by this node")]
+    HeadMbNotComputed(H256),
+    #[display(
+        "latest finalized MB advance {_0} is not on the canonical chain ending at the current head"
+    )]
+    LatestFinalizedAdvanceNotCanonical(H256),
     #[display(
         "received batch contains validators commitment, but it's not time for validators election yet"
     )]
@@ -189,7 +156,3 @@ pub enum ValidationRejectReason {
     #[display("batch size exceeded the maximum size limit")]
     BatchSizeLimitExceeded,
 }
-
-#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]
-#[display("Code not found: {_0}")]
-pub struct CodeNotValidatedError(pub CodeId);

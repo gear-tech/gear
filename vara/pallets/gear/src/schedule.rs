@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2022-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! This module contains the cost schedule and supporting code that constructs a
 //! sane default schedule from a `WeightInfo` implementation.
@@ -54,7 +39,7 @@ pub const API_BENCHMARK_BATCH_SIZE: u32 = 80;
 pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 
 /// Constant for `stack_height` is calculated via `calc-stack-height` utility to be small enough
-/// to avoid stack overflow in wasmer and wasmi executors.
+/// to avoid stack overflow in wasmtime and wasmi executors.
 /// To avoid potential stack overflow problems we have a panic in sandbox in case,
 /// execution is ended with stack overflow error. So, process queue execution will be
 /// stopped and we will be able to investigate the problem and decrease this constant if needed.
@@ -227,24 +212,21 @@ pub struct Limits {
 
 /// Describes the weight for all categories of supported wasm instructions.
 ///
-/// There there is one field for each wasm instruction that describes the weight to
+/// There is one field for each wasm instruction that describes the weight to
 /// execute one instruction of that name. There are a few exceptions:
 ///
-/// 1. If there is a i64 and a i32 variant of an instruction we use the weight
-///    of the former for both.
-/// 2. The following instructions are free of charge because they merely structure the
+/// 1. The following instructions are free of charge because they merely structure the
 ///    wasm module and cannot be spammed without making the module invalid (and rejected):
 ///    End, Unreachable, Return, Else
-/// 3. The following instructions cannot be benchmarked because they are removed by any
+/// 2. The following instructions cannot be benchmarked because they are removed by any
 ///    real world execution engine as a preprocessing step and therefore don't yield a
-///    meaningful benchmark result. However, in contrast to the instructions mentioned
-///    in 2. they can be spammed. We price them with the same weight as the "default"
-///    instruction (i64.const): Block, Loop, Nop
-/// 4. We price both i64.const and drop as InstructionWeights.i64const / 2. The reason
-///    for that is that we cannot benchmark either of them on its own but we need their
-///    individual values to derive (by subtraction) the weight of all other instructions
-///    that use them as supporting instructions. Supporting means mainly pushing arguments
-///    and dropping return values in order to maintain a valid module.
+///    meaningful benchmark result. However, in contrast to the instructions mentioned in
+///    1 they can be spammed. We price them with the same weight as
+///    the "default" instruction (i64.const): Block, Loop, Nop
+/// 3. We cannot benchmark i64.const or i32.const on their own, but we need a const
+///    weight to derive other instruction weights by subtracting supporting instructions
+///    used to push benchmark arguments. Drops are inserted only to keep benchmark
+///    modules valid and are charged as free instructions during instrumentation.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
@@ -882,24 +864,33 @@ impl Default for Limits {
 
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
-        // # Wasmer's compiler optimization (relevant for version 4.3.5 single-pass compiler for x86-64 target)
+        // # Wasmtime Winch compiler optimization (relevant for x86-64 target)
         //
-        // Wasmer's single-pass compiler implements an optimization for certain wasm i32 instructions where
-        // `i64const`/`i32const` parameters can be embedded into native x86-64 instructions.
+        // Wasmtime's Winch compiler keeps certain `i32.const` parameters on its value
+        // stack and emits them as native x86-64 instruction immediates for selected
+        // wasm binary instructions.
+        // This avoids emitting a separate native instruction to materialize the constant.
+        //
+        // In the older Wasmer single-pass backend this was described as an optimization
+        // where `i64const`/`i32const` parameters can be embedded into native x86-64
+        // instructions.
         //
         // This optimization works for the following types of instructions:
         //
-        // - Single-parameter i32 instructions that compile to a single x86-64 `mov` instruction,
-        //   e.g., `i64.extend_u/i32`, `i32.wrap_i64`.
         // - Binary operation i32 instructions that compile to an x86-64 `cmp` instruction,
         //   e.g., `i32.eq`, `i32.ne`, `i32.lt_s`, `i32.lt_u`, etc.
-        // - `i32.add`, `i32.sub` instructions where one parameter is embedded into the instruction.
+        // - `i32.add`, `i32.sub`, `i32.mul` instructions where one parameter is
+        //   embedded into the instruction.
         // - Several logical i32 instructions: `i32.and`, `i32.or`, `i32.xor`.
+        // - i32/i64 shifts and rotations where the shift amount is embedded into the instruction.
         //
-        // See below for the assembly listings of the mentioned instructions.
+        // Unary conversions such as `i64.extend_u/i32` and `i32.wrap_i64` use Winch's
+        // regular unary path, which materializes constants before applying the conversion.
+        //
+        // See below for the assembly-shaped listings of the mentioned instructions.
         type W<T> = <T as Config>::WeightInfo;
         Self {
-            version: 1900,
+            version: 2000,
             i64const: cost_i64const::<T>(),
             i64load: cost_instr::<T>(W::<T>::instr_i64load, 0),
             i32load: cost_instr::<T>(W::<T>::instr_i32load, 0),
@@ -950,16 +941,12 @@ impl<T: Config> Default for InstructionWeights<T> {
             //     movsxd rsi,eax
             // ```
             i64extendsi32: cost_instr::<T>(W::<T>::instr_i64extendsi32, 1),
-            // `i64extendui32` compiles to:
-            // ```assembly
-            //     mov esi,0x3b578dc7  <- i64const embedded in the instruction
-            // ```
-            i64extendui32: cost_instr::<T>(W::<T>::instr_i64extendui32, 0),
-            // `i32wrapi64` compiles to:
-            // ```assembly
-            //     mov esi,0x3b578dc7 <- i64const embedded in the instruction
-            // ```
-            i32wrapi64: cost_instr::<T>(W::<T>::instr_i32wrapi64, 0),
+            // `i64extendui32` uses Winch's unary path. Unlike the i32 binary
+            // operations above, a const is materialized before the extension.
+            i64extendui32: cost_instr::<T>(W::<T>::instr_i64extendui32, 1),
+            // `i32wrapi64` uses Winch's unary path. Unlike the i32 binary
+            // operations above, a const is materialized before the wrap.
+            i32wrapi64: cost_instr::<T>(W::<T>::instr_i32wrapi64, 1),
             i64eq: cost_instr::<T>(W::<T>::instr_i64eq, 2),
             // `i32eq` compiles to:
             // ```assembly
@@ -1032,7 +1019,13 @@ impl<T: Config> Default for InstructionWeights<T> {
             // ```
             i32sub: cost_instr::<T>(W::<T>::instr_i32sub, 1),
             i64mul: cost_instr::<T>(W::<T>::instr_i64mul, 2),
-            i32mul: cost_instr::<T>(W::<T>::instr_i32mul, 2),
+            // `i32mul` compiles to:
+            // ```assembly
+            //     mov eax,0x3b578dc7       <- i64const
+            //     imul eax,eax,0xdd0b1b34 <- i64const embedded in the instruction
+            //     mov esi,eax
+            // ```
+            i32mul: cost_instr::<T>(W::<T>::instr_i32mul, 1),
             i64divs: cost_instr::<T>(W::<T>::instr_i64divs, 2),
             i32divs: cost_instr::<T>(W::<T>::instr_i32divs, 2),
             i64divu: cost_instr::<T>(W::<T>::instr_i64divu, 2),
@@ -1065,16 +1058,56 @@ impl<T: Config> Default for InstructionWeights<T> {
             //     mov esi,eax
             // ```
             i32xor: cost_instr::<T>(W::<T>::instr_i32xor, 1),
-            i64shl: cost_instr::<T>(W::<T>::instr_i64shl, 2),
-            i32shl: cost_instr::<T>(W::<T>::instr_i32shl, 2),
-            i64shrs: cost_instr::<T>(W::<T>::instr_i64shrs, 2),
-            i32shrs: cost_instr::<T>(W::<T>::instr_i32shrs, 2),
-            i64shru: cost_instr::<T>(W::<T>::instr_i64shru, 2),
-            i32shru: cost_instr::<T>(W::<T>::instr_i32shru, 2),
-            i64rotl: cost_instr::<T>(W::<T>::instr_i64rotl, 2),
-            i32rotl: cost_instr::<T>(W::<T>::instr_i32rotl, 2),
-            i64rotr: cost_instr::<T>(W::<T>::instr_i64rotr, 2),
-            i32rotr: cost_instr::<T>(W::<T>::instr_i32rotr, 2),
+            // `i64shl` compiles to:
+            // ```assembly
+            //     mov rax,0xffffffffdd0b1b34 <- i64const
+            //     shl rax,0xc7               <- i64const embedded in the instruction
+            //     mov rsi,rax
+            // ```
+            i64shl: cost_instr::<T>(W::<T>::instr_i64shl, 1),
+            // `i32shl` compiles similarly to `i64shl` with `shl eax,imm8`,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32shl: cost_instr::<T>(W::<T>::instr_i32shl, 1),
+            // `i64shrs` compiles to:
+            // ```assembly
+            //     mov rax,0xffffffffdd0b1b34 <- i64const
+            //     sar rax,0xc7               <- i64const embedded in the instruction
+            //     mov rsi,rax
+            // ```
+            i64shrs: cost_instr::<T>(W::<T>::instr_i64shrs, 1),
+            // `i32shrs` compiles similarly to `i64shrs` with `sar eax,imm8`,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32shrs: cost_instr::<T>(W::<T>::instr_i32shrs, 1),
+            // `i64shru` compiles to:
+            // ```assembly
+            //     mov rax,0xffffffffdd0b1b34 <- i64const
+            //     shr rax,0xc7               <- i64const embedded in the instruction
+            //     mov rsi,rax
+            // ```
+            i64shru: cost_instr::<T>(W::<T>::instr_i64shru, 1),
+            // `i32shru` compiles similarly to `i64shru` with `shr eax,imm8`,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32shru: cost_instr::<T>(W::<T>::instr_i32shru, 1),
+            // `i64rotl` compiles to:
+            // ```assembly
+            //     mov rax,0xffffffffdd0b1b34 <- i64const
+            //     rol rax,0xc7               <- i64const embedded in the instruction
+            //     mov rsi,rax
+            // ```
+            i64rotl: cost_instr::<T>(W::<T>::instr_i64rotl, 1),
+            // `i32rotl` compiles similarly to `i64rotl` with `rol eax,imm8`,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32rotl: cost_instr::<T>(W::<T>::instr_i32rotl, 1),
+            // `i64rotr` compiles to:
+            // ```assembly
+            //     mov rax,0xffffffffdd0b1b34 <- i64const
+            //     ror rax,0xc7               <- i64const embedded in the instruction
+            //     mov rsi,rax
+            // ```
+            i64rotr: cost_instr::<T>(W::<T>::instr_i64rotr, 1),
+            // `i32rotr` compiles similarly to `i64rotr` with `ror eax,imm8`,
+            // so we subtract `i64const` (`num_params`) only 1 time.
+            i32rotr: cost_instr::<T>(W::<T>::instr_i32rotr, 1),
             _phantom: PhantomData,
         }
     }

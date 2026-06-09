@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 //! Batch execution engine for load mode.
 //!
 //! This module owns the long-running worker pool used by `ethexe-node-loader
@@ -118,9 +121,20 @@ type WorkerBatchFuture =
 
 const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
 
-/// Per-batch watchdog: drop and reschedule a batch if a hung RPC call parks
-/// the worker. Generous: code validation alone takes ~14 s for 5 codes.
-const BATCH_TIMEOUT: Duration = Duration::from_secs(180);
+/// Minimum per-batch watchdog: drop and reschedule a batch if a hung RPC call
+/// parks the worker.
+const MIN_BATCH_TIMEOUT: Duration = Duration::from_secs(180);
+
+/// Conservative wall-clock allowance for each block scanned by
+/// [`process_events`]. This keeps the watchdog above the expected wait window
+/// when the local chain runs with a slower block time.
+const BATCH_TIMEOUT_PER_EVENT_BLOCK: Duration = Duration::from_secs(15);
+
+/// Code validation is slower than plain transaction submission, so batches that
+/// upload code get extra time before the worker watchdog fires.
+const BATCH_TIMEOUT_PER_CODE_VALIDATION: Duration = Duration::from_secs(20);
+
+const BATCH_TIMEOUT_PER_TX: Duration = Duration::from_secs(10);
 
 /// Cadence of pool-progress heartbeats so a stalled pool is visible in `docker logs`.
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
@@ -523,9 +537,10 @@ async fn run_batch(
     mid_map: MidMap,
 ) -> (EthexeRpcPool, Result<BatchRunReport>) {
     let PreparedBatchWithSeed { seed, batch, .. } = batch;
+    let batch_timeout = batch_watchdog_timeout(&batch, use_send_message_multicall);
 
     let result = match tokio::time::timeout(
-        BATCH_TIMEOUT,
+        batch_timeout,
         run_batch_impl(
             api,
             &mut rpc_pool,
@@ -547,12 +562,12 @@ async fn run_batch(
         Err(_) => {
             tracing::warn!(
                 seed,
-                timeout_secs = BATCH_TIMEOUT.as_secs(),
+                timeout_secs = batch_timeout.as_secs(),
                 "Batch timed out, dropping it and rescheduling worker"
             );
             Err(anyhow::anyhow!(
                 "batch {seed} exceeded {:?} watchdog timeout",
-                BATCH_TIMEOUT
+                batch_timeout
             ))
         }
     };
@@ -740,6 +755,7 @@ async fn run_batch_impl(
                 let to = call.arg.0.0;
                 let value = call.arg.0.3;
                 if call.use_injected {
+                    let now = std::time::Instant::now();
                     let (message_id, promise) = rpc_pool
                         .send_message_injected_and_watch(
                             endpoint_idx,
@@ -753,7 +769,7 @@ async fn run_batch_impl(
                     injected_promises.insert(message_id, promise);
                     mid_map.write().await.insert(message_id, to);
                     injected_tx_count = injected_tx_count.saturating_add(1);
-                    tracing::trace!(call_id = i, %to, %message_id, "Injected message sent");
+                    tracing::trace!(time = now.elapsed().as_millis(), call_id = i, %to, %message_id, "Injected message sent and promise received");
                 } else {
                     regular_calls.push((i, to, call.arg.0.1.clone(), value));
                 }
@@ -1247,6 +1263,49 @@ fn send_message_wait_window(action_count: usize, use_send_message_multicall: boo
     }
 }
 
+fn scale_duration(duration: Duration, factor: usize) -> Duration {
+    duration.saturating_mul(factor.try_into().unwrap_or(u32::MAX))
+}
+
+fn event_window_timeout(blocks: usize) -> Duration {
+    scale_duration(BATCH_TIMEOUT_PER_EVENT_BLOCK, blocks)
+}
+
+fn batch_watchdog_timeout(batch: &PreparedBatch, use_send_message_multicall: bool) -> Duration {
+    let dynamic_timeout = match batch {
+        PreparedBatch::UploadProgram(args) => {
+            let estimated_event_blocks = blocks_window(args.len(), 2, 6);
+            event_window_timeout(estimated_event_blocks)
+                .saturating_add(scale_duration(
+                    BATCH_TIMEOUT_PER_CODE_VALIDATION,
+                    args.len(),
+                ))
+                .saturating_add(scale_duration(BATCH_TIMEOUT_PER_TX, args.len()))
+        }
+        PreparedBatch::UploadCode(args) => {
+            scale_duration(BATCH_TIMEOUT_PER_CODE_VALIDATION, args.len())
+        }
+        PreparedBatch::SendMessage(args) => event_window_timeout(send_message_wait_window(
+            args.len(),
+            use_send_message_multicall,
+        ))
+        .saturating_add(scale_duration(BATCH_TIMEOUT_PER_TX, args.len())),
+        PreparedBatch::CreateProgram(args) => {
+            let estimated_event_blocks = blocks_window(args.len(), 1, 6);
+            event_window_timeout(estimated_event_blocks)
+                .saturating_add(scale_duration(BATCH_TIMEOUT_PER_TX, args.len()))
+        }
+        PreparedBatch::SendReply(args) => {
+            let estimated_event_blocks = blocks_window(args.len(), 1, 6);
+            event_window_timeout(estimated_event_blocks)
+                .saturating_add(scale_duration(BATCH_TIMEOUT_PER_TX, args.len()))
+        }
+        PreparedBatch::ClaimValue(args) => scale_duration(BATCH_TIMEOUT_PER_TX, args.len()),
+    };
+
+    dynamic_timeout.max(MIN_BATCH_TIMEOUT)
+}
+
 /// Parses `Router.commitBatch` transactions for the given block and extracts
 /// mailbox, exit, and reply outcome information relevant to the tracked batch.
 #[allow(clippy::too_many_arguments)]
@@ -1603,10 +1662,14 @@ async fn process_events(
 #[cfg(test)]
 mod tests {
     use super::{
-        Event, TransitionedMessage, apply_mirror_event_update, apply_router_transition_update,
-        schedule_initial_workers, send_message_wait_window,
+        Event, MIN_BATCH_TIMEOUT, TransitionedMessage, apply_mirror_event_update,
+        apply_router_transition_update, batch_watchdog_timeout, schedule_initial_workers,
+        send_message_wait_window,
     };
-    use crate::batch::context::ContextUpdate;
+    use crate::batch::{
+        context::ContextUpdate,
+        value::{PreparedBatch, PreparedSendMessage},
+    };
     use ethexe_common::events::{
         MirrorEvent,
         mirror::{
@@ -1615,6 +1678,7 @@ mod tests {
             ValueClaimedEvent, ValueClaimingRequestedEvent,
         },
     };
+    use gear_call_gen::SendMessageArgs;
     use gear_core::{ids::prelude::MessageIdExt, message::ReplyCode};
     use gprimitives::{ActorId, H256, MessageId};
 
@@ -1781,6 +1845,26 @@ mod tests {
     fn direct_send_mode_waits_longer_for_events() {
         assert_eq!(send_message_wait_window(3, true), 9);
         assert_eq!(send_message_wait_window(3, false), 18);
+    }
+
+    fn send_message_batch(len: usize) -> PreparedBatch {
+        PreparedBatch::SendMessage(vec![
+            PreparedSendMessage {
+                arg: SendMessageArgs((actor(1), vec![1, 2, 3], 1_000, 0)),
+                use_injected: false,
+            };
+            len
+        ])
+    }
+
+    #[test]
+    fn batch_watchdog_timeout_scales_with_event_window() {
+        let batch = send_message_batch(6);
+        let multicall_timeout = batch_watchdog_timeout(&batch, true);
+        let direct_timeout = batch_watchdog_timeout(&batch, false);
+
+        assert!(multicall_timeout >= MIN_BATCH_TIMEOUT);
+        assert!(direct_timeout > multicall_timeout);
     }
 
     #[test]

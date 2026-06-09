@@ -1,29 +1,15 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
 use gear_wasm_builder::{
     code_validator::validate_program,
     optimize::{self, Optimizer},
 };
-use gear_wasm_instrument::{Module, SyscallKind, TypeRef};
+use gear_wasm_instrument::SyscallKind;
 use std::{collections::HashSet, fs, path::PathBuf};
 use tracing_subscriber::EnvFilter;
+use wasmparser::{Parser as WasmParser, Payload, TypeRef};
 
 const RT_ALLOWED_IMPORTS: [&str; 78] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
@@ -41,7 +27,7 @@ const RT_ALLOWED_IMPORTS: [&str; 78] = [
     "ext_crypto_sr25519_sign_version_1",
     "ext_crypto_sr25519_verify_version_2",
     "ext_crypto_start_batch_verify_version_1",
-    // From `GearRI` (runtime-interface/scr/lib.rs)
+    // From `GearRI` (vara/runtime/interface/src/lib.rs)
     "ext_gear_ri_pre_process_memory_accesses_version_1",
     "ext_gear_ri_pre_process_memory_accesses_version_2",
     "ext_gear_ri_lazy_pages_status_version_1",
@@ -151,15 +137,7 @@ struct Args {
 
 fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), String> {
     let wasm = fs::read(path_to_wasm).map_err(|e| format!("Read error: {e}"))?;
-    let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
-
-    let is_dev = module
-        .custom_sections
-        .as_ref()
-        .iter()
-        .copied()
-        .flatten()
-        .any(|v| v.0 == "dev_runtime");
+    let is_dev = has_custom_section(&wasm, "dev_runtime")?;
 
     match (expected_to_be_dev, is_dev) {
         (true, false) => Err(String::from("Runtime expected to be DEV, but it's NOT DEV")),
@@ -170,18 +148,26 @@ fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), S
 
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
     let wasm = fs::read(path_to_wasm).map_err(|e| format!("Read error: {e}"))?;
-    let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
-    let imports = module
-        .import_section
-        .as_ref()
-        .ok_or("Import section not found")?;
-
+    let mut has_import_section = false;
     let mut unexpected_imports = vec![];
 
-    for import in imports {
-        if matches!(import.ty, TypeRef::Func(_) if !allowed_imports.contains(&*import.name)) {
-            unexpected_imports.push(import.name.clone());
+    for payload in WasmParser::new(0).parse_all(&wasm) {
+        if let Payload::ImportSection(section) =
+            payload.map_err(|e| format!("Deserialization error: {e}"))?
+        {
+            has_import_section = true;
+
+            for import in section {
+                let import = import.map_err(|e| format!("Deserialization error: {e}"))?;
+                if matches!(import.ty, TypeRef::Func(_) if !allowed_imports.contains(import.name)) {
+                    unexpected_imports.push(import.name.to_string());
+                }
+            }
         }
+    }
+
+    if !has_import_section {
+        return Err(String::from("Import section not found"));
     }
 
     if !unexpected_imports.is_empty() {
@@ -193,6 +179,19 @@ fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Resu
 
     log::info!("{path_to_wasm} -> Ok");
     Ok(())
+}
+
+fn has_custom_section(wasm: &[u8], expected_section: &str) -> Result<bool, String> {
+    for payload in WasmParser::new(0).parse_all(wasm) {
+        if let Payload::CustomSection(section) =
+            payload.map_err(|e| format!("Deserialization error: {e}"))?
+            && section.name() == expected_section
+        {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -1,33 +1,18 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
-    PromisePolicy, ProtocolTimelines, Rfm, Schedule, ScheduledTask, Sd, SimpleBlockData,
-    StateHashWithQueueSize, Sum, ValidatorsVec,
+    Address, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    ProtocolTimelines, Rfm, Schedule, ScheduledTask, Sd, SimpleBlockData, StateHashWithQueueSize,
+    Sum, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
-    ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
     },
-    injected::{AddressedInjectedTransaction, InjectedTransaction, Promise},
+    injected::{InjectedTransaction, Promise},
+    malachite::Operations,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
@@ -47,7 +32,7 @@ use proptest::{
     strategy::{Just, ValueTree},
     test_runner::TestRunner,
 };
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::VecDeque;
 pub use tap::Tap;
 
 fn arbitrary_value<T>(args: T::Parameters) -> T
@@ -94,38 +79,8 @@ impl From<H256> for BlockHeaderParams {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct AnnounceParams {
-    block_hash: Option<H256>,
-    parent: Option<HashOf<Announce>>,
-}
-
-impl From<()> for AnnounceParams {
-    fn from((): ()) -> Self {
-        Self::default()
-    }
-}
-
-impl From<H256> for AnnounceParams {
-    fn from(block_hash: H256) -> Self {
-        Self {
-            block_hash: Some(block_hash),
-            parent: None,
-        }
-    }
-}
-
-impl From<(H256, HashOf<Announce>)> for AnnounceParams {
-    fn from((block_hash, parent): (H256, HashOf<Announce>)) -> Self {
-        Self {
-            block_hash: Some(block_hash),
-            parent: Some(parent),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
 pub struct ChainCommitmentParams {
-    head_announce: Option<HashOf<Announce>>,
+    head: Option<H256>,
 }
 
 impl From<()> for ChainCommitmentParams {
@@ -134,11 +89,9 @@ impl From<()> for ChainCommitmentParams {
     }
 }
 
-impl From<HashOf<Announce>> for ChainCommitmentParams {
-    fn from(head_announce: HashOf<Announce>) -> Self {
-        Self {
-            head_announce: Some(head_announce),
-        }
+impl From<H256> for ChainCommitmentParams {
+    fn from(head: H256) -> Self {
+        Self { head: Some(head) }
     }
 }
 
@@ -160,25 +113,6 @@ impl From<u32> for BlockChainParams {
 impl From<(u32, ValidatorsVec)> for BlockChainParams {
     fn from((len, validators): (u32, ValidatorsVec)) -> Self {
         Self { len, validators }
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct AddressedInjectedTransactionParams {
-    signer: Option<PrivateKey>,
-}
-
-impl From<()> for AddressedInjectedTransactionParams {
-    fn from((): ()) -> Self {
-        Self::default()
-    }
-}
-
-impl From<PrivateKey> for AddressedInjectedTransactionParams {
-    fn from(signer: PrivateKey) -> Self {
-        Self {
-            signer: Some(signer),
-        }
     }
 }
 
@@ -208,20 +142,6 @@ fn message_id_strategy() -> BoxedStrategy<MessageId> {
 
 fn reservation_id_strategy() -> BoxedStrategy<ReservationId> {
     any::<[u8; 32]>().prop_map(Into::into).boxed()
-}
-
-fn hash_of_strategy<T: 'static>() -> BoxedStrategy<HashOf<T>> {
-    h256_strategy()
-        .prop_map(|hash| unsafe { HashOf::new(hash) })
-        .boxed()
-}
-
-fn private_key_strategy() -> BoxedStrategy<PrivateKey> {
-    any::<[u8; 32]>()
-        .prop_filter_map("valid secp256k1 private key", |seed| {
-            PrivateKey::from_seed(seed).ok()
-        })
-        .boxed()
 }
 
 fn limited_bytes_strategy<const N: usize>(
@@ -335,15 +255,6 @@ impl Arbitrary for MessageType {
     }
 }
 
-impl Arbitrary for PromisePolicy {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        prop_oneof![Just(Self::Disabled), Just(Self::Enabled)].boxed()
-    }
-}
-
 impl Arbitrary for StateHashWithQueueSize {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;
@@ -354,31 +265,6 @@ impl Arbitrary for StateHashWithQueueSize {
                 hash,
                 canonical_queue_size,
                 injected_queue_size,
-            })
-            .boxed()
-    }
-}
-
-impl Arbitrary for Announce {
-    type Parameters = AnnounceParams;
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
-        let block_hash = match args.block_hash {
-            Some(block_hash) => Just(block_hash).boxed(),
-            None => h256_strategy(),
-        };
-        let parent = match args.parent {
-            Some(parent) => Just(parent).boxed(),
-            None => hash_of_strategy(),
-        };
-
-        (block_hash, parent)
-            .prop_map(|(block_hash, parent)| Self {
-                block_hash,
-                parent,
-                gas_allowance: Some(100),
-                injected_transactions: vec![],
             })
             .boxed()
     }
@@ -400,19 +286,20 @@ impl Arbitrary for ChainCommitment {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
-        let head_announce = match args.head_announce {
-            Some(head_announce) => Just(head_announce).boxed(),
-            None => hash_of_strategy(),
+        let head = match args.head {
+            Some(head) => Just(head).boxed(),
+            None => h256_strategy(),
         };
 
         (
             StateTransition::arbitrary_with(()),
             StateTransition::arbitrary_with(()),
-            head_announce,
+            head,
         )
-            .prop_map(|(first, second, head_announce)| Self {
+            .prop_map(|(first, second, head)| Self {
                 transitions: vec![first, second],
-                head_announce,
+                head,
+                last_advanced_eth_block: H256::zero(),
             })
             .boxed()
     }
@@ -459,7 +346,7 @@ impl Arbitrary for BatchCommitmentValidationRequest {
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         (
             digest_strategy(),
-            hash_of_strategy::<Announce>(),
+            h256_strategy(),
             code_id_strategy(),
             code_id_strategy(),
         )
@@ -526,30 +413,6 @@ impl Arbitrary for InjectedTransaction {
     }
 }
 
-impl Arbitrary for AddressedInjectedTransaction {
-    type Parameters = AddressedInjectedTransactionParams;
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
-        let signer = match args.signer {
-            Some(signer) => Just(signer).boxed(),
-            None => private_key_strategy(),
-        };
-
-        (
-            address_strategy(),
-            signer,
-            InjectedTransaction::arbitrary_with(()),
-        )
-            .prop_map(|(recipient, signer, tx)| Self {
-                recipient,
-                tx: SignedMessage::create(signer, tx)
-                    .expect("signing injected transaction must succeed"),
-            })
-            .boxed()
-    }
-}
-
 impl Mock<()> for Promise {
     fn mock(_args: ()) -> Self {
         Promise::mock(HashOf::random())
@@ -578,9 +441,8 @@ pub struct SyncedBlockData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedBlockData {
     pub codes_queue: VecDeque<CodeId>,
-    pub announces: Option<BTreeSet<HashOf<Announce>>>,
     pub last_committed_batch: Digest,
-    pub last_committed_announce: HashOf<Announce>,
+    pub last_committed_mb: H256,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -620,44 +482,6 @@ impl BlockFullData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct MockComputedAnnounceData {
-    pub outcome: Vec<StateTransition>,
-    pub program_states: ProgramStates,
-    pub schedule: Schedule,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AnnounceData {
-    pub announce: Announce,
-    pub computed: Option<MockComputedAnnounceData>,
-}
-
-impl AnnounceData {
-    pub fn as_computed(&self) -> &MockComputedAnnounceData {
-        self.computed.as_ref().expect("announce not computed")
-    }
-
-    pub fn as_computed_mut(&mut self) -> &mut MockComputedAnnounceData {
-        self.computed.as_mut().expect("announce not computed")
-    }
-
-    pub fn setup(self, db: &impl AnnounceStorageRW) -> Self {
-        let announce_hash = db.set_announce(self.announce.clone());
-
-        if let Some(computed) = &self.computed {
-            db.set_announce_outcome(announce_hash, computed.outcome.clone());
-            db.set_announce_program_states(announce_hash, computed.program_states.clone());
-            db.set_announce_schedule(announce_hash, computed.schedule.clone());
-            db.mutate_announce_meta(announce_hash, |meta| {
-                *meta = AnnounceMeta { computed: true }
-            });
-        }
-
-        self
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstrumentedCodeData {
     pub instrumented: InstrumentedCode,
@@ -681,10 +505,57 @@ impl CodeData {
     }
 }
 
+/// Computed-side payload for an [`MbFullData`]. `None` on
+/// [`MbFullData::computed`] means `mb_meta.computed = false` and
+/// `mb_program_states` is left unwritten.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MockComputedMbData {
+    pub program_states: ProgramStates,
+}
+
+/// One MB entry in the [`BlockChain`] mock. Paralleled with
+/// [`BlockChain::blocks`]: `mbs[i]` corresponds to `blocks[i]`. The
+/// first entry (`mbs[0]`) is a sentinel with `hash = H256::zero()`
+/// (mirrors the `blocks[0]` genesis-parent placeholder) and is not
+/// written to the DB.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MbFullData {
+    pub hash: H256,
+    /// Parent MB hash. `H256::zero()` for the very first real MB.
+    pub parent: H256,
+    /// MB height. Set to the block index `i` so it monotonically
+    /// matches [`BlockChain::blocks`].
+    pub height: u64,
+    /// Computed-side data. `Some(default)` by default; setting to
+    /// `None` skips writing `mb_program_states` and `mb_meta.computed`.
+    pub computed: Option<MockComputedMbData>,
+    /// SCALE-encoded operations blob to write under this MB.
+    /// Defaults to an empty list. Tests that need specific operations in
+    /// the dedup-window walk (e.g. tx_validity::Duplicate) can set this.
+    pub operations: Operations,
+}
+
+impl MbFullData {
+    #[track_caller]
+    pub fn as_computed(&self) -> &MockComputedMbData {
+        self.computed
+            .as_ref()
+            .expect("MB not marked computed in this mock chain")
+    }
+
+    #[track_caller]
+    pub fn as_computed_mut(&mut self) -> &mut MockComputedMbData {
+        self.computed
+            .as_mut()
+            .expect("MB not marked computed in this mock chain")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockChain {
     pub blocks: VecDeque<BlockFullData>,
-    pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
+    /// One MB per `blocks[i]`. `mbs[0]` is a sentinel — see [`MbFullData`].
+    pub mbs: VecDeque<MbFullData>,
     pub codes: BTreeMap<CodeId, CodeData>,
     pub validators: ValidatorsVec,
     pub config: DBConfig,
@@ -692,82 +563,67 @@ pub struct BlockChain {
 }
 
 impl BlockChain {
+    /// `mbs[idx]` accessor. Panics on out-of-range — mirrors the
+    /// existing direct field access for `blocks[idx]`.
     #[track_caller]
-    pub fn block_top_announce_hash(&self, block_index: usize) -> HashOf<Announce> {
-        self.blocks
-            .get(block_index)
-            .expect("block index overflow")
-            .as_prepared()
-            .announces
-            .iter()
-            .flatten()
-            .next()
-            .copied()
-            .expect("no announces found for block")
+    pub fn mb_at(&self, idx: usize) -> &MbFullData {
+        &self.mbs[idx]
     }
 
     #[track_caller]
-    pub fn block_top_announce(&self, block_index: usize) -> &AnnounceData {
-        self.announces
-            .get(&self.block_top_announce_hash(block_index))
-            .expect("announce not found")
+    pub fn mb_at_mut(&mut self, idx: usize) -> &mut MbFullData {
+        &mut self.mbs[idx]
     }
 
+    /// Convenience for the common `mbs[idx].hash` pattern.
     #[track_caller]
-    pub fn block_top_announce_mut(&mut self, block_index: usize) -> &mut AnnounceData {
-        self.announces
-            .get_mut(&self.block_top_announce_hash(block_index))
-            .expect("announce not found")
+    pub fn mb_hash_at(&self, idx: usize) -> H256 {
+        self.mbs[idx].hash
     }
+}
 
-    #[track_caller]
-    pub fn block_top_announce_mutate(
-        &mut self,
-        block_index: usize,
-        f: impl FnOnce(&mut AnnounceData),
-    ) -> HashOf<Announce> {
-        let announce_hash = self.block_top_announce_hash(block_index);
-        let mut announce_data = self
-            .announces
-            .remove(&announce_hash)
-            .expect("Announce not found");
-        f(&mut announce_data);
+/// Seed the zero MB as a computed genesis ancestor, mirroring
+/// `initialize_empty_db`. The malachite genesis block (height 1) points at
+/// the zero hash as its parent, and the compute / tx-validity pipelines read
+/// that parent as a normal computed record — empty `program_states` and
+/// `schedule`, `computed = true`, `last_advanced_eb = zero`. Every test DB
+/// that exercises those pipelines must carry it.
+pub fn seed_genesis_zero_mb<DB>(db: &DB)
+where
+    DB: MbStorageRW,
+{
+    let operations_hash = db.set_operations(Operations::new(vec![]));
+    db.set_mb_compact_block(
+        H256::zero(),
+        CompactMb {
+            parent: H256::zero(),
+            height: 0,
+            operations_hash,
+        },
+    );
+    db.set_mb_program_states(H256::zero(), Default::default());
+    db.set_mb_schedule(H256::zero(), Default::default());
+    db.set_mb_outcome(H256::zero(), Vec::new());
+    db.mutate_mb_meta(H256::zero(), |m| {
+        m.computed = true;
+        m.last_advanced_eb = H256::zero();
+    });
+}
 
-        self.blocks[block_index]
-            .prepared
-            .as_mut()
-            .expect("block not prepared")
-            .announces
-            .as_mut()
-            .expect("block announces not found")
-            .remove(&announce_hash);
-
-        let new_announce_hash = announce_data.announce.to_hash();
-        self.announces.insert(new_announce_hash, announce_data);
-
-        self.blocks[block_index]
-            .as_prepared_mut()
-            .announces
-            .as_mut()
-            .expect("block announces not found")
-            .insert(new_announce_hash);
-
-        new_announce_hash
-    }
-
+impl BlockChain {
     #[track_caller]
     pub fn setup<DB>(self, db: &DB) -> Self
     where
-        DB: AnnounceStorageRW
-            + BlockMetaStorageRW
+        DB: BlockMetaStorageRW
             + OnChainStorageRW
             + CodesStorageRW
+            + MbStorageRW
             + SetConfig
             + SetGlobals,
     {
         let BlockChain {
             blocks,
-            announces,
+            mbs,
             codes,
             validators,
             config,
@@ -776,6 +632,34 @@ impl BlockChain {
 
         db.set_config(config.clone());
         db.set_globals(globals);
+
+        // The zero MB is the genesis block's parent; seed it as a computed
+        // ancestor exactly as `initialize_empty_db` does in production.
+        seed_genesis_zero_mb(db);
+
+        // Write MB rows in chronological order. Skip the index-0
+        // sentinel (zero hash). Empty-operations MBs share one CAS
+        // entry naturally — `set_operations` is content-addressed.
+        for mb in &mbs {
+            if mb.hash == H256::zero() {
+                continue;
+            }
+            let operations_hash = db.set_operations(mb.operations.clone());
+            db.set_mb_compact_block(
+                mb.hash,
+                CompactMb {
+                    parent: mb.parent,
+                    height: mb.height,
+                    operations_hash,
+                },
+            );
+            if let Some(computed) = &mb.computed {
+                db.set_mb_program_states(mb.hash, computed.program_states.clone());
+                db.mutate_mb_meta(mb.hash, |meta| {
+                    meta.computed = true;
+                });
+            }
+        }
 
         for BlockFullData {
             hash,
@@ -797,30 +681,21 @@ impl BlockChain {
 
             if let Some(PreparedBlockData {
                 codes_queue,
-                announces,
                 last_committed_batch,
-                last_committed_announce,
+                last_committed_mb,
             }) = prepared
             {
-                if let Some(announces) = announces {
-                    db.set_block_announces(hash, announces);
-                }
-
                 db.mutate_block_meta(hash, |meta| {
                     *meta = BlockMeta {
                         prepared: true,
                         codes_queue: Some(codes_queue),
                         last_committed_batch: Some(last_committed_batch),
-                        last_committed_announce: Some(last_committed_announce),
+                        last_committed_mb: Some(last_committed_mb),
                         ..*meta
                     };
                 });
             }
         }
-
-        announces.into_iter().for_each(|(_, data)| {
-            let _ = data.setup(db);
-        });
 
         for (
             code_id,
@@ -855,7 +730,7 @@ impl BlockChain {
         // i = 2, h = 1 - first block
         // ...
         // i = len + 1, h = len - last block
-        let mut blocks: VecDeque<_> = (0..len + 2)
+        let blocks: VecDeque<_> = (0..len + 2)
             .map(|i| {
                 if let Some(h) = i.checked_sub(1) {
                     // Human readable blocks, to avoid zero values append some readable numbers
@@ -882,43 +757,12 @@ impl BlockChain {
                         }),
                         prepared: Some(PreparedBlockData {
                             codes_queue: Default::default(),
-                            announces: Some(Default::default()), // empty here, filled below with announces
                             last_committed_batch: Digest::zero(),
-                            last_committed_announce: HashOf::zero(),
+                            last_committed_mb: H256::zero(),
                         }),
                     }
                 },
             )
-            .collect();
-
-        let mut genesis_announce_hash = None;
-        let mut parent_announce_hash = HashOf::zero();
-        let announces = blocks
-            .iter_mut()
-            .map(|block| {
-                let announce = Announce::base(block.hash, parent_announce_hash);
-                let announce_hash = announce.to_hash();
-                let genesis_announce_hash = genesis_announce_hash.get_or_insert(announce_hash);
-                let prepared_data = block.prepared.as_mut().unwrap();
-                prepared_data
-                    .announces
-                    .as_mut()
-                    .unwrap()
-                    .insert(announce_hash);
-                prepared_data.last_committed_announce = *genesis_announce_hash;
-                parent_announce_hash = announce_hash;
-                (
-                    announce_hash,
-                    AnnounceData {
-                        announce,
-                        computed: Some(MockComputedAnnounceData {
-                            outcome: Default::default(),
-                            program_states: Default::default(),
-                            schedule: Default::default(),
-                        }),
-                    },
-                )
-            })
             .collect();
 
         let config = DBConfig {
@@ -932,21 +776,56 @@ impl BlockChain {
                 slot: slot.try_into().unwrap(),
             },
             genesis_block_hash: blocks[0].hash,
-            genesis_announce_hash: genesis_announce_hash.unwrap(),
             max_validators: 10,
         };
 
+        // Build a parallel MB chain. `mbs[0]` is a sentinel matching
+        // the `blocks[0]` genesis-parent placeholder; subsequent MBs
+        // link parent-to-parent in chronological order.
+        let mut mbs: VecDeque<MbFullData> = VecDeque::with_capacity(blocks.len());
+        let mut prev_mb_hash = H256::zero();
+        for i in 0..blocks.len() {
+            if i == 0 {
+                mbs.push_back(MbFullData {
+                    hash: H256::zero(),
+                    parent: H256::zero(),
+                    height: 0,
+                    computed: None,
+                    operations: Operations::new(vec![]),
+                });
+                continue;
+            }
+            // Synthetic but stable, non-zero hash distinct from block hashes.
+            let mut hb = [0u8; 32];
+            hb[0] = 0xCD;
+            hb[1..9].copy_from_slice(&(i as u64).to_be_bytes());
+            let hash = H256::from(hb);
+            mbs.push_back(MbFullData {
+                hash,
+                parent: prev_mb_hash,
+                height: i as u64,
+                computed: Some(MockComputedMbData::default()),
+                operations: Operations::new(vec![]),
+            });
+            prev_mb_hash = hash;
+        }
+
+        // NOTE: `latest_{finalized,computed}_mb_hash` default to zero
+        // so existing tests that only set up blocks (and not an MB
+        // chain) keep their old "no MBs committed yet" semantics.
+        // Tests that exercise the MB pipeline must explicitly
+        // `tap_mut(|c| c.globals.latest_computed_mb_hash = c.mb_hash_at(N))`.
         let globals = DBGlobals {
             start_block_hash: blocks[0].hash,
-            start_announce_hash: genesis_announce_hash.unwrap(),
-            latest_synced_block: blocks.back().unwrap().to_simple(),
-            latest_prepared_block_hash: blocks.back().unwrap().hash,
-            latest_computed_announce_hash: parent_announce_hash,
+            latest_synced_eb: blocks.back().unwrap().to_simple(),
+            latest_prepared_eb_hash: blocks.back().unwrap().hash,
+            latest_finalized_mb_hash: H256::zero(),
+            latest_computed_mb_hash: H256::zero(),
         };
 
         Self {
             blocks,
-            announces,
+            mbs,
             codes: Default::default(),
             validators,
             config,
@@ -963,31 +842,6 @@ impl Arbitrary for BlockChain {
         address_strategy()
             .prop_map(move |router_address| Self::with_params(args.clone(), router_address))
             .boxed()
-    }
-}
-
-pub trait DBMockExt {
-    fn simple_block_data(&self, block: H256) -> SimpleBlockData;
-    fn top_announce_hash(&self, block: H256) -> HashOf<Announce>;
-}
-
-impl<DB: OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO> DBMockExt for DB {
-    #[track_caller]
-    fn simple_block_data(&self, block: H256) -> SimpleBlockData {
-        let header = self.block_header(block).expect("block header not found");
-        SimpleBlockData {
-            hash: block,
-            header,
-        }
-    }
-
-    #[track_caller]
-    fn top_announce_hash(&self, block: H256) -> HashOf<Announce> {
-        self.block_announces(block)
-            .expect("block announces not found")
-            .into_iter()
-            .next()
-            .expect("must be at list one announce")
     }
 }
 
@@ -1031,22 +885,15 @@ impl Arbitrary for DBConfig {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (
-            ProtocolTimelines::arbitrary_with(()),
-            h256_strategy(),
-            hash_of_strategy::<Announce>(),
-        )
-            .prop_map(
-                |(timelines, genesis_block_hash, genesis_announce_hash)| Self {
-                    version: 0,
-                    chain_id: 0,
-                    router_address: Address::default(),
-                    timelines,
-                    genesis_block_hash,
-                    genesis_announce_hash,
-                    max_validators: 0,
-                },
-            )
+        (ProtocolTimelines::arbitrary_with(()), h256_strategy())
+            .prop_map(|(timelines, genesis_block_hash)| Self {
+                version: 0,
+                chain_id: 0,
+                router_address: Address::default(),
+                timelines,
+                genesis_block_hash,
+                max_validators: 0,
+            })
             .boxed()
     }
 }
@@ -1058,24 +905,24 @@ impl Arbitrary for DBGlobals {
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         (
             h256_strategy(),
-            hash_of_strategy::<Announce>(),
             SimpleBlockData::arbitrary_with(().into()),
             h256_strategy(),
-            hash_of_strategy::<Announce>(),
+            h256_strategy(),
+            h256_strategy(),
         )
             .prop_map(
                 |(
                     start_block_hash,
-                    start_announce_hash,
-                    latest_synced_block,
-                    latest_prepared_block_hash,
-                    latest_computed_announce_hash,
+                    latest_synced_eb,
+                    latest_prepared_eb_hash,
+                    latest_finalized_mb_hash,
+                    latest_computed_mb_hash,
                 )| Self {
                     start_block_hash,
-                    start_announce_hash,
-                    latest_synced_block,
-                    latest_prepared_block_hash,
-                    latest_computed_announce_hash,
+                    latest_synced_eb,
+                    latest_prepared_eb_hash,
+                    latest_finalized_mb_hash,
+                    latest_computed_mb_hash,
                 },
             )
             .boxed()
@@ -1087,9 +934,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn addressed_injected_transaction_mock_produces_distinct_hashes() {
+    fn injected_transaction_mock_produces_distinct_hashes() {
         let tx_hashes: std::collections::BTreeSet<_> = (0..8)
-            .map(|_| AddressedInjectedTransaction::mock(()).tx.data().to_hash())
+            .map(|_| InjectedTransaction::mock(()).to_hash())
             .collect();
 
         assert_eq!(tx_hashes.len(), 8);

@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::tests::DEFAULT_GAS_LIMIT;
 use frame_support::assert_ok;
@@ -608,13 +593,7 @@ fn gas_allowance_respected() {
 
         assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
 
-        // Estimate the gas cost for sending a message to `staking-broker` contract (without any
-        // outgoing messages).
-        // TODO: find a way to use `calculate_gas_info` here for more precise estimation.
-        // To block the contract from sending any messages, we provide an illegal payload. But
-        // we have to use the "actual" `calculate_gas_info` (since `cfg(test)` is not propagated
-        // to the dependencies), and that one doesn't allow calculating gas for failed dispatches.
-        let gas_to_engage_staking_broker = 880_000_000_u64; // Heuristic value
+        let broker_gas_allowance = 1_u64;
 
         let gas_cost = pallet_staking::Call::<Test>::bond {
             value: 100 * UNITS,
@@ -628,7 +607,7 @@ fn gas_allowance_respected() {
 
         // With insufficient gas allowance, the message should not be processed
         send_bond_message(contract_id, 100 * UNITS, None);
-        run_for_n_blocks(1, Some(gas_to_engage_staking_broker + gas_cost));
+        run_for_n_blocks(1, Some(broker_gas_allowance + gas_cost));
 
         // No staking events have taken place
         assert_no_staking_events();

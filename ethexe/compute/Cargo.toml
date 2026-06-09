@@ -22,12 +22,11 @@ tokio.workspace = true
 derive_more.workspace = true
 log.workspace = true
 gear-workspace-hack.workspace = true
-future-timing.workspace = true
-bon.workspace = true
 
 # metrics
 metrics.workspace = true
 metrics-derive.workspace = true
+future-timing.workspace = true
 
 [dev-dependencies]
 gear-core.workspace = true
@@ -37,5 +36,6 @@ wasmparser.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 ethexe-db = { workspace = true, features = ["mock"] }
 ntest.workspace = true
+proptest.workspace = true
 # test examples
 demo-ping = { workspace = true, features = ["ethexe"] }

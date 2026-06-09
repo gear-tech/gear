@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::{process, thread, time::Instant};
 
@@ -103,7 +88,7 @@ fn run_fuzzer(duration_seconds: Option<u64>) {
     log::info!("Starting lazy pages fuzzer");
 
     if let Some(duration_seconds) = duration_seconds {
-        log::info!("Fuzzer will run for {} seconds", duration_seconds);
+        log::info!("Fuzzer will run for {duration_seconds} seconds");
     }
 
     let _ = generate_or_read_seed(false);
@@ -132,7 +117,7 @@ fn run_fuzzer(duration_seconds: Option<u64>) {
         if let Some(duration_seconds) = duration_seconds
             && start_ts.elapsed().as_secs() >= duration_seconds
         {
-            log::info!("Fuzzer run completed after {} seconds", duration_seconds);
+            log::info!("Fuzzer run completed after {duration_seconds} seconds");
             process::exit(0);
         }
     });

@@ -1,22 +1,58 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Ethereum state observer for ethexe.
+//! # ethexe-observer
+//!
+//! Watches the Ethereum chain head and back-fills missing blocks into the local
+//! database, surfacing each arrival and each completed sync as an [`ObserverEvent`].
+//!
+//! It is read-only with respect to Ethereum: chain writes (batch commitments, etc.)
+//! belong to `ethexe-ethereum`. `ethexe-service` polls [`ObserverService`] as the
+//! canonical chain-head source and dispatches its events to consensus and compute.
+//!
+//! ## Public API
+//!
+//! - [`ObserverService`] — Stream of chain-head and sync events; implements `futures::Stream<Item = Result<ObserverEvent>>` and
+//!   `FusedStream`
+//! - [`ObserverService::new`] — Async constructor that connects the provider and starts the header subscription
+//! - [`ObserverService::provider`] — Borrows the underlying `alloy` `RootProvider`
+//! - [`ObserverService::block_loader`] — Returns a fresh [`EthereumBlockLoader`] bound to the configured router address
+//! - [`ObserverService::router_query`] — Returns a fresh `RouterQuery` for read-only contract queries
+//! - [`ObserverConfig`] — Constructor input: Ethereum RPC URL and optional max sync depth
+//! - [`ObserverEvent`] — Stream item: `Block` on a new head, `BlockSynced` after back-fill
+//! - [`SyncError`] — Error classifier: `RpcError` (recoverable, skipped) vs `Fatal` (propagated)
+//! - [`utils::BlockLoader`] — Trait abstracting block-data loading from Ethereum
+//! - [`utils::BlockId`] — Block selector for `BlockLoader::load_simple`: `Hash(H256)`, `Latest`, `Finalized`
+//! - [`utils::EthereumBlockLoader`] — alloy-backed [`utils::BlockLoader`] impl
+//!
+//! ## Invariants
+//!
+//! - The stream never terminates: `FusedStream::is_terminated` always returns `false`.
+//! - Back-fill stops at the database watermark, connecting each new head to the existing synced chain.
+//! - `max_sync_depth` defaults to `u32::MAX` when `None` is passed in [`ObserverConfig`].
+//!
+//! ## Usage
+//!
+//! ```rust,no_run
+//! use ethexe_observer::{ObserverConfig, ObserverEvent, ObserverService};
+//! use futures::StreamExt as _;
+//!
+//! let mut observer = ObserverService::new(
+//!     db.clone(),
+//!     ObserverConfig {
+//!         rpc: &ethereum_rpc_url,
+//!         max_sync_depth: Some(1024),
+//!     },
+//! )
+//! .await?;
+//!
+//! while let Some(event) = observer.next().await {
+//!     match event? {
+//!         ObserverEvent::Block(block) => { /* new chain head */ }
+//!         ObserverEvent::BlockSynced(hash) => { /* `hash` and ancestors now in db */ }
+//!     }
+//! }
+//! ```
 
 use crate::utils::EthereumBlockLoader;
 use alloy::{
@@ -25,7 +61,7 @@ use alloy::{
     rpc::types::eth::Header,
     transports::TransportResult,
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result};
 use ethexe_common::{
     Address, BlockHeader, ProtocolTimelines, SimpleBlockData, db::ConfigStorageRO,
 };
@@ -38,7 +74,8 @@ use std::{
     pin::Pin,
     task::{Context, Poll, ready},
 };
-use sync::ChainSync;
+pub use sync::SyncError;
+use sync::{ChainSync, SyncResult};
 
 mod sync;
 pub mod utils;
@@ -50,7 +87,7 @@ type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription
 
 /// The wrapper on top of [`ChainSync::sync`] future.
 /// It is needed to measure time taken for syncing a block.
-type SyncFuture = future_timing::Timed<BoxFuture<'static, Result<H256>>>;
+type SyncFuture = future_timing::Timed<BoxFuture<'static, SyncResult<H256>>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
@@ -78,6 +115,8 @@ pub(crate) struct ObserverMetrics {
     pub blocks_latency: metrics::Histogram,
     /// The statistics about time for blocks syncing.
     pub block_syncing_latency: metrics::Histogram,
+    /// Sync attempts that ended with a recoverable RPC error.
+    pub recoverable_sync_errors: metrics::Counter,
 }
 
 #[derive(Clone, Debug)]
@@ -109,6 +148,9 @@ pub struct ObserverService {
     block_sync_queue: VecDeque<Header>,
     sync_future: Option<SyncFuture>,
     subscription_future: Option<HeadersSubscriptionFuture>,
+    /// Exponent for the subscription-retry backoff. Bumped on every
+    /// `subscribe_blocks` failure, cleared on success.
+    subscription_retry_attempt: u32,
 }
 
 impl Stream for ObserverService {
@@ -123,23 +165,24 @@ impl Stream for ObserverService {
                 Ok(subscription) => {
                     self.headers_stream = subscription.into_stream();
                     self.subscription_future = None;
+                    self.subscription_retry_attempt = 0;
                 }
                 Err(e) => {
-                    return Poll::Ready(Some(Err(anyhow!(
-                        "failed to create new headers stream: {e}"
-                    ))));
+                    log::warn!("observer: header subscription failed: {e:#}");
+                    self.schedule_subscription_retry();
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
                 }
             }
         }
 
         if let Poll::Ready(res) = self.headers_stream.poll_next_unpin(cx) {
             let Some(header) = res else {
-                log::warn!("Alloy headers stream ended. Creating a new one...");
-
-                let provider = self.provider().clone();
-                let _fut = provider.get_block_by_number(alloy::eips::BlockNumberOrTag::Earliest);
-                self.subscription_future = Some(provider.subscribe_blocks().into_future());
-
+                // Treat an unexpected stream end like a failed attempt:
+                // a flapping endpoint can otherwise tight-loop us through
+                // accept-then-immediate-close cycles with no sleep.
+                log::warn!("observer: header stream ended unexpectedly");
+                self.schedule_subscription_retry();
                 cx.waker().wake_by_ref();
                 return Poll::Pending;
             };
@@ -181,8 +224,21 @@ impl Stream for ObserverService {
                 .record((timing.busy() + timing.idle()).as_secs_f64());
             self.sync_future = None;
 
-            let maybe_event = result.map(ObserverEvent::BlockSynced);
-            return Poll::Ready(Some(maybe_event));
+            match result {
+                Ok(hash) => {
+                    return Poll::Ready(Some(Ok(ObserverEvent::BlockSynced(hash))));
+                }
+                Err(SyncError::RpcError(err)) => {
+                    log::warn!("observer: RPC error, retrying on next head: {err:#}");
+                    self.metrics.recoverable_sync_errors.increment(1);
+                    // Self-wake: queued headers may still be drainable.
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
+                }
+                Err(SyncError::Fatal(err)) => {
+                    return Poll::Ready(Some(Err(err)));
+                }
+            }
         }
 
         Poll::Pending
@@ -238,6 +294,7 @@ impl ObserverService {
             block_sync_queue: VecDeque::new(),
             metrics: ObserverMetrics::default(),
             subscription_future: None,
+            subscription_retry_attempt: 0,
             headers_stream,
         })
     }
@@ -252,6 +309,28 @@ impl ObserverService {
 
     pub fn router_query(&self) -> RouterQuery {
         RouterQuery::from_provider(self.config.router_address, self.provider.clone())
+    }
+
+    /// Arm `subscription_future` with the next exponential backoff before
+    /// re-subscribing. Used by both the `Err` arm of an in-flight subscribe
+    /// and the unexpected-stream-end branch — the latter would otherwise
+    /// hammer the RPC if the provider accepts then immediately closes.
+    fn schedule_subscription_retry(&mut self) {
+        let attempt = self.subscription_retry_attempt.saturating_add(1);
+        self.subscription_retry_attempt = attempt;
+        let backoff = std::time::Duration::from_millis(
+            (500u64.saturating_mul(1u64 << attempt.min(6))).min(30_000),
+        );
+        log::warn!("observer: re-subscribing to headers (attempt {attempt}, after {backoff:?})");
+        self.metrics.recoverable_sync_errors.increment(1);
+        let provider = self.provider().clone();
+        self.subscription_future = Some(
+            async move {
+                tokio::time::sleep(backoff).await;
+                provider.subscribe_blocks().await
+            }
+            .boxed(),
+        );
     }
 }
 

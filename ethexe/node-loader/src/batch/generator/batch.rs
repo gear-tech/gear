@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use super::seed;
 use crate::{
     args::SeedVariant,
@@ -15,6 +18,13 @@ use gear_utils::NonEmpty;
 use gear_wasm_gen::{StandardGearWasmConfigsBundle, SyscallKind};
 use std::iter;
 use tracing::instrument;
+
+const UPLOAD_PROGRAM_BATCH_ID: u8 = 0;
+const UPLOAD_CODE_BATCH_ID: u8 = 1;
+const SEND_MESSAGE_BATCH_ID: u8 = 2;
+const CREATE_PROGRAM_BATCH_ID: u8 = 3;
+const SEND_REPLY_BATCH_ID: u8 = 4;
+const CLAIM_VALUE_BATCH_ID: u8 = 5;
 
 /// Runtime values that need to stay in sync with the target `ethexe` network.
 #[derive(Clone, Copy)]
@@ -147,17 +157,21 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
     }
 
     fn select_program_creation_batch_id(&mut self, context: &Context) -> u8 {
-        if context.all_code_ids().is_empty() || self.batch_gen_rng.gen_bool(0.5) {
-            0
-        } else {
-            3
+        if context.all_code_ids().is_empty() {
+            return UPLOAD_PROGRAM_BATCH_ID;
+        }
+
+        match self.batch_gen_rng.gen_range(0..3) {
+            0 => UPLOAD_PROGRAM_BATCH_ID,
+            1 => CREATE_PROGRAM_BATCH_ID,
+            _ => UPLOAD_CODE_BATCH_ID,
         }
     }
 
     fn select_non_creation_batch_id(&mut self, context: &Context) -> u8 {
-        let mut viable = vec![1, 2];
+        let mut viable = vec![SEND_MESSAGE_BATCH_ID];
         if !context.all_mailbox_message_ids().is_empty() {
-            viable.extend([4, 5]);
+            viable.extend([SEND_REPLY_BATCH_ID, CLAIM_VALUE_BATCH_ID]);
         }
 
         let idx = self.batch_gen_rng.gen_range(0..viable.len());
@@ -188,43 +202,45 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         rt_settings: RuntimeSettings,
     ) -> Batch {
         match batch_id {
-            0 => self.generate_upload_program_batch(context, seed, rt_settings.gas_limit),
-            1 => self.generate_upload_code_batch(context, seed),
-            2 => match NonEmpty::from_vec(context.active_program_ids()) {
+            UPLOAD_PROGRAM_BATCH_ID => {
+                self.generate_upload_program_batch(context, seed, rt_settings.gas_limit)
+            }
+            UPLOAD_CODE_BATCH_ID => self.generate_upload_code_batch(context, seed),
+            SEND_MESSAGE_BATCH_ID => match NonEmpty::from_vec(context.active_program_ids()) {
                 Some(existing_programs) => Self::gen_batch::<SendMessageArgs, _, _>(
                     self.batch_size,
                     seed,
                     |rng| (existing_programs.clone(), rng.next_u64()),
                     || (rt_settings.gas_limit,),
                 ),
-                None => self.generate_batch(0, context, seed, rt_settings),
+                None => self.generate_batch(UPLOAD_PROGRAM_BATCH_ID, context, seed, rt_settings),
             },
-            3 => match NonEmpty::from_vec(context.all_code_ids()) {
+            CREATE_PROGRAM_BATCH_ID => match NonEmpty::from_vec(context.all_code_ids()) {
                 Some(existing_codes) => Self::gen_batch::<CreateProgramArgs, _, _>(
                     self.batch_size,
                     seed,
                     |rng| (existing_codes.clone(), rng.next_u64()),
                     || (rt_settings.gas_limit,),
                 ),
-                None => self.generate_batch(0, context, seed, rt_settings),
+                None => self.generate_batch(UPLOAD_PROGRAM_BATCH_ID, context, seed, rt_settings),
             },
-            4 => match NonEmpty::from_vec(context.all_mailbox_message_ids()) {
+            SEND_REPLY_BATCH_ID => match NonEmpty::from_vec(context.all_mailbox_message_ids()) {
                 Some(mailbox_messages) => Self::gen_batch::<SendReplyArgs, _, _>(
                     self.batch_size,
                     seed,
                     |rng| (mailbox_messages.clone(), rng.next_u64()),
                     || (rt_settings.gas_limit,),
                 ),
-                None => self.generate_batch(0, context, seed, rt_settings),
+                None => self.generate_batch(UPLOAD_PROGRAM_BATCH_ID, context, seed, rt_settings),
             },
-            5 => match NonEmpty::from_vec(context.all_mailbox_message_ids()) {
+            CLAIM_VALUE_BATCH_ID => match NonEmpty::from_vec(context.all_mailbox_message_ids()) {
                 Some(mailbox_messages) => Self::gen_batch::<ClaimValueArgs, _, _>(
                     self.batch_size,
                     seed,
                     |rng| (mailbox_messages.clone(), rng.next_u64()),
                     || (),
                 ),
-                None => self.generate_batch(0, context, seed, rt_settings),
+                None => self.generate_batch(UPLOAD_PROGRAM_BATCH_ID, context, seed, rt_settings),
             },
             _ => unreachable!(),
         }
@@ -350,7 +366,10 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Batch, BatchGenerator, RuntimeSettings};
+    use super::{
+        Batch, BatchGenerator, CLAIM_VALUE_BATCH_ID, CREATE_PROGRAM_BATCH_ID, RuntimeSettings,
+        SEND_MESSAGE_BATCH_ID, SEND_REPLY_BATCH_ID, UPLOAD_CODE_BATCH_ID, UPLOAD_PROGRAM_BATCH_ID,
+    };
     use crate::{
         args::SeedVariant,
         batch::{
@@ -416,7 +435,7 @@ mod tests {
         );
 
         match generator.generate_batch(
-            0,
+            UPLOAD_PROGRAM_BATCH_ID,
             context_with_programs(),
             12,
             RuntimeSettings { gas_limit: 123 },
@@ -429,7 +448,7 @@ mod tests {
         }
 
         match generator.generate_batch(
-            1,
+            UPLOAD_CODE_BATCH_ID,
             context_with_programs(),
             13,
             RuntimeSettings { gas_limit: 123 },
@@ -453,7 +472,7 @@ mod tests {
         );
 
         match generator.generate_batch(
-            4,
+            SEND_REPLY_BATCH_ID,
             context_with_programs(),
             23,
             RuntimeSettings { gas_limit: 321 },
@@ -461,5 +480,69 @@ mod tests {
             Batch::SendReply(batch) => assert_eq!(batch[0].0.0, message(4)),
             other => panic!("unexpected batch: {other:?}"),
         }
+    }
+
+    #[test]
+    fn zero_program_creation_ratio_selects_only_traffic_batches_after_bootstrap() {
+        let mut generator = BatchGenerator::<SmallRng>::new(
+            31,
+            1,
+            Some(SeedVariant::Constant(32)),
+            RuntimeSettings { gas_limit: 321 },
+            WorkloadPolicy {
+                program_creation_ratio: 0,
+            },
+        );
+        let context = context_with_programs();
+
+        for _ in 0..128 {
+            match generator.select_batch_id(&context) {
+                SEND_MESSAGE_BATCH_ID | SEND_REPLY_BATCH_ID | CLAIM_VALUE_BATCH_ID => {}
+                other => panic!("unexpected creation batch id selected: {other}"),
+            }
+        }
+    }
+
+    #[test]
+    fn full_program_creation_ratio_selects_only_program_creation_batches() {
+        let mut generator = BatchGenerator::<SmallRng>::new(
+            41,
+            1,
+            Some(SeedVariant::Constant(42)),
+            RuntimeSettings { gas_limit: 321 },
+            WorkloadPolicy {
+                program_creation_ratio: 100,
+            },
+        );
+        let context = context_with_programs();
+        let mut seen_upload_code = false;
+
+        for _ in 0..128 {
+            match generator.select_batch_id(&context) {
+                UPLOAD_PROGRAM_BATCH_ID | CREATE_PROGRAM_BATCH_ID => {}
+                UPLOAD_CODE_BATCH_ID => seen_upload_code = true,
+                other => panic!("unexpected non-creation batch id selected: {other}"),
+            }
+        }
+
+        assert!(seen_upload_code);
+    }
+
+    #[test]
+    fn zero_program_creation_ratio_still_bootstraps_empty_context() {
+        let mut generator = BatchGenerator::<SmallRng>::new(
+            51,
+            1,
+            Some(SeedVariant::Constant(52)),
+            RuntimeSettings { gas_limit: 321 },
+            WorkloadPolicy {
+                program_creation_ratio: 0,
+            },
+        );
+
+        assert_eq!(
+            generator.select_batch_id(&Context::new()),
+            UPLOAD_PROGRAM_BATCH_ID
+        );
     }
 }

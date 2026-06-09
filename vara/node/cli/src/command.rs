@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
     SandboxBackend,
@@ -136,7 +121,7 @@ pub fn run() -> sc_cli::Result<()> {
 
     gear_runtime_interface::sandbox_init(
         match cli.run.sandbox_backend {
-            SandboxBackend::Wasmer => gear_runtime_interface::SandboxBackend::Wasmer,
+            SandboxBackend::Wasmtime => gear_runtime_interface::SandboxBackend::Wasmtime,
             SandboxBackend::Wasmi => gear_runtime_interface::SandboxBackend::Wasmi,
         },
         cli.run.sandbox_store_clear_counter_limit.into(),
@@ -344,7 +329,6 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = if cli.run.base.validator && cli.run.base.shared_params.log.is_empty() {
                 cli.create_runner_with_logger_hook(&cli.run.base, |logger, _| {
                     logger.with_detailed_output(false);
-                    logger.with_max_level(log::LevelFilter::Info);
                 })?
             } else {
                 cli.create_runner(&cli.run.base)?

@@ -1,25 +1,11 @@
-// This file is part of Gear.
-
-// Copyright (C) 2022-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{builder_error::BuilderError, multiple_crate_versions};
 use anyhow::{Context, Result, ensure};
 use cargo_metadata::{CrateType, Dependency, Metadata, MetadataCommand, Package};
 use std::{collections::BTreeMap, path::Path};
+use toml::value::Table;
 
 /// Helper to get a crate info extracted from the `Cargo.toml`.
 #[derive(Debug, Default)]
@@ -37,7 +23,7 @@ pub struct CrateInfo {
     /// Crate custom profiles
     pub profiles: BTreeMap<String, toml::Value>,
     /// Workspace patches
-    pub patch: BTreeMap<String, toml::Value>,
+    pub patch: Table,
 }
 
 impl CrateInfo {

@@ -1,25 +1,18 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{StateHandler, ValidatorContext, ValidatorState};
+//! [`Coordinator`] aggregates finalized MBs into a [`BatchCommitment`],
+//! gossips a validation request, collects threshold-many signatures, and
+//! submits the multi-signed batch to the Router.
+//!
+//! The coordinator is elected per Ethereum block via
+//! [`ProtocolTimelines::block_coordinator_at`]. A new chain head always
+//! aborts the current attempt.
+
+use super::{StateHandler, ValidatorContext, ValidatorState, idle::Idle};
 use crate::{
     BatchCommitmentValidationReply, CommitmentSubmitted, ConsensusEvent,
-    utils::MultisignedBatchCommitment, validator::initial::Initial,
+    utils::MultisignedBatchCommitment,
 };
 use anyhow::{Context as _, Result, anyhow, ensure};
 use derive_more::Display;
@@ -27,13 +20,109 @@ use ethexe_common::{
     Address, SimpleBlockData, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
     gear::BatchCommitment, network::ValidatorMessage,
 };
-use futures::FutureExt;
+use futures::{FutureExt, future::BoxFuture};
 use gsigner::secp256k1::Secp256k1SignerExt;
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    task::{Context, Poll},
+};
+use tokio::time::sleep;
 
-/// [`Coordinator`] sends batch commitment validation request to other validators
-/// and waits for validation replies.
-/// Switches to [`Submitter`], after receiving enough validators replies from other validators.
+/// Pre-coordinator state that holds off batch aggregation for
+/// [`ValidatorCore::coordinator_aggregation_delay`]. The delay buys
+/// participants time to receive the same chain head and lets compute
+/// finish executing whatever MB it picked up from the proposal.
+///
+/// After the delay elapses, [`CoordinatorBoot`] aggregates the batch and
+/// either transitions to [`Coordinator`] (gossiping a validation request)
+/// or returns to [`Idle`] (nothing to commit).
+#[derive(Display)]
+#[display("COORDINATOR_BOOT")]
+pub struct CoordinatorBoot {
+    ctx: ValidatorContext,
+    block: SimpleBlockData,
+    validators: ValidatorsVec,
+    /// `Some` while we're either sleeping or awaiting the batch builder.
+    pending: Option<BoxFuture<'static, Result<Option<BatchCommitment>>>>,
+}
+
+impl std::fmt::Debug for CoordinatorBoot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CoordinatorBoot")
+            .field("block", &self.block.hash)
+            .finish_non_exhaustive()
+    }
+}
+
+impl CoordinatorBoot {
+    pub fn start(
+        ctx: ValidatorContext,
+        block: SimpleBlockData,
+        validators: ValidatorsVec,
+    ) -> Result<ValidatorState> {
+        let delay = ctx.core.coordinator_aggregation_delay;
+        let batch_manager = ctx.core.batch_manager.clone();
+
+        // Schedule the delayed aggregation as a single boxed future. The
+        // state machine drives it via `poll_next_state`.
+        let pending = async move {
+            sleep(delay).await;
+            batch_manager.create_batch_commitment(block).await
+        }
+        .boxed();
+
+        Ok(Self {
+            ctx,
+            block,
+            validators,
+            pending: Some(pending),
+        }
+        .into())
+    }
+}
+
+impl StateHandler for CoordinatorBoot {
+    fn context(&self) -> &ValidatorContext {
+        &self.ctx
+    }
+
+    fn context_mut(&mut self) -> &mut ValidatorContext {
+        &mut self.ctx
+    }
+
+    fn into_context(self) -> ValidatorContext {
+        self.ctx
+    }
+
+    fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
+        let Some(future) = self.pending.as_mut() else {
+            return Ok((Poll::Pending, self.into()));
+        };
+
+        match future.poll_unpin(cx) {
+            Poll::Pending => Ok((Poll::Pending, self.into())),
+            Poll::Ready(Err(err)) => Err(err),
+            Poll::Ready(Ok(None)) => {
+                // Empty batch — coordinator has nothing to commit. Drop back
+                // to Idle and wait for the next chain head.
+                tracing::debug!(
+                    block = %self.block.hash,
+                    "coordinator skipped batch: no commitments to submit"
+                );
+                let next = Idle::create(self.ctx)?;
+                Ok((Poll::Ready(()), next))
+            }
+            Poll::Ready(Ok(Some(batch))) => {
+                let next = Coordinator::create(self.ctx, self.validators, batch, self.block)?;
+                Ok((Poll::Ready(()), next))
+            }
+        }
+    }
+}
+
+/// [`Coordinator`] sends a batch commitment validation request to other
+/// validators and waits for replies. Switches to a submission task once
+/// it has accumulated the threshold-many signatures.
 #[derive(Debug, Display)]
 #[display("COORDINATOR")]
 pub struct Coordinator {
@@ -160,133 +249,6 @@ impl Coordinator {
             }
             .boxed(),
         );
-        Initial::create(ctx)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{ToDigest, ValidatorsVec};
-    use gprimitives::H256;
-    use nonempty::NonEmpty;
-
-    #[test]
-    fn coordinator_create_success() {
-        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
-        ctx.core.signatures_threshold = 2;
-        let validators: ValidatorsVec = keys
-            .iter()
-            .take(3)
-            .map(|k| k.to_address())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-        let block = test_simple_block_data(1);
-        let batch = test_batch_commitment(block.hash, 1);
-
-        let coordinator = Coordinator::create(ctx, validators, batch, block).unwrap();
-        assert!(coordinator.is_coordinator());
-        coordinator.context().output[0]
-            .clone()
-            .unwrap_publish_message()
-            .unwrap_request_batch_validation();
-    }
-
-    #[test]
-    fn coordinator_create_insufficient_validators() {
-        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
-        ctx.core.signatures_threshold = 3;
-        let validators =
-            NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
-        let block = test_simple_block_data(2);
-        let batch = test_batch_commitment(block.hash, 2);
-
-        assert!(
-            Coordinator::create(ctx, validators.into(), batch, block).is_err(),
-            "Expected an error, but got Ok"
-        );
-    }
-
-    #[test]
-    fn coordinator_create_zero_threshold() {
-        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
-        ctx.core.signatures_threshold = 0;
-        let validators =
-            NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
-        let block = test_simple_block_data(3);
-        let batch = test_batch_commitment(block.hash, 3);
-
-        assert!(
-            Coordinator::create(ctx, validators.into(), batch, block).is_err(),
-            "Expected an error due to zero threshold, but got Ok"
-        );
-    }
-
-    #[test]
-    fn process_validation_reply() {
-        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
-        ctx.core.signatures_threshold = 3;
-        let validators =
-            NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
-
-        let block = test_simple_block_data(4);
-        let batch = test_batch_commitment(block.hash, 4);
-        let digest = batch.to_digest();
-
-        let reply1 = ctx
-            .core
-            .signer
-            .validation_reply(keys[0], ctx.core.router_address, digest);
-
-        let reply2_invalid =
-            ctx.core
-                .signer
-                .validation_reply(keys[4], ctx.core.router_address, digest);
-
-        let reply3_invalid = ctx.core.signer.validation_reply(
-            keys[1],
-            ctx.core.router_address,
-            H256::random().0.into(),
-        );
-
-        let reply4 = ctx
-            .core
-            .signer
-            .validation_reply(keys[2], ctx.core.router_address, digest);
-
-        let mut coordinator = Coordinator::create(ctx, validators.into(), batch, block).unwrap();
-        assert!(coordinator.is_coordinator());
-        coordinator.context().output[0]
-            .clone()
-            .unwrap_publish_message()
-            .unwrap_request_batch_validation();
-
-        coordinator = coordinator.process_validation_reply(reply1).unwrap();
-        assert!(coordinator.is_coordinator());
-
-        coordinator = coordinator
-            .process_validation_reply(reply2_invalid)
-            .unwrap();
-        assert!(coordinator.is_coordinator());
-        assert!(matches!(
-            coordinator.context().output[1],
-            ConsensusEvent::Warning(_)
-        ));
-
-        coordinator = coordinator
-            .process_validation_reply(reply3_invalid)
-            .unwrap();
-        assert!(coordinator.is_coordinator());
-        assert!(matches!(
-            coordinator.context().output[2],
-            ConsensusEvent::Warning(_)
-        ));
-
-        coordinator = coordinator.process_validation_reply(reply4).unwrap();
-        assert!(coordinator.is_initial());
-        assert_eq!(coordinator.context().output.len(), 3);
-        assert!(coordinator.context().tasks.len() == 1);
+        Idle::create(ctx)
     }
 }

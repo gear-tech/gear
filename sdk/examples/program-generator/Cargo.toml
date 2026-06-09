@@ -8,9 +8,9 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+gear-workspace-hack.workspace = true
 gstd.workspace = true
 hex-literal.workspace = true
-gear-workspace-hack.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

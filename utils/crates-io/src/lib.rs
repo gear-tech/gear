@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! crates-io-manager library
 #![deny(missing_docs)]
@@ -56,8 +41,21 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
     "gear-wasm-instrument",
     "gsdk-codegen",
     "gsys",
-    "numerated",
     "gbuiltin-bls381",
+];
+
+/// Local Polkadot SDK-compatible crates that Gear publishes under `g*` aliases.
+///
+/// NOTE: Each package in this array could possibly depend on the previous one,
+/// please be cautious about changing the order.
+pub const GEAR_SUBSTRATE_DEPENDENCIES: &[&str] = &[
+    "sp-wasm-interface-common",
+    "sp-allocator",
+    "sp-wasm-interface",
+    "sc-executor-common",
+    "sc-executor-polkavm",
+    "sc-executor-wasmtime",
+    "substrate-wasm-builder",
 ];
 
 /// Required packages with local dependencies.
@@ -77,7 +75,7 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "builtins-common",
     "gear-utils",
     "gear-common",
-    "gear-wasmer-cache",
+    "gear-wasmtime-cache",
     "gear-sandbox-host",
     "gear-lazy-pages-common",
     "gear-lazy-pages",

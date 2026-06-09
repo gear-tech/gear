@@ -16,7 +16,9 @@ name = "ethexe"
 path = "src/main.rs"
 
 [dependencies]
+ethexe-compute.workspace = true
 ethexe-network.workspace = true
+ethexe-malachite.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc = { workspace = true, features = ["client"] }
 ethexe-service.workspace = true
@@ -31,8 +33,8 @@ gsigner = { workspace = true, features = [
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
 ethexe-processor.workspace = true
+ethexe-runtime-common.workspace = true
 ethexe-db.workspace = true
-ethexe-compute.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true

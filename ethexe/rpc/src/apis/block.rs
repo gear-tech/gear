@@ -1,29 +1,11 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #[cfg(feature = "server")]
 use crate::{errors, utils};
-use ethexe_common::{BlockHeader, events::BlockRequestEvent, gear::StateTransition};
+use ethexe_common::{BlockHeader, events::BlockRequestEvent};
 #[cfg(feature = "server")]
-use ethexe_common::{
-    SimpleBlockData,
-    db::{AnnounceStorageRO, OnChainStorageRO},
-};
+use ethexe_common::{SimpleBlockData, db::OnChainStorageRO};
 #[cfg(feature = "server")]
 use ethexe_db::Database;
 use gprimitives::H256;
@@ -46,12 +28,6 @@ pub trait Block {
         &self,
         block_hash: Option<H256>,
     ) -> jsonrpsee::core::RpcResult<Vec<BlockRequestEvent>>;
-
-    #[method(name = "block_outcome")]
-    async fn block_outcome(
-        &self,
-        block_hash: Option<H256>,
-    ) -> jsonrpsee::core::RpcResult<Vec<StateTransition>>;
 }
 
 #[cfg(feature = "server")]
@@ -93,16 +69,5 @@ impl BlockServer for BlockApi {
                     .collect()
             })
             .ok_or_else(|| errors::db("Block events weren't found"))
-    }
-
-    async fn block_outcome(
-        &self,
-        hash: Option<H256>,
-    ) -> jsonrpsee::core::RpcResult<Vec<StateTransition>> {
-        let announce_hash = utils::announce_at_or_latest_computed(&self.db, hash)?;
-
-        self.db
-            .announce_outcome(announce_hash)
-            .ok_or_else(|| errors::db("Block outcome wasn't found"))
     }
 }

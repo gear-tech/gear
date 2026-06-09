@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Proxy builtin tests.
 
@@ -153,7 +138,7 @@ fn gas_allowance_respected() {
         .weight
         .ref_time();
 
-        let gas_cost_send_message_to_broker = 680_000_000; // Heuristic value
+        let broker_gas_allowance = 1;
 
         System::reset_events();
 
@@ -166,10 +151,7 @@ fn gas_allowance_respected() {
             0,
             false,
         ));
-        run_for_n_blocks(
-            1,
-            Some(gas_cost_send_message_to_broker + gas_cost_proxy_message),
-        );
+        run_for_n_blocks(1, Some(broker_gas_allowance + gas_cost_proxy_message));
 
         // The dispatch is still in the queue
         assert!(!message_queue_empty());

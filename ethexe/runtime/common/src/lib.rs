@@ -1,22 +1,57 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Runtime common implementation.
+//! # ethexe-runtime-common
+//!
+//! Shared `no_std` runtime types, traits, and message-queue processing logic for the ethexe execution
+//! layer. It is the portable core of Gear-on-Ethereum program execution: it dequeues and runs a
+//! program's pending dispatches within a block's gas budget and applies the resulting journal to
+//! program state.
+//!
+//! This crate does **not** contain the executable runtime WASM binary (`ethexe-runtime`), does not
+//! speak to Ethereum or the network, and has no Substrate pallets.
+//!
+//! ## Role in the stack
+//!
+//! `ethexe-runtime` is the primary consumer of [`process_queue`]: its `NativeRuntimeInterface`
+//! implements [`RuntimeInterface`] over WASM host functions and calls [`process_queue`] for each
+//! program. `ethexe-processor` drives the `ethexe-runtime` WASM binary, and `ethexe-compute`
+//! orchestrates which programs are scheduled. `ethexe-db` supplies the [`state::Storage`]
+//! implementation.
+//!
+//! ## Public API
+//!
+//! - [`process_queue`] / [`process_queue_with_report`] — Entry points: dequeue and execute a program's pending dispatches within
+//!   the gas budget, returning [`ProgramJournals`] and gas spent; the `_with_report` variant additionally returns a per-run
+//!   runtime queue report.
+//! - [`RuntimeInterface`] — Seam to the embedding environment; extends [`state::Storage`] with lazy-page init, randomness,
+//!   state-hash notification, and promise publishing. Associated `LazyPages: LazyPagesInterface`.
+//! - [`state::Storage`] — Content-addressed read/write of [`state::ProgramState`] and every state component (queues, waitlist,
+//!   dispatch stash, mailbox, memory pages, allocations).
+//! - [`ProcessQueueContext`] — SCALE-encoded input for one queue-processing run: program id, state root, queue type, instrumented
+//!   code, block info, promise policy.
+//! - [`TransitionController`] — Wraps `&Storage` + `&mut InBlockTransitions`; `update_state` reads a program's state, applies a
+//!   closure, writes it back, and records the new hash.
+//! - [`InBlockTransitions`] / [`FinalizedBlockTransitions`] / [`NonFinalTransition`] — Per-block accumulators of per-program
+//!   state-hash and queue-size changes.
+//! - [`JournalHandler`] / [`ScheduleHandler`] / [`ScheduleRestorer`] — Apply `core-processor` [`JournalNote`]s and scheduled
+//!   tasks as storage mutations.
+//! - [`ProgramJournals`] — Ordered journal output of a queue run.
+//! - [`pack_u32_to_i64`] / [`unpack_i64_to_u32`] — WASM FFI return-value packing helpers.
+//!
+//! Protocol limit constants ([`MAX_OUTGOING_MESSAGES_PER_EXECUTION`],
+//! [`MAX_OUTGOING_MESSAGES_PER_RUN`], [`MAX_CALL_REPLIES_PER_RUN`], etc.) and runtime version
+//! constants ([`RUNTIME_ID`], [`CODES_INSTRUMENTATION_VERSION`]) are also exported.
+//!
+//! ## Invariants
+//!
+//! - Promise policy must be disabled for the canonical queue.
+//! - Uninitialized programs accept only `Init` or `Reply` dispatches; any other kind produces an
+//!   error reply.
+//! - Forbidden syscalls (reservations, signals, `Random`, `CreateProgram`, and all deprecated `*WGas`
+//!   variants) are blocked on every [`process_queue`] call.
+//! - [`TransitionController::update_state`] requires the program to be in the tracked set with a state
+//!   readable from storage.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -54,7 +89,10 @@ use parity_scale_codec::{Decode, Encode};
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
-pub use journal::{NativeJournalHandler as JournalHandler, WAIT_UP_TO_SAFE_DURATION};
+pub use journal::{
+    NativeJournalHandler as JournalHandler, RuntimeDispatchReport, RuntimeGasBurnReport,
+    RuntimeQueueReport, WAIT_UP_TO_SAFE_DURATION,
+};
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 
@@ -67,10 +105,13 @@ mod journal;
 mod schedule;
 mod transitions;
 
-// TODO: consider format.
-/// Version of the runtime.
-pub const VERSION: u32 = 1;
-pub const RUNTIME_ID: u32 = 1;
+/// Runtime ID
+/// MUST BE BUMPED IF:
+/// - any instrumentation logic changes ([`CODES_INSTRUMENTATION_VERSION`] is updated);
+pub const RUNTIME_ID: u32 = 2;
+
+/// Gear program wasm codes instrumentation version.
+pub const CODES_INSTRUMENTATION_VERSION: u32 = 2;
 
 /// Maximum number of outgoing messages per execution of one dispatch.
 pub const MAX_OUTGOING_MESSAGES_PER_EXECUTION: u32 = 4;
@@ -92,11 +133,10 @@ pub struct ProcessQueueContext {
     pub program_id: ActorId,
     pub state_root: H256,
     pub queue_type: MessageType,
-    pub instrumented_code: InstrumentedCode,
-    pub code_metadata: CodeMetadata,
     pub gas_allowance: GasAllowanceCounter,
     pub block_info: BlockInfo,
     pub promise_policy: PromisePolicy,
+    pub code: Option<(InstrumentedCode, CodeMetadata)>,
 }
 
 pub trait RuntimeInterface: Storage {
@@ -155,7 +195,19 @@ impl<S: Storage + ?Sized> TransitionController<'_, S> {
     }
 }
 
-pub fn process_queue<RI>(mut ctx: ProcessQueueContext, ri: &RI) -> (ProgramJournals, u64)
+pub fn process_queue<RI>(ctx: ProcessQueueContext, ri: &RI) -> (ProgramJournals, u64)
+where
+    RI: RuntimeInterface + 'static,
+    RI::LazyPages: Send,
+{
+    let (journals, gas_spent, _report) = process_queue_with_report(ctx, ri);
+    (journals, gas_spent)
+}
+
+pub fn process_queue_with_report<RI>(
+    mut ctx: ProcessQueueContext,
+    ri: &RI,
+) -> (ProgramJournals, u64, RuntimeQueueReport)
 where
     RI: RuntimeInterface + 'static,
     RI::LazyPages: Send,
@@ -175,7 +227,7 @@ where
 
     if is_queue_empty {
         // Queue is empty, nothing to process.
-        return (Vec::new(), 0);
+        return (Vec::new(), 0, RuntimeQueueReport::default());
     }
 
     let queue = program_state
@@ -225,6 +277,7 @@ where
     };
 
     let mut mega_journal = Vec::new();
+    let mut report = RuntimeQueueReport::default();
     let initial_gas_allowance = ctx.gas_allowance.left();
 
     let mut limiter = Limiter {
@@ -264,7 +317,9 @@ where
             parse_journal_for_injected_dispatch(ri, &journal, dispatch_id);
         }
 
-        let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
+        let (unhandled_journal_notes, new_state_hash, dispatch_report) =
+            handler.handle_journal_with_report(journal);
+        report.extend(dispatch_report);
         mega_journal.push((unhandled_journal_notes, message_type, call_reply));
 
         // Update state hash if it was changed.
@@ -290,7 +345,7 @@ where
         .checked_sub(ctx.gas_allowance.left())
         .expect("cannot spend more gas than allowed");
 
-    (mega_journal, gas_spent)
+    (mega_journal, gas_spent, report)
 }
 
 /// Finds in [`process_dispatch`]'s the [`JournalNote::SendDispatch`] note and builds from it
@@ -360,8 +415,7 @@ where
 
     let &ProcessQueueContext {
         program_id,
-        instrumented_code: ref code,
-        ref code_metadata,
+        ref code,
         ..
     } = ctx;
 
@@ -378,6 +432,8 @@ where
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
     let context = ContextCharged::new(program_id, dispatch, ctx.gas_allowance.left());
+
+    // TODO #5561: change charging logic for ethexe, because we do not need to load all that data for each dispatch
 
     let context = match context.charge_for_program(block_config) {
         Ok(context) => context,
@@ -419,11 +475,18 @@ where
         Err(journal) => return journal,
     };
 
-    let context =
-        match context.charge_for_instrumented_code(block_config, code.bytes().len() as u32) {
-            Ok(context) => context,
-            Err(journal) => return journal,
-        };
+    // NOTE: code bytes are not loaded each dispatch in ethexe. Should be refactored in #5561
+    let context = match context.charge_for_instrumented_code(block_config, 0) {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
+
+    let Some((code, code_metadata)) = code else {
+        log::trace!(
+            "Missing instrumented code for program {program_id}, skipping execution of dispatch {dispatch_id} due to reinstrumentation failure"
+        );
+        return core_processor::process_reinstrumentation_error(context);
+    };
 
     let allocations = active_state
         .allocations_hash
@@ -478,4 +541,64 @@ pub const fn unpack_i64_to_u32(val: i64) -> (u32, u32) {
     let high = (val >> 32) as u32;
     let low = val as u32;
     (low, high)
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::collections::BTreeSet;
+
+    use super::*;
+    use crate::state::MemStorage;
+    use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
+
+    impl RuntimeInterface for MemStorage {
+        type LazyPages = ();
+
+        fn init_lazy_pages(&self) {}
+
+        fn random_data(&self) -> (Vec<u8>, u32) {
+            (Vec::new(), 0)
+        }
+
+        fn update_state_hash(&self, _state_hash: &H256) {}
+
+        fn publish_promise(&self, _promise: &Promise) {}
+    }
+
+    fn empty_queue_context(storage: &MemStorage) -> ProcessQueueContext {
+        ProcessQueueContext {
+            program_id: ActorId::from(42),
+            state_root: storage.write_program_state(ProgramState::zero()),
+            queue_type: MessageType::Canonical,
+            gas_allowance: GasAllowanceCounter::new(1_000_000),
+            block_info: BlockInfo::default(),
+            promise_policy: PromisePolicy::Disabled,
+            code: Some((
+                InstrumentedCode::new(Vec::new(), InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),
+                CodeMetadata::new(
+                    0,
+                    BTreeSet::new(),
+                    0.into(),
+                    None,
+                    InstrumentationStatus::NotInstrumented,
+                ),
+            )),
+        }
+    }
+
+    #[test]
+    fn process_queue_with_report_keeps_empty_queue_abi_compatible() {
+        let storage = MemStorage::default();
+
+        let (journals, gas_spent, report) =
+            process_queue_with_report(empty_queue_context(&storage), &storage);
+        let (legacy_journals, legacy_gas_spent) =
+            process_queue(empty_queue_context(&storage), &storage);
+
+        assert!(journals.is_empty());
+        assert_eq!(gas_spent, 0);
+        assert_eq!(report, RuntimeQueueReport::default());
+        assert!(legacy_journals.is_empty());
+        assert_eq!(legacy_gas_spent, gas_spent);
+    }
 }

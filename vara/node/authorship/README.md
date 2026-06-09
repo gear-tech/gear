@@ -13,7 +13,7 @@ whose notion of time is represented by the block `Weight`.
 In the default Substrate's implementation the deadline for the block creation goes through a series of transformations before the proposer actually gets to applying extrinsics to fill the block:
 
 <p align="lift">
-    <img src="../../images/block-proposing-timing.svg" width="80%" alt="Gear">
+    <img src="../../../.github/images/block-proposing-timing.svg" width="80%" alt="Gear">
 </p>
 
 The original "source of truth" in terms of the block creation time is the same - the `SLOT_DURATION` runtime constant. Eventually, the time allocated for processing of extirnsics of all `DispatchClass`'es will constitute almost exactly 1/3 of the overall block time. The same idea is true for the `Runtime` - the `MAXIMUM_BLOCK_WEIGHT` constant calculated as 1/3 of the total possible block `Weight`:
@@ -43,7 +43,7 @@ In Gear we have a special pseudo-inherent that is called `Gear::run()` and has t
 The `Runtime` specifies the so-called `NORMAL_DISPATCH_WEIGHT_RATIO` constant that defines the share of the `DispatchClass::Normal` extrinsics in the overall block weight. In Gear this constant is set to 25% (as opposed to the default 80% in Substrate). This means that the want the `DispatchClass::Normal` extrinsics to take up to 25% of the block time, leaving the rest to `DispatchClass::Mandatory` (including the `Gear::run()`) and `DispatchClass::Operational` extrinsics.
 
 <p align="lift">
-    <img src="../../images/substrate-vs-gear-block.svg" width="80%" alt="Gear">
+    <img src="../../../.github/images/substrate-vs-gear-block.svg" width="80%" alt="Gear">
 </p>
 
 The question, therefore, is how we should partition the proposal `duration` in the `BlockBuilder` (in terms of time) to maintain the desired proportion between the extrinsics application and the message queue processing.
@@ -51,7 +51,7 @@ The question, therefore, is how we should partition the proposal `duration` in t
 In the ideal world the synchronization between the time taken so far by the proposer and the used weight is always maintained so that we can rely on the `Runtime` weights to predict how many more extrinsics we can take from the transaction pool so that the `Gear::run()` has as much time as it thinks it has to do messages processing.
 
 <p align="lift">
-    <img src="../../images/time-weight-synchronization.svg" width="80%" alt="Gear">
+    <img src="../../../.github/images/time-weight-synchronization.svg" width="80%" alt="Gear">
 </p>
 
 

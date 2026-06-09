@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! State dump collection from database.
 
@@ -22,7 +7,7 @@ use super::StateDump;
 use anyhow::{Context, Result};
 use ethexe_common::{
     HashOf, MaybeHashOf, StateHashWithQueueSize,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO},
+    db::{BlockMetaStorageRO, CodesStorageRO, HashStorageRO, MbStorageRO},
 };
 use ethexe_runtime_common::state::{
     Dispatch, DispatchStash, Expiring, Mailbox, MailboxMessage, MemoryPages, MemoryPagesInner,
@@ -309,28 +294,19 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
 }
 
 impl StateDump {
-    /// Collect a state dump from the database for a given block hash.
-    pub fn collect_from_storage(
-        storage: &(impl AnnounceStorageRO + CodesStorageRO + BlockMetaStorageRO + HashStorageRO),
-        block_hash: H256,
+    /// Collect a state dump for a specific MB hash. The Eth block at
+    /// which the MB observably "applies" is recorded as `eb_hash`
+    /// — typically the last EB the MB pinned via
+    /// `AdvanceTillEthereumBlock`, which the caller passes in.
+    ///
+    /// This is the malachite-native entry point: state lives per-MB,
+    /// and the Eth-block view ([`Self::collect_from_storage`]) is just
+    /// a convenience that derives the MB from `BlockMeta::last_committed_mb`.
+    pub fn collect_from_mb_storage(
+        storage: &(impl MbStorageRO + CodesStorageRO + HashStorageRO),
+        mb_hash: H256,
+        eb_hash: H256,
     ) -> Result<Self> {
-        let block_meta = storage.block_meta(block_hash);
-
-        let announce_hash = block_meta
-            .last_committed_announce
-            .context("no committed announce found for block")?;
-
-        let codes_queue = block_meta
-            .codes_queue
-            .with_context(|| format!("codes queue not found for block {block_hash}"))?;
-
-        if !codes_queue.is_empty() {
-            // StorageDump does not include codes queue, so after re-genesis the queue will be lost.
-            log::warn!(
-                "Codes queue is not empty at block {block_hash:?}. This may cause hanging codes after re-genesis."
-            );
-        }
-
         let mut collector = BlobCollector {
             storage,
             collected: BTreeSet::new(),
@@ -346,8 +322,8 @@ impl StateDump {
         }
 
         let program_states = storage
-            .announce_program_states(announce_hash)
-            .with_context(|| format!("program states not found for announce {announce_hash}"))?;
+            .mb_program_states(mb_hash)
+            .with_context(|| format!("program states not found for MB {mb_hash}"))?;
 
         // Collect programs and their state trees.
         let mut programs = BTreeMap::new();
@@ -372,11 +348,38 @@ impl StateDump {
         }
 
         Ok(StateDump {
-            announce_hash,
-            block_hash,
+            metadata: mb_hash,
+            eb_hash,
             codes,
             programs,
             blobs: collector.blobs,
         })
+    }
+
+    /// Collect a state dump anchored at an Eth block — derives the MB
+    /// from `BlockMeta::last_committed_mb`. Convenience wrapper around
+    /// [`Self::collect_from_mb_storage`].
+    pub fn collect_from_storage(
+        storage: &(impl MbStorageRO + CodesStorageRO + BlockMetaStorageRO + HashStorageRO),
+        eb_hash: H256,
+    ) -> Result<Self> {
+        let block_meta = storage.block_meta(eb_hash);
+
+        let mb_hash = block_meta
+            .last_committed_mb
+            .context("no committed MB found for block")?;
+
+        let codes_queue = block_meta
+            .codes_queue
+            .with_context(|| format!("codes queue not found for block {eb_hash}"))?;
+
+        if !codes_queue.is_empty() {
+            // StorageDump does not include codes queue, so after re-genesis the queue will be lost.
+            log::warn!(
+                "Codes queue is not empty at block {eb_hash:?}. This may cause hanging codes after re-genesis."
+            );
+        }
+
+        Self::collect_from_mb_storage(storage, mb_hash, eb_hash)
     }
 }

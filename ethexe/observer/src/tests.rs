@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
 use alloy::{node_bindings::Anvil, providers::ext::AnvilApi, pubsub::RawSubscription};
@@ -210,4 +195,60 @@ async fn resubscribes_when_headers_stream_terminates() -> Result<()> {
     assert!(matches!(event, ObserverEvent::Block(..)));
 
     Ok(())
+}
+
+/// `validators_at` on a reorged-out block must classify as
+/// `SyncError::RpcError`; otherwise the service crashes on every
+/// reorg through `ensure_validators`.
+#[tokio::test]
+async fn validators_at_on_orphaned_block_is_recoverable_rpc_error() -> Result<()> {
+    use crate::SyncError;
+
+    gear_utils::init_default_logger();
+
+    let anvil = Anvil::new().try_spawn()?;
+    let ethereum_rpc = anvil.ws_endpoint();
+
+    let signer = Signer::memory();
+    let sender_public_key = signer
+        .import("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?)?;
+    let sender_address = sender_public_key.to_address();
+    let validators: Vec<Address> = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
+
+    let deployer = EthereumDeployer::new(&ethereum_rpc, signer, sender_address)
+        .await
+        .unwrap();
+    let ethereum = deployer
+        .with_validators(validators.try_into().unwrap())
+        .deploy()
+        .await?;
+
+    let router_query = ethereum.router().query();
+    let provider = ethereum.provider();
+    let snapshot_id = provider.anvil_snapshot().await?;
+
+    provider.anvil_mine(Some(1), None).await?;
+    let orphaned_block = provider
+        .get_block(alloy::eips::BlockId::latest())
+        .await?
+        .expect("latest block exists after anvil_mine");
+    let orphaned_hash: H256 = orphaned_block.header.hash.0.into();
+
+    router_query
+        .validators_at(orphaned_hash)
+        .await
+        .expect("validators_at must succeed before the revert");
+
+    let reverted = provider.anvil_revert(snapshot_id).await?;
+    assert!(reverted);
+
+    let err = router_query
+        .validators_at(orphaned_hash)
+        .await
+        .expect_err("validators_at must error on a reorged-out block");
+
+    match SyncError::from(err) {
+        SyncError::RpcError(_) => Ok(()),
+        SyncError::Fatal(err) => panic!("expected RpcError, got Fatal: {err:?}"),
+    }
 }

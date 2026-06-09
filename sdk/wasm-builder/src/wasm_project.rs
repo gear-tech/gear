@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2022-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{SYSCALL_KIND, code_validator::validate_program, crate_info::CrateInfo, smart_fs};
 use anyhow::{Context, Result, anyhow};
@@ -30,6 +15,27 @@ use std::{
 use toml::value::Table;
 
 const OPT_LEVEL: &str = "z";
+
+/// Strip path-based patches from the generated WASM sub-project manifest.
+///
+/// The sub-project is written outside the workspace root, so workspace-relative
+/// patch paths like local `substrate/` overrides cannot be resolved there.
+fn remove_local_path_patches(patch: &mut Table) {
+    patch.retain(|_, section| {
+        let Some(entries) = section.as_table_mut() else {
+            return true;
+        };
+
+        entries.remove("gear-workspace-hack");
+        entries.retain(|_, dependency| {
+            dependency
+                .as_table()
+                .is_none_or(|dependency| !dependency.contains_key("path"))
+        });
+
+        !entries.is_empty()
+    });
+}
 
 /// Temporary project generated to build a WASM output.
 ///
@@ -215,9 +221,7 @@ impl WasmProject {
         self.features = Some(features.keys().cloned().collect());
 
         let mut patch = crate_info.patch.clone();
-        if let Some(crates_io) = patch.get_mut("crates-io").and_then(|v| v.as_table_mut()) {
-            crates_io.remove("gear-workspace-hack");
-        }
+        remove_local_path_patches(&mut patch);
 
         let mut cargo_toml = Table::new();
         cargo_toml.insert("package".into(), package.into());

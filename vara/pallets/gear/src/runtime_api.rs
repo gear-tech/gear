@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
 use crate::queue::QueueStep;
@@ -22,9 +7,10 @@ use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, SyscallKind, TryNewCodeConfig},
+    message::UserMessage,
     pages::{WasmPage, numerated::tree::IntervalsTree},
     program::{ActiveProgram, MemoryInfix},
-    rpc::ReplyInfo,
+    rpc::{CalculateReplyForHandleResult, ReplyInfo},
 };
 use gear_wasm_instrument::syscalls::SyscallName;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
@@ -56,7 +42,7 @@ where
         gas_limit: u64,
         value: u128,
         allowance_multiplier: u64,
-    ) -> Result<ReplyInfo, String> {
+    ) -> Result<CalculateReplyForHandleResult, String> {
         // Enabling lazy-pages for this thread.
         Self::enable_lazy_pages();
 
@@ -89,15 +75,33 @@ where
 
         // Creating new manager for queue processing.
         let mut ext_manager = ExtManager::<T>::new(builtin_dispatcher);
+        let mut messages = Vec::new();
 
         // Queue processing loop.
         //
         // Running queue head message if exists.
         while let Some((_, journal, _)) = Self::dequeue_head_and_run(&mut ext_manager, None)? {
+            let mut reply = None;
+            let new_programs = journal
+                .iter()
+                .filter_map(|note| {
+                    let JournalNote::StoreNewPrograms { candidates, .. } = note else {
+                        return None;
+                    };
+
+                    Some(candidates)
+                })
+                .flatten()
+                .map(|(_, program_id)| *program_id)
+                .collect::<Vec<_>>();
+
             // Looking through all notes in order to find required reply.
             for note in &journal {
                 // Only paying attention on dispatch sends.
-                let JournalNote::SendDispatch { dispatch, .. } = note else {
+                let JournalNote::SendDispatch {
+                    dispatch, delay, ..
+                } = note
+                else {
                     continue;
                 };
 
@@ -107,12 +111,29 @@ where
                     .map(ReplyDetails::into_parts)
                     .and_then(|(replied_to, code)| replied_to.eq(&message_id).then_some(code))
                 {
-                    return Ok(ReplyInfo {
+                    reply = Some(ReplyInfo {
                         payload: dispatch.payload_bytes().to_vec(),
                         value: dispatch.value(),
                         code,
                     });
+                    continue;
                 }
+
+                if delay.is_zero()
+                    && !new_programs.contains(&dispatch.destination())
+                    && ext_manager.check_user_id(&dispatch.destination())
+                {
+                    messages.push(
+                        UserMessage::try_from(dispatch.message().clone().into_stored())
+                            .expect("signal details cannot be dispatched to a user account"),
+                    );
+                }
+            }
+
+            if let Some(reply) = reply {
+                // The reply batch is not journal-applied: this RPC returns simulated user messages
+                // only, while preserving the same temporary-state behavior as gas calculations.
+                return Ok(CalculateReplyForHandleResult { reply, messages });
             }
 
             // Processing notes since reply wasn't found.

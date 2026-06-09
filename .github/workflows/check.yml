@@ -34,6 +34,15 @@ jobs:
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
+  license-headers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v6
+
+      - name: "Check license headers"
+        run: ./scripts/check-license-headers.sh .
+
   typos:
     runs-on: ubuntu-latest
     steps:
@@ -225,6 +234,16 @@ jobs:
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
 
+      - name: "Install: protobuf compiler"
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 5
+          retry_wait_seconds: 10
+          command: |
+            sudo apt update
+            sudo apt install -y protobuf-compiler
+
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
@@ -365,9 +384,9 @@ jobs:
 
       - name: "Check: Changes in vara_runtime.scale file"
         run: |
-          SCALE_FILE="gsdk/vara_runtime.scale"
+          SCALE_FILE="vara/sdk/gsdk/vara_runtime.scale"
           ./scripts/update-gsdk-metadata.sh
           if [[ $(git diff --stat $SCALE_FILE) != '' ]]; then
-            echo "Changes found in the SCALE metadata ($SCALE_FILE). Please update it following the instructions in \`gsdk/HOW-TO-UPDATE.md\`."
+            echo "Changes found in the SCALE metadata ($SCALE_FILE). Please update it following the instructions in \`vara/sdk/gsdk/HOW-TO-UPDATE.md\`."
             exit 1
           fi

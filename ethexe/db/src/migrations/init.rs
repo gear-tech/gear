@@ -1,32 +1,18 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2026 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::collections::BTreeMap;
 
-use super::{InitConfig, LATEST_VERSION, MIGRATIONS, OLDEST_SUPPORTED_VERSION};
+use super::{InitConfig, LATEST_VERSION, migrate};
 use crate::{Database, RawDatabase, dump::StateDump, migrations::GenesisInitializer};
 use alloy::providers::{Provider as _, RootProvider};
-use anyhow::{Context as _, Result, bail, ensure};
+use anyhow::{Context as _, Result, ensure};
 use ethexe_common::{
-    Announce, BlockHeader, HashOf, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
+    BlockHeader, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
     StateHashWithQueueSize,
-    db::{CodesStorageRO, CodesStorageRW, ComputedAnnounceData, PreparedBlockData},
+    db::{CodesStorageRO, CodesStorageRW, CompactMb, MbStorageRW, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
+    malachite::Operations,
 };
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_runtime_common::{RUNTIME_ID, ScheduleRestorer, state::Storage};
@@ -42,65 +28,14 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
         );
         initialize_empty_db(config, &db).await?;
     } else {
-        let db_version = db.kv.version()?;
-
-        ensure!(
-            db_version != Some(0),
-            "Database at version 0 must not have config, but we found it. Consider to clean up database"
-        );
-        let db_version = db_version.unwrap_or(0);
-
-        ensure!(
-            db_version <= LATEST_VERSION,
-            "Cannot initialize database to version {LATEST_VERSION} from version {}",
-            db_version
-        );
-
+        let db_version = db.kv.version()?.context("Version not found")?;
         log::info!("Database has version {db_version}");
 
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if db_version < OLDEST_SUPPORTED_VERSION {
-            log::info!(
-                "The oldest supported database version is {}",
-                OLDEST_SUPPORTED_VERSION
-            );
-            bail!(
-                "Database version is too old: expected at least {}, found {}",
-                OLDEST_SUPPORTED_VERSION,
-                db_version
-            );
-        }
-
-        for (i, &migration) in MIGRATIONS.iter().enumerate() {
-            let from_version = i as u32 + OLDEST_SUPPORTED_VERSION;
-
-            if from_version >= db_version {
-                log::info!(
-                    "Migrating the database from version {} to version {}",
-                    from_version,
-                    from_version + 1
-                );
-
-                migration.migrate(&config, &db).await?;
-
-                let version_after_migration = db
-                    .kv
-                    .version()
-                    .and_then(|v| v.context("Config not found"))
-                    .context("Cannot retrieve database version after migration")?;
-                ensure!(
-                    version_after_migration == from_version + 1,
-                    "Expected database version {}, but found {}",
-                    from_version + 1,
-                    version_after_migration
-                );
-
-                log::info!(
-                    "Migration from version {} to version {} completed",
-                    from_version,
-                    from_version + 1
-                );
-            }
+        if db_version != LATEST_VERSION {
+            log::info!("Upgrading database from version {db_version} to {LATEST_VERSION}...");
+            migrate(&config, &db)
+                .await
+                .context("Failed to migrate database")?;
         }
 
         validate_db(config, &db).await?;
@@ -147,7 +82,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
 
     let genesis: GenesisBlockInfo = storage_view.genesisBlock.into();
 
-    let genesis_block = SimpleBlockData {
+    let genesis_eb = SimpleBlockData {
         hash: genesis.hash,
         header: BlockHeader {
             // genesis block header is not important in any way for ethexe
@@ -157,39 +92,52 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         },
     };
 
-    let genesis_announce = Announce {
-        block_hash: genesis_block.hash,
-        parent: HashOf::zero(),
-        gas_allowance: None,
-        injected_transactions: vec![],
-    };
-
+    // Genesis program state + schedule: loaded from the state dump for
+    // re-genesis, or empty for a fresh network.
     let (program_states, schedule) = if let Some(initializer) = config.genesis_initializer {
-        genesis_data_initialization(initializer, db, genesis_block).await?
+        genesis_data_initialization(initializer, db, genesis_eb).await?
     } else {
         (Default::default(), Default::default())
     };
 
-    let genesis_announce_hash = ethexe_common::setup_announce_in_db(
-        &db,
-        ComputedAnnounceData {
-            announce: genesis_announce,
-            program_states,
-            schedule,
-            outcome: Default::default(),
+    // The malachite genesis block (height 1) is produced by the malachite
+    // service with `parent == H256::zero()`, so the zero hash is the ancestor
+    // of the genesis MB. Seed it as a *computed* MB carrying the genesis state
+    // (real for re-genesis, empty otherwise) so the compute pipeline reads it
+    // as the genesis MB's parent — exactly like any other parent MB. This is
+    // done in BOTH cases: a genesis block cannot be produced during init (only
+    // the malachite service makes MBs), so the genesis state must live under
+    // the zero ancestor that the service's height-1 block points to.
+    // `last_advanced_eb` is zero (pre-genesis: nothing advanced yet), matching
+    // the compute anchor fallback and the malachite-service zero handling.
+    let genesis_parent_mb_hash = H256::zero();
+    let operations_hash = db.set_operations(Operations::default());
+    db.set_mb_compact_block(
+        genesis_parent_mb_hash,
+        CompactMb {
+            parent: H256::zero(),
+            height: 0,
+            operations_hash,
         },
     );
+    db.set_mb_program_states(genesis_parent_mb_hash, program_states);
+    db.set_mb_schedule(genesis_parent_mb_hash, schedule);
+    db.set_mb_outcome(genesis_parent_mb_hash, Vec::new());
+    db.mutate_mb_meta(genesis_parent_mb_hash, |m| {
+        m.computed = true;
+        m.last_advanced_eb = H256::zero();
+    });
 
     ethexe_common::setup_block_in_db(
         &db,
-        genesis_block.hash,
+        genesis_eb.hash,
         PreparedBlockData {
-            header: genesis_block.header,
+            header: genesis_eb.header,
             events: Default::default(),
             codes_queue: Default::default(),
-            announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
-            last_committed_announce: HashOf::zero(),
+            last_committed_mb: H256::zero(),
+            last_committed_eb: H256::zero(),
             latest_era_with_committed_validators: 0,
         },
     );
@@ -201,7 +149,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         chain_id,
         router_address: config.router_address,
         timelines: ProtocolTimelines {
-            genesis_ts: genesis_block.header.timestamp,
+            genesis_ts: genesis_eb.header.timestamp,
             era: timelines
                 .era
                 .try_into()
@@ -213,17 +161,18 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
                 .context("slot duration must be non-zero")?,
         },
         genesis_block_hash: genesis.hash,
-        genesis_announce_hash,
         max_validators: storage_view.maxValidators,
     };
 
-    // NOTE: start block and announce could be changed later by fast-sync
+    // NOTE: start block could be changed later by fast-sync.
+    // The genesis state lives under the zero MB (ancestor of the malachite
+    // genesis block), so the latest computed/finalized MB at init is zero.
     let globals = ethexe_common::db::DBGlobals {
-        start_block_hash: genesis_block.hash,
-        start_announce_hash: genesis_announce_hash,
-        latest_synced_block: genesis_block,
-        latest_prepared_block_hash: genesis_block.hash,
-        latest_computed_announce_hash: genesis_announce_hash,
+        start_block_hash: genesis_eb.hash,
+        latest_synced_eb: genesis_eb,
+        latest_prepared_eb_hash: genesis_eb.hash,
+        latest_finalized_mb_hash: genesis_parent_mb_hash,
+        latest_computed_mb_hash: genesis_parent_mb_hash,
     };
 
     db.kv.set_globals(globals);
@@ -235,34 +184,32 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
 async fn genesis_data_initialization(
     mut initializer: Box<dyn GenesisInitializer>,
     db: &RawDatabase,
-    genesis_block: SimpleBlockData,
+    genesis_eb: SimpleBlockData,
 ) -> Result<(ProgramStates, Schedule)> {
-    log::info!("Start genesis {genesis_block} data initialization...");
+    log::info!("Start genesis {genesis_eb} data initialization...");
 
     let StateDump {
-        announce_hash,
-        block_hash,
+        metadata: _,
+        eb_hash,
         codes,
         programs,
         blobs,
     } = initializer.get_genesis_data()?;
 
-    if block_hash != genesis_block.hash {
+    if eb_hash != genesis_eb.hash {
         log::warn!(
-            "Genesis data block hash {block_hash} does not match the actual genesis block hash {}",
-            genesis_block.hash
+            "Genesis data block hash {eb_hash} does not match the actual genesis block hash {}",
+            genesis_eb.hash
         );
     }
 
     log::info!(
-        "Genesis data for announce {announce_hash} and block {block_hash} \
+        "Genesis data for ethereum block {eb_hash} \
          contains {} codes, {} programs, {} blobs",
         codes.len(),
         programs.len(),
         blobs.len()
     );
-
-    let (_, _) = (announce_hash, block_hash); // to avoid unused variable warning if log is disabled
 
     let mut code_bytes = BTreeMap::<CodeId, Vec<u8>>::new();
     for blob in blobs {
@@ -286,7 +233,12 @@ async fn genesis_data_initialization(
         let db_clone = db.clone();
         code_processing_futures.push(async move {
             let Some((instrumented_code, code_metadata)) = process.await? else {
-                bail!("Genesis data contains invalid code {code_id}");
+                log::warn!(
+                    "Genesis data contains code {code_id} that the current runtime cannot \
+                     instrument; marking it invalid and skipping"
+                );
+                db_clone.set_code_valid(code_id, false);
+                return Ok::<_, anyhow::Error>(());
             };
 
             // Should not happen because we checked that code_bytes.len() == codes.len(),
@@ -326,9 +278,7 @@ async fn genesis_data_initialization(
         );
     }
 
-    let schedule =
-        ScheduleRestorer::from_storage(&db.cas, &program_states, genesis_block.header.height)?
-            .restore();
+    let schedule = ScheduleRestorer::from_storage(&db.cas, &program_states)?.restore();
     log::info!(
         "Genesis schedule restored, tasks amount {}",
         schedule.iter().flat_map(|(_, tasks)| tasks.iter()).count()

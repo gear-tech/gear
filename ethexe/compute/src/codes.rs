@@ -1,20 +1,5 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{ProcessorExt, Result, service::SubService};
 use ethexe_common::{
@@ -69,7 +54,7 @@ impl<P: ProcessorExt> CodesSubService<P> {
                 );
                 debug_assert!(
                     self.db
-                        .instrumented_code_exists(ethexe_runtime_common::VERSION, code_id),
+                        .instrumented_code_exists(ethexe_runtime_common::RUNTIME_ID, code_id),
                     "Instrumented code {code_id:?} must exist in database"
                 );
             }
@@ -90,7 +75,7 @@ impl<P: ProcessorExt> CodesSubService<P> {
                     {
                         db.set_original_code(&code);
                         db.set_instrumented_code(
-                            ethexe_runtime_common::VERSION,
+                            ethexe_runtime_common::RUNTIME_ID,
                             code_id,
                             instrumented_code,
                         );
@@ -159,7 +144,7 @@ mod tests {
         db.set_code_valid(code_id, true);
         db.set_original_code(code_and_id.code());
         db.set_instrumented_code(
-            ethexe_runtime_common::VERSION,
+            ethexe_runtime_common::RUNTIME_ID,
             code_id,
             InstrumentedCode::new(
                 vec![5, 6, 7, 8],

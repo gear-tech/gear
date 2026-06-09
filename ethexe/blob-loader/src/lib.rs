@@ -1,20 +1,33 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! # Ethexe Blob Loader
+//!
+//! Fetches Gear program code blobs posted to Ethereum as EIP-4844 blob transactions,
+//! decoding them from the beacon chain into raw WASM bytes. Emits unverified bytes only;
+//! code validation and instrumentation happen later in `ethexe-processor`.
+//!
+//! ## Role in the Stack
+//!
+//! `ethexe-service` constructs a [`BlobLoader`] at startup, stores it as
+//! `Box<dyn BlobLoaderService>`, and drives it inside the main event loop, calling
+//! [`BlobLoaderService::load_codes`] whenever the compute service emits `RequestLoadCodes`.
+//! The loader reads code locations from the local database (via the [`Database`] bound)
+//! and fetches blob data from the execution-layer JSON-RPC and beacon node.
+//!
+//! ## Public API
+//!
+//! - [`BlobLoaderService`] — Trait stored by `ethexe-service`; a fused stream of fetched code blobs driven via `load_codes`
+//! - [`BlobLoader`] — Concrete implementation; constructed with `BlobLoader::new(db, cfg).await`
+//! - [`ConsensusLayerConfig`] — RPC endpoints (`ethereum_rpc`, `ethereum_beacon_rpc`), `beacon_block_time`, retry `attempts`
+//! - [`BlobLoaderEvent`] — Output event; the only variant is `BlobLoaded(CodeAndIdUnchecked)`
+//! - [`BlobLoaderError`] — Public error: `Transport` or `CodeBlobInfoNotFound(CodeId)`
+//! - [`Database`] — Blanket-implemented marker bound: `CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static`
+//!
+//! ## Invariants
+//!
+//! - Calling [`BlobLoaderService::load_codes`] with an already-pending [`CodeId`] is a no-op.
+//! - The stream never terminates; a failed fetch is logged and silently dropped (no error item).
 
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
@@ -114,9 +127,9 @@ pub struct ConsensusLayerConfig {
 
 #[derive(Clone)]
 struct ConsensusLayerBlobReader {
-    pub provider: RootProvider,
-    pub http_client: Client,
-    pub config: ConsensusLayerConfig,
+    provider: RootProvider,
+    http_client: Client,
+    config: ConsensusLayerConfig,
 }
 
 impl ConsensusLayerBlobReader {
@@ -298,6 +311,16 @@ impl<DB: Database> BlobLoader<DB> {
             db,
         })
     }
+
+    #[cfg(test)]
+    fn new_with_consensus_reader(db: DB, blobs_reader: ConsensusLayerBlobReader) -> Self {
+        Self {
+            futures: FuturesUnordered::new(),
+            codes_loading: HashSet::new(),
+            blobs_reader,
+            db,
+        }
+    }
 }
 
 impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
@@ -332,8 +355,8 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
                     async move {
                         blobs_reader
                             .read_blob(code_id, tx_hash)
-                            .map(|res| res.map(|code| CodeAndIdUnchecked { code_id, code }))
                             .await
+                            .map(|code| CodeAndIdUnchecked { code_id, code })
                     }
                     .boxed(),
                 );
@@ -381,119 +404,4 @@ fn handle_blob(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use alloy::{node_bindings::Anvil, providers::ext::AnvilApi};
-    use ethexe_common::gear_core::ids::prelude::CodeIdExt;
-    use ethexe_ethereum::deploy::EthereumDeployer;
-    use gsigner::secp256k1::{PrivateKey, Signer};
-
-    #[ignore = "until blob will be available on beacon node"]
-    #[tokio::test]
-    async fn test_read_code_from_tx_hash() {
-        let signer = Signer::memory();
-        let private_key: PrivateKey =
-            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-                .parse()
-                .unwrap();
-        let public_key = signer.import(private_key).unwrap();
-        let alice_address = signer.address(public_key);
-
-        let beacon_block_time = Duration::from_secs(1);
-        let anvil = Anvil::new().block_time(beacon_block_time.as_secs()).spawn();
-
-        let ethereum = EthereumDeployer::new(&anvil.ws_endpoint(), signer.clone(), alice_address)
-            .await
-            .unwrap()
-            .with_validators(vec![alice_address].try_into().unwrap())
-            .deploy()
-            .await
-            .unwrap();
-
-        let consensus_cfg = ConsensusLayerConfig {
-            ethereum_rpc: anvil.endpoint(),
-            ethereum_beacon_rpc: anvil.endpoint(),
-            beacon_block_time,
-            attempts: const { NonZero::new(3).unwrap() },
-        };
-
-        let blobs_reader = ConsensusLayerBlobReader {
-            provider: ProviderBuilder::default()
-                .connect(&consensus_cfg.ethereum_rpc)
-                .await
-                .unwrap(),
-            http_client: Client::new(),
-            config: consensus_cfg,
-        };
-
-        let code = &[];
-        let (tx_hash, expected_code_id) = ethereum
-            .router()
-            .request_code_validation(code)
-            .await
-            .unwrap();
-
-        // set chain id to 1 to avoid anvil special case
-        blobs_reader.provider.anvil_set_chain_id(1).await.unwrap();
-
-        let code = blobs_reader
-            .read_blob(expected_code_id, tx_hash)
-            .await
-            .unwrap();
-        assert_eq!(expected_code_id, CodeId::generate(&code));
-    }
-
-    #[test]
-    fn test_handle_blob() {
-        let code_id = CodeId::generate(&[1, 2, 3, 4]);
-
-        // correct blob
-        let blob = vec![1, 2, 3, 4];
-        let mut previously_received_code_id = None;
-        let result =
-            handle_blob(blob.clone(), code_id, &mut previously_received_code_id, 1).unwrap();
-        assert_eq!(result, blob);
-
-        // blob with incorrect code id
-        let blob = vec![4, 3, 2, 1];
-        let blob_code_id = CodeId::generate(&blob);
-        let mut previously_received_code_id = None;
-        let result = handle_blob(blob.clone(), code_id, &mut previously_received_code_id, 1);
-        assert!(matches!(
-            result,
-            Err(ReaderError::CodeIdMismatch {
-                expected,
-                found,
-            }) if expected == code_id && found == blob_code_id
-        ),);
-        assert_eq!(previously_received_code_id, Some(blob_code_id));
-
-        // same incorrect blob again - should be considered as loaded
-        let result =
-            handle_blob(blob.clone(), code_id, &mut previously_received_code_id, 2).unwrap();
-        assert_eq!(result, blob);
-
-        // same incorrect blob again, but another code id
-        let previously_received_code_id = CodeId::from([1; 32]);
-        let result = handle_blob(
-            blob.clone(),
-            code_id,
-            &mut Some(previously_received_code_id),
-            2,
-        );
-        assert!(matches!(
-            result,
-            Err(ReaderError::CodeIdMismatch {
-                expected,
-                found,
-            }) if expected == code_id && found == blob_code_id
-        ));
-
-        // empty blob
-        let blob = vec![];
-        let mut previously_received_code_id = None;
-        let result = handle_blob(blob.clone(), code_id, &mut previously_received_code_id, 1);
-        assert!(result.is_err());
-        assert!(previously_received_code_id.is_none());
-    }
-}
+mod tests;

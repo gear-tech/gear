@@ -1,36 +1,24 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer,
-    RpcService,
+    CodeClient, InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent,
+    RpcServer, RpcService, test_utils::wasm_with_custom_section,
 };
 use ethexe_common::{
-    db::InjectedStorageRW,
-    ecdsa::PrivateKey,
+    SignedMessage, ValidatorsVec,
+    db::{CodesStorageRW, OnChainStorageRW},
+    ecdsa::{PrivateKey, PublicKey},
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, Promise, SignedCompactPromise},
+    injected::{
+        InjectedTransaction, Promise, Receipt, SignedCompactTxReceipt, SignedInjectedTransaction,
+    },
     mock::Mock,
 };
 use ethexe_db::Database;
 use futures::StreamExt;
 use gear_core::message::{ReplyCode, SuccessReplyReason};
-use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
+use jsonrpsee::{core::ClientError, server::ServerHandle, ws_client::WsClientBuilder};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
 
@@ -39,15 +27,27 @@ use tokio::task::{JoinHandle, JoinSet};
 struct MockService {
     rpc: RpcService,
     handle: ServerHandle,
-    db: Database,
+    validator_key: PrivateKey,
 }
 
 impl MockService {
     /// Creates a new mock service which runs an RPC server listening on the given address.
     pub async fn new(listen_addr: SocketAddr) -> Self {
         let db = Database::memory();
-        let (handle, rpc) = start_new_server(listen_addr, db.clone()).await;
-        Self { rpc, handle, db }
+        let validator_key = PrivateKey::random();
+        let validator_address = PublicKey::from(&validator_key).to_address();
+        db.set_validators(
+            0,
+            ValidatorsVec::try_from(vec![validator_address])
+                .expect("test validator set must be non-empty"),
+        );
+
+        let (handle, rpc) = start_new_server(listen_addr, db).await;
+        Self {
+            rpc,
+            handle,
+            validator_key,
+        }
     }
 
     pub fn injected_api(&self) -> InjectedApi {
@@ -66,10 +66,11 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let promises = self.promises_bundle(tx_batch.drain(..));
-                        promises.into_iter().for_each(|promise| {
-                            self.rpc.receive_compact_promise(promise);
-                        });
+                        for tx in tx_batch.drain(..) {
+                            let (promise, receipt) = self.create_promise_for(tx);
+                            self.rpc.receive_computed_promise(promise);
+                            self.rpc.receive_tx_receipt(receipt);
+                        }
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -85,18 +86,17 @@ impl MockService {
         })
     }
 
-    fn promises_bundle(
+    fn create_promise_for(
         &self,
-        txs: impl IntoIterator<Item = AddressedInjectedTransaction>,
-    ) -> Vec<SignedCompactPromise> {
-        let pk = PrivateKey::random();
-        txs.into_iter()
-            .map(|tx| {
-                let promise = Promise::mock(tx.tx.data().to_hash());
-                self.db.set_promise(&promise);
-                SignedCompactPromise::create_from_promise(pk.clone(), &promise).unwrap()
-            })
-            .collect()
+        tx: SignedInjectedTransaction,
+    ) -> (Promise, SignedCompactTxReceipt) {
+        let promise = Promise::mock(tx.data().to_hash());
+        let receipt = SignedMessage::create(
+            self.validator_key.clone(),
+            Receipt::Promise(promise.to_compact()),
+        )
+        .unwrap();
+        (promise, receipt.into())
     }
 }
 
@@ -122,6 +122,64 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
     }
 }
 
+fn mock_signed_transaction() -> SignedInjectedTransaction {
+    SignedMessage::create(PrivateKey::random(), InjectedTransaction::mock(())).unwrap()
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_code_read_wasm_custom_section_via_rpc() {
+    const SECTION_NAME: &str = "sails:idl";
+
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8011);
+    let db = Database::memory();
+    let section_data = b"wire idl";
+    let code_id = gprimitives::H256::from(
+        db.set_original_code(&wasm_with_custom_section(SECTION_NAME, section_data))
+            .into_bytes(),
+    );
+    let mut malformed_wasm = wasm_with_custom_section(SECTION_NAME, b"malformed");
+    malformed_wasm.extend_from_slice(b"trailing junk");
+    let malformed_code_id =
+        gprimitives::H256::from(db.set_original_code(&malformed_wasm).into_bytes());
+
+    let (handle, _rpc) = start_new_server(listen_addr, db).await;
+    let ws_client = WsClientBuilder::new()
+        .build(format!("ws://{}", listen_addr))
+        .await
+        .expect("WS client will be created");
+
+    let result = ws_client
+        .read_wasm_custom_section(code_id, SECTION_NAME.to_string())
+        .await
+        .expect("custom section read must succeed");
+
+    assert_eq!(result, Some(sp_core::Bytes(section_data.to_vec())));
+
+    let missing_section = ws_client
+        .read_wasm_custom_section(code_id, "missing".to_string())
+        .await
+        .expect("missing section must not be an error");
+    assert_eq!(missing_section, None);
+
+    let unknown_code = ws_client
+        .read_wasm_custom_section(gprimitives::H256::zero(), SECTION_NAME.to_string())
+        .await
+        .expect("unknown code must not be an error");
+    assert_eq!(unknown_code, None);
+
+    let err = ws_client
+        .read_wasm_custom_section(malformed_code_id, SECTION_NAME.to_string())
+        .await
+        .expect_err("malformed stored wasm must be an RPC error");
+    let ClientError::Call(err) = err else {
+        panic!("expected RPC call error for malformed Wasm");
+    };
+    assert_eq!(err.code(), 8000);
+
+    handle.stop().expect("RPC server must stop");
+}
+
 #[tokio::test]
 #[ntest::timeout(60_000)]
 async fn test_cleanup_promise_subscribers() {
@@ -144,19 +202,20 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut sub = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(mock_signed_transaction())
                 .await
                 .expect("Subscription will be created");
 
             subscribers.spawn(async move {
-                let promise = sub
+                let receipt = sub
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
 
@@ -172,19 +231,20 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut subscription = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(mock_signed_transaction())
                 .await
                 .expect("Subscription will be created");
 
             subscribers.spawn(async move {
-                let promise = subscription
+                let receipt = subscription
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
             });
@@ -199,7 +259,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscriptions = vec![];
         for _ in 0..20 {
             let subscription = ws_client
-                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                .send_transaction_and_watch(mock_signed_transaction())
                 .await
                 .expect("Subscription will be created");
             subscriptions.push(subscription);
@@ -236,18 +296,19 @@ async fn test_concurrent_multiple_clients() {
             let mut subscriptions = vec![];
             for _ in 0..50 {
                 let mut subscription = client
-                    .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
+                    .send_transaction_and_watch(mock_signed_transaction())
                     .await
                     .expect("Subscription will be created");
 
-                let promise = subscription
+                let receipt = subscription
                     .next()
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result");
+                let promise = receipt.data().clone().unwrap_promise();
 
                 assert_eq!(
-                    promise.data().reply.code,
+                    promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
 

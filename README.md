@@ -1,7 +1,7 @@
 
 <p align="center">
   <a href="https://gear-tech.io">
-    <img src="images/title-grey.png" width="700" alt="Gear">
+    <img src=".github/images/title-grey.png" width="700" alt="Gear">
   </a>
 </p>
 
@@ -73,7 +73,7 @@ Refer to the **[Technical Paper](https://github.com/gear-tech/gear-technical/blo
     3. Then upload it via Gear Idea to the [Vara Network](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Frpc.vara.network).
 3. :microscope: Dive into the documentation on Gear Protocol crates at [сrates.io](https://crates.io/teams/github:gear-tech:dev). Particular attention should be paid to - [sails_rs](https://crates.io/crates/sails_rs), [gstd](https://crates.io/crates/gstd), [gcore](https://crates.io/crates/gcore), [gtest](https://crates.io/crates/gtest), [gsdk](https://crates.io/crates/gsdk). More details can be found in the Documentation section for each crate.
 
-4. :iphone: Implement a frontend application that interacts with your program using the [JS API](https://github.com/gear-tech/gear-js/tree/main/api). React application examples are available [here](https://github.com/gear-foundation/dapps/tree/master/frontend/apps).
+4. :iphone: Implement a frontend application that interacts with your program using the [JS API](https://github.com/gear-tech/gear-js/tree/main/apis/gear). React application examples are available [here](https://github.com/gear-foundation/dapps/tree/master/frontend/apps).
 
 # Run Vara Node
 
@@ -115,19 +115,19 @@ Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](LI
 <h4>
 <p align="left" nowrap>
     <a href="https://twitter.com/gear_techs">
-        <img src="./images/social-icon-1.svg" alt="twit" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-1.svg" alt="twit" style="vertical-align:middle" >
     </a>
     <a href="https://github.com/gear-tech">
-        <img src="./images/social-icon-2.svg" alt="github" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-2.svg" alt="github" style="vertical-align:middle" >
     </a>
     <a href="https://discord.gg/7BQznC9uD9">
-        <img src="./images/social-icon-3.svg" alt="discord" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-3.svg" alt="discord" style="vertical-align:middle" >
     </a>
     <a href="https://medium.com/@gear_techs">
-        <img src="./images/social-icon-4.svg" alt="medium" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-4.svg" alt="medium" style="vertical-align:middle" >
     </a>
     <a href="https://t.me/gear_tech">
-        <img src="./images/social-icon-5.svg" alt="medium" style="vertical-align:middle" >
+        <img src=".github/images/social-icon-5.svg" alt="telegram" style="vertical-align:middle" >
    </a>
     <br> •
     <a href="https://gear-tech.io">

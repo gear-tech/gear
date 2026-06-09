@@ -33,16 +33,33 @@ jobs:
 
       - name: Resolve CI labels
         id: ci
-        if: ${{ github.event_name == 'pull_request' }}
         env:
-          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          MQ_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
+          LABELS="$PR_LABELS"
+
+          # In merge_group, pull_request context is absent — fetch labels via API
+          if [ -z "$LABELS" ] && [ -n "$MQ_HEAD_REF" ]; then
+            PR_NUMBER=$(echo "$MQ_HEAD_REF" | sed -E 's#.*/pr-([0-9]+)-.*#\1#')
+            if [ -n "$PR_NUMBER" ]; then
+              LABELS=$(gh api "/repos/$REPO/pulls/$PR_NUMBER" --jq '[.labels[].name] | join(",")')
+            fi
+          fi
+
           has_label() {
             case ",$LABELS," in
               *",$1,"*) return 0 ;;
               *) return 1 ;;
             esac
           }
+
+          if [ -n "$MQ_HEAD_REF" ] && has_label "pr: do-not-merge"; then
+            echo "::error::PR is labeled 'pr: do-not-merge' - merge blocked"
+            exit 1
+          fi
 
           has_full=false
           if has_label "ci: full"; then
@@ -119,8 +136,3 @@ jobs:
       release: ${{ needs.gate.outputs.ci_release == 'true' }}
       production: ${{ needs.gate.outputs.ci_production == 'true' }}
       docker: ${{ needs.gate.outputs.ci_docker == 'true' }}
-
-  check-node-sync:
-    needs: gate
-    if: ${{ github.event_name == 'pull_request' && needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-node-sync') }}
-    uses: ./.github/workflows/check-node-sync.yml

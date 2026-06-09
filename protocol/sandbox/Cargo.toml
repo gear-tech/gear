@@ -24,12 +24,9 @@ gear-sandbox-interface.workspace = true
 gear-sandbox-env.workspace = true
 
 # embedded executor only
-wasmer = { workspace = true, optional = true }
-wasmer-types = { workspace = true, optional = true }
-wasmer-vm = { workspace = true, optional = true }
-wasmer-compiler = { workspace = true, optional = true }
-gear-wasmer-cache = { workspace = true, optional = true }
-pathdiff = { workspace = true, optional = true }
+wasmtime = { features = ["cache", "runtime", "winch"], workspace = true, optional = true }
+gear-wasmtime-cache = { workspace = true, optional = true }
+
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
@@ -46,11 +43,7 @@ std = [
 	"sp-wasm-interface-common/std",
 	"gear-sandbox-interface/std",
 	"gear-sandbox-env/std",
-	"wasmer",
-	"wasmer-types",
-	"wasmer-vm",
-	"wasmer-compiler",
-	"gear-wasmer-cache",
-	"pathdiff"
+	"wasmtime",
+	"gear-wasmtime-cache",
 ]
 strict = []

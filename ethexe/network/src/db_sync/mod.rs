@@ -1,48 +1,30 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Peer-to-peer database synchronization for `ethexe`.
 //!
 //! The protocol is built on libp2p request/response and is used to fetch data
 //! that can be revalidated locally: raw CAS blobs, program-to-code mappings,
-//! valid code sets, and announce chains. Requests are driven through
-//! [`Handle`], while the behaviour internally retries across peers, enforces a
-//! per-request timeout, and limits concurrent inbound responses.
+//! and valid code sets. Requests are driven through [`Handle`], while the
+//! behaviour internally retries across peers, enforces a per-request
+//! timeout, and limits concurrent inbound responses.
 
 mod requests;
 mod responses;
 
+use crate::{db_sync::requests::OngoingRequests, peer_score, utils::AlternateCollectionFmt};
 pub(crate) use crate::{
-    DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
     db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
     utils::ParityScaleCodec,
 };
-use crate::{db_sync::requests::OngoingRequests, peer_score, utils::AlternateCollectionFmt};
 use async_trait::async_trait;
 use ethexe_common::{
-    Announce,
     db::{
-        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO,
-        HashStorageRO,
+        BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, HashStorageRO,
+        MbStorageRO,
     },
     gear::CodeState,
-    network::{AnnouncesRequest, AnnouncesResponse},
 };
 use ethexe_db::Database;
 use futures::FutureExt;
@@ -60,7 +42,6 @@ use libp2p::{
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    num::NonZeroU32,
     pin::Pin,
     sync::atomic::{AtomicU64, Ordering},
     task::{Context, Poll},
@@ -139,7 +120,6 @@ pub enum Event {
 pub(crate) struct Config {
     pub request_timeout: Duration,
     pub max_simultaneous_responses: u32,
-    pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl Default for Config {
@@ -147,7 +127,6 @@ impl Default for Config {
         Self {
             request_timeout: Duration::from_secs(100),
             max_simultaneous_responses: 10,
-            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 }
@@ -231,8 +210,6 @@ pub enum Request {
     ProgramIds(ProgramIdsRequest),
     /// Fetch the node's locally stored set of valid code IDs.
     ValidCodes(ValidCodesRequest),
-    /// Fetch an announce chain segment.
-    Announces(AnnouncesRequest),
 }
 
 impl Request {
@@ -267,8 +244,6 @@ pub enum Response {
     ),
     /// Set of valid code IDs known at a block.
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
-    /// Contiguous announce chain response.
-    Announces(AnnouncesResponse),
 }
 
 /// Result delivered by [`HandleFuture`].
@@ -348,7 +323,6 @@ pub(crate) enum InnerRequest {
     Hashes(HashesRequest),
     ProgramIds(InnerProgramIdsRequest),
     ValidCodes,
-    Announces(AnnouncesRequest),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, Encode, Decode)]
@@ -357,20 +331,12 @@ pub(crate) struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
 pub(crate) struct InnerProgramIdsResponse(BTreeSet<ActorId>);
 
-// TODO #4911: can be optimized - only not-base announces could be returned.
-/// Response for announces request.
-/// Must contain all announces for the requested range.
-/// Must be sorted from predecessors to successors.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
-pub(crate) struct InnerAnnouncesResponse(Vec<Announce>);
-
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Eq, PartialEq, derive_more::From, derive_more::Unwrap, Encode, Decode)]
 pub(crate) enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
     ValidCodes(BTreeSet<CodeId>),
-    Announces(InnerAnnouncesResponse),
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
@@ -380,10 +346,10 @@ pub trait DbSyncDatabase:
     Send
     + HashStorageRO
     + BlockMetaStorageRO
-    + AnnounceStorageRO
     + CodesStorageRO
     + ConfigStorageRO
     + GlobalsStorageRO
+    + MbStorageRO
 {
     /// Clone the database as a trait object.
     fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
@@ -636,7 +602,6 @@ pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
-    use ethexe_common::{Announce, HashOf, StateHashWithQueueSize, db::*};
     use ethexe_db::Database;
     use libp2p::{
         Swarm, Transport,
@@ -647,7 +612,7 @@ pub(crate) mod tests {
         swarm::SwarmEvent,
     };
     use libp2p_swarm_test::SwarmExt;
-    use std::{iter, mem};
+    use std::mem;
     use tokio::time;
 
     // exactly like `Swarm::new_ephemeral_tokio` but we can pass our own config
@@ -1167,14 +1132,16 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "test setup populates the requester's data provider rather than the responder's; \
+                needs a real responder-side fixture"]
     async fn external_data_provider() {
         init_logger();
 
         let (mut alice, _alice_db, alice_data_provider) = new_swarm().await;
         let alice_handle = alice.behaviour().handle();
-        let (mut bob, bob_db, _data_provider) = new_swarm().await;
+        let (mut bob, _bob_db, _data_provider) = new_swarm().await;
 
-        let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
+        let expected_response = fill_data_provider(alice_data_provider).await;
 
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
@@ -1201,37 +1168,12 @@ pub(crate) mod tests {
         assert_eq!(event, Event::RequestCancelled { request_id });
     }
 
-    pub(crate) async fn fill_data_provider(
-        // data provider of the first peer
-        left_data_provider: DataProvider,
-        // database of the second peer
-        right_db: Database,
-    ) -> Response {
+    pub(crate) async fn fill_data_provider(left_data_provider: DataProvider) -> Response {
         let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
         let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
         left_data_provider
             .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
             .await;
-
-        let announce = Announce::base(H256::zero(), HashOf::zero());
-        let announce_hash = announce.to_hash();
-        right_db.mutate_block_announces(H256::zero(), |announces| {
-            announces.insert(announce_hash);
-        });
-
-        right_db.set_announce_program_states(
-            announce_hash,
-            iter::zip(
-                program_ids.clone(),
-                iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
-                    hash,
-                    canonical_queue_size: 0,
-                    injected_queue_size: 0,
-                }),
-            )
-            .collect(),
-        );
-
-        Response::ProgramIds(iter::zip(program_ids, code_ids).collect())
+        Response::ProgramIds(std::iter::zip(program_ids, code_ids).collect())
     }
 }

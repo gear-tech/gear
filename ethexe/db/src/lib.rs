@@ -1,22 +1,47 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Database library for ethexe.
+//! # ethexe-db
+//!
+//! Storage abstraction and implementation layer for the ethexe node. Defines the low-level
+//! [`CASDatabase`] and [`KVDatabase`] backend traits, provides two concrete backends
+//! ([`RocksDatabase`] for persistence and [`MemDb`] for tests), and composes them into the typed,
+//! domain-aware [`Database`] that every ethexe service reads and writes.
+//!
+//! ## Role in the stack
+//!
+//! `ethexe-service` owns the single [`Database`] instance and passes it to every subsystem
+//! (`ethexe-observer`, `ethexe-compute`, `ethexe-processor`, `ethexe-consensus`, `ethexe-rpc`).
+//! The storage-role trait *definitions* live in `ethexe-common::db`; [`Database`] implements them
+//! here, plus the runtime `Storage` trait from `ethexe-runtime-common`.
+//!
+//! ## Public API
+//!
+//! - [`CASDatabase`] — Content-addressable backend trait (`write(&[u8]) -> H256`, `read`, `contains`)
+//! - [`KVDatabase`] — Key-value backend trait (`get`/`put`/`contains`/`iter_prefix`/`take`)
+//! - [`Database`] — Typed domain database; primary handle held by services
+//! - [`RawDatabase`] — Un-typed `{ kv, cas }` pairing used during construction
+//! - [`RocksDatabase`] — Persistent backend (`RocksDatabase::open(path)`)
+//! - [`MemDb`] — In-memory backend for tests
+//! - [`hash`] — Blake2 hash helper; matches the key returned by `CASDatabase::write`
+//! - [`initialize_db`] — Versioned DB bring-up and migration entry point
+//! - [`dump`] — State dump for re-genesis
+//! - [`iterator`] / [`visitor`] — Graph traversal over the content-addressed state
+//! - [`verifier`] — DB integrity verification backing `ethexe check`
+//!
+//! Versioned initialization and migrations go through [`initialize_db`], [`GenesisInitializer`],
+//! [`InitConfig`], and [`VERSION`]. Under `feature = "mock"`, `create_initialized_empty_memory_db`
+//! constructs a fully-initialized [`MemDb`]-backed [`Database`] for integration tests.
+//!
+//! ## Invariants
+//!
+//! - [`Database::try_from_raw`](Database::try_from_raw) rejects any backend whose stored version
+//!   does not match [`VERSION`]; a mismatch is a hard error requiring migration.
+//! - `KVDatabase::take` is `unsafe`: removing a key without re-insertion may cause permanent
+//!   data loss.
+//! - Both backends are `Send + Sync`; concurrent reads and writes from multiple threads are safe.
+//! - CAS round-trip: `write(data)` returns `hash(data)`, and `read(that_hash)` always returns the
+//!   same bytes.
 
 use gprimitives::H256;
 

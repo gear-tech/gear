@@ -1,20 +1,5 @@
-// This file is part of Gear.
-
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Implementation of the `TaskHandler` trait for the `ExtManager`.
 
@@ -89,11 +74,30 @@ impl TaskHandler<ActorId, MessageId, bool> for ExtManager {
                 unreachable!("{err_msg}");
             });
 
-        self.send_signal(
-            message_id,
-            waitlisted.destination(),
-            SignalCode::RemovedFromWaitlist,
-        );
+        match waitlisted.kind() {
+            // Signals cannot carry system reservations; suppress secondary signals.
+            DispatchKind::Signal => {}
+            DispatchKind::Init => {
+                if self
+                    .gas_tree
+                    .get_system_reserve(message_id)
+                    .is_ok_and(|reserved| reserved != 0)
+                {
+                    self.gas_tree
+                        .system_unreserve(message_id)
+                        .unwrap_or_else(|e| {
+                            unreachable!("GasTree corrupted for message {message_id}! {e:?}")
+                        });
+                }
+            }
+            _ => {
+                self.send_signal(
+                    message_id,
+                    waitlisted.destination(),
+                    SignalCode::RemovedFromWaitlist,
+                );
+            }
+        }
 
         if !waitlisted.is_reply() && waitlisted.kind() != DispatchKind::Signal {
             let err = ErrorReplyReason::RemovedFromWaitlist;
