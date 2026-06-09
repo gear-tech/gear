@@ -312,7 +312,7 @@ impl ValidatorTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use assert_matches::assert_matches;
+    use std::assert_matches;
     use ethexe_common::{
         consensus::BatchCommitmentValidationRequest,
         ecdsa::PublicKey,

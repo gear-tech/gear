@@ -501,7 +501,7 @@ mod tests {
         AsContextExt, Error, HostError, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
         SandboxStore, Value, default_executor::Store,
     };
-    use assert_matches::assert_matches;
+    use std::assert_matches;
     use gear_sandbox_env::{GLOBAL_NAME_GAS, WasmReturnValue};
 
     fn execute_sandboxed(code: &[u8], args: &[Value]) -> Result<ReturnValue, Error> {

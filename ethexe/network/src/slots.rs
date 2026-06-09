@@ -632,7 +632,7 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
-    use assert_matches::assert_matches;
+    use std::assert_matches;
     use libp2p::{
         Swarm,
         swarm::{DialError, ListenError, SwarmEvent},

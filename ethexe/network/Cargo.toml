@@ -44,7 +44,6 @@ ip_network.workspace = true
 prometheus-client = "0.23.1" # specific version that lip2p uses
 metrics.workspace = true
 metrics-derive.workspace = true
-assert_matches.workspace = true
 
 # workspace hack
 gear-workspace-hack.workspace = true

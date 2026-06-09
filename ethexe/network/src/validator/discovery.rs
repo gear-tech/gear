@@ -745,7 +745,7 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use assert_matches::assert_matches;
+    use std::assert_matches;
     use core::convert::TryFrom;
     use ethexe_common::ValidatorsVec;
     use libp2p::{

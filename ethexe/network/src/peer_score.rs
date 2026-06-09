@@ -346,7 +346,7 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
-    use assert_matches::assert_matches;
+    use std::assert_matches;
     use futures::future;
     use libp2p::{Swarm, swarm::SwarmEvent};
     use libp2p_swarm_test::SwarmExt;

@@ -798,7 +798,7 @@ mod tests {
         utils::tests::init_logger,
         validator::discovery::{ValidatorAddresses, ValidatorIdentity},
     };
-    use assert_matches::assert_matches;
+    use std::assert_matches;
     use futures::StreamExt;
     use gsigner::secp256k1::Signer;
     use libp2p::{
