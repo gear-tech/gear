@@ -697,12 +697,7 @@ mod tests {
         assert_eq!(chunks.len(), 1);
         let chunk = chunks.first().expect("one chunk must be prepared");
         assert_eq!(chunk.len(), 2);
-        assert!(
-            !chunk
-                .iter()
-                .any(|(program_id, state_hash)| *program_id == skipped
-                    && *state_hash == skipped_hash)
-        );
+        assert!(chunk.iter().all(|(program_id, _)| *program_id != skipped));
         assert!(chunk.iter().any(|(program_id, state_hash)| {
             *program_id == executable_without_owned_balance
                 && *state_hash == executable_without_owned_balance_hash
@@ -710,6 +705,63 @@ mod tests {
         assert!(chunk.iter().any(|(program_id, state_hash)| {
             *program_id == executable_with_owned_balance
                 && *state_hash == executable_with_owned_balance_hash
+        }));
+    }
+
+    #[test]
+    fn chunk_partitioning_skips_zero_executable_balance_programs_injected_queue() {
+        let db = Database::memory();
+        let skipped = ActorId::from(1);
+        let executable = ActorId::from(2);
+
+        let write_program_state = |balance, executable_balance| {
+            let mut state = ProgramState::zero();
+            state.balance = balance;
+            state.executable_balance = executable_balance;
+            db.write_program_state(state)
+        };
+
+        let skipped_hash = write_program_state(1_000, 0);
+        let executable_hash = write_program_state(1_000, 1_000);
+
+        let states = BTreeMap::from([
+            (
+                skipped,
+                StateHashWithQueueSize {
+                    hash: skipped_hash,
+                    canonical_queue_size: 0,
+                    injected_queue_size: 1,
+                },
+            ),
+            (
+                executable,
+                StateHashWithQueueSize {
+                    hash: executable_hash,
+                    canonical_queue_size: 0,
+                    injected_queue_size: 1,
+                },
+            ),
+        ]);
+        let transitions = InBlockTransitions::new(0, states, Default::default());
+        let mut ctx = CommonRunContext::new(
+            db.clone(),
+            InstanceCreator::new(db.clone(), host::runtime()).unwrap(),
+            transitions,
+            1_000_000,
+            2,
+            3,
+            3,
+            None,
+        );
+
+        let chunks = chunks_splitting::prepare_execution_chunks(&mut ctx, MessageType::Injected);
+
+        assert_eq!(chunks.len(), 1);
+        let chunk = chunks.first().expect("one chunk must be prepared");
+        assert_eq!(chunk.len(), 1);
+        assert!(chunk.iter().all(|(program_id, _)| *program_id != skipped));
+        assert!(chunk.iter().any(|(program_id, state_hash)| {
+            *program_id == executable && *state_hash == executable_hash
         }));
     }
 
