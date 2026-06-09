@@ -112,6 +112,7 @@ use ethexe_common::{
 use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{
     BlockInfo, InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
+    state::Storage as _,
 };
 use futures::prelude::*;
 use gear_core::{
@@ -438,7 +439,7 @@ impl RunContext for CommonRunContext {
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
-        states(&self.transitions, processing_queue_type)
+        states(&self.db, &self.transitions, processing_queue_type)
     }
 
     fn inner(&self) -> &CommonRunContext {
@@ -526,6 +527,7 @@ pub(super) fn instrumented_code_and_metadata(
 }
 
 pub(super) fn states(
+    db: &Database,
     in_block_transitions: &InBlockTransitions,
     processing_queue_type: MessageType,
 ) -> Vec<ActorStateHashWithQueueSize> {
@@ -540,6 +542,14 @@ pub(super) fn states(
             if queue_size == 0 {
                 return None;
             }
+
+            let program_state = db
+                .program_state(state.hash)
+                .expect("program state from transitions must exist in storage");
+            if program_state.executable_balance == 0 {
+                return None;
+            }
+
             let actor_state = ActorStateHashWithQueueSize::new(actor_id, state);
 
             Some(actor_state)
@@ -564,13 +574,17 @@ mod tests {
         const CHUNK_PROCESSING_THREADS: usize = 16;
         const MAX_QUEUE_SIZE: u8 = 20;
 
+        let db = Database::memory();
         let mut i = 0;
         let mut states_to_queue_size = HashMap::new();
 
         let states = std::iter::repeat_with(|| {
             i += 1;
-            let hash = H256::from_low_u64_le(i);
             let canonical_queue_size = rand::random::<u8>() % MAX_QUEUE_SIZE + 1;
+            let mut program_state = ProgramState::zero();
+            program_state.balance = i as u128;
+            program_state.executable_balance = 1;
+            let hash = db.write_program_state(program_state);
             states_to_queue_size.insert(hash, canonical_queue_size as usize);
 
             (
@@ -586,7 +600,6 @@ mod tests {
         .collect();
 
         let transitions = InBlockTransitions::new(0, states, Default::default());
-        let db = Database::memory();
         let mut ctx = CommonRunContext::new(
             db.clone(),
             InstanceCreator::new(db.clone(), host::runtime()).unwrap(),
@@ -621,6 +634,83 @@ mod tests {
                 "Chunks are not sorted"
             );
         }
+    }
+
+    #[test]
+    fn chunk_partitioning_skips_zero_executable_balance_programs() {
+        let db = Database::memory();
+        let skipped = ActorId::from(1);
+        let executable_without_owned_balance = ActorId::from(2);
+        let executable_with_owned_balance = ActorId::from(3);
+
+        let write_program_state = |balance, executable_balance| {
+            let mut state = ProgramState::zero();
+            state.balance = balance;
+            state.executable_balance = executable_balance;
+            db.write_program_state(state)
+        };
+
+        let skipped_hash = write_program_state(1_000, 0);
+        let executable_without_owned_balance_hash = write_program_state(0, 1_000);
+        let executable_with_owned_balance_hash = write_program_state(1_000, 1_000);
+
+        let states = BTreeMap::from([
+            (
+                skipped,
+                StateHashWithQueueSize {
+                    hash: skipped_hash,
+                    canonical_queue_size: 1,
+                    injected_queue_size: 0,
+                },
+            ),
+            (
+                executable_without_owned_balance,
+                StateHashWithQueueSize {
+                    hash: executable_without_owned_balance_hash,
+                    canonical_queue_size: 1,
+                    injected_queue_size: 0,
+                },
+            ),
+            (
+                executable_with_owned_balance,
+                StateHashWithQueueSize {
+                    hash: executable_with_owned_balance_hash,
+                    canonical_queue_size: 1,
+                    injected_queue_size: 0,
+                },
+            ),
+        ]);
+        let transitions = InBlockTransitions::new(0, states, Default::default());
+        let mut ctx = CommonRunContext::new(
+            db.clone(),
+            InstanceCreator::new(db.clone(), host::runtime()).unwrap(),
+            transitions,
+            1_000_000,
+            2,
+            3,
+            3,
+            None,
+        );
+
+        let chunks = chunks_splitting::prepare_execution_chunks(&mut ctx, MessageType::Canonical);
+
+        assert_eq!(chunks.len(), 1);
+        let chunk = chunks.first().expect("one chunk must be prepared");
+        assert_eq!(chunk.len(), 2);
+        assert!(
+            !chunk
+                .iter()
+                .any(|(program_id, state_hash)| *program_id == skipped
+                    && *state_hash == skipped_hash)
+        );
+        assert!(chunk.iter().any(|(program_id, state_hash)| {
+            *program_id == executable_without_owned_balance
+                && *state_hash == executable_without_owned_balance_hash
+        }));
+        assert!(chunk.iter().any(|(program_id, state_hash)| {
+            *program_id == executable_with_owned_balance
+                && *state_hash == executable_with_owned_balance_hash
+        }));
     }
 
     #[test]
