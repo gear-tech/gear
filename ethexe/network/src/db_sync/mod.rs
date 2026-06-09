@@ -601,7 +601,6 @@ impl NetworkBehaviour for Behaviour {
 pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
-    use std::assert_matches;
     use ethexe_db::Database;
     use libp2p::{
         Swarm, Transport,
@@ -612,6 +611,7 @@ pub(crate) mod tests {
         swarm::SwarmEvent,
     };
     use libp2p_swarm_test::SwarmExt;
+    use std::assert_matches;
     use std::mem;
     use tokio::time;
 

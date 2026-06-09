@@ -745,7 +745,6 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::assert_matches;
     use core::convert::TryFrom;
     use ethexe_common::ValidatorsVec;
     use libp2p::{
@@ -755,6 +754,7 @@ mod tests {
     };
     use libp2p_swarm_test::SwarmExt;
     use proptest::{prelude::*, test_runner::Config as ProptestConfig};
+    use std::assert_matches;
     use std::sync::Arc;
     use tokio::time;
 

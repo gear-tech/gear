@@ -632,12 +632,12 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
-    use std::assert_matches;
     use libp2p::{
         Swarm,
         swarm::{DialError, ListenError, SwarmEvent},
     };
     use libp2p_swarm_test::SwarmExt;
+    use std::assert_matches;
     use tokio::sync::mpsc;
 
     async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {

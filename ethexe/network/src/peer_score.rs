@@ -346,10 +346,10 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
-    use std::assert_matches;
     use futures::future;
     use libp2p::{Swarm, swarm::SwarmEvent};
     use libp2p_swarm_test::SwarmExt;
+    use std::assert_matches;
     use tokio::time;
 
     async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {

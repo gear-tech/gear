@@ -798,7 +798,6 @@ mod tests {
         utils::tests::init_logger,
         validator::discovery::{ValidatorAddresses, ValidatorIdentity},
     };
-    use std::assert_matches;
     use futures::StreamExt;
     use gsigner::secp256k1::Signer;
     use libp2p::{
@@ -809,6 +808,7 @@ mod tests {
         swarm::{ConnectionId, SwarmEvent},
     };
     use libp2p_swarm_test::SwarmExt;
+    use std::assert_matches;
     use std::{collections::BTreeMap, num::NonZeroUsize};
     use tokio::time;
 
