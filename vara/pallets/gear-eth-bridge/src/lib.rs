@@ -441,6 +441,7 @@ pub mod pallet {
             let idx = queue.iter().position(|&v| v == hash)?;
 
             // Generating proof.
+            let idx = u32::try_from(idx).expect("queue index fits into u32");
             let proof = binary_merkle_tree::merkle_proof_raw::<Keccak256, _>(queue, idx);
 
             // Returning appropriate type.
