@@ -81,10 +81,11 @@
 //! [`OverlaidProcessor`] wraps a [`Processor`] whose database is swapped
 //! for an overlaid, copy-on-write view. Mutations are kept in memory and
 //! discarded when the overlay is dropped, so the underlying state is
-//! never touched. [`OverlaidProcessor::execute_for_reply`] synthesizes a
-//! single [`MessageQueueingRequestedEvent`] into the target program's
-//! canonical queue and runs against this overlay with the following
-//! simulation semantics:
+//! never touched. [`OverlaidProcessor::execute_for_reply`] synthesizes
+//! overlay-only events into the target program's canonical queue — an
+//! optional [`ExecutableBalanceTopUpRequestedEvent`] followed by a
+//! [`MessageQueueingRequestedEvent`] — and runs against this overlay with
+//! the following simulation semantics:
 //!
 //! - the target program's canonical queue is trimmed to only the
 //!   synthetic dispatch, so the simulation starts from a clean slate
@@ -519,9 +520,10 @@ impl OverlaidProcessor {
 
         let transitions = InBlockTransitions::new(height, program_states, Schedule::default());
 
-        let mut events = Vec::with_capacity(top_up.is_some().then_some(2).unwrap_or(1));
+        let top_up_value = top_up.filter(|&value| value > 0);
+        let mut events = Vec::with_capacity(if top_up_value.is_some() { 2 } else { 1 });
 
-        if let Some(value) = top_up.filter(|&value| value > 0) {
+        if let Some(value) = top_up_value {
             events.push(BlockRequestEvent::Mirror {
                 actor_id: program_id,
                 event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
