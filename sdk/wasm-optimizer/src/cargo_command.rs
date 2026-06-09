@@ -118,6 +118,7 @@ impl CargoCommand {
             self.toolchain.check_recommended_toolchain()?;
         }
 
+        #[cfg(not(target_os = "android"))]
         let toolchain = if self.force_recommended_toolchain {
             Toolchain::recommended_nightly()
         } else {
