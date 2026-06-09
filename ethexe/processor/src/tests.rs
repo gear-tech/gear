@@ -1165,10 +1165,9 @@ async fn overlay_execution() {
         payload: demo_async::Command::Common.encode(),
         value: 0,
         gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-        with_top_up: false,
     };
     let reply_result = overlaid_processor
-        .execute_for_reply(executable)
+        .execute_for_reply(executable, None)
         .await
         .unwrap();
     assert_eq!(reply_result.reply.payload, MessageId::zero().encode());
@@ -1259,8 +1258,7 @@ async fn overlay_execution_returns_messages_sent_to_users() {
             payload: b"PING".to_vec(),
             value: 0,
             gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            with_top_up: false,
-        })
+        }, None)
         .await
         .unwrap();
 
@@ -1356,12 +1354,11 @@ async fn overlay_execution_with_top_up_works_for_depleted_programs() {
         payload: b"PING".to_vec(),
         value: 0,
         gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-        with_top_up: false,
     };
     let reply_without_top_up = processor
         .clone()
         .overlaid()
-        .execute_for_reply(executable)
+        .execute_for_reply(executable, None)
         .await
         .expect("overlay execution without top-up returns an error reply");
     assert!(reply_without_top_up.reply.code.is_error());
@@ -1369,17 +1366,19 @@ async fn overlay_execution_with_top_up_works_for_depleted_programs() {
     let reply_with_top_up = processor
         .clone()
         .overlaid()
-        .execute_for_reply(ExecutableDataForReply {
-            height: block2.header.height,
-            timestamp: block2.header.timestamp,
-            program_states: depleted_states,
-            source: user_id,
-            program_id: actor_id,
-            payload: b"PING".to_vec(),
-            value: 0,
-            gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            with_top_up: true,
-        })
+        .execute_for_reply(
+            ExecutableDataForReply {
+                height: block2.header.height,
+                timestamp: block2.header.timestamp,
+                program_states: depleted_states,
+                source: user_id,
+                program_id: actor_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+            },
+            Some(350_000_000_000),
+        )
         .await
         .expect("overlay execution with top-up succeeds");
 

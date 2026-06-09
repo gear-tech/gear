@@ -108,7 +108,7 @@ impl<'a> Mirror<'a> {
         payload: impl AsRef<[u8]>,
         value: u128,
     ) -> Result<CalculateReplyForHandleResult> {
-        self.calculate_reply_for_handle_at(payload, value, None, false)
+        self.calculate_reply_for_handle_at(payload, value, None)
             .await
     }
 
@@ -116,8 +116,9 @@ impl<'a> Mirror<'a> {
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
+        top_up: u128,
     ) -> Result<CalculateReplyForHandleResult> {
-        self.calculate_reply_for_handle_at(payload, value, None, true)
+        self.calculate_reply_for_handle_at_with_top_up(payload, value, None, Some(top_up))
             .await
     }
 
@@ -126,7 +127,17 @@ impl<'a> Mirror<'a> {
         payload: impl AsRef<[u8]>,
         value: u128,
         at: Option<H256>,
-        with_top_up: bool,
+    ) -> Result<CalculateReplyForHandleResult> {
+        self.calculate_reply_for_handle_at_with_top_up(payload, value, at, None)
+            .await
+    }
+
+    pub async fn calculate_reply_for_handle_at_with_top_up(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        at: Option<H256>,
+        top_up: Option<u128>,
     ) -> Result<CalculateReplyForHandleResult> {
         let sender_address = self.api.ethereum_client.sender_address();
         let source: ActorId = sender_address.into();
@@ -139,7 +150,7 @@ impl<'a> Mirror<'a> {
                 destination.to_address_lossy(),
                 payload.as_ref().to_vec().into(),
                 value,
-                Some(with_top_up),
+                top_up,
             )
             .map_err(Into::into)
             .await

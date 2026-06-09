@@ -58,7 +58,7 @@ pub trait Program {
         program_id: H160,
         payload: Bytes,
         value: u128,
-        with_top_up: Option<bool>,
+        top_up: Option<u128>,
     ) -> jsonrpsee::core::RpcResult<CalculateReplyForHandleResult>;
 
     #[method(name = "program_ids")]
@@ -136,7 +136,7 @@ impl ProgramServer for ProgramApi {
         program_id: H160,
         payload: Bytes,
         value: u128,
-        with_top_up: Option<bool>,
+        top_up: Option<u128>,
     ) -> jsonrpsee::core::RpcResult<CalculateReplyForHandleResult> {
         let mb_hash = utils::latest_computed_mb(&self.db)?;
         let block = utils::block_at_or_latest_synced(&self.db, None)?;
@@ -153,7 +153,6 @@ impl ProgramServer for ProgramApi {
             payload: payload.to_vec(),
             value,
             gas_allowance: self.gas_allowance,
-            with_top_up: with_top_up.unwrap_or(false),
         };
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
@@ -161,7 +160,7 @@ impl ProgramServer for ProgramApi {
 
         self.processor
             .clone()
-            .execute_for_reply(executable)
+            .execute_for_reply(executable, top_up)
             .await
             .map(|outcome| CalculateReplyForHandleResult {
                 reply: outcome.reply,

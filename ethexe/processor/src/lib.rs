@@ -178,7 +178,6 @@ mod thread_pool;
 
 // Default amount of programs in one chunk to be processed in parallel.
 pub const DEFAULT_CHUNK_SIZE: NonZero<usize> = NonZero::new(16).unwrap();
-const EXECUTION_FOR_REPLY_TOP_UP_VALUE_PER_GAS: u128 = 100;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
@@ -474,7 +473,6 @@ pub struct ExecutableDataForReply {
     pub payload: Vec<u8>,
     pub value: u128,
     pub gas_allowance: u64,
-    pub with_top_up: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -490,8 +488,9 @@ impl OverlaidProcessor {
     pub async fn execute_for_reply(
         &mut self,
         executable: ExecutableDataForReply,
+        top_up: Option<u128>,
     ) -> Result<ExecuteForReplyOutcome, ExecuteForReplyError> {
-        log::debug!("{executable}");
+        log::debug!("{executable}, top_up: {top_up:?}");
 
         let ExecutableDataForReply {
             height,
@@ -502,7 +501,6 @@ impl OverlaidProcessor {
             payload,
             value,
             gas_allowance,
-            with_top_up,
         } = executable;
 
         let known_programs = program_states.keys().copied().collect::<Vec<_>>();
@@ -524,16 +522,13 @@ impl OverlaidProcessor {
 
         let transitions = InBlockTransitions::new(height, program_states, Schedule::default());
 
-        let mut events = Vec::with_capacity(if with_top_up { 2 } else { 1 });
+        let mut events = Vec::with_capacity(top_up.is_some().then_some(2).unwrap_or(1));
 
-        if with_top_up {
+        if let Some(value) = top_up.filter(|&value| value > 0) {
             events.push(BlockRequestEvent::Mirror {
                 actor_id: program_id,
                 event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
-                    ExecutableBalanceTopUpRequestedEvent {
-                        value: u128::from(gas_allowance)
-                            .saturating_mul(EXECUTION_FOR_REPLY_TOP_UP_VALUE_PER_GAS),
-                    },
+                    ExecutableBalanceTopUpRequestedEvent { value },
                 ),
             });
         }
