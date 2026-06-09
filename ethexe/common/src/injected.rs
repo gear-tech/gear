@@ -4,13 +4,13 @@
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
 use core::hash::Hash;
+use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 #[cfg(feature = "shielded")]
-use ferveo_tdec::{
+use gear_tdec::{
     Result as TdecResult,
     bls12_381::{Ciphertext, DkgPublicKey, SharedSecret},
     rand_utils::Rng,
 };
-use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
 use gsigner::Signature;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
@@ -139,7 +139,7 @@ impl InjectedTransaction {
         };
         // AAD is a keccak256 hash over shielded fields
         let aad = shielded_fields.to_digest();
-        let ciphertext = ferveo_tdec::encrypt(&shielded_fields, aad.as_ref(), public_key, rng)?;
+        let ciphertext = gear_tdec::encrypt(&shielded_fields, aad.as_ref(), public_key, rng)?;
 
         Ok(ShieldedTransaction {
             ciphertext,
@@ -439,7 +439,7 @@ impl ShieldedTransaction {
     /// Returns initial [InjectedTransaction].
     pub fn unshield(self, shared_secret: &SharedSecret) -> TdecResult<InjectedTransaction> {
         let unshielded_fields =
-            ferveo_tdec::decrypt(&self.ciphertext, self.aad.as_ref(), shared_secret)?;
+            gear_tdec::decrypt(&self.ciphertext, self.aad.as_ref(), shared_secret)?;
 
         Ok(InjectedTransaction {
             destination: unshielded_fields.destination,
@@ -654,8 +654,8 @@ mod tests {
     #[test]
     fn shielded_tx_serde() {
         let injected_tx = InjectedTransaction::mock(());
-        let mut rng = ferveo_tdec::rand_utils::test_rng();
-        let dealer_out = ferveo_tdec::deal::<ferveo_tdec::bls12_381::E>(3, 2, &mut rng);
+        let mut rng = gear_tdec::rand_utils::test_rng();
+        let dealer_out = gear_tdec::deal::<gear_tdec::bls12_381::E>(3, 2, &mut rng);
 
         let shielded_tx = injected_tx
             .shield(&dealer_out.public_key, &mut rng)
