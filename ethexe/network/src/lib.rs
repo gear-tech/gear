@@ -823,8 +823,8 @@ mod tests {
     use gprimitives::{ActorId, CodeId, H256};
     use gsigner::secp256k1::Signer;
     use nonempty::nonempty;
-    use std::assert_matches;
     use std::{
+        assert_matches,
         collections::{BTreeSet, HashMap},
         future,
         num::NonZeroU64,

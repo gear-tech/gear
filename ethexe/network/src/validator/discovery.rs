@@ -754,8 +754,7 @@ mod tests {
     };
     use libp2p_swarm_test::SwarmExt;
     use proptest::{prelude::*, test_runner::Config as ProptestConfig};
-    use std::assert_matches;
-    use std::sync::Arc;
+    use std::{assert_matches, sync::Arc};
     use tokio::time;
 
     fn test_addr() -> Multiaddr {

@@ -611,8 +611,7 @@ pub(crate) mod tests {
         swarm::SwarmEvent,
     };
     use libp2p_swarm_test::SwarmExt;
-    use std::assert_matches;
-    use std::mem;
+    use std::{assert_matches, mem};
     use tokio::time;
 
     // exactly like `Swarm::new_ephemeral_tokio` but we can pass our own config

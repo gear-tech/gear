@@ -23,5 +23,5 @@ format() {
   MANIFEST="$1"
   shift
 
-  cargo fmt --all --manifest-path="$MANIFEST" -- "$@"
+  cargo +nightly fmt --all --manifest-path="$MANIFEST" -- "$@"
 }

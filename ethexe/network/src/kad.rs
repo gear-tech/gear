@@ -808,8 +808,7 @@ mod tests {
         swarm::{ConnectionId, SwarmEvent},
     };
     use libp2p_swarm_test::SwarmExt;
-    use std::assert_matches;
-    use std::{collections::BTreeMap, num::NonZeroUsize};
+    use std::{assert_matches, collections::BTreeMap, num::NonZeroUsize};
     use tokio::time;
 
     fn new_metrics() -> Arc<libp2p::metrics::Metrics> {
