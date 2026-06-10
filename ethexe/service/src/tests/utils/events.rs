@@ -121,11 +121,10 @@ impl TestingRpcEvent {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::TryUnwrap)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingEvent {
     // Fast sync done. Sent just once.
-    #[allow(dead_code)]
-    FastSyncDone(H256),
+    FastSyncDone { eb_hash: H256, mb_hash: H256 },
     // Basic event to notify that service has started. Sent just once.
     ServiceStarted,
     // Services events.

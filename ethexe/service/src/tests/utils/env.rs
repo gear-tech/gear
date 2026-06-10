@@ -505,7 +505,7 @@ impl TestEnv {
             name,
             db,
             multiaddr: None,
-            latest_fast_synced_block: None,
+            latest_fast_synced_blocks: None,
             custom_committer: None,
             router_query: self.router_query.clone(),
             eth_cfg: self.eth_cfg.clone(),
@@ -1004,11 +1004,17 @@ impl Wallets {
     }
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct LatestFastSyncedBlocks {
+    pub eb_hash: H256,
+    pub mb_hash: H256,
+}
+
 pub struct Node {
     pub name: Option<String>,
     pub db: Database,
     pub multiaddr: Option<String>,
-    pub latest_fast_synced_block: Option<H256>,
+    pub latest_fast_synced_blocks: Option<LatestFastSyncedBlocks>,
     pub custom_committer: Option<Box<dyn BatchCommitter>>,
 
     router_query: RouterQuery,
@@ -1278,13 +1284,14 @@ impl Node {
                 .find(|event| {
                     matches!(
                         event,
-                        TestingEvent::FastSyncDone(_) | TestingEvent::ServiceStarted
+                        TestingEvent::FastSyncDone { .. } | TestingEvent::ServiceStarted
                     )
                 })
                 .await
             {
-                TestingEvent::FastSyncDone(block) => {
-                    self.latest_fast_synced_block = Some(block);
+                TestingEvent::FastSyncDone { eb_hash, mb_hash } => {
+                    self.latest_fast_synced_blocks =
+                        Some(LatestFastSyncedBlocks { eb_hash, mb_hash });
                 }
                 TestingEvent::ServiceStarted => {
                     service_started = true;
