@@ -5,6 +5,7 @@ use crate::{builder_error::BuilderError, multiple_crate_versions};
 use anyhow::{Context, Result, ensure};
 use cargo_metadata::{CrateType, Dependency, Metadata, MetadataCommand, Package};
 use std::{collections::BTreeMap, path::Path};
+use toml::value::Table;
 
 /// Helper to get a crate info extracted from the `Cargo.toml`.
 #[derive(Debug, Default)]
@@ -22,7 +23,7 @@ pub struct CrateInfo {
     /// Crate custom profiles
     pub profiles: BTreeMap<String, toml::Value>,
     /// Workspace patches
-    pub patch: BTreeMap<String, toml::Value>,
+    pub patch: Table,
 }
 
 impl CrateInfo {

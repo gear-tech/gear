@@ -1139,31 +1139,29 @@ mod tests {
         }
 
         #[test]
-        fn restorer_waitlist_respects_expiry(current_block in any::<u32>(), program_id in actor_id_strategy(), waitlist in any::<Waitlist>()) {
+        fn restorer_waitlist_restores_all(program_id in actor_id_strategy(), waitlist in any::<Waitlist>()) {
             let expected: Schedule = waitlist
-                .clone()
-                .into_inner()
-                .into_iter()
-                .filter_map(|(message_id, expiring)| {
-                    (expiring.expiry > current_block).then_some((
+                .as_ref()
+                .iter()
+                .map(|(message_id, expiring)| {
+                    (
                         expiring.expiry,
-                        BTreeSet::from([ScheduledTask::WakeMessage(program_id, message_id)]),
-                    ))
+                        BTreeSet::from([ScheduledTask::WakeMessage(program_id, *message_id)]),
+                    )
                 })
                 .fold(BTreeMap::new(), |mut acc, (expiry, tasks)| {
                     acc.entry(expiry).or_default().extend(tasks);
                     acc
                 });
 
-            let mut restorer = ScheduleRestorer::new(current_block);
+            let mut restorer = ScheduleRestorer::new();
             restorer.waitlist(program_id, &waitlist);
 
             prop_assert_eq!(restorer.restore(), expected);
         }
 
         #[test]
-        fn restorer_user_mailbox_respects_expiry(
-            current_block in any::<u32>(),
+        fn restorer_user_mailbox_restores_all(
             program_id in actor_id_strategy(),
             user_id in actor_id_strategy(),
             user_mailbox in any::<UserMailbox>(),
@@ -1171,21 +1169,21 @@ mod tests {
             let expected: Schedule = user_mailbox
                 .as_ref()
                 .iter()
-                .filter_map(|(&message_id, expiring)| {
-                    (expiring.expiry > current_block).then_some((
+                .map(|(&message_id, expiring)| {
+                    (
                         expiring.expiry,
                         BTreeSet::from([ScheduledTask::RemoveFromMailbox(
                             (program_id, user_id),
                             message_id,
                         )]),
-                    ))
+                    )
                 })
                 .fold(BTreeMap::new(), |mut acc, (expiry, tasks)| {
                     acc.entry(expiry).or_default().extend(tasks);
                     acc
                 });
 
-            let mut restorer = ScheduleRestorer::new(current_block);
+            let mut restorer = ScheduleRestorer::new();
             restorer.user_mailbox(program_id, user_id, &user_mailbox);
 
             prop_assert_eq!(restorer.restore(), expected);
@@ -1193,7 +1191,6 @@ mod tests {
 
         #[test]
         fn restorer_stash_restores_correct_task_kind(
-            current_block in any::<u32>(),
             program_id in actor_id_strategy(),
             entries in dispatch_stash_entries_strategy(),
         ) {
@@ -1206,27 +1203,23 @@ mod tests {
                 let expiry = *expiry;
                 if let Some(user_id) = *user_id {
                     stash.add_to_user(dispatch.clone(), expiry, user_id);
-                    if expiry > current_block {
-                        expected
-                            .entry(expiry)
-                            .or_default()
-                            .insert(ScheduledTask::SendUserMessage {
-                                message_id,
-                                to_mailbox: program_id,
-                            });
-                    }
+                    expected
+                        .entry(expiry)
+                        .or_default()
+                        .insert(ScheduledTask::SendUserMessage {
+                            message_id,
+                            to_mailbox: program_id,
+                        });
                 } else {
                     stash.add_to_program(dispatch.clone(), expiry);
-                    if expiry > current_block {
-                        expected
-                            .entry(expiry)
-                            .or_default()
-                            .insert(ScheduledTask::SendDispatch((program_id, message_id)));
-                    }
+                    expected
+                        .entry(expiry)
+                        .or_default()
+                        .insert(ScheduledTask::SendDispatch((program_id, message_id)));
                 }
             }
 
-            let mut restorer = ScheduleRestorer::new(current_block);
+            let mut restorer = ScheduleRestorer::new();
             restorer.stash(program_id, &stash);
 
             prop_assert_eq!(restorer.restore(), expected);

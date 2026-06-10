@@ -36,24 +36,12 @@ fn init_tracing() {
 use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_malachite_core::{
-    Block, CommitCertificate, Externalities, H256, MalachiteConfig, MalachiteService, Multiaddr,
-    NodeRole, ValidatorEntry, libp2p_peer_id,
+    Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteConfig, MalachiteService,
+    Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
 };
-use parity_scale_codec::{Decode, Encode};
 use proptest::prelude::*;
 use tempfile::TempDir;
 use tokio::time::sleep;
-
-// --------------------------------------------------------------------
-// TestPayload — minimal block payload type.
-// `BlockPayload` is satisfied by the blanket impl, so no manual
-// implementation needed.
-// --------------------------------------------------------------------
-
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-struct TestPayload {
-    nonce: u64,
-}
 
 // --------------------------------------------------------------------
 // TestExt — records every process_mb_proposal / process_mb_finalized
@@ -90,7 +78,7 @@ struct TestPayload {
 
 #[derive(Default)]
 struct TestState {
-    saved_blocks: HashMap<H256, Block<TestPayload>>,
+    saved_blocks: HashMap<H256, Block>,
     /// Linear finalized chain, ordered by `process_mb_finalized`
     /// arrival. Used to check gap-free finalize ordering and to
     /// detect duplicates.
@@ -114,11 +102,11 @@ impl TestExt {
 }
 
 #[async_trait]
-impl Externalities<TestPayload> for TestExt {
+impl Externalities for TestExt {
     async fn process_mb_proposal(
         &self,
         hash: H256,
-        block: Block<TestPayload>,
+        block: Block,
         _origin: ethexe_malachite_core::CallbackOrigin,
     ) -> Result<()> {
         let mut s = self.state.lock().unwrap();
@@ -183,7 +171,7 @@ impl Externalities<TestPayload> for TestExt {
         Ok(())
     }
 
-    async fn build_block_above(&self, parent_hash: H256) -> Result<TestPayload> {
+    async fn build_block_above(&self, parent_hash: H256) -> Result<BlockPayload> {
         let mut s = self.state.lock().unwrap();
         if let Some(last_fin) = s.finalized.last().copied()
             && parent_hash != last_fin
@@ -193,10 +181,14 @@ impl Externalities<TestPayload> for TestExt {
                 last_fin, parent_hash
             ));
         }
-        Ok(TestPayload { nonce: 0 })
+        Ok(BlockPayload::default())
     }
 
-    async fn validate_block_above(&self, parent_hash: H256, _payload: TestPayload) -> Result<bool> {
+    async fn validate_block_above(
+        &self,
+        parent_hash: H256,
+        _payload: BlockPayload,
+    ) -> Result<bool> {
         let mut s = self.state.lock().unwrap();
         if let Some(last_fin) = s.finalized.last().copied()
             && parent_hash != last_fin
@@ -321,10 +313,10 @@ async fn start_service(
     setups: &[ValidatorSetup],
     idx: usize,
     ext: Arc<TestExt>,
-) -> MalachiteService<TestPayload, TestExt> {
+) -> MalachiteService<TestExt> {
     let peers = build_multiaddrs_excluding(setups, idx);
     let config = build_config(setup, setups, peers);
-    MalachiteService::<TestPayload, TestExt>::new(config, ext)
+    MalachiteService::<TestExt>::new(config, ext)
         .await
         .expect("service starts")
 }
@@ -450,7 +442,7 @@ async fn restart_one_validator_mid_run() {
     let setups = make_validators(3);
 
     let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
-    let mut services: Vec<Option<MalachiteService<TestPayload, TestExt>>> = Vec::with_capacity(3);
+    let mut services: Vec<Option<MalachiteService<TestExt>>> = Vec::with_capacity(3);
     for (i, setup) in setups.iter().enumerate() {
         let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
         services.push(Some(svc));
@@ -513,7 +505,7 @@ async fn full_node_syncs_from_validators() {
         };
         let peers = build_multiaddrs_excluding(&setups, i);
         let cfg = build_config_with_role(setup, peers, validator_set.clone(), role);
-        let svc = MalachiteService::<TestPayload, TestExt>::new(cfg, Arc::clone(&exts[i]))
+        let svc = MalachiteService::<TestExt>::new(cfg, Arc::clone(&exts[i]))
             .await
             .expect("service starts");
         services.push(svc);
@@ -583,8 +575,7 @@ fn run_churn_scenario(events: Vec<ChurnEvent>) {
 
         let setups = make_validators(n);
         let exts: Vec<Arc<TestExt>> = (0..n).map(|_| Arc::new(TestExt::default())).collect();
-        let mut services: Vec<Option<MalachiteService<TestPayload, TestExt>>> =
-            (0..n).map(|_| None).collect();
+        let mut services: Vec<Option<MalachiteService<TestExt>>> = (0..n).map(|_| None).collect();
 
         // Bootstrap all validators with a stagger.
         for (i, setup) in setups.iter().enumerate() {

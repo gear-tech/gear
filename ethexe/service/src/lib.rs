@@ -31,7 +31,10 @@
 //! internal [`Event`] flow and allow waiting for startup, block sync,
 //! MB processing, network activity, and RPC requests.
 
-use crate::config::{Config, ConfigPublicKey};
+use crate::{
+    config::{Config, ConfigPublicKey},
+    pending_tx::PendingNetworkInjectedTx,
+};
 use alloy::{
     eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
@@ -43,7 +46,7 @@ use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, Consens
 use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
-    injected::{CompactPromise, Receipt},
+    injected::{CompactPromise, InjectedTransactionAcceptance, Receipt},
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -76,6 +79,7 @@ use tokio::sync::oneshot;
 pub mod config;
 
 mod fast_sync;
+mod pending_tx;
 #[cfg(test)]
 mod tests;
 
@@ -138,7 +142,6 @@ pub struct Service {
     rpc: Option<RpcServer>,
 
     fast_sync: bool,
-    validator_address: Option<Address>,
     validator_pub_key: Option<PublicKey>,
 
     /// When set, `run` performs `MalachiteService::shutdown` on signal.
@@ -369,7 +372,6 @@ impl Service {
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
-        let validator_address = validator_pub_key.map(|key| key.to_address());
 
         // TODO #4642: use validator session key
         let _validator_pub_key_session =
@@ -513,7 +515,6 @@ impl Service {
             prometheus,
             rpc,
             fast_sync,
-            validator_address,
             validator_pub_key,
             shutdown_rx: None,
             #[cfg(test)]
@@ -544,7 +545,6 @@ impl Service {
         rpc: Option<RpcServer>,
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
-        validator_address: Option<Address>,
         validator_pub_key: Option<PublicKey>,
     ) -> Self {
         Self {
@@ -560,7 +560,6 @@ impl Service {
             rpc,
             sender,
             fast_sync,
-            validator_address,
             validator_pub_key,
             shutdown_rx: None,
         }
@@ -605,7 +604,6 @@ impl Service {
             mut prometheus,
             rpc,
             fast_sync: _,
-            validator_address,
             validator_pub_key,
             mut shutdown_rx,
             #[cfg(test)]
@@ -635,10 +633,7 @@ impl Service {
             .send(tests::utils::TestingEvent::ServiceStarted)
             .await;
 
-        // One fan-out can park N senders under the same tx_hash (one per
-        // recipient validator), so we hold a Vec — earlier inserts must
-        // not be clobbered by later ones.
-        let mut network_injected_txs: HashMap<_, Vec<oneshot::Sender<_>>> = HashMap::new();
+        let mut network_injected_txs: HashMap<_, PendingNetworkInjectedTx> = HashMap::new();
 
         loop {
             let event: Event = tokio::select! {
@@ -810,11 +805,13 @@ impl Service {
                                 transaction,
                                 channel,
                             } => {
-                                let acceptance = if let Some(m) = malachite.as_mut() {
-                                    m.receive_injected_transaction((*transaction).clone())
-                                        .into()
-                                } else {
-                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept
+                                let acceptance = match malachite.as_mut() {
+                                    Some(malachite) => {
+                                        malachite.receive_injected_transaction(*transaction).into()
+                                    }
+                                    None => InjectedTransactionAcceptance::Reject {
+                                        reason: "no malachite service to handle transaction".into(),
+                                    },
                                 };
                                 let _ = channel.send(acceptance);
                             }
@@ -822,13 +819,16 @@ impl Service {
                                 transaction_hash,
                                 acceptance,
                             } => {
-                                if let Some(senders) =
-                                    network_injected_txs.get_mut(&transaction_hash)
-                                    && let Some(response_sender) = senders.pop()
+                                let final_acceptance = network_injected_txs
+                                    .get_mut(&transaction_hash)
+                                    .and_then(|pending| pending.record_response(acceptance));
+
+                                if let Some(final_acceptance) = final_acceptance
+                                    && let Some(pending) =
+                                        network_injected_txs.remove(&transaction_hash)
                                 {
-                                    let _res = response_sender.send(acceptance);
-                                    if senders.is_empty() {
-                                        network_injected_txs.remove(&transaction_hash);
+                                    for sender in pending.into_response_senders() {
+                                        let _res = sender.send(final_acceptance.clone());
                                     }
                                 }
                             }
@@ -851,35 +851,76 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            // zero address means that no matter what validator will insert this tx.
-                            let is_zero_address = transaction.recipient == Address::default();
-                            let is_our_address = Some(transaction.recipient) == validator_address;
+                            let mut local_acceptance = None;
 
-                            if is_zero_address || is_our_address {
-                                let acceptance = if let Some(m) = malachite.as_mut() {
-                                    m.receive_injected_transaction(transaction.tx.clone())
-                                        .into()
-                                } else {
-                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept
-                                };
-                                let _res = response_sender.send(acceptance);
-                            } else {
-                                let Some(network) = network.as_mut() else {
-                                    continue;
-                                };
+                            if let Some(malachite) = malachite.as_mut() {
+                                let status =
+                                    malachite.receive_injected_transaction(transaction.clone());
+                                local_acceptance =
+                                    Some(InjectedTransactionAcceptance::from(status));
+                            }
 
-                                let tx_hash = transaction.tx.data().to_hash();
-
-                                match network.send_injected_transaction(transaction) {
-                                    Ok(()) => {
-                                        network_injected_txs
-                                            .entry(tx_hash)
-                                            .or_default()
-                                            .push(response_sender);
+                            match network.as_mut() {
+                                Some(network) => match local_acceptance {
+                                    Some(acceptance @ InjectedTransactionAcceptance::Accept) => {
+                                        // local consensus handle transaction, no need to wait for other acceptances
+                                        if let Err(err) =
+                                            network.broadcast_injected_transaction(transaction)
+                                        {
+                                            tracing::warn!(
+                                                "failed to broadcast locally accepted injected transaction: error={err:?}"
+                                            );
+                                        }
+                                        if let Err(err) = response_sender.send(acceptance) {
+                                            tracing::error!(
+                                                ?err,
+                                                "failed to send local acceptance to RPC service, RPC channel dropped"
+                                            )
+                                        }
                                     }
-                                    Err(err) => {
-                                        let _res = response_sender.send(Err(err).into());
+                                    _ => {
+                                        // no local malachite or malachite reject transaction, wait for other acceptances
+                                        let tx_hash = transaction.data().to_hash();
+                                        if let Some(pending) =
+                                            network_injected_txs.get_mut(&tx_hash)
+                                        {
+                                            pending.add_response_sender(response_sender);
+                                            continue;
+                                        }
+
+                                        match network.broadcast_injected_transaction(transaction) {
+                                            Ok(pending_responses) => {
+                                                let pending = PendingNetworkInjectedTx::new(
+                                                    response_sender,
+                                                    pending_responses,
+                                                    local_acceptance,
+                                                );
+                                                network_injected_txs.insert(tx_hash, pending);
+                                            }
+                                            Err(err) => {
+                                                let acceptance =
+                                                    InjectedTransactionAcceptance::Reject {
+                                                        reason: err.to_string(),
+                                                    };
+
+                                                if let Err(err) = response_sender.send(acceptance) {
+                                                    tracing::error!(
+                                                        ?err,
+                                                        "failed to send local acceptance to RPC service, RPC channel dropped"
+                                                    );
+                                                }
+                                            }
+                                        }
                                     }
+                                },
+                                None => {
+                                    // No network, send local_acceptance to RPC
+                                    let acceptance = local_acceptance.unwrap_or_else(|| {
+                                        InjectedTransactionAcceptance::Reject {
+                                            reason: "RPC not a validator and do not connect to P2P network".into(),
+                                        }
+                                    });
+                                    let _ = response_sender.send(acceptance);
                                 }
                             }
                         }

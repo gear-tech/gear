@@ -7,13 +7,12 @@ use crate::{
     Sum, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
-    ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
     },
-    injected::{AddressedInjectedTransaction, InjectedTransaction, Promise},
-    malachite::Transactions,
+    injected::{InjectedTransaction, Promise},
+    malachite::Operations,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
@@ -117,25 +116,6 @@ impl From<(u32, ValidatorsVec)> for BlockChainParams {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct AddressedInjectedTransactionParams {
-    signer: Option<PrivateKey>,
-}
-
-impl From<()> for AddressedInjectedTransactionParams {
-    fn from((): ()) -> Self {
-        Self::default()
-    }
-}
-
-impl From<PrivateKey> for AddressedInjectedTransactionParams {
-    fn from(signer: PrivateKey) -> Self {
-        Self {
-            signer: Some(signer),
-        }
-    }
-}
-
 fn h256_strategy() -> BoxedStrategy<H256> {
     any::<[u8; 32]>().prop_map(Into::into).boxed()
 }
@@ -162,14 +142,6 @@ fn message_id_strategy() -> BoxedStrategy<MessageId> {
 
 fn reservation_id_strategy() -> BoxedStrategy<ReservationId> {
     any::<[u8; 32]>().prop_map(Into::into).boxed()
-}
-
-fn private_key_strategy() -> BoxedStrategy<PrivateKey> {
-    any::<[u8; 32]>()
-        .prop_filter_map("valid secp256k1 private key", |seed| {
-            PrivateKey::from_seed(seed).ok()
-        })
-        .boxed()
 }
 
 fn limited_bytes_strategy<const N: usize>(
@@ -441,30 +413,6 @@ impl Arbitrary for InjectedTransaction {
     }
 }
 
-impl Arbitrary for AddressedInjectedTransaction {
-    type Parameters = AddressedInjectedTransactionParams;
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
-        let signer = match args.signer {
-            Some(signer) => Just(signer).boxed(),
-            None => private_key_strategy(),
-        };
-
-        (
-            address_strategy(),
-            signer,
-            InjectedTransaction::arbitrary_with(()),
-        )
-            .prop_map(|(recipient, signer, tx)| Self {
-                recipient,
-                tx: SignedMessage::create(signer, tx)
-                    .expect("signing injected transaction must succeed"),
-            })
-            .boxed()
-    }
-}
-
 impl Mock<()> for Promise {
     fn mock(_args: ()) -> Self {
         Promise::mock(HashOf::random())
@@ -581,10 +529,10 @@ pub struct MbFullData {
     /// Computed-side data. `Some(default)` by default; setting to
     /// `None` skips writing `mb_program_states` and `mb_meta.computed`.
     pub computed: Option<MockComputedMbData>,
-    /// SCALE-encoded transactions blob to write under this MB.
-    /// Defaults to an empty list. Tests that need specific txs in the
-    /// dedup-window walk (e.g. tx_validity::Duplicate) can set this.
-    pub transactions: Transactions,
+    /// SCALE-encoded operations blob to write under this MB.
+    /// Defaults to an empty list. Tests that need specific operations in
+    /// the dedup-window walk (e.g. tx_validity::Duplicate) can set this.
+    pub operations: Operations,
 }
 
 impl MbFullData {
@@ -634,6 +582,34 @@ impl BlockChain {
     }
 }
 
+/// Seed the zero MB as a computed genesis ancestor, mirroring
+/// `initialize_empty_db`. The malachite genesis block (height 1) points at
+/// the zero hash as its parent, and the compute / tx-validity pipelines read
+/// that parent as a normal computed record — empty `program_states` and
+/// `schedule`, `computed = true`, `last_advanced_eb = zero`. Every test DB
+/// that exercises those pipelines must carry it.
+pub fn seed_genesis_zero_mb<DB>(db: &DB)
+where
+    DB: MbStorageRW,
+{
+    let operations_hash = db.set_operations(Operations::new(vec![]));
+    db.set_mb_compact_block(
+        H256::zero(),
+        CompactMb {
+            parent: H256::zero(),
+            height: 0,
+            operations_hash,
+        },
+    );
+    db.set_mb_program_states(H256::zero(), Default::default());
+    db.set_mb_schedule(H256::zero(), Default::default());
+    db.set_mb_outcome(H256::zero(), Vec::new());
+    db.mutate_mb_meta(H256::zero(), |m| {
+        m.computed = true;
+        m.last_advanced_eb = H256::zero();
+    });
+}
+
 impl BlockChain {
     #[track_caller]
     pub fn setup<DB>(self, db: &DB) -> Self
@@ -657,20 +633,24 @@ impl BlockChain {
         db.set_config(config.clone());
         db.set_globals(globals);
 
+        // The zero MB is the genesis block's parent; seed it as a computed
+        // ancestor exactly as `initialize_empty_db` does in production.
+        seed_genesis_zero_mb(db);
+
         // Write MB rows in chronological order. Skip the index-0
-        // sentinel (zero hash). Empty-transactions MBs share one CAS
-        // entry naturally — `set_transactions` is content-addressed.
+        // sentinel (zero hash). Empty-operations MBs share one CAS
+        // entry naturally — `set_operations` is content-addressed.
         for mb in &mbs {
             if mb.hash == H256::zero() {
                 continue;
             }
-            let transactions_hash = db.set_transactions(mb.transactions.clone());
+            let operations_hash = db.set_operations(mb.operations.clone());
             db.set_mb_compact_block(
                 mb.hash,
                 CompactMb {
                     parent: mb.parent,
                     height: mb.height,
-                    transactions_hash,
+                    operations_hash,
                 },
             );
             if let Some(computed) = &mb.computed {
@@ -811,7 +791,7 @@ impl BlockChain {
                     parent: H256::zero(),
                     height: 0,
                     computed: None,
-                    transactions: Transactions::new(vec![]),
+                    operations: Operations::new(vec![]),
                 });
                 continue;
             }
@@ -825,7 +805,7 @@ impl BlockChain {
                 parent: prev_mb_hash,
                 height: i as u64,
                 computed: Some(MockComputedMbData::default()),
-                transactions: Transactions::new(vec![]),
+                operations: Operations::new(vec![]),
             });
             prev_mb_hash = hash;
         }
@@ -954,9 +934,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn addressed_injected_transaction_mock_produces_distinct_hashes() {
+    fn injected_transaction_mock_produces_distinct_hashes() {
         let tx_hashes: std::collections::BTreeSet<_> = (0..8)
-            .map(|_| AddressedInjectedTransaction::mock(()).tx.data().to_hash())
+            .map(|_| InjectedTransaction::mock(()).to_hash())
             .collect();
 
         assert_eq!(tx_hashes.len(), 8);

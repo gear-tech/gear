@@ -12,8 +12,8 @@ use ethexe_common::{
     db::*,
     events::BlockEvent,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedCompactTxReceipt, SignedInjectedTransaction,
+        InjectedTransaction, InjectedTransactionAcceptance, SignedCompactTxReceipt,
+        SignedInjectedTransaction,
     },
     network::VerifiedValidatorMessage,
 };
@@ -104,7 +104,7 @@ impl TestingNetworkEvent {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
     InjectedTransaction {
-        transaction: AddressedInjectedTransaction,
+        transaction: SignedInjectedTransaction,
     },
 }
 

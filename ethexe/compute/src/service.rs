@@ -138,8 +138,8 @@ mod tests {
             BlockMetaStorageRO, CodesStorageRO, CompactMb, MbStorageRO, MbStorageRW,
             OnChainStorageRW,
         },
-        malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
-        mock::Tap,
+        malachite::{Operation, Operations},
+        mock::{Tap, seed_genesis_zero_mb},
     };
     use ethexe_db::Database as DB;
     use gear_core::ids::prelude::CodeIdExt;
@@ -158,16 +158,12 @@ mod tests {
         );
         db.set_block_events(eth_block_hash, &[]);
 
-        let transactions_hash = db.set_transactions(Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock {
+        let operations_hash = db.set_operations(Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock {
                 block_hash: eth_block_hash,
             },
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits { gas_allowance },
-            },
+            Operation::ProgressTasks,
+            Operation::ProcessQueues { gas_allowance },
         ]));
 
         db.set_mb_compact_block(
@@ -175,7 +171,7 @@ mod tests {
             CompactMb {
                 parent: H256::zero(),
                 height: 1,
-                transactions_hash,
+                operations_hash,
             },
         );
     }
@@ -208,6 +204,7 @@ mod tests {
 
             run_async_test(async move {
                 let db = DB::memory();
+                seed_genesis_zero_mb(&db);
                 let mut service = ComputeService::new_mock_processor(db.clone());
                 let mb_hash = H256::from_low_u64_be(0xCAFE);
 

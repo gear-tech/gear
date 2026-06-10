@@ -44,7 +44,7 @@ use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedCompactTxReceipt},
+    injected::{SignedCompactTxReceipt, SignedInjectedTransaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -67,7 +67,10 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll, time::Duration};
+use std::{
+    collections::HashSet, fmt::Write, num::NonZeroUsize, pin::Pin, sync::Arc, task::Poll,
+    time::Duration,
+};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 /// Default listen port.
@@ -644,15 +647,15 @@ impl NetworkService {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
-    /// Send an injected transaction privately to the destination validator.
-    pub fn send_injected_transaction(
+    /// Send an injected transaction privately to all known validators.
+    pub fn broadcast_injected_transaction(
         &mut self,
-        data: AddressedInjectedTransaction,
-    ) -> Result<(), injected::SendTransactionError> {
+        transaction: SignedInjectedTransaction,
+    ) -> Result<NonZeroUsize, injected::SendTransactionError> {
         let behaviour = self.swarm.behaviour_mut();
         behaviour
             .injected
-            .send_transaction(behaviour.validator_discovery.identities(), data)
+            .broadcast_transaction(behaviour.validator_discovery.identities(), transaction)
     }
 
     /// Publish a signed promise to the public promise gossipsub topic.

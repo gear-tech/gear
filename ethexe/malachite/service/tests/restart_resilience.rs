@@ -77,6 +77,9 @@ impl Mempool for EmptyMempool {
 ///   compute service's `prepare_block` pipeline; tests that don't
 ///   run that pipeline must seed it manually.
 fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
+    // The producer builds the genesis MB with `parent == H256::zero()`; seed
+    // that zero ancestor as a computed MB exactly as `initialize_empty_db` does.
+    ethexe_common::mock::seed_genesis_zero_mb(db);
     let mut chain = Vec::with_capacity(len);
     let mut parent = H256::zero();
     for i in 0..len {
@@ -296,12 +299,12 @@ fn assert_chain_contiguous(db: &Database, head: H256, expected_height: u64) {
             "chain height mismatch at {current}: expected {expected}, got {}",
             compact.height
         );
-        // Transactions blob must be reachable too — that's the
+        // Operations blob must be reachable too — that's the
         // contract behind CompactMb existence.
         assert!(
-            db.transactions(compact.transactions_hash).is_some(),
-            "missing transactions blob {} for MB {current}",
-            compact.transactions_hash
+            db.operations(compact.operations_hash).is_some(),
+            "missing operations blob {} for MB {current}",
+            compact.operations_hash
         );
         if expected == 1 {
             assert!(

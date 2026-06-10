@@ -226,6 +226,10 @@ impl GasTreeManager {
         GasTree::system_unreserve(GasNodeId::from(message_id.cast::<PlainNodeId>()))
     }
 
+    pub(crate) fn get_system_reserve(&self, message_id: MessageId) -> Result<Gas, GasTreeError> {
+        GasTree::get_system_reserve(GasNodeId::from(message_id.cast::<PlainNodeId>()))
+    }
+
     /// Reserve some value from underlying balance.
     ///
     /// Used in gas reservation for system signal.
