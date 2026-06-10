@@ -21,7 +21,7 @@ impl Toolchain {
     /// This is a toolchain version tested on our CI.
     const RECOMMENDED_STABLE_TOOLCHAIN: &'static str = "1.96";
     /// This is a nightly toolchain used for unstable Rust features.
-    const NIGHTLY_TOOLCHAIN: &'static str = "nightly";
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2026-06-10";
 
     /// Returns `Toolchain` representing the recommended stable version.
     pub fn recommended_stable() -> Self {
@@ -29,8 +29,8 @@ impl Toolchain {
     }
 
     /// Returns `Toolchain` representing a nightly version.
-    pub fn nightly() -> Self {
-        Self(Self::NIGHTLY_TOOLCHAIN.into())
+    pub fn pinned_nightly() -> Self {
+        Self(Self::PINNED_NIGHTLY_TOOLCHAIN.into())
     }
 
     /// Fetches `Toolchain` via rustup.
