@@ -10,7 +10,7 @@ Local Cargo package names intentionally stay compatible with upstream package na
 
 | Local path | Upstream package | Gear publish name | License |
 | --- | --- | --- | --- |
-| `substrate/sp-allocator` | `sp-allocator`; derived from upstream `sc-allocator` | `gsp-allocator` | Apache-2.0 |
+| `substrate/sp-allocator` | local `sp-allocator` package name; derived from upstream `sc-allocator` | `gsp-allocator` | Apache-2.0 |
 | `substrate/sp-wasm-interface` | `sp-wasm-interface` | `gsp-wasm-interface` | Apache-2.0 |
 | `substrate/runtime-executor/common` | `sc-executor-common` | `gsc-executor-common` | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/runtime-executor/polkavm` | `sc-executor-polkavm` | `gsc-executor-polkavm` | GPL-3.0-or-later WITH Classpath-exception-2.0 |

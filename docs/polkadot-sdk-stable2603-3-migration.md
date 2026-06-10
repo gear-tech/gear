@@ -77,6 +77,7 @@ In this branch:
 | Local path | Upstream package | stable2603 action |
 | --- | --- | --- |
 | `substrate/sc-mixnet` | `sc-mixnet` | Deleted; use upstream stable2603-3 |
+| `substrate/sp-allocator` | `sc-allocator` | Refreshed for stable2603 compatibility; keep `sp-allocator` package name locally |
 | `substrate/runtime-executor` | `sc-executor` | Keep Gear fork for sandbox/lazy-pages compatibility |
 | `substrate/runtime-executor/common` | `sc-executor-common` | Refreshed for stable2603 compatibility |
 | `substrate/runtime-executor/polkavm` | `sc-executor-polkavm` | Refreshed for stable2603 compatibility |
@@ -85,6 +86,17 @@ In this branch:
 | `substrate/sp-wasm-interface` | `sp-wasm-interface` | Keep compatibility-only fork |
 | `substrate/sp-wasm-interface-common` | local compatibility crate | Keep compatibility-only fork |
 | `substrate/substrate-wasm-builder` | `substrate-wasm-builder` | Refreshed for stable2603 compatibility |
+
+The local diff against `e3737178ec726cffe506c907263aaaa417893fd0` was
+re-audited after the ethexe Malachite restore. The remaining `substrate/`
+source deltas are intentional Gear compatibility changes: allocator package
+renaming and shared wasm-interface types, static Wasmtime host-function
+registration for the current `wasmtime` API, Gear executor host-state and
+memory-wrapper plumbing, `get_global_const` support, wasm32v1/RISC-V builder
+handling, and omission of upstream-only benches/runtime-test fixtures. The
+manual ethexe host registration for
+`ext_gear_ri_pre_process_memory_accesses_version_2` was updated separately to
+match stable2603's `PassFatPointerAndReadWrite<&mut [u8]>` FFI shape.
 
 ## Deferred Items
 
