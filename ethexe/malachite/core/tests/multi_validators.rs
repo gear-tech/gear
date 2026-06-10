@@ -36,8 +36,8 @@ fn init_tracing() {
 use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_malachite_core::{
-    Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteCoreConfig, MalachiteCore,
-    Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
+    Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteCore,
+    MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
 };
 use proptest::prelude::*;
 use tempfile::TempDir;

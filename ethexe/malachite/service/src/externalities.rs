@@ -53,7 +53,6 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
-use futures::{FutureExt, pending};
 use gprimitives::H256;
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{collections::VecDeque, sync::Arc};
@@ -123,7 +122,8 @@ impl Externalities for EthexeExternalities {
                 mb_hash,
             },
             last_advanced,
-        );
+        )
+        .await;
         Ok(())
     }
 
@@ -174,7 +174,8 @@ impl Externalities for EthexeExternalities {
                 mb_hash,
             },
             last_advanced,
-        );
+        )
+        .await;
         Ok(())
     }
 

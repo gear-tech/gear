@@ -38,8 +38,9 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteServiceConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
-    ValidatorEntry, derive_libp2p_secret, malachite_libp2p_peer_id,
+    InjectedTxMempool, MalachiteServiceConfig, MalachiteServiceStarter,
+    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
+    malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
@@ -1194,21 +1195,27 @@ impl Node {
                 .with_validators(validators);
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
-            let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
+
+            let malachite_validator_config =
+                self.validator_config
+                    .as_ref()
+                    .map(|c| ethexe_malachite::ValidatorConfig {
+                        pub_key: c.public_key,
+                        mempool: InjectedTxMempool::new(self.db.clone()),
+                        signer: self.signer.clone(),
+                    });
 
             // Release the port-reservation listener moments before libp2p rebinds.
             drop(self.malachite_listener.take());
 
-            let svc = MalachiteService::new(
-                malach,
+            MalachiteServiceStarter::new(
+                mc,
+                malachite_validator_config,
                 self.db.clone(),
-                self.signer.clone(),
-                self.validator_config.as_ref().map(|c| c.public_key),
-                mempool,
+                latest_block,
             )
             .await
-            .expect("MalachiteService::new");
-            Some(svc)
+            .expect("MalachiteServiceStarter::new")
         };
 
         let (sender, receiver) = events::channel(self.db.clone(), self.kicking_per_blocks.clone());

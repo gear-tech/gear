@@ -61,7 +61,7 @@ use ethexe_common::injected::PurgedTransaction;
 use gprimitives::H256;
 
 pub use crate::{
-    config::{MalachiteServiceConfig, ValidatorEntry, ValidatorConfig},
+    config::{MalachiteServiceConfig, ValidatorConfig, ValidatorEntry},
     mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
     service::MalachiteService,
     starter::MalachiteServiceStarter,

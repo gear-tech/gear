@@ -28,7 +28,8 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
-    MalachiteServiceConfig, MalachiteEvent, MalachiteService, Mempool, TxInsertionStatus, ValidatorEntry,
+    MalachiteEvent, MalachiteService, MalachiteServiceConfig, Mempool, TxInsertionStatus,
+    ValidatorEntry,
 };
 use futures::StreamExt as _;
 use gprimitives::H256;

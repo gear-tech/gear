@@ -26,24 +26,17 @@ use ethexe_common::{
     db::{ConfigStorageRO, OnChainStorageRO},
     injected::SignedInjectedTransaction,
 };
-use ethexe_db::Database;
 use ethexe_malachite_core::MalachiteCore;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
-use gsigner::{
-    Signer,
-    schemes::secp256k1::{PublicKey, Secp256k1},
-};
+use gsigner::schemes::secp256k1::PublicKey;
 use std::{
     collections::HashMap,
     pin::Pin,
-    sync::{Arc, RwLock},
+    sync::Arc,
     task::{Context, Poll},
 };
-use tokio::sync::{
-    Notify,
-    mpsc::{self, UnboundedReceiver},
-};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 /// Public consensus service.
 pub struct MalachiteService {

@@ -521,15 +521,12 @@ impl Service {
                 malachite_service_config.persistent_peers.len(),
             );
 
-            let validator_config = if let Some(pub_key) = validator_pub_key {
-                Some(ethexe_malachite::ValidatorConfig {
+            let validator_config =
+                validator_pub_key.map(|pub_key| ethexe_malachite::ValidatorConfig {
                     pub_key,
                     mempool: InjectedTxMempool::new(db.clone()),
                     signer: signer.clone(),
-                })
-            } else {
-                None
-            };
+                });
 
             let role = validator_config
                 .as_ref()
@@ -658,7 +655,7 @@ impl Service {
 
         let mut shutdown_rx = shutdown_rx;
 
-        let malachite = malachite_starter.start().await?;
+        let mut malachite = malachite_starter.start().await?;
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
@@ -716,7 +713,7 @@ impl Service {
                             c.receive_new_chain_head(block)?;
                         }
 
-                        malachite.receive_new_chain_head(block);
+                        malachite.receive_new_chain_head(block).await;
                     }
                     ObserverEvent::BlockSynced(block_hash) => {
                         log::info!("Ethereum block synced: {block_hash}");
@@ -731,7 +728,7 @@ impl Service {
                             network.set_chain_head(block_hash)?;
                         }
 
-                        malachite.receive_eb_synced(block_hash);
+                        malachite.receive_eb_synced(block_hash).await;
                     }
                 },
                 Event::BlobLoader(event) => match event {
@@ -748,7 +745,7 @@ impl Service {
                             c.receive_prepared_block(block_hash)?;
                         }
 
-                        malachite.receive_eb_prepared(block_hash);
+                        malachite.receive_eb_prepared(block_hash).await;
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
@@ -883,18 +880,13 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            let mut local_acceptance = None;
-
-                            if let Some(malachite) = malachite.as_mut() {
-                                let status =
-                                    malachite.receive_injected_transaction(transaction.clone());
-                                local_acceptance =
-                                    Some(InjectedTransactionAcceptance::from(status));
-                            }
+                            let status =
+                                malachite.receive_injected_transaction(transaction.clone());
+                            let local_acceptance = InjectedTransactionAcceptance::from(status);
 
                             match network.as_mut() {
                                 Some(network) => match local_acceptance {
-                                    Some(acceptance @ InjectedTransactionAcceptance::Accept) => {
+                                    acceptance @ InjectedTransactionAcceptance::Accept => {
                                         // local consensus handle transaction, no need to wait for other acceptances
                                         if let Err(err) =
                                             network.broadcast_injected_transaction(transaction)
@@ -911,7 +903,7 @@ impl Service {
                                         }
                                     }
                                     _ => {
-                                        // no local malachite or malachite reject transaction, wait for other acceptances
+                                        // local malachite rejected the transaction, wait for other acceptances
                                         let tx_hash = transaction.data().to_hash();
                                         if let Some(pending) =
                                             network_injected_txs.get_mut(&tx_hash)
@@ -925,7 +917,7 @@ impl Service {
                                                 let pending = PendingNetworkInjectedTx::new(
                                                     response_sender,
                                                     pending_responses,
-                                                    local_acceptance,
+                                                    Some(local_acceptance),
                                                 );
                                                 network_injected_txs.insert(tx_hash, pending);
                                             }
@@ -947,12 +939,7 @@ impl Service {
                                 },
                                 None => {
                                     // No network, send local_acceptance to RPC
-                                    let acceptance = local_acceptance.unwrap_or_else(|| {
-                                        InjectedTransactionAcceptance::Reject {
-                                            reason: "RPC not a validator and do not connect to P2P network".into(),
-                                        }
-                                    });
-                                    let _ = response_sender.send(acceptance);
+                                    let _ = response_sender.send(local_acceptance);
                                 }
                             }
                         }
@@ -1059,9 +1046,7 @@ impl Service {
             }
         }
 
-        if let Some(m) = malachite.take() {
-            m.shutdown().await;
-        }
+        malachite.shutdown().await;
 
         Ok(())
     }

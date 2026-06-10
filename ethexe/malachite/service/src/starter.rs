@@ -11,10 +11,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_malachite_core::{MalachiteCore, MalachiteCoreConfig, NodeRole};
-use gsigner::{
-    Signer,
-    schemes::secp256k1::{PrivateKey, PublicKey, Secp256k1},
-};
+use gsigner::schemes::secp256k1::{PrivateKey, PublicKey};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{
     Notify, RwLock,
