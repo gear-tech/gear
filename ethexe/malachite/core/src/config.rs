@@ -50,7 +50,7 @@ pub enum NodeRole {
 /// Application-specific knobs (gas budgets, mempool settings, etc.)
 /// live behind [`crate::Externalities`] — they don't belong here.
 #[derive(Clone, Debug)]
-pub struct MalachiteConfig {
+pub struct MalachiteCoreConfig {
     /// Local libp2p listen address.
     pub listen_addr: SocketAddr,
 
@@ -99,7 +99,7 @@ pub struct MalachiteConfig {
     pub propose_timeout: Duration,
 }
 
-impl MalachiteConfig {
+impl MalachiteCoreConfig {
     /// Default propose timeout — 13 seconds. The upper bound on how
     /// long [`crate::Externalities::build_block_above`] is given to
     /// produce a block before the round rolls over. Applications

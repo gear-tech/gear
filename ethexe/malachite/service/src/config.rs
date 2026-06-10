@@ -8,12 +8,13 @@
 //! is wired in directly — there is no separate genesis file — so the
 //! caller is the single source of truth for who can vote.
 
+use crate::Mempool;
+use ethexe_common::ecdsa::{PublicKey, Signer};
+pub use ethexe_malachite_core::{Multiaddr, ValidatorEntry};
 use std::{net::SocketAddr, path::PathBuf};
 
-pub use ethexe_malachite_core::{Multiaddr, ValidatorEntry};
-
 #[derive(Clone, Debug)]
-pub struct MalachiteConfig {
+pub struct MalachiteServiceConfig {
     /// Gas allowance per block.
     pub gas_allowance: u64,
 
@@ -59,7 +60,7 @@ pub struct MalachiteConfig {
     pub validators: Vec<ValidatorEntry>,
 }
 
-impl MalachiteConfig {
+impl MalachiteServiceConfig {
     pub const DEFAULT_GAS_ALLOWANCE: u64 = ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
     /// Default matches [`ethexe_common::gear::CANONICAL_QUARANTINE`].
     pub const DEFAULT_CANONICAL_QUARANTINE: u8 = ethexe_common::gear::CANONICAL_QUARANTINE;
@@ -111,6 +112,27 @@ impl MalachiteConfig {
         self.validators = validators;
         self
     }
+
+    pub fn with_gas_allowance(mut self, gas_allowance: u64) -> Self {
+        self.gas_allowance = gas_allowance;
+        self
+    }
+
+    pub fn with_canonical_quarantine(mut self, canonical_quarantine: u8) -> Self {
+        self.canonical_quarantine = canonical_quarantine;
+        self
+    }
+
+    pub fn with_post_quarantine_delay(mut self, post_quarantine_delay: u32) -> Self {
+        self.post_quarantine_delay = post_quarantine_delay;
+        self
+    }
+}
+
+pub struct ValidatorConfig<M: Mempool> {
+    pub pub_key: PublicKey,
+    pub mempool: M,
+    pub signer: Signer,
 }
 
 #[cfg(test)]
@@ -119,8 +141,8 @@ mod tests {
 
     #[test]
     fn from_home_dir_default_listen_addr() {
-        let cfg = MalachiteConfig::from_home_dir(PathBuf::from("/tmp"));
-        assert_eq!(cfg.listen_addr, MalachiteConfig::DEFAULT_LISTEN_ADDR);
+        let cfg = MalachiteServiceConfig::from_home_dir(PathBuf::from("/tmp"));
+        assert_eq!(cfg.listen_addr, MalachiteServiceConfig::DEFAULT_LISTEN_ADDR);
         assert!(cfg.persistent_peers.is_empty());
         assert!(cfg.validators.is_empty());
     }

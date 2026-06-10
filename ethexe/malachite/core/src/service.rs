@@ -6,7 +6,7 @@
 use crate::{
     app,
     codec::ScaleCodec,
-    config::{MalachiteConfig, NodeRole},
+    config::{MalachiteCoreConfig, NodeRole},
     context::{MalachiteCtx, Validator, ValidatorSet},
     externalities::Externalities,
     signing::{
@@ -48,7 +48,7 @@ use tokio::{sync::mpsc, task::JoinHandle};
 pub trait MService: Stream<Item = anyhow::Error> + Send + Unpin {}
 
 /// Application-agnostic Malachite BFT consensus service.
-pub struct MalachiteService<EXT: Externalities> {
+pub struct MalachiteCore<EXT: Externalities> {
     errors_rx: mpsc::UnboundedReceiver<anyhow::Error>,
     engine: EngineHandle,
     app_handle: JoinHandle<()>,
@@ -62,7 +62,7 @@ pub struct MalachiteService<EXT: Externalities> {
     _externalities: Arc<EXT>,
 }
 
-/// Upper bound on how long [`MalachiteService::shutdown`] will wait
+/// Upper bound on how long [`MalachiteCore::shutdown`] will wait
 /// for the WAL advisory lock to be released after the engine actor
 /// has stopped. Empirically the writer thread drops the file within
 /// tens of milliseconds; this ceiling guards against pathological CI
@@ -112,7 +112,7 @@ async fn wait_wal_lock_released(wal_path: &Path, timeout: Duration) {
     }
 }
 
-impl<EXT: Externalities> Drop for MalachiteService<EXT> {
+impl<EXT: Externalities> Drop for MalachiteCore<EXT> {
     fn drop(&mut self) {
         // Stop the engine actor so its libp2p / consensus children
         // shut down cleanly, then abort the app and engine join handles.
@@ -126,7 +126,7 @@ impl<EXT: Externalities> Drop for MalachiteService<EXT> {
     }
 }
 
-impl<EXT: Externalities> MalachiteService<EXT> {
+impl<EXT: Externalities> MalachiteCore<EXT> {
     /// Block until the engine actor tree has finished shutting down
     /// and any open file locks (RocksDB, WAL) have been released.
     /// Use this before re-opening the same `base` to avoid
@@ -146,9 +146,9 @@ impl<EXT: Externalities> MalachiteService<EXT> {
     }
 }
 
-impl<EXT: Externalities> MalachiteService<EXT> {
+impl<EXT: Externalities> MalachiteCore<EXT> {
     /// Bootstrap the service.
-    pub async fn new(config: MalachiteConfig, externalities: Arc<EXT>) -> Result<Self> {
+    pub async fn new(config: MalachiteCoreConfig, externalities: Arc<EXT>) -> Result<Self> {
         // The service owns `<base>/malachite/`. We `mkdir -p` it so
         // RocksDB and the WAL can land there.
         let svc_dir = config.base.join("malachite");
@@ -305,7 +305,7 @@ impl<EXT: Externalities> MalachiteService<EXT> {
     }
 }
 
-impl<EXT: Externalities> Stream for MalachiteService<EXT> {
+impl<EXT: Externalities> Stream for MalachiteCore<EXT> {
     type Item = anyhow::Error;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
@@ -313,15 +313,15 @@ impl<EXT: Externalities> Stream for MalachiteService<EXT> {
     }
 }
 
-impl<EXT: Externalities> FusedStream for MalachiteService<EXT> {
+impl<EXT: Externalities> FusedStream for MalachiteCore<EXT> {
     fn is_terminated(&self) -> bool {
         self.errors_rx.is_closed()
     }
 }
 
-impl<EXT: Externalities> MService for MalachiteService<EXT> {}
+impl<EXT: Externalities> MService for MalachiteCore<EXT> {}
 
-fn build_inner_config(cfg: &MalachiteConfig, moniker: &str) -> InnerNodeConfig {
+fn build_inner_config(cfg: &MalachiteCoreConfig, moniker: &str) -> InnerNodeConfig {
     let transport = TransportProtocol::Tcp;
     let listen_multiaddr = transport.multiaddr(
         &cfg.listen_addr.ip().to_string(),

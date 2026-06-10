@@ -48,7 +48,7 @@ pub struct MalachiteCliConfig {
 impl Default for MalachiteCliConfig {
     fn default() -> Self {
         Self {
-            listen_addr: ethexe_malachite::MalachiteConfig::DEFAULT_LISTEN_ADDR,
+            listen_addr: ethexe_malachite::MalachiteServiceConfig::DEFAULT_LISTEN_ADDR,
             persistent_peers: Vec::new(),
             validator_pub_keys: BTreeMap::new(),
         }

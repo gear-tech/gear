@@ -38,7 +38,7 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
+    InjectedTxMempool, MalachiteServiceConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
     ValidatorEntry, derive_libp2p_secret, malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
@@ -1188,17 +1188,19 @@ impl Node {
                 .path()
                 .to_path_buf();
 
-            let mut mc = MalachiteConfig::from_home_dir(home_path)
+            let mut mc = MalachiteServiceConfig::from_home_dir(home_path)
                 .with_listen_addr(listen_addr)
                 .with_persistent_peers(persistent_peers)
                 .with_validators(validators);
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
             let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
+
             // Release the port-reservation listener moments before libp2p rebinds.
             drop(self.malachite_listener.take());
+
             let svc = MalachiteService::new(
-                mc,
+                malach,
                 self.db.clone(),
                 self.signer.clone(),
                 self.validator_config.as_ref().map(|c| c.public_key),

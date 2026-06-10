@@ -89,9 +89,9 @@ mod store;
 mod streaming;
 
 pub use crate::{
-    config::{MalachiteConfig, Multiaddr, NodeRole, ValidatorEntry},
+    config::{MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorEntry},
     externalities::Externalities,
-    service::{MService, MalachiteService},
+    service::{MService, MalachiteCore},
     signing::{
         MalachiteSigner, PrivateKey, PublicKey, Signature, derive_libp2p_secret,
         libp2p_keypair_from, libp2p_peer_id, private_key_from_bytes, private_key_from_gsigner,

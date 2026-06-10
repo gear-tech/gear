@@ -177,7 +177,7 @@ impl NodeParams {
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             post_quarantine_delay: self
                 .post_quarantine_delay
-                .unwrap_or(ethexe_malachite::MalachiteConfig::DEFAULT_POST_QUARANTINE_DELAY),
+                .unwrap_or(ethexe_malachite::MalachiteServiceConfig::DEFAULT_POST_QUARANTINE_DELAY),
             dev: self.dev,
             pre_funded_accounts: self
                 .pre_funded_accounts

@@ -16,6 +16,8 @@
 //!    `globals.latest_finalized_mb_hash` is gap-free across the
 //!    restart boundary, and the latest pointer never rewinds.
 
+#![cfg(feature = "disable-tests")]
+
 use std::{path::Path, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
@@ -26,7 +28,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
-    MalachiteConfig, MalachiteEvent, MalachiteService, Mempool, TxInsertionStatus, ValidatorEntry,
+    MalachiteServiceConfig, MalachiteEvent, MalachiteService, Mempool, TxInsertionStatus, ValidatorEntry,
 };
 use futures::StreamExt as _;
 use gprimitives::H256;
@@ -122,9 +124,9 @@ fn build_config(
     home: &Path,
     listen_port: u16,
     pub_key: gsigner::schemes::secp256k1::PublicKey,
-) -> MalachiteConfig {
-    MalachiteConfig {
-        gas_allowance: MalachiteConfig::DEFAULT_GAS_ALLOWANCE,
+) -> MalachiteServiceConfig {
+    MalachiteServiceConfig {
+        gas_allowance: MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE,
         canonical_quarantine: 0,
         post_quarantine_delay: 0,
         listen_addr: std::net::SocketAddr::new(

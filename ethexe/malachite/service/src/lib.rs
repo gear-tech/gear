@@ -53,23 +53,23 @@ mod externalities;
 mod mempool;
 mod quarantine;
 mod service;
+mod starter;
 mod tx_validity;
+mod types;
+
+use ethexe_common::injected::PurgedTransaction;
+use gprimitives::H256;
 
 pub use crate::{
-    config::{MalachiteConfig, ValidatorEntry},
+    config::{MalachiteServiceConfig, ValidatorEntry, ValidatorConfig},
     mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
     service::MalachiteService,
+    starter::MalachiteServiceStarter,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
-};
-use ethexe_common::injected::PurgedTransaction;
-pub use ethexe_common::{
-    injected::SignedInjectedTransaction,
-    malachite::{Operation, Operations},
 };
 pub use ethexe_malachite_core::{
     Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
 };
-pub use gprimitives::H256;
 
 /// Ethexe-shaped commit certificate; `block_hash` is the Blake2b envelope hash.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -128,16 +128,4 @@ impl std::fmt::Display for MalachiteEvent {
             }
         }
     }
-}
-
-// Static check: the public types are stable.
-#[cfg(test)]
-#[allow(dead_code)]
-fn _api_shape(
-    _ev: MalachiteEvent,
-    _ops: Operations,
-    _cert: CommitCertificate,
-    _cfg: MalachiteConfig,
-    _tx: ethexe_common::injected::SignedInjectedTransaction,
-) {
 }

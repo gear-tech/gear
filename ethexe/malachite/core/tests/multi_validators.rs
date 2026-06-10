@@ -36,7 +36,7 @@ fn init_tracing() {
 use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_malachite_core::{
-    Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteConfig, MalachiteService,
+    Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteCoreConfig, MalachiteCore,
     Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
 };
 use proptest::prelude::*;
@@ -276,7 +276,7 @@ fn build_config(
     setup: &ValidatorSetup,
     setups: &[ValidatorSetup],
     peers: Vec<Multiaddr>,
-) -> MalachiteConfig {
+) -> MalachiteCoreConfig {
     build_config_with_role(setup, peers, validator_entries(setups), NodeRole::Validator)
 }
 
@@ -285,8 +285,8 @@ fn build_config_with_role(
     peers: Vec<Multiaddr>,
     validators: Vec<ValidatorEntry>,
     role: NodeRole,
-) -> MalachiteConfig {
-    MalachiteConfig {
+) -> MalachiteCoreConfig {
+    MalachiteCoreConfig {
         listen_addr: setup.listen_addr,
         base: setup.home.path().to_path_buf(),
         persistent_peers: peers,
@@ -302,10 +302,10 @@ async fn start_service(
     setups: &[ValidatorSetup],
     idx: usize,
     ext: Arc<TestExt>,
-) -> MalachiteService<TestExt> {
+) -> MalachiteCore<TestExt> {
     let peers = build_multiaddrs_excluding(setups, idx);
     let config = build_config(setup, setups, peers);
-    MalachiteService::<TestExt>::new(config, ext)
+    MalachiteCore::<TestExt>::new(config, ext)
         .await
         .expect("service starts")
 }
@@ -431,7 +431,7 @@ async fn restart_one_validator_mid_run() {
     let setups = make_validators(3);
 
     let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
-    let mut services: Vec<Option<MalachiteService<TestExt>>> = Vec::with_capacity(3);
+    let mut services: Vec<Option<MalachiteCore<TestExt>>> = Vec::with_capacity(3);
     for (i, setup) in setups.iter().enumerate() {
         let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
         services.push(Some(svc));
@@ -494,7 +494,7 @@ async fn full_node_syncs_from_validators() {
         };
         let peers = build_multiaddrs_excluding(&setups, i);
         let cfg = build_config_with_role(setup, peers, validator_set.clone(), role);
-        let svc = MalachiteService::<TestExt>::new(cfg, Arc::clone(&exts[i]))
+        let svc = MalachiteCore::<TestExt>::new(cfg, Arc::clone(&exts[i]))
             .await
             .expect("service starts");
         services.push(svc);
@@ -564,7 +564,7 @@ fn run_churn_scenario(events: Vec<ChurnEvent>) {
 
         let setups = make_validators(n);
         let exts: Vec<Arc<TestExt>> = (0..n).map(|_| Arc::new(TestExt::default())).collect();
-        let mut services: Vec<Option<MalachiteService<TestExt>>> = (0..n).map(|_| None).collect();
+        let mut services: Vec<Option<MalachiteCore<TestExt>>> = (0..n).map(|_| None).collect();
 
         // Bootstrap all validators with a stagger.
         for (i, setup) in setups.iter().enumerate() {

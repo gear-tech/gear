@@ -41,97 +41,55 @@
 use crate::{
     CommitCertificate, MalachiteEvent, Mempool, quarantine,
     tx_validity::{TxValidity, TxValidityChecker, eb_touched_programs},
+    types::ChainHead,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
-    MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
+    MAX_TOUCHED_PROGRAMS_PER_MB,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
     injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, SignedInjectedTransaction},
     malachite::{Operation, Operations},
 };
 use ethexe_db::Database;
 use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
+use futures::{FutureExt, pending};
 use gprimitives::H256;
 use parity_scale_codec::{DecodeAll, Encode};
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex, RwLock},
-};
-use tokio::sync::{Notify, mpsc};
+use std::{collections::VecDeque, sync::Arc};
+use tokio::sync::{RwLock, mpsc::UnboundedSender};
 use tracing::{error, info, warn};
 
-/// Inputs the externalities need to satisfy the [`ethexe_malachite_core::Externalities`]
-/// contract. Constructed by [`crate::MalachiteService::new`] and
-/// handed to the inner ethexe-malachite-core service inside an [`Arc`].
+pub struct ExternalitiesConfig {
+    pub gas_allowance: u64,
+    pub canonical_quarantine: u8,
+    pub post_quarantine_delay: u32,
+}
+
 pub(crate) struct EthexeExternalities {
-    pub(crate) db: Database,
-    pub(crate) mempool: Arc<dyn Mempool>,
-    /// Latest Ethereum chain head observed via the outer
-    /// [`crate::MalachiteService::receive_new_chain_head`]. The
-    /// producer reads this from inside [`Self::build_block_above`];
-    /// validators read it from inside [`Self::validate_block_above`].
-    /// Decoupled from `globals.latest_synced_eb` because the latter
-    /// trails the event stream and would block proposals that the
-    /// observer has already announced.
-    pub(crate) chain_head: Arc<RwLock<Option<SimpleBlockData>>>,
-    /// Wakes up [`Self::wait_for_proposable_content`] whenever a
-    /// fresh chain head arrives. Combines with the mempool's
-    /// [`Mempool::wait_for_new_tx`] notify into a single select.
-    pub(crate) chain_head_notify: Arc<Notify>,
-    /// Outbound event channel — drained by
-    /// [`crate::MalachiteService::poll_next`]. We wrap each emit in
-    /// [`Self::try_emit_or_queue`] so that events whose
-    /// `last_advanced_eb` Eth-block isn't fully synced into the
-    /// local DB are held back until the observer catches up.
-    pub(crate) event_tx: mpsc::UnboundedSender<Result<MalachiteEvent>>,
-    /// Buffer for [`MalachiteEvent`]s whose downstream
-    /// `compute_mb` walk would step through Eth blocks the
-    /// observer hasn't synced yet. Drained in FIFO order by
-    /// [`Self::drain_pending_events`] (called from
-    /// [`crate::MalachiteService::receive_new_chain_head`]) —
-    /// preserves the strict ordering of save / finalize cascades.
-    pub(crate) pending_events: Mutex<VecDeque<PendingEvent>>,
-    pub(crate) gas_allowance: u64,
-    pub(crate) canonical_quarantine: u8,
-    /// See [`crate::MalachiteConfig::post_quarantine_delay`]. Producer-side
-    /// hint only: deepens the anchor in [`Self::find_eb_candidate_for_advancing`]
-    /// so lagging validators are likely to have synced the proposed EB by the
-    /// time they see the MB. Validators do NOT apply this depth — they accept
-    /// any advance at depth ≥ `canonical_quarantine`.
-    pub(crate) post_quarantine_delay: u32,
+    pub db: Database,
+    pub cfg: ExternalitiesConfig,
+    pub mempool: Option<Arc<dyn Mempool>>,
+    pub chain_head: Arc<ChainHead>,
+    pub pending_events: RwLock<VecDeque<PendingEvent>>,
+    pub event_tx: UnboundedSender<Result<MalachiteEvent>>,
 }
 
 /// One outbound [`MalachiteEvent`] that can't be released until its
 /// `prerequisite` Eth block is fully synced into the local DB.
 pub(crate) struct PendingEvent {
     pub event: MalachiteEvent,
-    /// Eth-block hash whose `block_events` entry must be present
-    /// before this event can fire — i.e. the MB's
-    /// `last_advanced_eb`. `H256::zero()` skips the gate (genesis
-    /// or an MB that never advanced past the pre-genesis sentinel).
     pub prerequisite: H256,
 }
 
 #[async_trait]
 impl Externalities for EthexeExternalities {
     async fn process_mb_proposal(&self, mb_hash: H256, mb: Block) -> Result<()> {
-        // Runs on the proposer, participant, and sync paths. Frozen
-        // discriminants mean every historical operation always decodes; an
-        // unknown one can only come from a newer protocol this build doesn't
-        // implement. On the participant/sync paths the engine logs this `Err`
-        // and drops the offending value (see the `unwrap_or_else(.., None)`
-        // dispatch in `ethexe_malachite_core::app`), so a too-old node stalls
-        // on such a block rather than advancing past it or crashing. Only a
-        // failure in `process_mb_finalized` is treated as fatal.
         let payload = Operations::decode_all(&mut mb.payload.as_ref())
             .map_err(|e| anyhow!("decoding Operations from block payload bytes: {e}"))?;
 
         let parent = mb.parent_hash;
 
-        // Propagate `last_advanced_eb` forward — the latest
-        // `AdvanceTillEthereumBlock` in this MB wins; otherwise we
-        // inherit the parent's value (zero if pre-genesis).
         let parent_advanced = if parent.is_zero() {
             H256::zero()
         } else {
@@ -146,9 +104,6 @@ impl Externalities for EthexeExternalities {
             })
             .unwrap_or(parent_advanced);
 
-        // CAS-store operations first so the contract — "if
-        // CompactMb exists, operations are reachable" — holds
-        // unconditionally.
         let operations_hash = self.db.set_operations(payload.clone());
         self.db.set_mb_compact_block(
             mb_hash,
@@ -190,23 +145,19 @@ impl Externalities for EthexeExternalities {
             )
         })?;
 
-        // Flush the committed injected txs from the mempool and add
-        // their hashes to the seen-set so a re-gossip can't slip them
-        // back in before they age out.
-        let injected: Vec<SignedInjectedTransaction> = payload
-            .iter()
-            .filter_map(|tx| match tx {
-                Operation::Injected(t) => Some(t.clone()),
-                _ => None,
-            })
-            .collect();
-        if !injected.is_empty() {
-            self.mempool.forget(&injected).await;
+        if let Some(pool) = self.mempool.as_ref() {
+            let injected: Vec<SignedInjectedTransaction> = payload
+                .iter()
+                .filter_map(|tx| match tx {
+                    Operation::Injected(t) => Some(t.clone()),
+                    _ => None,
+                })
+                .collect();
+            if !injected.is_empty() {
+                pool.forget(&injected).await;
+            }
         }
 
-        // Advance the canonical pointer downstream consumers
-        // (compute, batch commitment) walk to find the last
-        // BFT-finalized MB.
         self.db
             .globals_mutate(|g| g.latest_finalized_mb_hash = mb_hash);
 
@@ -215,9 +166,6 @@ impl Externalities for EthexeExternalities {
             mb_hash,
             signatures: cert.signatures,
         };
-        // Same prerequisite as the matching BlockProposal — by the
-        // time `process_mb_finalized` runs, `process_mb_proposal` has
-        // already populated `mb_meta(block_hash).last_advanced_eb`.
         let last_advanced = self.db.mb_meta(mb_hash).last_advanced_eb;
         self.try_emit_or_queue(
             MalachiteEvent::BlockFinalized {
@@ -231,9 +179,11 @@ impl Externalities for EthexeExternalities {
     }
 
     async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload> {
-        // `parent_hash` is the consensus envelope hash of the parent
-        // (zero for genesis). Use it directly to seed the producer's
-        // `last_advanced_eb` lookup.
+        ensure!(
+            self.mempool.is_some(),
+            "build_block_above cannot be called when node is not validator"
+        );
+
         let parent_advanced = if parent_mb_hash.is_zero() {
             H256::zero()
         } else {
@@ -250,58 +200,29 @@ impl Externalities for EthexeExternalities {
             "build_block_above: proposable content resolved",
         );
 
-        // (a) Per-tx validity. Each candidate tx from the mempool is
-        // run through TxValidityChecker so we don't waste an MB
-        // round-trip on a tx the participant would reject.
-        let chain_head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
-        let valid: Vec<SignedInjectedTransaction> = match chain_head_snapshot {
-            Some(head) => {
-                let checker = TxValidityChecker::new_for_mb(self.db.clone(), head, parent_mb_hash)?;
-                let mut accepted = Vec::with_capacity(injected.len());
-                for tx in injected {
-                    match checker.check_tx_validity(&tx)? {
-                        TxValidity::Valid => accepted.push(tx),
-                        reason => {
-                            warn!(
-                                tx_hash = %tx.data().to_hash(),
-                                ?reason,
-                                "build_block_above: dropping injected tx — fails TxValidity",
-                            );
-                        }
+        let valid_injected_txs = {
+            let chain_head = *self.chain_head.latest_synced.read().await;
+            let checker =
+                TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_mb_hash)?;
+            let mut accepted = Vec::with_capacity(injected.len());
+            for tx in injected {
+                match checker.check_tx_validity(&tx)? {
+                    TxValidity::Valid => accepted.push(tx),
+                    reason => {
+                        warn!(
+                            tx_hash = %tx.data().to_hash(),
+                            ?reason,
+                            "build_block_above: dropping injected tx — fails TxValidity",
+                        );
                     }
                 }
-                accepted
             }
-            // No chain head yet — we can't run TxValidity (no anchor
-            // for `is_reference_block_*`). Skip injected txs entirely
-            // rather than emit unvalidated ones.
-            None => {
-                if !injected.is_empty() {
-                    warn!(
-                        injected_count = injected.len(),
-                        "build_block_above: no chain head — dropping injected txs (unvalidated)",
-                    );
-                }
-                Vec::new()
-            }
+            accepted
         };
 
-        // (b) Per-MB size + touched-programs caps. Adapted from
-        // master's `select_for_announce`:
-        //
-        // - size cap: cumulative `tx.encoded_size()` (with signature)
-        //   ≤ MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB; oversized tx is
-        //   skipped, smaller subsequent txs still get a chance.
-        // - touched-programs cap: starts with `eb_touched_programs`
-        //   over the EB range this MB is about to advance through;
-        //   a tx whose destination isn't already in the touched set
-        //   is dropped once the set reaches MAX_TOUCHED_PROGRAMS_PER_MB.
-        //
-        // If `advance` is `None`, no EB events are processed by this
-        // MB → the touched-set seed is empty.
         let mut touched = match advance {
             Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
-            None => std::collections::HashSet::new(),
+            None => Default::default(),
         };
         let initial_touched_count = touched.len();
         if initial_touched_count > MAX_TOUCHED_PROGRAMS_PER_MB as usize {
@@ -317,8 +238,9 @@ impl Externalities for EthexeExternalities {
         }
 
         let mut size_counter: usize = 0;
-        let mut capped: Vec<SignedInjectedTransaction> = Vec::with_capacity(valid.len());
-        for tx in valid {
+        let mut capped_injected_txs: Vec<SignedInjectedTransaction> =
+            Vec::with_capacity(valid_injected_txs.len());
+        for tx in valid_injected_txs {
             // Skip the whole loop body once initial touched > limit —
             // any injected tx would only push it further over.
             if initial_touched_count > MAX_TOUCHED_PROGRAMS_PER_MB as usize {
@@ -342,25 +264,19 @@ impl Externalities for EthexeExternalities {
 
             touched.insert(destination);
             size_counter += tx_size;
-            capped.push(tx);
+            capped_injected_txs.push(tx);
         }
 
-        // Producer pacing:
-        //   1. AdvanceTillEthereumBlock first (if a fresh
-        //      quarantine-passed EB exists),
-        //   2. then injected user txs,
-        //   3. finally the service-level ProgressTasks +
-        //      ProcessQueues bookend.
-        let mut operations = Vec::with_capacity(capped.len() + 3);
+        let mut operations = Vec::with_capacity(capped_injected_txs.len() + 3);
         if let Some(block_hash) = advance {
             operations.push(Operation::AdvanceTillEthereumBlock { block_hash });
         }
-        for tx in capped {
+        for tx in capped_injected_txs {
             operations.push(Operation::Injected(tx));
         }
         operations.push(Operation::ProgressTasks);
         operations.push(Operation::ProcessQueues {
-            gas_allowance: self.gas_allowance,
+            gas_allowance: self.cfg.gas_allowance,
         });
 
         let bytes = Operations::new(operations).encode();
@@ -371,10 +287,6 @@ impl Externalities for EthexeExternalities {
     }
 
     async fn validate_block_above(&self, parent_hash: H256, payload: BlockPayload) -> Result<bool> {
-        // Validation only ever runs on a fresh proposal (never on the sync
-        // path), so it enforces the operations *this* build accepts. Decode
-        // rejects any operation whose discriminant this build doesn't know —
-        // such a proposal is voted nil rather than crashing the node.
         let payload = match Operations::decode_all(&mut payload.as_ref()) {
             Ok(payload) => payload,
             Err(e) => {
@@ -383,15 +295,6 @@ impl Externalities for EthexeExternalities {
             }
         };
 
-        // (1) Shape + ordering. Every honest MB has exactly the form:
-        //
-        //   [AdvanceTillEthereumBlock]?  Injected*  ProgressTasks  ProcessQueues
-        //
-        // This single walk catches: missing bookend, extra bookend,
-        // out-of-order op, more than one Advance, and the
-        // `gas_allowance` cap. Everything else (TxValidity per injected
-        // tx, EB quarantine, touched-programs cap) runs below assuming
-        // the shape is sound.
         let mut iter = payload.iter();
         let mut next = iter.next();
 
@@ -404,6 +307,7 @@ impl Externalities for EthexeExternalities {
                 None
             };
 
+        // Skip injected txs for now, check them a little later
         while let Some(Operation::Injected(_)) = next {
             next = iter.next();
         }
@@ -421,10 +325,10 @@ impl Externalities for EthexeExternalities {
             return Ok(false);
         };
 
-        if *gas_allowance > crate::MalachiteConfig::DEFAULT_GAS_ALLOWANCE {
+        if *gas_allowance > crate::MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE {
             warn!(
                 allowance = *gas_allowance,
-                cap = crate::MalachiteConfig::DEFAULT_GAS_ALLOWANCE,
+                cap = crate::MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE,
                 "validate: ProcessQueues.gas_allowance exceeds protocol cap"
             );
             return Ok(false);
@@ -435,23 +339,14 @@ impl Externalities for EthexeExternalities {
             return Ok(false);
         }
 
-        // (2) Quarantine + parent-link — single synchronous check.
-        //
-        // Validators never wait for local sync here. The proposer's
-        // `post_quarantine_delay` config knob deepens its anchor by
-        // ≥ 1 Hoodi block on top of `canonical_quarantine`, so the
-        // referenced EB is almost certainly already in every
-        // validator's DB by the time the MB arrives. If a validator's
-        // observer is still behind (rare), we vote nil immediately —
-        // round-rotation lets the next proposer try again — instead of
-        // blocking the consensus app task on a poll loop.
-        //
         // TODO: #5477 extract a shared `check_eb_advance` helper so this
         //       validator path and `find_eb_candidate_for_advancing` on the
         //       producer side stay in lockstep through future refactors.
         // TODO: #5479 emit `malachite_validate_abstain_total{reason=...}` at
         //       each early-return below so operators can tune
         //       `post_quarantine_delay` from observability rather than logs.
+
+        // Advanced block quarantine checks
         if let Some(advance) = advance {
             let parent_advanced = if parent_hash.is_zero() {
                 H256::zero()
@@ -460,19 +355,12 @@ impl Externalities for EthexeExternalities {
             };
             let start_block_hash = self.db.globals().start_block_hash;
 
-            let Some(chain_head) = *self.chain_head.read().expect("chain_head poisoned") else {
-                warn!(
-                    %advance,
-                    "validate: no local chain_head yet — rejecting MB with advance",
-                );
-                return Ok(false);
-            };
-
+            let chain_head = *self.chain_head.latest_synced.read().await;
             if let Err(e) = quarantine::verify_passed(
                 &self.db,
                 chain_head,
                 advance,
-                self.canonical_quarantine,
+                self.cfg.canonical_quarantine,
                 start_block_hash,
             ) {
                 warn!(
@@ -511,43 +399,13 @@ impl Externalities for EthexeExternalities {
             }
         }
 
-        // (3) Injected-tx validity — every `Operation::Injected` in
-        // the proposed MB must pass the same checker the producer
-        // applied in `build_block_above`. Reject the MB on the first
-        // non-`Valid` outcome so the participant doesn't sign an MB
-        // whose `compute_mb` would diverge from the proposer's.
-        let chain_head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
-        let Some(chain_head) = chain_head_snapshot else {
-            // No local chain head yet. If the MB carries no injected
-            // txs we can still accept it; otherwise we must abstain
-            // since the checker has no anchor to walk from.
-            let has_injected = payload
-                .iter()
-                .any(|tx| matches!(tx, Operation::Injected(_)));
-            if has_injected {
-                warn!("validate: MB carries injected txs but no local chain head — abstaining");
-                return Ok(false);
-            }
-            return Ok(true);
-        };
-
-        // `?` here only fires on DB-invariant violations along the MB
-        // ancestor walk (missing `mb_compact_block` for a non-zero MB on
-        // the chain, or missing `mb_program_states` on an MB marked
-        // `computed`). The `parent_hash` comes from the Malachite engine,
-        // not the proposer, so malicious tx data can't reach this path.
-        // Propagating the error upward is the right call: it indicates
-        // local DB corruption, not a peer-side issue.
+        // Validate injected txs
+        let chain_head = *self.chain_head.latest_synced.read().await;
         let checker = TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_hash)?;
         for tx in payload.iter() {
             let Operation::Injected(signed) = tx else {
                 continue;
             };
-            // `?` inside `check_tx_validity` only fires on local DB
-            // inconsistency (a `latest_states` entry whose `state_hash`
-            // is absent from CAS). Every malicious-tx-data path returns
-            // `Ok(TxValidity::<reason>)` instead of `Err`, so this `?`
-            // can't be triggered by what the proposer placed in the MB.
             match checker.check_tx_validity(signed)? {
                 TxValidity::Valid => {}
                 reason => {
@@ -637,8 +495,8 @@ impl EthexeExternalities {
     /// pending buffer to keep ordering. Held entries are released
     /// from the front by [`Self::drain_pending_events`] once their
     /// prerequisite lands.
-    pub(crate) fn try_emit_or_queue(&self, event: MalachiteEvent, prerequisite: H256) {
-        let mut queue = self.pending_events.lock().expect("pending_events poisoned");
+    pub(crate) async fn try_emit_or_queue(&self, event: MalachiteEvent, prerequisite: H256) {
+        let mut queue = self.pending_events.write().await;
         if queue.is_empty() && self.prerequisite_satisfied(prerequisite) {
             // Channel receiver dropped only on shutdown — best-effort.
             let _ = self.event_tx.send(Ok(event));
@@ -655,8 +513,8 @@ impl EthexeExternalities {
     /// entry so ordering is preserved (later events may have a
     /// later prerequisite, but FIFO drain only releases what's
     /// safely ready right now).
-    pub(crate) fn drain_pending_events(&self) {
-        let mut queue = self.pending_events.lock().expect("pending_events poisoned");
+    pub(crate) async fn drain_pending_events(&self) {
+        let mut queue = self.pending_events.write().await;
         while let Some(front) = queue.front() {
             if !self.prerequisite_satisfied(front.prerequisite) {
                 break;
@@ -673,38 +531,37 @@ impl EthexeExternalities {
         prev_advanced_eb_hash: H256,
     ) -> (Option<H256>, Vec<SignedInjectedTransaction>) {
         loop {
-            let chain_head_notified = self.chain_head_notify.notified();
+            let chain_head_notified = self.chain_head.notify.notified();
             tokio::pin!(chain_head_notified);
             chain_head_notified.as_mut().enable();
 
-            let advance = self.find_eb_candidate_for_advancing(prev_advanced_eb_hash);
+            let advance = self
+                .find_eb_candidate_for_advancing(prev_advanced_eb_hash)
+                .await;
 
-            let head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
-            let injected = match head_snapshot {
-                Some(head) => self.mempool.fetch(head).await,
-                None => Vec::new(),
+            let chain_head = *self.chain_head.latest_synced.read().await;
+            let Some(mempool) = self.mempool.as_ref() else {
+                panic!("must never call wait_for_proposable_content when not a validator");
             };
+            let injected_txs = mempool.fetch(chain_head).await;
 
-            if advance.is_some() || !injected.is_empty() {
-                return (advance, injected);
+            if advance.is_some() || !injected_txs.is_empty() {
+                return (advance, injected_txs);
             }
 
             tokio::select! {
                 biased;
                 _ = chain_head_notified => {}
-                _ = self.mempool.wait_for_new_tx() => {}
+                _ = mempool.wait_for_new_tx() => {}
             }
         }
     }
 
     // Candidate EB must be anchored in the quarantine and a strict descendant of the previously advanced EB.
-    fn find_eb_candidate_for_advancing(&self, prev_advanced_eb_hash: H256) -> Option<H256> {
-        let head = (*self.chain_head.read().expect("chain_head poisoned"))?;
+    async fn find_eb_candidate_for_advancing(&self, prev_advanced_eb_hash: H256) -> Option<H256> {
+        let head = *self.chain_head.latest_synced.read().await;
         let start = self.db.globals().start_block_hash;
-        // Producer-side total depth: protocol-required `canonical_quarantine`
-        // plus `post_quarantine_delay` slack so validators have a fresh
-        // enough local view by the time they see this MB.
-        let total_depth = self.canonical_quarantine as u32 + self.post_quarantine_delay;
+        let total_depth = self.cfg.canonical_quarantine as u32 + self.cfg.post_quarantine_delay;
         let candidate = match quarantine::anchor(&self.db, head, total_depth, start) {
             Ok(Some(c)) => c,
             Ok(None) => return None,
@@ -734,6 +591,7 @@ impl EthexeExternalities {
     }
 }
 
+#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -786,9 +644,11 @@ mod tests {
             chain_head_notify: Arc::new(Notify::new()),
             event_tx,
             pending_events: Mutex::new(VecDeque::new()),
-            gas_allowance: 1_000_000,
-            canonical_quarantine: 0,
-            post_quarantine_delay: 0,
+            cfg: ExternalitiesConfig {
+                gas_allowance: 1_000_000,
+                canonical_quarantine: 0,
+                post_quarantine_delay: 0,
+            },
         };
         (ext, event_rx)
     }
@@ -1196,9 +1056,11 @@ mod tests {
             chain_head_notify: Arc::new(Notify::new()),
             event_tx,
             pending_events: Mutex::new(VecDeque::new()),
-            gas_allowance: 1_000_000,
-            canonical_quarantine: 0,
-            post_quarantine_delay: 0,
+            cfg: ExternalitiesConfig {
+                gas_allowance: 1_000_000,
+                canonical_quarantine: 0,
+                post_quarantine_delay: 0,
+            },
         };
 
         let payload = Operations::new(vec![
@@ -1262,9 +1124,11 @@ mod tests {
             chain_head_notify: Arc::new(Notify::new()),
             event_tx,
             pending_events: Mutex::new(VecDeque::new()),
-            gas_allowance: 1_000_000,
-            canonical_quarantine: 0,
-            post_quarantine_delay: 0,
+            cfg: ExternalitiesConfig {
+                gas_allowance: 1_000_000,
+                canonical_quarantine: 0,
+                post_quarantine_delay: 0,
+            },
         };
         (ext, event_rx)
     }
@@ -2013,9 +1877,11 @@ mod tests {
             chain_head_notify: Arc::new(Notify::new()),
             event_tx,
             pending_events: Mutex::new(VecDeque::new()),
-            gas_allowance: 1_000_000,
-            canonical_quarantine: 2,
-            post_quarantine_delay: 3,
+            cfg: ExternalitiesConfig {
+                gas_allowance: 1_000_000,
+                canonical_quarantine: 2,
+                post_quarantine_delay: 3,
+            },
         };
 
         let candidate = ext
