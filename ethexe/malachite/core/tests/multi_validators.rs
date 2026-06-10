@@ -35,6 +35,7 @@ fn init_tracing() {
 
 use anyhow::Result;
 use async_trait::async_trait;
+use ethexe_common::Acceptance;
 use ethexe_malachite_core::{
     Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteCore,
     MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
@@ -177,8 +178,8 @@ impl Externalities for TestExt {
     async fn validate_block_above(
         &self,
         parent_hash: H256,
-        _payload: BlockPayload,
-    ) -> Result<bool> {
+        _payload: &BlockPayload,
+    ) -> Result<Acceptance<(), String>> {
         let mut s = self.state.lock().unwrap();
         if let Some(last_fin) = s.finalized.last().copied()
             && parent_hash != last_fin
@@ -187,7 +188,7 @@ impl Externalities for TestExt {
                 "validate_block_above: parent_hash mismatch — expected {last_fin:?}, got {parent_hash:?}"
             ));
         }
-        Ok(true)
+        Ok(Acceptance::Accepted(()))
     }
 }
 

@@ -37,7 +37,7 @@ use crate::{
     streaming::ProposalParts,
     types::{Address, Block, CommitCertificate, H256},
 };
-use anyhow::{Context as _, Result, anyhow, ensure};
+use anyhow::{Context as _, Result, anyhow};
 use bytes::Bytes;
 use ethexe_common::Acceptance;
 use malachitebft_app_channel::{
@@ -56,7 +56,7 @@ use malachitebft_app_channel::{
 use malachitebft_core_types::Height as _;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::RangeInclusive, sync::Arc};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{error, info, trace, warn};
 
 /// Max allowed distance into the future for pending proposal parts.
 const FUTURE_HEIGHT_WINDOW: u64 = 4;

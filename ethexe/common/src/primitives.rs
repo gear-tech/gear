@@ -233,7 +233,17 @@ pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 /// Scheduler; (block height, scheduled task)
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::IsVariant, Encode, Decode, TypeInfo)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    derive_more::Display,
+    derive_more::IsVariant,
+    Encode,
+    Decode,
+    TypeInfo,
+)]
 pub enum Acceptance<A, R> {
     Accepted(A),
     Rejected(R),

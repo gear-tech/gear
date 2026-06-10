@@ -46,7 +46,7 @@ use crate::{
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
-    MAX_TOUCHED_PROGRAMS_PER_MB,
+    Acceptance, MAX_TOUCHED_PROGRAMS_PER_MB,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
     injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, SignedInjectedTransaction},
     malachite::{Operation, Operations},
@@ -287,12 +287,17 @@ impl Externalities for EthexeExternalities {
         })
     }
 
-    async fn validate_block_above(&self, parent_hash: H256, payload: BlockPayload) -> Result<bool> {
+    async fn validate_block_above(
+        &self,
+        parent_hash: H256,
+        payload: &BlockPayload,
+    ) -> Result<Acceptance<(), String>> {
         let payload = match Operations::decode_all(&mut payload.as_ref()) {
             Ok(payload) => payload,
             Err(e) => {
-                warn!(error = %e, "validate: undecodable block payload — rejecting");
-                return Ok(false);
+                return Ok(Acceptance::Rejected(format!(
+                    "undecodable block payload: {e}"
+                )));
             }
         };
 
@@ -314,30 +319,29 @@ impl Externalities for EthexeExternalities {
         }
 
         let Some(Operation::ProgressTasks) = next else {
-            warn!(
-                "validate: MB shape violation — expected `ProgressTasks` bookend, got {:?}",
+            return Ok(Acceptance::Rejected(format!(
+                "MB shape violation — expected `ProgressTasks` bookend, got {:?}",
                 next.map(|t| t.tag())
-            );
-            return Ok(false);
+            )));
         };
 
         let Some(Operation::ProcessQueues { gas_allowance }) = iter.next() else {
-            warn!("validate: MB shape violation — expected `ProcessQueues` bookend");
-            return Ok(false);
+            return Ok(Acceptance::Rejected(
+                "MB shape violation — expected `ProcessQueues` bookend".to_string(),
+            ));
         };
 
         if *gas_allowance > crate::MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE {
-            warn!(
-                allowance = *gas_allowance,
-                cap = crate::MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE,
-                "validate: ProcessQueues.gas_allowance exceeds protocol cap"
-            );
-            return Ok(false);
+            return Ok(Acceptance::Rejected(format!(
+                "ProcessQueues.gas_allowance {gas_allowance} exceeds protocol cap {}",
+                crate::MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE
+            )));
         }
 
         if iter.next().is_some() {
-            warn!("validate: MB has extra operations after the `ProcessQueues` bookend");
-            return Ok(false);
+            return Ok(Acceptance::Rejected(
+                "MB has extra operations after the `ProcessQueues` bookend".to_string(),
+            ));
         }
 
         // TODO: #5477 extract a shared `check_eb_advance` helper so this
@@ -364,13 +368,10 @@ impl Externalities for EthexeExternalities {
                 self.cfg.canonical_quarantine,
                 start_block_hash,
             ) {
-                warn!(
-                    error = %e,
-                    %advance,
-                    parent_advanced = %parent_advanced,
-                    "validate: advance not yet covered by local view — rejecting",
-                );
-                return Ok(false);
+                return Ok(Acceptance::Rejected(format!(
+                    "advance {advance} (parent_advanced {parent_advanced}) \
+                     not yet covered by local view: {e}"
+                )));
             }
 
             match quarantine::is_strict_descendant_of(
@@ -381,21 +382,16 @@ impl Externalities for EthexeExternalities {
             ) {
                 Ok(true) => {}
                 Ok(false) => {
-                    warn!(
-                        %advance,
-                        parent_advanced = %parent_advanced,
-                        "validate: advance not strict descendant of parent.last_advanced_eb — rejecting",
-                    );
-                    return Ok(false);
+                    return Ok(Acceptance::Rejected(format!(
+                        "advance {advance} is not a strict descendant of \
+                         parent.last_advanced_eb {parent_advanced}"
+                    )));
                 }
                 Err(e) => {
-                    warn!(
-                        error = %e,
-                        %advance,
-                        parent_advanced = %parent_advanced,
-                        "validate: is_strict_descendant_of failed — rejecting",
-                    );
-                    return Ok(false);
+                    return Ok(Acceptance::Rejected(format!(
+                        "is_strict_descendant_of failed for advance {advance} \
+                         (parent_advanced {parent_advanced}): {e}"
+                    )));
                 }
             }
         }
@@ -410,12 +406,10 @@ impl Externalities for EthexeExternalities {
             match checker.check_tx_validity(signed)? {
                 TxValidity::Valid => {}
                 reason => {
-                    warn!(
-                        tx_hash = %signed.data().to_hash(),
-                        ?reason,
-                        "validate: injected tx fails TxValidity — rejecting MB",
-                    );
-                    return Ok(false);
+                    return Ok(Acceptance::Rejected(format!(
+                        "injected tx {} fails TxValidity: {reason:?}",
+                        signed.data().to_hash()
+                    )));
                 }
             }
         }
@@ -459,14 +453,13 @@ impl Externalities for EthexeExternalities {
             }
         }
         if touched.len() > limit {
-            warn!(
-                touched = touched.len(),
-                limit, "validate: MB touches too many programs — rejecting"
-            );
-            return Ok(false);
+            return Ok(Acceptance::Rejected(format!(
+                "MB touches too many programs: {} > limit {limit}",
+                touched.len()
+            )));
         }
 
-        Ok(true)
+        Ok(Acceptance::Accepted(()))
     }
 }
 
@@ -627,8 +620,9 @@ mod tests {
         /// Mirrors the producer-side encoding step the inner core service
         /// applies to whatever `build_block_above` returns.
         async fn validate_operations(&self, parent: H256, ops: Operations) -> Result<bool> {
-            self.validate_block_above(parent, to_payload(ops.encode()))
+            self.validate_block_above(parent, &to_payload(ops.encode()))
                 .await
+                .map(|acceptance| acceptance.is_accepted())
         }
 
         /// Test-only inverse of [`Self::validate_operations`]: run the
@@ -901,9 +895,10 @@ mod tests {
         let mut bytes = payload(None, 1).encode();
         bytes.extend_from_slice(&[0u8; 16]);
         assert!(
-            !ext.validate_block_above(H256::zero(), to_payload(bytes))
+            ext.validate_block_above(H256::zero(), &to_payload(bytes))
                 .await
                 .unwrap()
+                .is_rejected()
         );
     }
 
