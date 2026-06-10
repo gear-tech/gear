@@ -23,5 +23,6 @@ format() {
   MANIFEST="$1"
   shift
 
-  cargo +nightly fmt --all --manifest-path="$MANIFEST" -- "$@"
+  RUSTFMT_TOOLCHAIN="${RUSTFMT_TOOLCHAIN:-nightly-2025-10-20}"
+  cargo +"$RUSTFMT_TOOLCHAIN" fmt --all --manifest-path="$MANIFEST" -- "$@"
 }
