@@ -677,8 +677,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<bool> {
 
     instrument_codes(compute, db, code_ids).await?;
 
-    let schedule =
-        ScheduleRestorer::from_storage(db, &program_states, block_data.header.height)?.restore();
+    let schedule = ScheduleRestorer::from_storage(db, &program_states)?.restore();
 
     set_tx_pool_data_requirement(db, &block_loader, block_data.header.height).await?;
 

@@ -7863,7 +7863,6 @@ dependencies = [
  "clap_builder",
  "concurrent-queue",
  "const-hex",
- "core2",
  "cranelift-bitset",
  "cranelift-codegen",
  "cranelift-codegen-meta",

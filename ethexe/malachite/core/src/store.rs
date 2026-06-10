@@ -36,6 +36,7 @@ use parity_scale_codec::{Decode, Encode};
 use rocksdb::{DB, Options, WriteBatch};
 
 use crate::{
+    BlockPayload,
     context::Height,
     externalities::CallbackOrigin,
     types::{Block, CommitCertificate, H256},
@@ -195,7 +196,7 @@ impl Store {
     /// are preserved so the first observer of this MB wins.
     pub fn set_mb_origin_once(&self, block_hash: H256, origin: CallbackOrigin) -> Result<()> {
         let key = Self::key_mb_origin(block_hash);
-        if self.db.get(&key)?.is_none() {
+        if self.db.get(key)?.is_none() {
             self.db.put(key, origin.encode())?;
         }
         Ok(())

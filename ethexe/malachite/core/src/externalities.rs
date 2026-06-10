@@ -3,11 +3,14 @@
 
 //! Application callbacks the service makes to the outside world.
 
+use crate::{
+    BlockPayload,
+    types::{Block, CommitCertificate, H256},
+};
 use anyhow::Result;
 use async_trait::async_trait;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use crate::types::{Block, CommitCertificate, H256};
 
 /// Indicates where a proposed/finalized MB callback originated.
 /// `CallbackOrigin::ValueSyncReplay` identifies callbacks produced by

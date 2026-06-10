@@ -808,12 +808,7 @@ mod tests {
 
     #[async_trait]
     impl Externalities for NoopExt {
-        async fn process_mb_proposal(
-            &self,
-            _: H256,
-            _: Block<TestPayload>,
-            _: CallbackOrigin,
-        ) -> Result<()> {
+        async fn process_mb_proposal(&self, _: H256, _: Block, _: CallbackOrigin) -> Result<()> {
             Ok(())
         }
         async fn process_mb_finalized(
@@ -824,10 +819,10 @@ mod tests {
         ) -> Result<()> {
             Ok(())
         }
-        async fn build_block_above(&self, _: H256) -> Result<TestPayload> {
-            Ok(TestPayload)
+        async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
+            Ok(test_payload())
         }
-        async fn validate_block_above(&self, _: H256, _: TestPayload) -> Result<bool> {
+        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
             Ok(true)
         }
     }
@@ -859,7 +854,7 @@ mod tests {
         async fn process_mb_proposal(
             &self,
             _: H256,
-            _: Block<TestPayload>,
+            _: Block,
             origin: CallbackOrigin,
         ) -> Result<()> {
             self.proposal_origins
@@ -941,7 +936,7 @@ mod tests {
         let ext = OriginRecordingExt::default();
         let handler_ext = ext.clone();
         let (mut handler, _dir, proposer) = make_handler_with(1, handler_ext);
-        let block = Block::<TestPayload>::new(H256::zero(), 1, TestPayload);
+        let block = Block::new(H256::zero(), 1, test_payload());
         let block_bytes = block.encode();
         let value_bytes = encode_value(&crate::context::Value::new(block_bytes.clone()));
 
@@ -980,7 +975,7 @@ mod tests {
         let ext = OriginRecordingExt::default();
         let handler_ext = ext.clone();
         let (mut handler, _dir, address) = make_handler_with(1, handler_ext);
-        let block = Block::<TestPayload>::new(H256::zero(), 1, TestPayload);
+        let block = Block::new(H256::zero(), 1, test_payload());
         let stream = complete_stream(address, 1, &block.encode());
 
         run_stream(&mut handler, test_peer(2), stream)
@@ -1130,12 +1125,7 @@ mod tests {
 
     #[async_trait]
     impl Externalities for FailingFinalizeExt {
-        async fn process_mb_proposal(
-            &self,
-            _: H256,
-            _: Block,
-            _: CallbackOrigin,
-        ) -> Result<()> {
+        async fn process_mb_proposal(&self, _: H256, _: Block, _: CallbackOrigin) -> Result<()> {
             Ok(())
         }
         async fn process_mb_finalized(

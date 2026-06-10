@@ -578,12 +578,11 @@ impl Service {
     }
 
     pub async fn run(mut self) -> Result<()> {
-        if self.fast_sync {
-            if fast_sync::sync(&mut self).await?
-                && let Some(malachite) = &self.malachite
-            {
-                malachite.enable_replay_boundary_from_execution_snapshot();
-            }
+        if self.fast_sync
+            && fast_sync::sync(&mut self).await?
+            && let Some(malachite) = &self.malachite
+        {
+            malachite.enable_replay_boundary_from_execution_snapshot();
         }
 
         self.run_inner().await.inspect_err(|err| {

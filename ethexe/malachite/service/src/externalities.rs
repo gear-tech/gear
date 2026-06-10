@@ -51,7 +51,9 @@ use ethexe_common::{
     malachite::{Operation, Operations},
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{Block, CallbackOrigin, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
+use ethexe_malachite_core::{
+    Block, BlockPayload, CallbackOrigin, Externalities, MAX_BLOCK_PAYLOAD_BYTES,
+};
 use gprimitives::H256;
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{
@@ -129,7 +131,12 @@ pub(crate) struct PendingEvent {
 
 #[async_trait]
 impl Externalities for EthexeExternalities {
-    async fn process_mb_proposal(&self, mb_hash: H256, mb: Block, origin: CallbackOrigin) -> Result<()> {
+    async fn process_mb_proposal(
+        &self,
+        mb_hash: H256,
+        mb: Block,
+        origin: CallbackOrigin,
+    ) -> Result<()> {
         // Runs on the proposer, participant, and sync paths. Frozen
         // discriminants mean every historical operation always decodes; an
         // unknown one can only come from a newer protocol this build doesn't
@@ -651,8 +658,8 @@ impl EthexeExternalities {
             .expect("replay_boundary poisoned");
 
         match *replay_boundary {
-            ReplayBoundary::Disabled => return false,
-            ReplayBoundary::AtHeight(height) => return mb_height <= height,
+            ReplayBoundary::Disabled => false,
+            ReplayBoundary::AtHeight(height) => mb_height <= height,
             ReplayBoundary::AtHash(boundary_hash) => {
                 if mb_hash != boundary_hash {
                     return true;
@@ -662,7 +669,8 @@ impl EthexeExternalities {
                     *replay_boundary = ReplayBoundary::AtHeight(boundary_compact.height);
                     return mb_height <= boundary_compact.height;
                 }
-                return true;
+
+                true
             }
         }
     }
@@ -832,7 +840,7 @@ mod tests {
     use crate::{MalachiteEvent, mempool::EmptyMempool};
     use anyhow::Context;
     use ethexe_common::{
-        BlockHeader,
+        BlockHeader, DEFAULT_BLOCK_GAS_LIMIT,
         db::{BlockMetaStorageRW, OnChainStorageRW},
         injected::PurgedTransaction,
     };
@@ -1151,7 +1159,11 @@ mod tests {
         let (ext, _rx) = make_externalities(db.clone());
         let block = Block::new(H256::zero(), 1, to_payload(vec![0xff, 0xff, 0xff, 0xff]));
         let mb_hash = block.hash();
-        assert!(ext.process_mb_proposal(mb_hash, block).await.is_err());
+        assert!(
+            ext.process_mb_proposal(mb_hash, block, CallbackOrigin::Live)
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]
@@ -1438,13 +1450,11 @@ mod tests {
         );
 
         let old_eb = H256::repeat_byte(0xA1);
-        let replay_payload = Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock { block_hash: old_eb },
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
+        let replay_payload = Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock { block_hash: old_eb },
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]);
         let replay_block = wrap(replay_payload, 10, H256::zero());
@@ -1467,7 +1477,7 @@ mod tests {
             .mb_compact_block(replay_hash)
             .expect("replay compact persisted");
         assert_eq!(replay_compact.height, 10);
-        assert!(db.transactions(replay_compact.transactions_hash).is_some());
+        assert!(db.operations(replay_compact.operations_hash).is_some());
 
         ext.process_mb_finalized(replay_hash, fake_cert(10), CallbackOrigin::ValueSyncReplay)
             .await
@@ -1522,15 +1532,13 @@ mod tests {
             meta.prepared = true;
         });
 
-        let replay_payload = Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock {
+        let replay_payload = Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock {
                 block_hash: advanced_eb,
             },
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]);
         let replay_block = wrap(replay_payload, 11, boundary_hash);
@@ -1590,13 +1598,11 @@ mod tests {
         ext.enable_replay_boundary_from_execution_snapshot();
 
         let old_eb = H256::repeat_byte(0xB1);
-        let old_payload = Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock { block_hash: old_eb },
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
+        let old_payload = Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock { block_hash: old_eb },
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]);
         let old_block = wrap(old_payload, 9, H256::zero());
@@ -1642,15 +1648,13 @@ mod tests {
             meta.prepared = true;
         });
 
-        let post_boundary_payload = Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock {
+        let post_boundary_payload = Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock {
                 block_hash: advanced_eb,
             },
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]);
         let post_boundary_block = wrap(post_boundary_payload, 11, boundary_hash);
@@ -1707,12 +1711,10 @@ mod tests {
         });
         ext.enable_replay_boundary_from_execution_snapshot();
 
-        let replay_payload = Transactions::new(vec![
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
+        let replay_payload = Operations::new(vec![
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]);
         let old_block = wrap(replay_payload, 9, H256::zero());
@@ -1722,12 +1724,10 @@ mod tests {
             .unwrap();
         assert!(rx.try_recv().is_err(), "replay should be suppressed");
 
-        let live_payload = Transactions::new(vec![
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
+        let live_payload = Operations::new(vec![
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]);
         let live_block = wrap(live_payload, 11, boundary_hash);
@@ -1794,15 +1794,13 @@ mod tests {
             meta.prepared = true;
         });
 
-        let replay_payload = Transactions::new(vec![
-            Transaction::AdvanceTillEthereumBlock {
+        let replay_payload = Operations::new(vec![
+            Operation::AdvanceTillEthereumBlock {
                 block_hash: advanced_eb,
             },
-            Transaction::ProgressTasks {
-                limits: ProgressTasksLimits::default(),
-            },
-            Transaction::ProcessQueues {
-                limits: ProcessQueuesLimits::default(),
+            Operation::ProgressTasks,
+            Operation::ProcessQueues {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]);
         let replay_block = wrap(replay_payload, 11, boundary_hash);

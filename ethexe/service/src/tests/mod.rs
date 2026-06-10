@@ -6,9 +6,9 @@
 pub(crate) mod utils;
 
 use crate::tests::utils::{
-    EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, LatestFastSyncedBlocks, Node, NodeConfig, TestEnv,
-    TestEnvConfig, TestingEvent, TestingEventReceiver, TestingNetworkEvent, TestingRpcEvent,
-    ValidatorsConfig, init_logger, stop_nodes, test_info,
+    EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, LatestFastSyncedBlocks, Node,
+    NodeConfig, TestEnv, TestEnvConfig, TestingEvent, TestingEventReceiver, TestingNetworkEvent,
+    TestingRpcEvent, ValidatorsConfig, init_logger, stop_nodes, test_info,
 };
 use alloy::{
     primitives::U256,
@@ -31,8 +31,7 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_consensus::BatchCommitter;
-use ethexe_db::{Database, dump::StateDump};
-use ethexe_db::verifier::IntegrityVerifier;
+use ethexe_db::{Database, dump::StateDump, verifier::IntegrityVerifier};
 use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
 use ethexe_processor::Processor;
 use ethexe_rpc::InjectedClient;
@@ -3280,9 +3279,9 @@ async fn fast_sync2() {
             let bob_compact_block = bob.db.mb_compact_block(mb_hash).unwrap();
             assert_eq!(alice_compact_block, bob_compact_block);
 
-            let alice_transactions = alice.db.transactions(alice_compact_block.transactions_hash);
-            let bob_transactions = bob.db.transactions(bob_compact_block.transactions_hash);
-            assert_eq!(alice_transactions, bob_transactions);
+            let alice_operations = alice.db.operations(alice_compact_block.operations_hash);
+            let bob_operations = bob.db.operations(bob_compact_block.operations_hash);
+            assert_eq!(alice_operations, bob_operations);
 
             let alice_program_states = alice.db.mb_program_states(mb_hash);
             let bob_program_states = bob.db.mb_program_states(mb_hash);
@@ -3787,9 +3786,7 @@ async fn re_genesis_with_state_dump() {
     // Ensure the ping-pong state is committed on-chain before re-genesis, so the
     // dump taken at the new genesis block carries it.
     let latest_block = env.latest_block().await.hash;
-    node.events()
-        .wait_till_eth_block_finalized_in_mb(latest_block)
-        .await;
+    node.events().find_advanced_mb(latest_block).await;
 
     log::info!(
         "📗 Phase 2: re-genesis the router via reinitialize + lookupGenesisHash. \
@@ -3811,9 +3808,7 @@ async fn re_genesis_with_state_dump() {
 
     // Wait until the node commits an MB covering the new genesis block before
     // dumping from its DB.
-    node.events()
-        .wait_till_eth_block_finalized_in_mb(new_genesis_hash)
-        .await;
+    node.events().find_advanced_mb(new_genesis_hash).await;
 
     log::info!("📗 Phase 3: collect state dump at the new genesis block.");
     let dump = StateDump::collect_from_storage(&node.db, new_genesis_hash).unwrap();
@@ -3961,9 +3956,7 @@ async fn re_genesis_delayed_message() {
 
     // Ensure the delayed-send state is committed before re-genesis.
     let latest_block = env.latest_block().await.hash;
-    node.events()
-        .wait_till_eth_block_finalized_in_mb(latest_block)
-        .await;
+    node.events().find_advanced_mb(latest_block).await;
 
     // Phase 2: re-genesis via reinitialize + lookupGenesisHash; the new genesis
     // is the block where the reinitialize tx was mined.
@@ -3984,9 +3977,7 @@ async fn re_genesis_delayed_message() {
 
     // Wait until the node commits an MB covering the new genesis block before
     // dumping from its DB.
-    node.events()
-        .wait_till_eth_block_finalized_in_mb(new_genesis_hash)
-        .await;
+    node.events().find_advanced_mb(new_genesis_hash).await;
 
     // Phase 3: collect dump at the new genesis block; it should still carry the
     // pending delayed send in the dispatch stash because the 5-block delay
