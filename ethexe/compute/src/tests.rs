@@ -4,7 +4,7 @@
 use super::*;
 use crate::service::SubService;
 use ethexe_common::{
-    CodeBlobInfo,
+    CodeBlobInfo, EB, HashOf,
     db::*,
     events::{
         BlockEvent, RouterEvent,
@@ -216,7 +216,7 @@ impl TestEnv {
         TestEnv { db, compute, chain }
     }
 
-    async fn prepare_and_assert_block(&mut self, block: H256) {
+    async fn prepare_and_assert_block(&mut self, block: HashOf<EB>) {
         self.compute.prepare_block(block);
 
         match next_compute_event(&mut self.compute).await {

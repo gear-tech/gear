@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use ethexe_common::{
-    BlockHeader, HashOf, MaybeHashOf, ProgramStates, Schedule, ScheduledTask,
+    BlockHeader, EB, HashOf, MaybeHashOf, ProgramStates, Schedule, ScheduledTask,
     StateHashWithQueueSize,
     db::{
         BlockMeta, BlockMetaStorageRO, CodesStorageRO, CompactMb, MbMeta, MbStorageRO,
@@ -10,6 +10,7 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
+    malachite::MB,
 };
 use ethexe_runtime_common::state::{
     ActiveProgram, Allocations, DispatchStash, Expiring, Mailbox, MemoryPages, MemoryPagesRegion,
@@ -112,55 +113,55 @@ node! {
         Chain(
             #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
             pub struct ChainNode {
-                pub head: H256,
-                pub bottom: H256,
+                pub head: HashOf<EB>,
+                pub bottom: HashOf<EB>,
             }
         ),
         Block(
             #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
             pub struct BlockNode {
-                pub block: H256,
+                pub block: HashOf<EB>,
             }
         ),
         BlockMeta(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct BlockMetaNode {
-                pub block: H256,
+                pub block: HashOf<EB>,
                 pub meta: BlockMeta,
             }
         ),
         BlockHeader(
             #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
             pub struct BlockHeaderNode {
-                pub block: H256,
+                pub block: HashOf<EB>,
                 pub block_header: BlockHeader,
             }
         ),
         BlockEvents(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct BlockEventsNode {
-                pub block: H256,
+                pub block: HashOf<EB>,
                 pub block_events: Vec<BlockEvent>,
             }
         ),
         BlockSynced(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct BlockSyncedNode {
-                pub block: H256,
+                pub block: HashOf<EB>,
                 pub block_synced: bool,
             }
         ),
         Mb(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct MbNode {
-                pub mb_hash: H256,
+                pub mb_hash: HashOf<MB>,
                 pub mb: CompactMb,
             }
         ),
         MbMeta(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct MbMetaNode {
-                pub mb_hash: H256,
+                pub mb_hash: HashOf<MB>,
                 pub mb_meta: MbMeta,
             }
         ),
@@ -206,7 +207,7 @@ node! {
         MbProgramStates(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct MbProgramStatesNode {
-                pub mb_hash: H256,
+                pub mb_hash: HashOf<MB>,
                 pub mb_program_states: ProgramStates,
             }
         ),
@@ -219,14 +220,14 @@ node! {
         MbSchedule(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct MbScheduleNode {
-                pub mb_hash: H256,
+                pub mb_hash: HashOf<MB>,
                 pub mb_schedule: Schedule,
             }
         ),
         MbScheduleTasks(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct MbScheduleTasksNode {
-                pub mb_hash: H256,
+                pub mb_hash: HashOf<MB>,
                 pub height: u32,
                 pub tasks: BTreeSet<ScheduledTask>,
             }
@@ -240,7 +241,7 @@ node! {
         MbOutcome(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct MbOutcomeNode {
-                pub mb_hash: H256,
+                pub mb_hash: HashOf<MB>,
                 pub mb_outcome: Vec<StateTransition>,
             }
         ),
@@ -343,15 +344,15 @@ impl From<MemoryPagesNode> for Node {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, derive_more::IsVariant)]
 pub enum DatabaseIteratorError {
     /* block */
-    NoBlockHeader(H256),
-    NoBlockEvents(H256),
-    NoBlockCodesQueue(H256),
+    NoBlockHeader(HashOf<EB>),
+    NoBlockEvents(HashOf<EB>),
+    NoBlockCodesQueue(HashOf<EB>),
 
     /* MB */
-    NoMb(H256),
-    NoMbProgramStates(H256),
-    NoMbSchedule(H256),
-    NoMbOutcome(H256),
+    NoMb(HashOf<MB>),
+    NoMbProgramStates(HashOf<MB>),
+    NoMbSchedule(HashOf<MB>),
+    NoMbOutcome(HashOf<MB>),
 
     /* memory */
     NoMemoryPages(HashOf<MemoryPages>),
@@ -514,10 +515,10 @@ where
             ..
         } = meta;
 
-        // `H256::zero()` is the genesis sentinel: no MB has been
+        // Zero hash is the genesis sentinel: no MB has been
         // committed on-chain yet, so there is nothing to walk.
         if let Some(mb_hash) = *last_committed_mb
-            && mb_hash != H256::zero()
+            && !mb_hash.is_zero()
         {
             if let Some(mb) = self.storage.mb_compact_block(mb_hash) {
                 self.push_node(MbNode { mb_hash, mb });
@@ -877,8 +878,8 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_chain_basic() {
-        let head = H256::from_low_u64_be(1);
-        let bottom = H256::from_low_u64_be(2);
+        let head = unsafe { HashOf::<EB>::new(H256::from_low_u64_be(1)) };
+        let bottom = unsafe { HashOf::<EB>::new(H256::from_low_u64_be(2)) };
 
         // This will fail because we don't have the block header in the database
         assert!(
@@ -890,7 +891,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_block_with_missing_data() {
-        let block = H256::from_low_u64_be(42);
+        let block = unsafe { HashOf::<EB>::new(H256::from_low_u64_be(42)) };
 
         let errors: Vec<_> = DatabaseIterator::new(setup_db(), BlockNode { block })
             .filter_map(Node::into_error)
@@ -1036,7 +1037,7 @@ pub(crate) mod tests {
         use ethexe_common::StateHashWithQueueSize;
         use std::collections::BTreeMap;
 
-        let mb_hash = H256::random();
+        let mb_hash = unsafe { HashOf::<MB>::new(H256::random()) };
         let program_id = ActorId::from([3u8; 32]);
         let state_hash = H256::random();
 
@@ -1067,7 +1068,7 @@ pub(crate) mod tests {
     fn walk_mb_schedule_tasks() {
         use gear_core::ids::MessageId;
 
-        let mb_hash = H256::random();
+        let mb_hash = unsafe { HashOf::<MB>::new(H256::random()) };
         let program_id = ActorId::from([10u8; 32]);
 
         let mut tasks = BTreeSet::new();
@@ -1098,7 +1099,7 @@ pub(crate) mod tests {
         use gear_core::ids::MessageId;
         use std::collections::BTreeMap;
 
-        let mb_hash = H256::random();
+        let mb_hash = unsafe { HashOf::<MB>::new(H256::random()) };
         let program_id = ActorId::from([14u8; 32]);
 
         let mut mb_schedule = BTreeMap::new();
@@ -1122,7 +1123,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_mb_outcome() {
-        let mb_hash = H256::random();
+        let mb_hash = unsafe { HashOf::<MB>::new(H256::random()) };
         let actor_id = ActorId::from([15u8; 32]);
         let new_state_hash = H256::random();
 

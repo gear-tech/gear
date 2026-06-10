@@ -94,7 +94,7 @@ use alloy::{
 };
 use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
-use ethexe_common::{BlockHeader, Digest, SimpleBlockData, ecdsa::PublicKey};
+use ethexe_common::{BlockHeader, Digest, EB, HashOf, SimpleBlockData, ecdsa::PublicKey};
 use gprimitives::{ActorId, H256, MessageId};
 use gsigner::secp256k1::{Address, Secp256k1SignerExt, Signer};
 use middleware::Middleware;
@@ -405,9 +405,11 @@ impl Ethereum {
             .number()
             .try_into()
             .with_context(|| "block number overflow")?;
-        let hash = block_resp.hash().0.into();
+        // SAFETY: real Ethereum block hash from the chain — carried verbatim.
+        let hash = unsafe { HashOf::<EB>::new(block_resp.hash().0.into()) };
         let header = block_resp.into_header();
-        let parent_hash = header.parent_hash.0.into();
+        // SAFETY: real Ethereum parent block hash from the chain — carried verbatim.
+        let parent_hash = unsafe { HashOf::<EB>::new(header.parent_hash.0.into()) };
         let timestamp = header.timestamp;
         let header = BlockHeader {
             height,
@@ -717,6 +719,12 @@ pub trait IntoBlockId {
 impl IntoBlockId for H256 {
     fn into_block_id(self) -> BlockId {
         BlockId::hash(self.0.into())
+    }
+}
+
+impl IntoBlockId for HashOf<EB> {
+    fn into_block_id(self) -> BlockId {
+        BlockId::hash(self.inner().0.into())
     }
 }
 

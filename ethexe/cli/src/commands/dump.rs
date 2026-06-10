@@ -4,7 +4,7 @@
 use crate::params::{MergeParams, Params};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use ethexe_common::db::GlobalsStorageRO;
+use ethexe_common::{EB, HashOf, db::GlobalsStorageRO};
 use ethexe_db::{Database, RawDatabase, RocksDatabase, dump::StateDump};
 use gprimitives::H256;
 use std::path::{Path, PathBuf};
@@ -75,13 +75,18 @@ impl DumpCommand {
         let raw_db = RawDatabase::from_one(&rocks_db);
         let db = Database::try_from_raw(raw_db)?;
 
-        let block_hash = block_hash.unwrap_or_else(|| {
-            let latest_prepared_block = db.globals().latest_prepared_eb_hash;
-            log::info!(
-                "No block hash provided, using latest committed block: {latest_prepared_block:?}"
-            );
-            latest_prepared_block
-        });
+        let block_hash = block_hash
+            .map(|raw| {
+                // SAFETY: CLI-supplied EB hash; treat verbatim.
+                unsafe { HashOf::<EB>::new(raw) }
+            })
+            .unwrap_or_else(|| {
+                let latest_prepared_block = db.globals().latest_prepared_eb_hash;
+                log::info!(
+                    "No block hash provided, using latest committed block: {latest_prepared_block:?}"
+                );
+                latest_prepared_block
+            });
 
         log::info!("Collecting state dump for block {block_hash:?}...");
         let dump = StateDump::collect_from_storage(&db, block_hash)?;

@@ -15,6 +15,7 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
+    EB, HashOf,
     db::{CodesStorageRO, GlobalsStorageRO, InjectedStorageRO, MbStorageRO, OnChainStorageRO},
     ecdsa::ContractSignature,
     events::{
@@ -25,6 +26,7 @@ use ethexe_common::{
     injected::{
         InjectedTransaction, InjectedTransactionAcceptance, Receipt, TransactionPurgedReason,
     },
+    malachite::MB,
     mock::*,
 };
 use ethexe_consensus::BatchCommitter;
@@ -582,7 +584,8 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .mb_schedule(mb_hash)
+        // SAFETY: on-chain MB hash from Router event.
+        .mb_schedule(unsafe { HashOf::<MB>::new(mb_hash) })
         .expect("MB schedule must exist");
     assert_eq!(schedule, expected_schedule);
 
@@ -703,7 +706,8 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .mb_schedule(mb_hash)
+        // SAFETY: on-chain MB hash from Router event.
+        .mb_schedule(unsafe { HashOf::<MB>::new(mb_hash) })
         .expect("MB schedule must exist");
     assert!(schedule.is_empty(), "{schedule:?}");
 
@@ -1940,7 +1944,7 @@ async fn injected_tx_purged_receipt() {
         destination: ActorId::from(H160::random()),
         payload: vec![].try_into().unwrap(),
         value: 0,
-        reference_block: H256::zero(),
+        reference_block: HashOf::<EB>::zero(),
         salt: vec![1].try_into().unwrap(),
     };
     let tx_hash = tx.to_hash();
@@ -2185,7 +2189,7 @@ async fn execution_with_canonical_events_quarantine() {
         })
         .await;
 
-    let latest_block: H256 = env.latest_block().await.hash;
+    let latest_block: HashOf<EB> = env.latest_block().await.hash;
     test_info!("📗 waiting block-prepared for block {latest_block}");
     validator.events().find_block_prepared(latest_block).await;
 
@@ -3203,7 +3207,7 @@ async fn re_genesis_with_state_dump() {
     env.ethereum.router().reinitialize().await.unwrap();
     env.ethereum.router().lookup_genesis_hash().await.unwrap();
 
-    let new_genesis_hash: H256 = env
+    let new_genesis_hash_raw: H256 = env
         .ethereum
         .router()
         .query()
@@ -3212,6 +3216,8 @@ async fn re_genesis_with_state_dump() {
         .unwrap()
         .0
         .into();
+    // SAFETY: real EB hash from on-chain Router query.
+    let new_genesis_hash = unsafe { HashOf::<EB>::new(new_genesis_hash_raw) };
     log::info!("New genesis block hash: {new_genesis_hash:?}");
 
     // Wait until the node commits an MB covering the new genesis block before
@@ -3228,7 +3234,7 @@ async fn re_genesis_with_state_dump() {
         dump.programs.len(),
         dump.blobs.len(),
     );
-    assert_eq!(dump.eb_hash, new_genesis_hash);
+    assert_eq!(dump.eb_hash, new_genesis_hash_raw);
     assert!(!dump.codes.is_empty());
     assert!(!dump.programs.is_empty());
 
@@ -3376,7 +3382,7 @@ async fn re_genesis_delayed_message() {
     env.ethereum.router().reinitialize().await.unwrap();
     env.ethereum.router().lookup_genesis_hash().await.unwrap();
 
-    let new_genesis_hash: H256 = env
+    let new_genesis_hash_raw: H256 = env
         .ethereum
         .router()
         .query()
@@ -3385,6 +3391,8 @@ async fn re_genesis_delayed_message() {
         .unwrap()
         .0
         .into();
+    // SAFETY: real EB hash from on-chain Router query.
+    let new_genesis_hash = unsafe { HashOf::<EB>::new(new_genesis_hash_raw) };
     log::info!("New genesis block hash: {new_genesis_hash:?}");
 
     // Wait until the node commits an MB covering the new genesis block before
@@ -3404,7 +3412,7 @@ async fn re_genesis_delayed_message() {
         dump.programs.len(),
         dump.blobs.len(),
     );
-    assert_eq!(dump.eb_hash, new_genesis_hash);
+    assert_eq!(dump.eb_hash, new_genesis_hash_raw);
 
     // Verify the dispatch stash is non-empty (delayed message pending).
     {
@@ -3441,7 +3449,7 @@ async fn re_genesis_delayed_message() {
     // genesis state lives under the zero MB (ancestor of the malachite genesis
     // block), seeded by `initialize_empty_db`.
     {
-        let schedule = new_db.mb_schedule(H256::zero()).unwrap();
+        let schedule = new_db.mb_schedule(HashOf::<MB>::zero()).unwrap();
         let total_tasks: usize = schedule.values().map(|tasks| tasks.len()).sum();
         log::info!(
             "Restored schedule: {total_tasks} tasks across {} blocks",

@@ -61,7 +61,7 @@ pub use crate::{
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
-use ethexe_common::injected::PurgedTransaction;
+use ethexe_common::{EB, HashOf, injected::PurgedTransaction, malachite::MB};
 pub use ethexe_common::{
     injected::SignedInjectedTransaction,
     malachite::{Operation, Operations},
@@ -75,7 +75,7 @@ pub use gprimitives::H256;
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct CommitCertificate {
     pub height: u64,
-    pub mb_hash: H256,
+    pub mb_hash: HashOf<MB>,
     pub signatures: Vec<Vec<u8>>,
 }
 
@@ -83,18 +83,18 @@ pub struct CommitCertificate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MalachiteEvent {
     /// New sequencer block persisted; `mb_hash` is the Blake2b envelope hash.
-    BlockProposal { height: u64, mb_hash: H256 },
+    BlockProposal { height: u64, mb_hash: HashOf<MB> },
 
     /// BFT-committed block; `globals.latest_finalized_mb_hash` now points at it.
     BlockFinalized {
         cert: CommitCertificate,
         height: u64,
-        mb_hash: H256,
+        mb_hash: HashOf<MB>,
     },
 
     /// Transactions that were purged from the mempool.
     PurgedTransactions {
-        eb_hash: H256,
+        eb_hash: HashOf<EB>,
         transactions: Vec<PurgedTransaction>,
     },
 }

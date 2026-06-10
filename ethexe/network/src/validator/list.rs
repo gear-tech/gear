@@ -6,8 +6,9 @@
 
 use crate::validator::ValidatorDatabase;
 use anyhow::Context;
-use ethexe_common::{Address, BlockHeader, ProtocolTimelines, ValidatorsVec, db::OnChainStorageRO};
-use gprimitives::H256;
+use ethexe_common::{
+    Address, BlockHeader, EB, HashOf, ProtocolTimelines, ValidatorsVec, db::OnChainStorageRO,
+};
 use std::sync::Arc;
 
 /// Lightweight snapshot of [`ValidatorList`] to be used in other validator-related structures.
@@ -73,7 +74,7 @@ impl ValidatorList {
     /// Refresh the current chain head and validator set snapshot.
     pub(crate) fn set_chain_head(
         &mut self,
-        chain_head: H256,
+        chain_head: HashOf<EB>,
     ) -> anyhow::Result<Arc<ValidatorListSnapshot>> {
         let chain_head_header = self
             .db
@@ -107,7 +108,13 @@ mod tests {
     use core::convert::TryFrom;
     use ethexe_common::db::OnChainStorageRW;
     use ethexe_db::Database;
+    use gprimitives::H256;
     use std::num::NonZeroU64;
+
+    fn eb(raw: u64) -> HashOf<EB> {
+        // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+        unsafe { HashOf::<EB>::new(H256::from_low_u64_be(raw)) }
+    }
 
     const TIMELINES: ProtocolTimelines = ProtocolTimelines {
         genesis_ts: 0,
@@ -129,17 +136,17 @@ mod tests {
         BlockHeader {
             height,
             timestamp,
-            parent_hash: H256::zero(),
+            parent_hash: HashOf::<EB>::zero(),
         }
     }
 
     #[test]
     fn validator_list_advances() {
-        let genesis_hash = H256::from_low_u64_be(0);
+        let genesis_hash = eb(0);
         let genesis_block_header = header(0, 0);
-        let same_era_hash = H256::from_low_u64_be(1);
-        let next_committed_validators_hash = H256::from_low_u64_be(2);
-        let next_era_hash = H256::from_low_u64_be(3);
+        let same_era_hash = eb(1);
+        let next_committed_validators_hash = eb(2);
+        let next_era_hash = eb(3);
 
         let db = Database::memory();
         db.set_block_header(genesis_hash, genesis_block_header);

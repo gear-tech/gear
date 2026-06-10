@@ -4,8 +4,8 @@
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
-    PrivateKey, ScheduledTask, SignedMessage,
+    DEFAULT_BLOCK_GAS_LIMIT, EB, HashOf, OUTGOING_MESSAGES_SOFT_LIMIT,
+    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PrivateKey, ScheduledTask, SignedMessage,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
@@ -13,6 +13,7 @@ use ethexe_common::{
         router::ProgramCreatedEvent,
     },
     gear::Message,
+    malachite::MB,
     mock::*,
 };
 use ethexe_runtime_common::{
@@ -24,7 +25,7 @@ use gear_core::{
     message::{ErrorReplyReason, ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{SimpleExecutionError, SimpleUnavailableActorError};
-use gprimitives::{ActorId, MessageId};
+use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::Encode;
 use tokio::sync::mpsc;
 use utils::*;
@@ -118,7 +119,8 @@ mod utils {
             destination,
             payload: payload.as_ref().to_vec().try_into().unwrap(),
             value,
-            reference_block: H256::random(),
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            reference_block: unsafe { HashOf::<EB>::new(H256::random()) },
             salt: H256::random().0.to_vec().try_into().unwrap(),
         }
     }
@@ -1531,7 +1533,7 @@ async fn injected_ping_pong() {
     init_logger();
 
     let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
-    let promise_sink = BoundPromiseSink::new(promise_sender, H256::zero());
+    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::<MB>::zero());
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
@@ -1651,7 +1653,7 @@ async fn injected_prioritized_over_canonical() {
     init_logger();
 
     let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
-    let promise_sink = BoundPromiseSink::new(promise_sender, H256::zero());
+    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::<MB>::zero());
 
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
@@ -1867,7 +1869,7 @@ async fn executable_balance_injected_panic_not_charged() {
     init_logger();
 
     let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
-    let promise_sink = BoundPromiseSink::new(promise_sender, H256::zero());
+    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::<MB>::zero());
 
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY]).await;
@@ -2255,7 +2257,8 @@ async fn injected_and_events_then_tasks_then_queues() {
         destination: actor_id,
         payload: vec![].try_into().unwrap(),
         value: 0,
-        reference_block: H256::random(),
+        // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+        reference_block: unsafe { HashOf::<EB>::new(H256::random()) },
         salt: H256::random().0.to_vec().try_into().unwrap(),
     };
     let signed_injected = SignedMessage::create(injected_user_pk, injected_tx).unwrap();
@@ -2274,7 +2277,7 @@ async fn injected_and_events_then_tasks_then_queues() {
     }];
 
     let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
-    let promise_sink = BoundPromiseSink::new(promise_sender, H256::zero());
+    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::<MB>::zero());
 
     let executable = ExecutableData {
         height: block3.header.height,

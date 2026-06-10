@@ -12,11 +12,11 @@
 use super::{BatchCommitmentManager, BatchLimits, ValidationStatus, types::ValidationRejectReason};
 use crate::validator::core::MiddlewareWrapper;
 use ethexe_common::{
-    Address, Digest, ProgramStates, Schedule, SimpleBlockData, ToDigest, ValidatorsVec,
+    Address, Digest, EB, HashOf, ProgramStates, Schedule, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRW, MbStorageRW, SetConfig},
     gear::StateTransition,
-    malachite::{Operation, Operations},
+    malachite::{MB, Operation, Operations},
     mock::*,
 };
 use ethexe_db::Database;
@@ -58,22 +58,30 @@ fn mock_batch_manager(db: Database) -> BatchCommitmentManager {
 
 /// Append a single MB to the chain. Sets the meta as `computed=true`
 /// so the manager treats it as finalized state available for batching.
-fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransition>) -> H256 {
+fn append_mb(
+    db: &Database,
+    parent: HashOf<MB>,
+    height: u64,
+    outcome: Vec<StateTransition>,
+) -> HashOf<MB> {
     let ops = Operations::new(vec![
         Operation::AdvanceTillEthereumBlock {
-            block_hash: H256::from_low_u64_be(0xEB00 + height),
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            block_hash: unsafe { HashOf::<EB>::new(H256::from_low_u64_be(0xEB00 + height)) },
         },
         Operation::ProcessQueues { gas_allowance: 0 },
     ]);
     let operations_hash = db.set_operations(ops);
     // Synthetic mb_hash — uniqueness is what matters here.
-    let mb_hash = H256::from_low_u64_be(0x1000 + height);
+    // SAFETY: synthetic MB hash for tests — same invariant as a real MB envelope hash.
+    let mb_hash = unsafe { HashOf::<MB>::new(H256::from_low_u64_be(0x1000 + height)) };
     db.set_mb_compact_block(
         mb_hash,
         CompactMb {
             parent,
             height,
             operations_hash,
+            reserved: [0u8; 64],
         },
     );
     db.set_mb_outcome(mb_hash, outcome);
@@ -81,7 +89,7 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
     db.set_mb_program_states(mb_hash, ProgramStates::default());
     db.mutate_mb_meta(mb_hash, |meta| {
         meta.computed = true;
-        meta.last_advanced_eb = H256::zero();
+        meta.last_advanced_eb = HashOf::<EB>::zero();
     });
     mb_hash
 }
@@ -89,8 +97,8 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
 /// Set up an MB chain with the supplied per-MB outcomes and update
 /// `globals.latest_finalized_mb_hash` to the head. Returns the MB
 /// hashes in chronological order.
-fn setup_mb_chain(db: &Database, outcomes: Vec<Vec<StateTransition>>) -> Vec<H256> {
-    let mut parent = H256::zero();
+fn setup_mb_chain(db: &Database, outcomes: Vec<Vec<StateTransition>>) -> Vec<HashOf<MB>> {
+    let mut parent = HashOf::<MB>::zero();
     let mut hashes = Vec::with_capacity(outcomes.len());
     for (i, outcome) in outcomes.into_iter().enumerate() {
         let h = append_mb(db, parent, (i + 1) as u64, outcome);
@@ -339,7 +347,7 @@ async fn rejects_head_mb_at_or_below_last_committed_mb() {
         .unwrap();
     assert_eq!(
         unwrap_rejected(status),
-        ValidationRejectReason::HeadMbAlreadyCommitted(head)
+        ValidationRejectReason::HeadMbAlreadyCommitted(head.inner())
     );
 }
 
@@ -377,7 +385,7 @@ async fn rejects_head_mb_not_computed() {
         .unwrap();
     assert_eq!(
         unwrap_rejected(status),
-        ValidationRejectReason::HeadMbNotComputed(head)
+        ValidationRejectReason::HeadMbNotComputed(head.inner())
     );
 }
 
@@ -637,7 +645,8 @@ async fn idle_chain_above_threshold_emits_checkpoint_batch_commitment() {
         "checkpoint must pin the head MB's last_advanced_eb on-chain",
     );
     assert_eq!(
-        chain_commitment.head, head_mb,
+        chain_commitment.head,
+        head_mb.inner(),
         "checkpoint must reference the latest finalized MB",
     );
     assert!(

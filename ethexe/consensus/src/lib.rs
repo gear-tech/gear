@@ -47,7 +47,7 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    Digest, SimpleBlockData,
+    Digest, EB, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedValidationRequest},
     network::SignedValidatorMessage,
 };
@@ -69,10 +69,10 @@ pub trait ConsensusService:
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()>;
 
     /// Process a synced block info
-    fn receive_synced_block(&mut self, block: H256) -> Result<()>;
+    fn receive_synced_block(&mut self, block: HashOf<EB>) -> Result<()>;
 
     /// Process a prepared block received
-    fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
+    fn receive_prepared_block(&mut self, block: HashOf<EB>) -> Result<()>;
 
     /// Process a received validation request
     fn receive_validation_request(&mut self, request: VerifiedValidationRequest) -> Result<()>;

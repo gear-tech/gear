@@ -26,16 +26,16 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    HashOf, ProgramStates, SimpleBlockData,
+    EB, HashOf, ProgramStates, SimpleBlockData,
     db::{GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
     events::{BlockRequestEvent, RouterRequestEvent, router::ProgramCreatedEvent},
     gear::INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
     injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
-    malachite::Operation,
+    malachite::{MB, Operation},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
-use gprimitives::{ActorId, H256};
+use gprimitives::ActorId;
 use std::collections::HashSet;
 
 /// Minimum executable balance a destination program must have to receive
@@ -82,7 +82,7 @@ pub enum TxValidity {
 pub struct TxValidityChecker {
     db: Database,
     chain_head: SimpleBlockData,
-    start_block_hash: H256,
+    start_block_hash: HashOf<EB>,
     recent_included_txs: HashSet<HashOf<InjectedTransaction>>,
     latest_states: ProgramStates,
 }
@@ -96,7 +96,7 @@ impl TxValidityChecker {
     pub fn new_for_mb(
         db: Database,
         chain_head: SimpleBlockData,
-        parent_mb_hash: H256,
+        parent_mb_hash: HashOf<MB>,
     ) -> Result<Self> {
         // Walk back to the most recent MB whose `meta.computed` is set —
         // that's the snapshot whose `program_states` we can trust. The
@@ -172,7 +172,10 @@ impl TxValidityChecker {
         Ok(TxValidity::Valid)
     }
 
-    fn is_reference_block_within_validity_window(&self, reference_block: H256) -> Result<bool> {
+    fn is_reference_block_within_validity_window(
+        &self,
+        reference_block: HashOf<EB>,
+    ) -> Result<bool> {
         let Some(reference_block_height) = self.db.block_header(reference_block).map(|h| h.height)
         else {
             return Ok(false);
@@ -183,7 +186,7 @@ impl TxValidityChecker {
             && reference_block_height.saturating_add(VALIDITY_WINDOW as u32) > chain_head_height)
     }
 
-    fn is_reference_block_on_current_branch(&self, reference_block: H256) -> Result<bool> {
+    fn is_reference_block_on_current_branch(&self, reference_block: HashOf<EB>) -> Result<bool> {
         let mut block_hash = self.chain_head.hash;
         for _ in 0..VALIDITY_WINDOW {
             if block_hash == reference_block {
@@ -219,7 +222,7 @@ impl TxValidityChecker {
     /// pragmatic break-on-missing for fast-sync recovery.
     pub fn collect_recent_included_txs(
         db: &Database,
-        parent_mb: H256,
+        parent_mb: HashOf<MB>,
     ) -> Result<HashSet<HashOf<InjectedTransaction>>> {
         let mut txs = HashSet::new();
         let mut mb_hash = parent_mb;
@@ -275,8 +278,8 @@ impl TxValidityChecker {
 /// layer. Do not rely on the returned set for anything beyond the cap.
 pub fn eb_touched_programs(
     db: &Database,
-    last_advanced_eb: H256,
-    advanced_eb: H256,
+    last_advanced_eb: HashOf<EB>,
+    advanced_eb: HashOf<EB>,
 ) -> Result<HashSet<ActorId>> {
     if advanced_eb.is_zero() || advanced_eb == last_advanced_eb {
         return Ok(HashSet::new());
@@ -370,7 +373,7 @@ mod tests {
     use ethexe_runtime_common::state::{
         ActiveProgram, MessageQueueHashWithSize, Program, ProgramState,
     };
-    use gprimitives::ActorId;
+    use gprimitives::{ActorId, H256};
 
     // ------------------------------------------------------------------
     // Master-style helpers (announce → MB).
@@ -381,7 +384,7 @@ mod tests {
     }
 
     fn test_injected_transaction(
-        reference_block: H256,
+        reference_block: HashOf<EB>,
         destination: ActorId,
     ) -> InjectedTransaction {
         InjectedTransaction {
@@ -397,7 +400,7 @@ mod tests {
         SignedMessage::create(PrivateKey::random(), tx).unwrap()
     }
 
-    fn mock_tx(reference_block: H256) -> SignedInjectedTransaction {
+    fn mock_tx(reference_block: HashOf<EB>) -> SignedInjectedTransaction {
         signed_tx(test_injected_transaction(reference_block, ActorId::zero()))
     }
 
@@ -437,8 +440,8 @@ mod tests {
         db: &Database,
         injected_transactions: Vec<SignedInjectedTransaction>,
         destination_initialized: bool,
-        parent_mb: H256,
-    ) -> H256 {
+        parent_mb: HashOf<MB>,
+    ) -> HashOf<MB> {
         setup_mb_with_balance(
             db,
             injected_transactions,
@@ -453,8 +456,8 @@ mod tests {
         injected_transactions: Vec<SignedInjectedTransaction>,
         destination_initialized: bool,
         executable_balance: u128,
-        parent_mb: H256,
-    ) -> H256 {
+        parent_mb: HashOf<MB>,
+    ) -> HashOf<MB> {
         let ops = Operations::new(
             injected_transactions
                 .into_iter()
@@ -462,13 +465,14 @@ mod tests {
                 .collect(),
         );
         let operations_hash = db.set_operations(ops);
-        let mb_hash = H256::random();
+        let mb_hash = HashOf::<MB>::random();
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent: parent_mb,
                 height: u64::MAX / 2,
                 operations_hash,
+                reserved: [0u8; 64],
             },
         );
 
@@ -570,7 +574,7 @@ mod tests {
         chain.blocks.iter().skip(9).for_each(|block| {
             let mut header = block.to_simple().header;
             header.parent_hash = parent;
-            let hash = H256::random();
+            let hash = HashOf::<EB>::random();
             db.set_block_header(hash, header);
             blocks_branch2.push(SimpleBlockData { hash, header });
             parent = hash;
@@ -639,7 +643,7 @@ mod tests {
         let chain = test_block_chain(10).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
-        let tx = test_injected_transaction(H256::zero(), ActorId::zero());
+        let tx = test_injected_transaction(HashOf::<EB>::zero(), ActorId::zero());
 
         let parent_mb = setup_mb(&db, vec![], true, chain.mb_hash_at(8));
         let tx_checker = TxValidityChecker::new_for_mb(db.clone(), chain_head, parent_mb).unwrap();
@@ -712,9 +716,12 @@ mod tests {
     fn genesis_parent_has_empty_states_so_every_tx_unknown_destination() {
         let db = Database::memory();
         let chain = test_block_chain(2).setup(&db);
-        let checker =
-            TxValidityChecker::new_for_mb(db.clone(), chain.blocks[1].to_simple(), H256::zero())
-                .unwrap();
+        let checker = TxValidityChecker::new_for_mb(
+            db.clone(),
+            chain.blocks[1].to_simple(),
+            HashOf::<MB>::zero(),
+        )
+        .unwrap();
         let tx = mock_tx(chain.blocks[1].hash);
         assert_eq!(
             checker.check_tx_validity(&tx).unwrap(),
@@ -730,7 +737,7 @@ mod tests {
         let chain = test_block_chain(10).setup(&db);
 
         let mb_grand = setup_mb(&db, vec![], true, chain.mb_hash_at(8));
-        let mb_parent = H256::random();
+        let mb_parent = HashOf::<MB>::random();
         let operations_hash = db.set_operations(Operations::new(vec![]));
         db.set_mb_compact_block(
             mb_parent,
@@ -738,6 +745,7 @@ mod tests {
                 parent: mb_grand,
                 height: u64::MAX / 2 + 1,
                 operations_hash,
+                reserved: [0u8; 64],
             },
         );
         // mb_parent's mb_meta.computed stays false → checker walks past it.
@@ -761,8 +769,8 @@ mod tests {
                 .unwrap();
 
         // value != 0 AND ref_block not in DB. NonZeroValue wins.
-        let tx =
-            test_injected_transaction(H256::random(), ActorId::zero()).tap_mut(|tx| tx.value = 1);
+        let tx = test_injected_transaction(HashOf::<EB>::random(), ActorId::zero())
+            .tap_mut(|tx| tx.value = 1);
         assert_eq!(
             checker.check_tx_validity(&signed_tx(tx)).unwrap(),
             TxValidity::NonZeroValue,

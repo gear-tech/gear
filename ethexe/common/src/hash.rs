@@ -11,7 +11,7 @@ use core::{
     marker::PhantomData,
 };
 use gprimitives::H256;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 fn option_string<T: ToString>(value: &Option<T>) -> String {
@@ -28,7 +28,7 @@ fn shortname<T: Any>() -> &'static str {
         .expect("name is empty")
 }
 
-#[derive(Encode, Decode, TypeInfo, derive_more::Into, derive_more::Display)]
+#[derive(Encode, Decode, TypeInfo, MaxEncodedLen, derive_more::Into, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(transparent))]
 #[display("{hash}")]
@@ -102,11 +102,18 @@ impl<T> HashOf<T> {
         self.hash
     }
 
-    pub fn zero() -> Self {
+    pub const fn zero() -> Self {
         Self {
             hash: H256::zero(),
             _phantom: PhantomData,
         }
+    }
+
+    /// True iff this is the zero-byte sentinel hash. Useful where a
+    /// caller treats `H256::zero()` as "no value yet" (genesis pre-MB,
+    /// uninitialised parent links, etc.).
+    pub fn is_zero(&self) -> bool {
+        self.hash.is_zero()
     }
 
     #[cfg(feature = "mock")]

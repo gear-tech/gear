@@ -93,7 +93,7 @@
 //!   service layer enforces this by gating event emission inside
 //!   `MalachiteService::receive_new_chain_head` (in `ethexe-malachite`).
 
-use ethexe_common::{CodeAndIdUnchecked, injected::Promise};
+use ethexe_common::{CodeAndIdUnchecked, EB, HashOf, injected::Promise, malachite::MB};
 use ethexe_processor::{
     BoundPromiseSink, ExecutableData, ProcessedCodeInfo, Processor, ProcessorError,
 };
@@ -114,35 +114,35 @@ mod tests;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BlockProcessed {
-    pub block_hash: H256,
+    pub block_hash: HashOf<EB>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
-    BlockPrepared(H256),
+    BlockPrepared(HashOf<EB>),
     #[from(skip)]
-    MbComputed(H256),
-    Promise(Promise, H256),
+    MbComputed(HashOf<MB>),
+    Promise(Promise, HashOf<MB>),
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum ComputeError {
     #[error("block({0}) is not synced")]
-    BlockNotSynced(H256),
+    BlockNotSynced(HashOf<EB>),
     #[error("block({0}) is not prepared")]
-    BlockNotPrepared(H256),
+    BlockNotPrepared(HashOf<EB>),
     #[error("not found events for block({0})")]
-    BlockEventsNotFound(H256),
+    BlockEventsNotFound(HashOf<EB>),
     #[error("block header not found for synced block({0})")]
-    BlockHeaderNotFound(H256),
+    BlockHeaderNotFound(HashOf<EB>),
     #[error("block validators committed for era not found for block({0})")]
-    CommittedEraNotFound(H256),
+    CommittedEraNotFound(HashOf<EB>),
     #[error("codes queue not found for computed block({0})")]
-    CodesQueueNotFound(H256),
+    CodesQueueNotFound(HashOf<EB>),
     #[error("last committed batch not found for computed block({0})")]
-    LastCommittedBatchNotFound(H256),
+    LastCommittedBatchNotFound(HashOf<EB>),
     #[error(
         "Received validators commitment for an earlier era {commitment_era_index}, previous was {previous_commitment_era_index}"
     )]
@@ -151,23 +151,29 @@ pub enum ComputeError {
         commitment_era_index: u64,
     },
     #[error("MB payload {payload_hash} not found for mb {mb_hash}")]
-    MbPayloadNotFound { mb_hash: H256, payload_hash: H256 },
+    MbPayloadNotFound {
+        mb_hash: HashOf<MB>,
+        payload_hash: H256,
+    },
     #[error("MB {0} CompactMb is missing")]
-    MbCompactNotFound(H256),
+    MbCompactNotFound(HashOf<MB>),
     #[error("parent MB {0} marked computed but program_states row missing")]
-    ParentMbStatesMissing(H256),
+    ParentMbStatesMissing(HashOf<MB>),
     #[error("parent MB {0} marked computed but schedule row missing")]
-    ParentMbScheduleMissing(H256),
+    ParentMbScheduleMissing(HashOf<MB>),
     #[error("block events row missing for advance-chain block({0})")]
-    AdvanceBlockEventsMissing(H256),
+    AdvanceBlockEventsMissing(HashOf<EB>),
     #[error("anchor Eth block header missing for {0}")]
-    AnchorBlockHeaderMissing(H256),
+    AnchorBlockHeaderMissing(HashOf<EB>),
     #[error("AdvanceTillEthereumBlock walk hit a missing parent header at {hash}")]
-    AdvanceMissingHeader { hash: H256 },
+    AdvanceMissingHeader { hash: HashOf<EB> },
     #[error(
         "AdvanceTillEthereumBlock walk from {target} to {last_advanced} exceeded the safety cap"
     )]
-    AdvanceWalkTooDeep { target: H256, last_advanced: H256 },
+    AdvanceWalkTooDeep {
+        target: HashOf<EB>,
+        last_advanced: HashOf<EB>,
+    },
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),

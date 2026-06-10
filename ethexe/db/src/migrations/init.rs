@@ -8,16 +8,16 @@ use crate::{Database, RawDatabase, dump::StateDump, migrations::GenesisInitializ
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, ensure};
 use ethexe_common::{
-    BlockHeader, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
+    BlockHeader, EB, HashOf, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
     StateHashWithQueueSize,
     db::{CodesStorageRO, CodesStorageRW, CompactMb, MbStorageRW, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
-    malachite::Operations,
+    malachite::{MB, Operations},
 };
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_runtime_common::{RUNTIME_ID, ScheduleRestorer, state::Storage};
 use futures::{TryStreamExt, stream::FuturesUnordered};
-use gprimitives::{CodeId, H256};
+use gprimitives::CodeId;
 
 pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Database> {
     log::info!("Initializing database to version {LATEST_VERSION}...");
@@ -83,10 +83,11 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     let genesis: GenesisBlockInfo = storage_view.genesisBlock.into();
 
     let genesis_eb = SimpleBlockData {
-        hash: genesis.hash,
+        // SAFETY: genesis EB hash sourced from the Router contract.
+        hash: unsafe { HashOf::<EB>::new(genesis.hash) },
         header: BlockHeader {
             // genesis block header is not important in any way for ethexe
-            parent_hash: H256::zero(),
+            parent_hash: HashOf::<EB>::zero(),
             height: genesis.number,
             timestamp: genesis.timestamp,
         },
@@ -110,14 +111,15 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     // the zero ancestor that the service's height-1 block points to.
     // `last_advanced_eb` is zero (pre-genesis: nothing advanced yet), matching
     // the compute anchor fallback and the malachite-service zero handling.
-    let genesis_parent_mb_hash = H256::zero();
+    let genesis_parent_mb_hash = HashOf::<MB>::zero();
     let operations_hash = db.set_operations(Operations::default());
     db.set_mb_compact_block(
         genesis_parent_mb_hash,
         CompactMb {
-            parent: H256::zero(),
+            parent: HashOf::<MB>::zero(),
             height: 0,
             operations_hash,
+            reserved: [0u8; 64],
         },
     );
     db.set_mb_program_states(genesis_parent_mb_hash, program_states);
@@ -125,7 +127,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     db.set_mb_outcome(genesis_parent_mb_hash, Vec::new());
     db.mutate_mb_meta(genesis_parent_mb_hash, |m| {
         m.computed = true;
-        m.last_advanced_eb = H256::zero();
+        m.last_advanced_eb = HashOf::<EB>::zero();
     });
 
     ethexe_common::setup_block_in_db(
@@ -136,8 +138,8 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
             events: Default::default(),
             codes_queue: Default::default(),
             last_committed_batch: Default::default(),
-            last_committed_mb: H256::zero(),
-            last_committed_eb: H256::zero(),
+            last_committed_mb: HashOf::<MB>::zero(),
+            last_committed_eb: HashOf::<EB>::zero(),
             latest_era_with_committed_validators: 0,
         },
     );
@@ -160,7 +162,8 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
                 .try_into()
                 .context("slot duration must be non-zero")?,
         },
-        genesis_block_hash: genesis.hash,
+        // SAFETY: genesis EB hash sourced from the Router contract.
+        genesis_block_hash: unsafe { HashOf::<EB>::new(genesis.hash) },
         max_validators: storage_view.maxValidators,
     };
 
@@ -196,7 +199,7 @@ async fn genesis_data_initialization(
         blobs,
     } = initializer.get_genesis_data()?;
 
-    if eb_hash != genesis_eb.hash {
+    if eb_hash != genesis_eb.hash.inner() {
         log::warn!(
             "Genesis data block hash {eb_hash} does not match the actual genesis block hash {}",
             genesis_eb.hash

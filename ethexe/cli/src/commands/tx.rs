@@ -1158,7 +1158,7 @@ impl TxCommand {
                         Ok(SendMessageResult::Injected {
                             tx_hash,
                             reference_block_number,
-                            reference_block_hash,
+                            reference_block_hash: reference_block_hash.inner(),
                             payload: SendMessagePayload {
                                 message_id,
                                 actor_id,

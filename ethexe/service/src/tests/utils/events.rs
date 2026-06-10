@@ -8,13 +8,14 @@ use alloy::providers::{RootProvider, ext::AnvilApi};
 use async_broadcast::{Receiver, RecvError, Sender};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Address, HashOf, SimpleBlockData,
+    Address, EB, HashOf, SimpleBlockData,
     db::*,
     events::BlockEvent,
     injected::{
         InjectedTransaction, InjectedTransactionAcceptance, SignedCompactTxReceipt,
         SignedInjectedTransaction,
     },
+    malachite::MB,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::ComputeEvent;
@@ -310,7 +311,7 @@ impl<T: Clone> KickingStream<EventReceiver<T>> {
 
 impl TestingEventReceiver {
     #[allow(dead_code)]
-    pub async fn find_block_synced(&mut self) -> H256 {
+    pub async fn find_block_synced(&mut self) -> HashOf<EB> {
         self.find_map(|event| {
             if let TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) = event {
                 Some(block_hash)
@@ -324,7 +325,7 @@ impl TestingEventReceiver {
     /// Drive the compute stream forward until a `BlockPrepared(target)` event
     /// arrives.
     #[allow(dead_code)]
-    pub async fn find_block_prepared(&mut self, target: H256) -> H256 {
+    pub async fn find_block_prepared(&mut self, target: HashOf<EB>) -> HashOf<EB> {
         self.find_map(|event| match event {
             TestingEvent::Compute(ComputeEvent::BlockPrepared(h)) if h == target => Some(h),
             _ => None,
@@ -334,7 +335,7 @@ impl TestingEventReceiver {
 
     /// Wait until any MB becomes computed, returning its hash.
     #[allow(dead_code)]
-    pub async fn find_any_mb_computed(&mut self) -> H256 {
+    pub async fn find_any_mb_computed(&mut self) -> HashOf<MB> {
         self.find_map(|event| match event {
             TestingEvent::Compute(ComputeEvent::MbComputed(mb_hash)) => Some(mb_hash),
             _ => None,
@@ -348,7 +349,7 @@ impl TestingEventReceiver {
     /// ancestor of this MB's `last_advanced_eb` (i.e., it sits inside
     /// the eth-chain segment this MB advanced over).
     #[allow(dead_code)]
-    pub async fn wait_till_eth_block_finalized_in_mb(&mut self, target_eth_block: H256) {
+    pub async fn wait_till_eth_block_finalized_in_mb(&mut self, target_eth_block: HashOf<EB>) {
         self.find_map_with_db(|db, event| {
             let TestingEvent::Malachite(MalachiteEvent::BlockFinalized { mb_hash, .. }) = event
             else {
@@ -361,7 +362,7 @@ impl TestingEventReceiver {
             // Anchor: previous MB's `last_advanced_eb` (genesis if none).
             let prev_advanced = match db.mb_compact_block(mb_hash) {
                 Some(c) if !c.parent.is_zero() => db.mb_meta(c.parent).last_advanced_eb,
-                _ => H256::zero(),
+                _ => HashOf::<EB>::zero(),
             };
             // Walk the eth chain from this MB's `last_advanced_eb` back to
             // the previous anchor; if the target is in that segment, the MB

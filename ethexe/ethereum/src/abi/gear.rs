@@ -24,7 +24,7 @@ impl From<ChainCommitment> for Gear::ChainCommitment {
         Self {
             transitions: value.transitions.into_iter().map(Into::into).collect(),
             head: value.head.0.into(),
-            lastAdvancedEthBlock: value.last_advanced_eth_block.0.into(),
+            lastAdvancedEthBlock: value.last_advanced_eth_block.inner().0.into(),
         }
     }
 }
@@ -93,7 +93,7 @@ impl From<RewardsCommitment> for Gear::RewardsCommitment {
 impl From<BatchCommitment> for Gear::BatchCommitment {
     fn from(value: BatchCommitment) -> Self {
         Self {
-            blockHash: value.block_hash.0.into(),
+            blockHash: value.block_hash.inner().0.into(),
             blockTimestamp: u64_to_uint48_lossy(value.timestamp),
             previousCommittedBatchHash: value.previous_batch.0.into(),
             expiry: value.expiry,

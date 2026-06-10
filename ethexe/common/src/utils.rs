@@ -1,8 +1,10 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::db::{BlockMeta, BlockMetaStorageRW, OnChainStorageRW, PreparedBlockData};
-use gprimitives::H256;
+use crate::{
+    EB, HashOf,
+    db::{BlockMeta, BlockMetaStorageRW, OnChainStorageRW, PreparedBlockData},
+};
 
 /// Decodes hexed string to a byte array.
 pub fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N], hex::FromHexError> {
@@ -25,7 +27,7 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
 
 pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db: &DB,
-    block_hash: H256,
+    block_hash: HashOf<EB>,
     block_data: PreparedBlockData,
 ) {
     db.set_block_header(block_hash, block_data.header);
