@@ -1,5 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-pragma solidity ^0.8.33;
+pragma solidity ^0.8.35;
 
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
@@ -405,6 +406,11 @@ library Gear {
          *      This extra fee is paid in WVARA ERC20 token.
          */
         uint256 requestCodeValidationExtraFee;
+        /**
+         * @notice The version of the protocol, used by nodes.
+         * @dev This contains the version of the protocol, which can be used by nodes.
+         */
+        uint256 protocolVersion;
     }
 
     /**
@@ -535,6 +541,15 @@ library Gear {
     enum SignatureType {
         FROST,
         ECDSA
+    }
+
+    /**
+     * @dev Represents the type of version in `Router`.
+     */
+    enum VersionType {
+        Major,
+        Minor,
+        Patch
     }
 
     /**

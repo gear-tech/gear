@@ -908,6 +908,16 @@ impl RouterQuery {
         Ok(extra_fee.try_into().expect("infallible"))
     }
 
+    pub async fn protocol_version(&self) -> Result<(u8, u8, u8)> {
+        let protocol_version: u64 = self
+            .instance
+            .protocolVersion()
+            .call()
+            .await
+            .map(|res| res.to())?;
+        Ok(Ethereum::decode_protocol_version(protocol_version))
+    }
+
     pub async fn timelines(&self) -> Result<Timelines> {
         self.instance
             .timelines()
