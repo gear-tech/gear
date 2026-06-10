@@ -73,8 +73,13 @@ impl BatchCommitmentManager {
         if !latest_finalized_mb.is_zero() {
             let latest_advanced = self.db.mb_meta(latest_finalized_mb).last_advanced_eb;
             if !crate::utils::is_eth_block_canonical_to(&self.db, latest_advanced, block.hash)? {
-                // Eth reorged deeper than canonical_quarantine past a finalized
-                // MB; commitments stall until Eth reverts.
+                // The latest finalized MB advanced to an Eth block on a stale
+                // branch (Eth reorg deeper than canonical_quarantine). Since
+                // finalized MBs are immutable, this contaminates every future
+                // commitment until Eth reverts; refuse to submit anything.
+                //
+                // TODO: +_+_+ implement bad-block compensation that reverts/recovers
+                // from a stale finalized advance instead of stalling.
                 tracing::error!(
                     %latest_finalized_mb,
                     %latest_advanced,
