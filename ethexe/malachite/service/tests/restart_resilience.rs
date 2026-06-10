@@ -28,9 +28,13 @@ use ethexe_db::Database;
 use ethexe_malachite::{
     MalachiteConfig, MalachiteEvent, MalachiteService, Mempool, TxInsertionStatus, ValidatorEntry,
 };
+use ethexe_malachite_core::{
+    EngineNetworkMsg, MalachiteCtx, NetworkEvent, NetworkMsg, NetworkRef, Subscriber,
+};
 use futures::StreamExt as _;
 use gprimitives::H256;
 use gsigner::{Signer, schemes::secp256k1::Secp256k1};
+use tokio::sync::mpsc;
 
 /// Test-local no-op mempool. The crate's own [`EmptyMempool`] is not part
 /// of the public API on purpose — production should never assemble a
@@ -116,21 +120,14 @@ fn build_signer(home: &Path) -> (Signer<Secp256k1>, gsigner::schemes::secp256k1:
 
 /// Build the MalachiteConfig used by the resilience tests:
 /// quarantine-off (so the producer can advance immediately on each
-/// new chain head), default listen address, no persistent peers,
-/// single-validator set so the local node can decide on its own.
-fn build_config(
-    home: &Path,
-    listen_port: u16,
-    pub_key: gsigner::schemes::secp256k1::PublicKey,
-) -> MalachiteConfig {
+/// new chain head), no persistent peers, single-validator set so the
+/// local node can decide on its own.
+fn build_config(home: &Path, pub_key: gsigner::schemes::secp256k1::PublicKey) -> MalachiteConfig {
     MalachiteConfig {
         gas_allowance: MalachiteConfig::DEFAULT_GAS_ALLOWANCE,
         canonical_quarantine: 0,
         post_quarantine_delay: 0,
-        listen_addr: std::net::SocketAddr::new(
-            std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
-            listen_port,
-        ),
+        propose_timeout: MalachiteConfig::DEFAULT_PROPOSE_TIMEOUT,
         home_dir: home.to_path_buf(),
         persistent_peers: Vec::new(),
         validators: vec![ValidatorEntry {
@@ -138,6 +135,113 @@ fn build_config(
             voting_power: 1,
         }],
     }
+}
+
+async fn fake_network_parts() -> (
+    NetworkRef<MalachiteCtx>,
+    mpsc::Sender<NetworkMsg<MalachiteCtx>>,
+) {
+    struct FakeNetwork;
+
+    struct FakeNetworkState {
+        peer_id: malachitebft_network::PeerId,
+        subscribers: Vec<Box<dyn Subscriber<NetworkEvent<MalachiteCtx>>>>,
+    }
+
+    impl FakeNetworkState {
+        fn publish(&self, event: NetworkEvent<MalachiteCtx>) {
+            for subscriber in &self.subscribers {
+                subscriber.send(event.clone());
+            }
+        }
+    }
+
+    #[async_trait]
+    impl ractor::Actor for FakeNetwork {
+        type Msg = EngineNetworkMsg<MalachiteCtx>;
+        type State = FakeNetworkState;
+        type Arguments = ();
+
+        async fn pre_start(
+            &self,
+            _myself: ractor::ActorRef<Self::Msg>,
+            _args: Self::Arguments,
+        ) -> Result<Self::State, ractor::ActorProcessingErr> {
+            Ok(FakeNetworkState {
+                peer_id: "12D3KooWKiS7cyTXeAaNR3q1i5DqsnVRKN34vTXBJG5VewmwoaV3"
+                    .parse()
+                    .expect("valid peer id"),
+                subscribers: Vec::new(),
+            })
+        }
+
+        async fn handle(
+            &self,
+            _myself: ractor::ActorRef<Self::Msg>,
+            msg: Self::Msg,
+            state: &mut Self::State,
+        ) -> Result<(), ractor::ActorProcessingErr> {
+            match msg {
+                EngineNetworkMsg::Subscribe(subscriber) => {
+                    subscriber.send(NetworkEvent::Listening(
+                        "/memory/0".parse().expect("valid memory multiaddr"),
+                    ));
+                    state.subscribers.push(subscriber);
+                }
+                EngineNetworkMsg::PublishConsensusMsg(message) => match message {
+                    malachitebft_core_consensus::SignedConsensusMsg::Vote(vote) => {
+                        state.publish(NetworkEvent::Vote(state.peer_id, vote));
+                    }
+                    malachitebft_core_consensus::SignedConsensusMsg::Proposal(proposal) => {
+                        state.publish(NetworkEvent::Proposal(state.peer_id, proposal));
+                    }
+                },
+                EngineNetworkMsg::PublishLivenessMsg(message) => match message {
+                    malachitebft_core_consensus::LivenessMsg::PolkaCertificate(certificate) => {
+                        state.publish(NetworkEvent::PolkaCertificate(state.peer_id, certificate));
+                    }
+                    malachitebft_core_consensus::LivenessMsg::SkipRoundCertificate(certificate) => {
+                        state.publish(NetworkEvent::RoundCertificate(state.peer_id, certificate));
+                    }
+                    malachitebft_core_consensus::LivenessMsg::Vote(vote) => {
+                        state.publish(NetworkEvent::Vote(state.peer_id, vote));
+                    }
+                },
+                EngineNetworkMsg::PublishProposalPart(part) => {
+                    state.publish(NetworkEvent::ProposalPart(state.peer_id, part));
+                }
+                EngineNetworkMsg::BroadcastStatus(status) => {
+                    state.publish(NetworkEvent::Status(state.peer_id, status));
+                }
+                EngineNetworkMsg::DumpState(reply) => {
+                    let _ = reply.send(None);
+                }
+                EngineNetworkMsg::UpdatePersistentPeers(_, reply) => {
+                    let _ = reply.send(Ok(()));
+                }
+                EngineNetworkMsg::OutgoingRequest(_, _, _)
+                | EngineNetworkMsg::OutgoingResponse(_, _)
+                | EngineNetworkMsg::UpdateValidatorSet(_)
+                | EngineNetworkMsg::ValidatorProofVerified { .. }
+                | EngineNetworkMsg::NewEvent(_) => {}
+            }
+            Ok(())
+        }
+    }
+
+    let (network_ref, _join) = ractor::Actor::spawn(None, FakeNetwork, ())
+        .await
+        .expect("fake network actor starts");
+    let (tx_network, mut rx_network) = mpsc::channel::<NetworkMsg<MalachiteCtx>>(32);
+    tokio::spawn({
+        let network_ref = network_ref.clone();
+        async move {
+            while let Some(message) = rx_network.recv().await {
+                let _ = network_ref.cast(message.into());
+            }
+        }
+    });
+    (network_ref, tx_network)
 }
 
 /// Drain the service stream until at least `target` finalize events
@@ -213,11 +317,14 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     let (signer, pub_key) = build_signer(home.path());
 
     // ---- first run -------------------------------------------------
+    let (network_ref, tx_network) = fake_network_parts().await;
     let mut svc = MalachiteService::new(
-        build_config(home.path(), 30_001, pub_key),
+        build_config(home.path(), pub_key),
         db.clone(),
         signer.clone(),
         Some(pub_key),
+        network_ref,
+        tx_network,
         Arc::new(EmptyMempool),
     )
     .await
@@ -250,16 +357,15 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     // and would race the second `MalachiteService::new` against the
     // RocksDB advisory lock.
     svc.shutdown().await;
-    // libp2p TCP listener still takes a moment past the actor kill
-    // to free the port; we re-bind to the same address below.
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
     // ---- second run on the SAME home dir + DB ----------------------
+    let (network_ref, tx_network) = fake_network_parts().await;
     let mut svc2 = MalachiteService::new(
-        build_config(home.path(), 30_001, pub_key),
+        build_config(home.path(), pub_key),
         db.clone(),
         signer,
         Some(pub_key),
+        network_ref,
+        tx_network,
         Arc::new(EmptyMempool),
     )
     .await

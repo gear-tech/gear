@@ -4,8 +4,8 @@
 //! # Ethexe Malachite
 //!
 //! Ethexe-side glue around `ethexe-malachite-core`, the generic Malachite BFT /
-//! Tendermint-style consensus engine. BFT voting, gossip, peer discovery, and
-//! persistence all live in the core crate; this crate provides the public
+//! Tendermint-style consensus engine. BFT voting and persistence live in the
+//! core crate; this crate provides the public
 //! [`MalachiteService`] facade, the producer-side [`Mempool`] abstraction, per-
 //! transaction validity checking, and translation of engine callbacks into
 //! [`MalachiteEvent`]s.
@@ -35,7 +35,7 @@
 //! ## Caller Invariants
 //!
 //! - Construct with `MalachiteService::new(config, db, signer, validator_pub_key,
-//!   mempool)`. A `Some` key starts a `Validator` and must appear in
+//!   network_ref, tx_network, mempool)`. A `Some` key starts a `Validator` and must appear in
 //!   `config.validators`; `None` starts a gossip/sync-only `FullNode`. `new`
 //!   returns `Err` if `config.validators` is empty or the local key is absent.
 //! - `BlockProposal` is always emitted before the matching `BlockFinalized` for a
@@ -66,9 +66,7 @@ pub use ethexe_common::{
     injected::SignedInjectedTransaction,
     malachite::{Operation, Operations},
 };
-pub use ethexe_malachite_core::{
-    Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
-};
+pub use ethexe_malachite_core::{MalachiteCtx, Multiaddr, ScaleCodec};
 pub use gprimitives::H256;
 
 /// Ethexe-shaped commit certificate; `block_hash` is the Blake2b envelope hash.

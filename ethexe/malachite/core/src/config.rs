@@ -3,7 +3,7 @@
 
 //! Service configuration.
 
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 pub use malachitebft_app_channel::app::net::Multiaddr;
 
@@ -51,9 +51,6 @@ pub enum NodeRole {
 /// live behind [`crate::Externalities`] — they don't belong here.
 #[derive(Clone, Debug)]
 pub struct MalachiteConfig {
-    /// Local libp2p listen address.
-    pub listen_addr: SocketAddr,
-
     /// Application's project base directory. The service carves out
     /// `<base>/malachite/` and owns everything inside it: the
     /// consensus WAL (`consensus.wal`) and the RocksDB store
@@ -70,11 +67,10 @@ pub struct MalachiteConfig {
     /// service spawns).
     pub base: PathBuf,
 
-    /// Multiaddrs the local node should keep persistent connections
-    /// to. Each entry must include the `/p2p/<peer_id>` suffix so the
-    /// swarm knows who to expect on the other side. Discovery is off,
-    /// so multi-validator deployments need every node's multiaddr
-    /// listed (or at least transitively reachable).
+    /// Shared-network multiaddrs the Malachite consensus lane should
+    /// treat as persistent peers. Each entry must include the shared
+    /// `/p2p/<peer_id>` suffix. The shared `ethexe-network` service
+    /// owns dialing, listener state, and peer identity.
     pub persistent_peers: Vec<Multiaddr>,
 
     /// This node's secp256k1 secret. Used (after a domain-separated
@@ -106,13 +102,4 @@ impl MalachiteConfig {
     /// should override this when they have a faster or slower
     /// block-production deadline.
     pub const DEFAULT_PROPOSE_TIMEOUT: Duration = Duration::from_secs(13);
-
-    /// Default libp2p listen address — `0.0.0.0:20334`. Sits next to
-    /// the typical 20333/udp QUIC port commonly used for
-    /// application-level networking, but on TCP since malachite's
-    /// default transport is TCP.
-    pub const DEFAULT_LISTEN_ADDR: SocketAddr = SocketAddr::new(
-        std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
-        20334,
-    );
 }

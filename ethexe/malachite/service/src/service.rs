@@ -30,6 +30,7 @@ use ethexe_common::{
     injected::SignedInjectedTransaction,
 };
 use ethexe_db::Database;
+use ethexe_malachite_core::{MalachiteCtx, NetworkMsg, NetworkRef};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use gsigner::{Signer, schemes::secp256k1::Secp256k1};
@@ -90,6 +91,8 @@ impl MalachiteService {
     ///   provides the libp2p peer identity in that case.
     /// - `db` — shared ethexe [`Database`] used by the externalities
     ///   to persist MBs and walk parent links.
+    /// - `network_ref` / `tx_network` — custom Malachite network
+    ///   parts supplied by the shared `ethexe-network` service.
     /// - `mempool` — source of injected user transactions for the
     ///   producer; also the sink for [`Self::receive_injected_transaction`].
     pub async fn new(
@@ -97,13 +100,18 @@ impl MalachiteService {
         db: Database,
         signer: Signer<Secp256k1>,
         validator_pub_key: Option<gsigner::schemes::secp256k1::PublicKey>,
+        network_ref: NetworkRef<MalachiteCtx>,
+        tx_network: mpsc::Sender<NetworkMsg<MalachiteCtx>>,
         mempool: Arc<dyn Mempool>,
     ) -> Result<Self> {
         tracing::info!(
-            listen = %config.listen_addr,
             persistent_peers = config.persistent_peers.len(),
             validators = config.validators.len(),
-            role = if validator_pub_key.is_some() { "validator" } else { "full" },
+            role = if validator_pub_key.is_some() {
+                "validator"
+            } else {
+                "full"
+            },
             "Bootstrapping Malachite engine",
         );
 
@@ -140,14 +148,12 @@ impl MalachiteService {
         // and travel into the externalities; they never reach
         // ethexe-malachite-core.
         let svc_cfg = ethexe_malachite_core::MalachiteConfig {
-            listen_addr: config.listen_addr,
             base: config.home_dir.clone(),
             persistent_peers: config.persistent_peers.clone(),
             validator_secret,
             validators: config.validators.clone(),
             role,
-            // Producer waits up to one Ethereum slot for a fresh EB past quarantine.
-            propose_timeout: alloy::eips::merge::SLOT_DURATION,
+            propose_timeout: config.propose_timeout,
         };
 
         let chain_head = Arc::new(RwLock::new(None));
@@ -173,10 +179,14 @@ impl MalachiteService {
             .map(|v| (v.public_key.to_address(), v.public_key))
             .collect();
 
-        let inner =
-            ethexe_malachite_core::MalachiteService::new(svc_cfg, Arc::clone(&externalities))
-                .await
-                .map_err(|e| anyhow!("starting ethexe-malachite-core: {e}"))?;
+        let inner = ethexe_malachite_core::MalachiteService::new(
+            svc_cfg,
+            network_ref,
+            tx_network,
+            Arc::clone(&externalities),
+        )
+        .await
+        .map_err(|e| anyhow!("starting ethexe-malachite-core: {e}"))?;
 
         Ok(Self {
             events_rx,

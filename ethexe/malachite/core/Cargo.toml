@@ -52,6 +52,7 @@ gear-workspace-hack.workspace = true
 [dev-dependencies]
 advisory-lock.workspace = true
 proptest.workspace = true
+ractor.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

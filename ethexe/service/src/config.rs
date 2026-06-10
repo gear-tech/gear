@@ -9,7 +9,7 @@ use ethexe_network::NetworkConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use gsigner::secp256k1::{Address, PublicKey};
-use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
+use std::{collections::BTreeMap, path::PathBuf, str::FromStr, time::Duration};
 
 #[derive(Debug)]
 pub struct Config {
@@ -26,13 +26,8 @@ pub struct Config {
 /// (home directory, mempool) are filled in by the service itself.
 #[derive(Clone, Debug)]
 pub struct MalachiteCliConfig {
-    /// Listen address for the Malachite libp2p TCP swarm.
-    pub listen_addr: SocketAddr,
-    /// Persistent peers the local Malachite swarm should always
-    /// connect to. Each entry must include a `/p2p/<peer_id>` suffix.
-    /// Discovery is currently disabled, so for a multi-validator
-    /// deployment every peer must be listed (or transitively
-    /// reachable through the listed ones).
+    /// Shared-network peers the Malachite consensus lane should keep
+    /// connected to. Multiaddrs use the shared `ethexe-network` peer id.
     pub persistent_peers: Vec<Multiaddr>,
     /// Map from validator Ethereum [`Address`] to its Malachite
     /// secp256k1 [`PublicKey`]. The on-chain Router contract stores
@@ -48,7 +43,6 @@ pub struct MalachiteCliConfig {
 impl Default for MalachiteCliConfig {
     fn default() -> Self {
         Self {
-            listen_addr: ethexe_malachite::MalachiteConfig::DEFAULT_LISTEN_ADDR,
             persistent_peers: Vec::new(),
             validator_pub_keys: BTreeMap::new(),
         }

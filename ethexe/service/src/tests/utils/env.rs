@@ -38,10 +38,13 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
-    ValidatorEntry, derive_libp2p_secret, malachite_libp2p_peer_id,
+    InjectedTxMempool, MalachiteConfig, MalachiteService, Multiaddr as MalachiteMultiaddr,
+    ValidatorEntry,
 };
-use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
+use ethexe_network::{
+    NetworkConfig, NetworkRuntimeConfig, NetworkService,
+    export::{Multiaddr, PeerId},
+};
 use ethexe_observer::{
     ObserverConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
@@ -73,6 +76,7 @@ use tracing::Instrument;
 
 /// Max network services which can be created by one test environment.
 const MAX_NETWORK_SERVICES_PER_TEST: usize = 1000;
+const INTERNAL_NETWORK_MEMORY_ADDR_BASE: usize = 1_000_000_000;
 
 /// Pre-allocated malachite endpoint: TCP port + deterministic peer-id.
 #[derive(Clone, Debug)]
@@ -83,6 +87,10 @@ pub struct MalachiteEndpoint {
 }
 
 impl MalachiteEndpoint {
+    pub fn listen_multiaddr(&self) -> Multiaddr {
+        tcp_multiaddr(self.listen_addr)
+    }
+
     pub fn multiaddr(&self) -> MalachiteMultiaddr {
         format!(
             "/ip4/{}/tcp/{}/p2p/{}",
@@ -93,6 +101,23 @@ impl MalachiteEndpoint {
         .parse()
         .expect("constructed multiaddr is well-formed")
     }
+}
+
+fn tcp_multiaddr(addr: SocketAddr) -> Multiaddr {
+    format!("/ip4/{}/tcp/{}", addr.ip(), addr.port())
+        .parse()
+        .expect("constructed multiaddr is well-formed")
+}
+
+fn next_internal_network_address() -> Multiaddr {
+    static NONCE: AtomicUsize = AtomicUsize::new(1);
+
+    format!(
+        "/memory/{}",
+        INTERNAL_NETWORK_MEMORY_ADDR_BASE + NONCE.fetch_add(1, Ordering::SeqCst)
+    )
+    .parse()
+    .expect("constructed memory multiaddr is well-formed")
 }
 
 pub struct TestEnv {
@@ -147,13 +172,8 @@ fn build_malachite_endpoints(
         .map(|(v, listener)| {
             let listen_addr = listener.local_addr().expect("local_addr");
             listener_map.insert(v.public_key, listener);
-            let secret = signer
-                .private_key(v.public_key)
-                .expect("validator key in keyring")
-                .to_bytes();
-            let peer_id = malachite_libp2p_peer_id(&secret);
-            // Pull `derive_libp2p_secret` into scope to pin the engine's derivation invariant.
-            let _ = derive_libp2p_secret;
+            let _ = signer;
+            let peer_id = network_peer_id(signer, v.public_key);
             MalachiteEndpoint {
                 pub_key: v.public_key,
                 listen_addr,
@@ -163,6 +183,19 @@ fn build_malachite_endpoints(
         .collect();
 
     (endpoints, listener_map)
+}
+
+fn network_peer_id(signer: &Signer, public_key: PublicKey) -> PeerId {
+    let mut secret = signer
+        .private_key(public_key)
+        .expect("network key in keyring")
+        .to_bytes();
+    let secret = libp2p_identity::secp256k1::SecretKey::try_from_bytes(&mut secret)
+        .expect("signer provided invalid secp256k1 secret");
+    let keypair = libp2p_identity::secp256k1::Keypair::from(secret);
+    libp2p_identity::Keypair::from(keypair)
+        .public()
+        .to_peer_id()
 }
 
 impl TestEnv {
@@ -478,9 +511,14 @@ impl TestEnv {
             })
             .unzip();
         let network_public_key = network_address.as_ref().map(|_| {
-            self.signer
-                .generate()
-                .expect("failed to generate network key")
+            validator_config
+                .as_ref()
+                .map(|config| config.public_key)
+                .unwrap_or_else(|| {
+                    self.signer
+                        .generate()
+                        .expect("failed to generate network key")
+                })
         });
 
         // Allocate once: stop+start reuses the same WAL/store.
@@ -1122,6 +1160,67 @@ impl Node {
 
         let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
 
+        let (sender, receiver) = events::channel(self.db.clone(), self.kicking_per_blocks.clone());
+
+        let consensus_config = ConsensusLayerConfig {
+            ethereum_rpc: self.eth_cfg.rpc.clone(),
+            ethereum_beacon_rpc: self.eth_cfg.beacon_rpc.clone(),
+            beacon_block_time: self.eth_cfg.block_time,
+            attempts: NonZero::<u8>::new(3).unwrap(),
+        };
+        let blob_loader = BlobLoader::new(self.db.clone(), consensus_config)
+            .await
+            .expect("failed to create blob loader")
+            .into_box();
+
+        let wait_for_network = self.network_bootstrap_address.is_some();
+
+        let local_malachite_listen_addr = self.validator_config.as_ref().and_then(|config| {
+            self.malachite_endpoints
+                .iter()
+                .find(|e| e.pub_key == config.public_key)
+                .map(MalachiteEndpoint::listen_multiaddr)
+        });
+        drop(self.malachite_listener.take());
+
+        let mut listen_addresses = Vec::new();
+        let mut external_addresses = Vec::new();
+        if let Some(addr) = self.network_address.as_ref() {
+            let addr: Multiaddr = addr.parse().unwrap();
+            listen_addresses.push(addr.clone());
+            external_addresses.push(addr);
+        } else {
+            listen_addresses.push(next_internal_network_address());
+        }
+        if let Some(addr) = local_malachite_listen_addr {
+            listen_addresses.push(addr.clone());
+            external_addresses.push(addr);
+        }
+
+        let network_key = self.network_public_key.unwrap_or_else(|| {
+            self.validator_config
+                .as_ref()
+                .map(|config| config.public_key)
+                .unwrap_or_else(|| {
+                    self.signer
+                        .generate()
+                        .expect("failed to generate internal network key")
+                })
+        });
+
+        let mut network = self.construct_network_service(
+            latest_block,
+            latest_validators,
+            network_key,
+            listen_addresses,
+            external_addresses,
+            self.network_bootstrap_address.as_deref(),
+        );
+        if let Some(addr) = self.network_address.as_ref() {
+            let peer_id = network.local_peer_id();
+            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
+        }
+
         // Validators and full/RPC nodes both join the Malachite mesh.
         // Full nodes run in `NodeRole::FullNode` (no signing) but still
         // receive `BlockFinalized` and trigger local compute so promise
@@ -1136,41 +1235,30 @@ impl Node {
                 .filter(|e| self.active_validator_pub_keys.contains(&e.pub_key))
                 .collect();
 
-            let (listen_addr, persistent_peers) = match self.validator_config.as_ref() {
+            let persistent_peers: Vec<MalachiteMultiaddr> = match self.validator_config.as_ref() {
                 Some(config) => {
-                    let me = self
-                        .malachite_endpoints
-                        .iter()
-                        .find(|e| e.pub_key == config.public_key)
-                        .cloned()
-                        .expect(
-                            "validator's malachite endpoint missing — env not aware of this key",
-                        );
                     assert!(
                         active.iter().any(|e| e.pub_key == config.public_key),
                         "test setup bug: local validator {} not in env.validators when start_service was called",
                         config.public_key,
                     );
-                    let peers: Vec<MalachiteMultiaddr> = active
+                    active
                         .iter()
                         .filter(|e| e.pub_key != config.public_key)
                         .map(|e| e.multiaddr())
-                        .collect();
-                    (me.listen_addr, peers)
+                        .collect()
                 }
-                None => {
-                    // Full node: bind a fresh port, dial every active
-                    // validator. No reserved listener since `new_node`
-                    // never allocated one for this key.
-                    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-                        .expect("bind 127.0.0.1:0 for full-node malachite endpoint");
-                    let addr = listener.local_addr().expect("local_addr");
-                    let peers: Vec<MalachiteMultiaddr> =
-                        active.iter().map(|e| e.multiaddr()).collect();
-                    drop(listener);
-                    (addr, peers)
-                }
+                None => active.iter().map(|e| e.multiaddr()).collect(),
             };
+
+            let malachite_network = network
+                .register_malachite_lane_with_persistent_peers::<
+                    ethexe_malachite::MalachiteCtx,
+                    ethexe_malachite::ScaleCodec,
+                >(ethexe_malachite::ScaleCodec, persistent_peers.clone())
+                .await
+                .expect("register Malachite lane");
+            let (network_ref, tx_network) = malachite_network.into_engine_parts();
 
             let validators: Vec<ValidatorEntry> = active
                 .iter()
@@ -1189,46 +1277,25 @@ impl Node {
                 .to_path_buf();
 
             let mut mc = MalachiteConfig::from_home_dir(home_path)
-                .with_listen_addr(listen_addr)
                 .with_persistent_peers(persistent_peers)
                 .with_validators(validators);
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
+            mc.propose_timeout = Duration::from_secs(2);
             let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
-            // Release the port-reservation listener moments before libp2p rebinds.
-            drop(self.malachite_listener.take());
             let svc = MalachiteService::new(
                 mc,
                 self.db.clone(),
                 self.signer.clone(),
                 self.validator_config.as_ref().map(|c| c.public_key),
+                network_ref,
+                tx_network,
                 mempool,
             )
             .await
             .expect("MalachiteService::new");
             Some(svc)
         };
-
-        let (sender, receiver) = events::channel(self.db.clone(), self.kicking_per_blocks.clone());
-
-        let consensus_config = ConsensusLayerConfig {
-            ethereum_rpc: self.eth_cfg.rpc.clone(),
-            ethereum_beacon_rpc: self.eth_cfg.beacon_rpc.clone(),
-            beacon_block_time: self.eth_cfg.block_time,
-            attempts: NonZero::<u8>::new(3).unwrap(),
-        };
-        let blob_loader = BlobLoader::new(self.db.clone(), consensus_config)
-            .await
-            .expect("failed to create blob loader")
-            .into_box();
-
-        let wait_for_network = self.network_bootstrap_address.is_some();
-
-        let network = self.construct_network_service(latest_block, latest_validators);
-        if let Some(addr) = self.network_address.as_ref() {
-            let peer_id = network.as_ref().unwrap().local_peer_id();
-            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
-        }
 
         let rpc = self
             .service_rpc_config
@@ -1245,7 +1312,7 @@ impl Node {
             self.signer.clone(),
             consensus,
             malachite,
-            network,
+            Some(network),
             None,
             rpc,
             sender,
@@ -1342,23 +1409,20 @@ impl Node {
         &self,
         latest_block: SimpleBlockData,
         latest_validators: ValidatorsVec,
-    ) -> Option<NetworkService> {
+        network_key: PublicKey,
+        listen_addresses: Vec<Multiaddr>,
+        external_addresses: Vec<Multiaddr>,
+        bootstrap_address: Option<&str>,
+    ) -> NetworkService {
         assert!(
             self.running_service_handle.is_none(),
             "Network service is already running"
         );
 
-        let addr = self.network_address.as_ref()?;
-
-        let network_key = self
-            .network_public_key
-            .expect("network public key must exist when network is configured");
-        let multiaddr: Multiaddr = addr.parse().unwrap();
-
         let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
-        config.listen_addresses = [multiaddr.clone()].into();
-        config.external_addresses = [multiaddr.clone()].into();
-        if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
+        config.listen_addresses = listen_addresses.into_iter().collect();
+        config.external_addresses = external_addresses.into_iter().collect();
+        if let Some(bootstrap_addr) = bootstrap_address {
             let multiaddr = bootstrap_addr.parse().unwrap();
             config.bootstrap_addresses = [multiaddr].into();
         }
@@ -1375,7 +1439,7 @@ impl Node {
 
         let network = NetworkService::new(config, runtime_config).unwrap();
 
-        Some(network)
+        network
     }
 
     #[allow(dead_code)]
@@ -1411,9 +1475,22 @@ impl Node {
             )
             .unwrap();
 
-        let mut network = self
-            .construct_network_service(latest_block, latest_validators)
+        let addr = self
+            .network_address
+            .as_ref()
             .expect("network service is not configured");
+        let network_key = self
+            .network_public_key
+            .expect("network public key must exist when network is configured");
+        let multiaddr: Multiaddr = addr.parse().unwrap();
+        let mut network = self.construct_network_service(
+            latest_block,
+            latest_validators,
+            network_key,
+            vec![multiaddr.clone()],
+            vec![multiaddr],
+            self.network_bootstrap_address.as_deref(),
+        );
 
         network.publish_message(signed);
 

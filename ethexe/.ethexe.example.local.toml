@@ -250,19 +250,12 @@ block-time = 1
 ### Malachite BFT consensus service parameters.
 ### Required for validator nodes — Malachite drives MB ordering.
 [malachite]
-# Listen address for the Malachite consensus libp2p swarm.
-# This is a SEPARATE socket from `[network] listen-addr`: Malachite
-# uses TCP on its own port with a peer id derived deterministically
-# from the validator key, distinct from the ethexe-network peer id.
-# (optional, default: 0.0.0.0:20334).
-# listen-addr = "0.0.0.0:20334"
-
-# Persistent peer multiaddrs the Malachite swarm should always keep
-# connections to. Each entry must include a `/p2p/<peer_id>` suffix.
+# Shared-network peers the Malachite consensus lane should keep connected to.
+# These use the same `/p2p/{peer_id}` values as `[network].bootnodes`.
 # Example for a 3-node test on localhost:
 #   persistent-peers = [
-#     "/ip4/127.0.0.1/tcp/20335/p2p/12D3KooW...",
-#     "/ip4/127.0.0.1/tcp/20336/p2p/12D3KooW...",
+#     "/ip4/127.0.0.1/udp/20333/quic-v1/p2p/12D3KooW...",
+#     "/ip4/127.0.0.1/udp/20333/quic-v1/p2p/12D3KooW...",
 #   ]
 # (optional, default: empty list).
 # persistent-peers = []

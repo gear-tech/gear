@@ -36,7 +36,10 @@ gear-workspace-hack.workspace = true
 # Enable the `mock` feature on the in-mem database so tests can call
 # `Database::memory()` without `unsafe`.
 ethexe-db = { workspace = true, features = ["mock"] }
+malachitebft-core-consensus.workspace = true
+malachitebft-network.workspace = true
 proptest.workspace = true
+ractor.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "test-util", "time"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

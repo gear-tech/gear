@@ -443,7 +443,7 @@ impl Service {
             None
         };
 
-        let network = if let Some(net_config) = &config.network {
+        let mut network = if let Some(net_config) = &config.network {
             // TODO: #4918 create Signer object correctly for test/prod environments
             let network_signer = Signer::fs(
                 config
@@ -495,17 +495,25 @@ impl Service {
             .database_path_for(config.ethereum.router_address)
             .join("malachite");
         let mut malachite_base_config = MalachiteConfig::from_home_dir(malachite_home)
-            .with_listen_addr(config.malachite.listen_addr)
             .with_persistent_peers(config.malachite.persistent_peers.clone());
         // Must match the compute layer's quarantine or consensus deadlocks.
         malachite_base_config.canonical_quarantine = config.node.canonical_quarantine;
         malachite_base_config.post_quarantine_delay = config.node.post_quarantine_delay;
         log::info!(
-            "Malachite listen: {}  persistent_peers: {}",
-            malachite_base_config.listen_addr,
+            "Malachite persistent_peers: {}",
             malachite_base_config.persistent_peers.len(),
         );
         let malachite = {
+            let network = network
+                .as_mut()
+                .context("Malachite consensus requires ethexe-network to be enabled")?;
+            let malachite_network = network
+                .register_malachite_lane::<ethexe_malachite::MalachiteCtx, ethexe_malachite::ScaleCodec>(
+                    ethexe_malachite::ScaleCodec,
+                )
+                .await
+                .context("failed to register Malachite network lane")?;
+            let (network_ref, tx_network) = malachite_network.into_engine_parts();
             let malachite_validator_set = build_malachite_validator_set(
                 validators.iter().copied(),
                 &config.malachite.validator_pub_keys,
@@ -526,6 +534,8 @@ impl Service {
                     db.clone(),
                     signer.clone(),
                     validator_pub_key,
+                    network_ref,
+                    tx_network,
                     std::sync::Arc::new(InjectedTxMempool::new(db.clone())),
                 )
                 .await
