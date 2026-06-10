@@ -8,6 +8,7 @@ fn main() {
     // The WASM binary is used by the `oom_handler_works` pallet test.
     WasmBuilder::new()
         .exclude_features(vec!["std"])
+        // NOTE: Don't use this in production programs!
         .with_forced_nightly_toolchain()
         .build();
 }
