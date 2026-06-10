@@ -16,9 +16,7 @@
 //!    `globals.latest_finalized_mb_hash` is gap-free across the
 //!    restart boundary, and the latest pointer never rewinds.
 
-#![cfg(feature = "disable-tests")]
-
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{path::Path, time::Duration};
 
 use async_trait::async_trait;
 use ethexe_common::{
@@ -28,8 +26,8 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
-    MalachiteEvent, MalachiteService, MalachiteServiceConfig, Mempool, TxInsertionStatus,
-    ValidatorEntry,
+    MalachiteEvent, MalachiteService, MalachiteServiceConfig, MalachiteServiceStarter, Mempool,
+    TxInsertionStatus, ValidatorConfig, ValidatorEntry,
 };
 use futures::StreamExt as _;
 use gprimitives::H256;
@@ -143,6 +141,14 @@ fn build_config(
     }
 }
 
+/// Feed one chain head into the service: register it as the new head
+/// and immediately mark it synced (the test seeds all headers/events
+/// upfront, so "observed" and "synced" coincide here).
+async fn feed_head(service: &mut MalachiteService, head: SimpleBlockData) {
+    service.receive_new_chain_head(head).await;
+    service.receive_eb_synced(head.hash).await;
+}
+
 /// Drain the service stream until at least `target` finalize events
 /// have been observed or `budget` elapses. Each round of the loop
 /// feeds the next chain head from `pending_heads` BEFORE polling, so
@@ -165,7 +171,7 @@ async fn collect_until_finalized(
     // Push the first head right away so the producer can build the
     // genesis MB.
     if let Some(head) = pending_heads.next() {
-        service.receive_new_chain_head(head);
+        feed_head(service, head).await;
     }
     while tokio::time::Instant::now() < deadline {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -182,7 +188,7 @@ async fn collect_until_finalized(
                 // next round, so its quarantine-advance candidate
                 // moves forward.
                 if let Some(head) = pending_heads.next() {
-                    service.receive_new_chain_head(head);
+                    feed_head(service, head).await;
                 }
             }
             Ok(Some(Ok(MalachiteEvent::BlockProposal { .. }))) => {
@@ -216,13 +222,19 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     let (signer, pub_key) = build_signer(home.path());
 
     // ---- first run -------------------------------------------------
-    let mut svc = MalachiteService::new(
+    let mut svc = MalachiteServiceStarter::new(
         build_config(home.path(), 30_001, pub_key),
+        Some(ValidatorConfig {
+            pub_key,
+            mempool: EmptyMempool,
+            signer: signer.clone(),
+        }),
         db.clone(),
-        signer.clone(),
-        Some(pub_key),
-        Arc::new(EmptyMempool),
+        chain[0],
     )
+    .await
+    .expect("create malachite service starter")
+    .start()
     .await
     .expect("start malachite service");
 
@@ -258,13 +270,19 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // ---- second run on the SAME home dir + DB ----------------------
-    let mut svc2 = MalachiteService::new(
+    let mut svc2 = MalachiteServiceStarter::new(
         build_config(home.path(), 30_001, pub_key),
+        Some(ValidatorConfig {
+            pub_key,
+            mempool: EmptyMempool,
+            signer,
+        }),
         db.clone(),
-        signer,
-        Some(pub_key),
-        Arc::new(EmptyMempool),
+        chain[31],
     )
+    .await
+    .expect("create malachite service starter after restart")
+    .start()
     .await
     .expect("restart malachite service");
     let mut pending2 = chain[32..].iter().copied();

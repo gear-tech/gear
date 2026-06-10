@@ -592,17 +592,30 @@ impl EthexeExternalities {
     }
 }
 
-#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{MalachiteEvent, mempool::EmptyMempool};
     use anyhow::Context;
     use ethexe_common::{
-        BlockHeader,
+        BlockHeader, SimpleBlockData,
         db::{BlockMetaStorageRW, OnChainStorageRW},
         injected::PurgedTransaction,
     };
+    use tokio::sync::{Notify, mpsc};
+
+    fn make_chain_head() -> Arc<ChainHead> {
+        Arc::new(ChainHead {
+            latest: RwLock::new(SimpleBlockData::default()),
+            latest_synced: RwLock::new(SimpleBlockData::default()),
+            notify: Notify::new(),
+        })
+    }
+
+    async fn set_head(ext: &EthexeExternalities, head: SimpleBlockData) {
+        *ext.chain_head.latest.write().await = head;
+        *ext.chain_head.latest_synced.write().await = head;
+    }
 
     fn to_payload(bytes: Vec<u8>) -> BlockPayload {
         BlockPayload::try_from(bytes).expect("test payload within size cap")
@@ -640,11 +653,10 @@ mod tests {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let ext = EthexeExternalities {
             db,
-            mempool: Arc::new(EmptyMempool),
-            chain_head: Arc::new(RwLock::new(None)),
-            chain_head_notify: Arc::new(Notify::new()),
+            mempool: Some(Arc::new(EmptyMempool)),
+            chain_head: make_chain_head(),
             event_tx,
-            pending_events: Mutex::new(VecDeque::new()),
+            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 0,
@@ -963,7 +975,7 @@ mod tests {
             header: chain_hashes[2].1,
         };
         let (ext, _rx) = make_externalities(db.clone());
-        *ext.chain_head.write().unwrap() = Some(head);
+        set_head(&ext, head).await;
 
         let payload = Operations::new(vec![
             Operation::AdvanceTillEthereumBlock {
@@ -1052,11 +1064,10 @@ mod tests {
         let (event_tx, mut event_rx) = mpsc::unbounded_channel();
         let ext = EthexeExternalities {
             db: db.clone(),
-            mempool: Arc::clone(&tracker) as Arc<dyn Mempool>,
-            chain_head: Arc::new(RwLock::new(None)),
-            chain_head_notify: Arc::new(Notify::new()),
+            mempool: Some(Arc::clone(&tracker) as Arc<dyn Mempool>),
+            chain_head: make_chain_head(),
             event_tx,
-            pending_events: Mutex::new(VecDeque::new()),
+            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 0,
@@ -1120,11 +1131,10 @@ mod tests {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let ext = EthexeExternalities {
             db,
-            mempool: mempool as Arc<dyn Mempool>,
-            chain_head: Arc::new(RwLock::new(None)),
-            chain_head_notify: Arc::new(Notify::new()),
+            mempool: Some(mempool as Arc<dyn Mempool>),
+            chain_head: make_chain_head(),
             event_tx,
-            pending_events: Mutex::new(VecDeque::new()),
+            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 0,
@@ -1266,7 +1276,7 @@ mod tests {
         assert_eq!(mempool.len(), 1);
 
         let (ext, _rx) = make_externalities_with_pool(db, mempool);
-        *ext.chain_head.write().unwrap() = Some(head);
+        set_head(&ext, head).await;
 
         let payload = ext.build_operations(parent_mb).await.unwrap();
         let injected: Vec<_> = payload
@@ -1338,7 +1348,7 @@ mod tests {
         }
 
         let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
-        *ext.chain_head.write().unwrap() = Some(head);
+        set_head(&ext, head).await;
         // Force AdvanceTillEthereumBlock so eb_touched_programs walks events.
         // The producer reads chain_head_notify to pick its advance candidate;
         // since canonical_quarantine = 0, head's parent (block 9) is a valid
@@ -1400,7 +1410,7 @@ mod tests {
 
         let head = chain.blocks[10].to_simple();
         let (ext, _rx) = make_externalities(db.clone());
-        *ext.chain_head.write().unwrap() = Some(head);
+        set_head(&ext, head).await;
 
         // Craft an MB payload that adds N/2 fresh destinations on top
         // of the N/2+1 already touched by EB events → total > limit.
@@ -1482,7 +1492,7 @@ mod tests {
         assert_eq!(mempool.len(), 3);
 
         let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
-        *ext.chain_head.write().unwrap() = Some(head);
+        set_head(&ext, head).await;
 
         let payload = ext.build_operations(parent_mb).await.unwrap();
         let injected: Vec<_> = payload
@@ -1519,7 +1529,7 @@ mod tests {
     /// Helper: build a tiny chain with one block past quarantine and an
     /// `EthexeExternalities` whose chain_head points at it. Returns the
     /// ext + the advance block hash to use for `AdvanceTillEthereumBlock`.
-    fn chain_with_one_advance(
+    async fn chain_with_one_advance(
         db: Database,
     ) -> (
         EthexeExternalities,
@@ -1549,7 +1559,7 @@ mod tests {
         };
         let advance_hash = chain_hashes[1].0;
         let (ext, rx) = make_externalities(db);
-        *ext.chain_head.write().unwrap() = Some(head);
+        set_head(&ext, head).await;
         (ext, rx, advance_hash)
     }
 
@@ -1561,7 +1571,7 @@ mod tests {
     #[tokio::test]
     async fn validate_rejects_gas_allowance_above_default() {
         let db = Database::memory();
-        let (ext, _rx, advance) = chain_with_one_advance(db);
+        let (ext, _rx, advance) = chain_with_one_advance(db).await;
         let payload = Operations::new(vec![
             Operation::AdvanceTillEthereumBlock {
                 block_hash: advance,
@@ -1585,7 +1595,7 @@ mod tests {
     #[tokio::test]
     async fn validate_rejects_mb_missing_progress_tasks() {
         let db = Database::memory();
-        let (ext, _rx, advance) = chain_with_one_advance(db);
+        let (ext, _rx, advance) = chain_with_one_advance(db).await;
         let payload = Operations::new(vec![
             Operation::AdvanceTillEthereumBlock {
                 block_hash: advance,
@@ -1607,7 +1617,7 @@ mod tests {
     #[tokio::test]
     async fn validate_rejects_mb_missing_process_queues() {
         let db = Database::memory();
-        let (ext, _rx, advance) = chain_with_one_advance(db);
+        let (ext, _rx, advance) = chain_with_one_advance(db).await;
         let payload = Operations::new(vec![
             Operation::AdvanceTillEthereumBlock {
                 block_hash: advance,
@@ -1642,7 +1652,7 @@ mod tests {
         db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
 
         let (ext, _rx) = make_externalities(db.clone());
-        *ext.chain_head.write().unwrap() = Some(head);
+        set_head(&ext, head).await;
 
         let pk = PrivateKey::random();
         let tx = SignedMessage::create(
@@ -1677,7 +1687,7 @@ mod tests {
     #[tokio::test]
     async fn validate_rejects_process_queues_not_last() {
         let db = Database::memory();
-        let (ext, _rx, advance) = chain_with_one_advance(db);
+        let (ext, _rx, advance) = chain_with_one_advance(db).await;
         let payload = Operations::new(vec![
             Operation::AdvanceTillEthereumBlock {
                 block_hash: advance,
@@ -1744,7 +1754,7 @@ mod tests {
         });
 
         let (ext, _rx) = make_externalities(db.clone());
-        *ext.chain_head.write().unwrap() = Some(head);
+        set_head(&ext, head).await;
 
         // MB proposes Advance to chain[1] — strictly older than chain[3]
         // (parent's last_advanced_eb). `verify_passed` accepts (chain[1]
@@ -1807,7 +1817,7 @@ mod tests {
         let stranger_advance = H256::from([0xEE; 32]);
 
         let (ext, _rx) = make_externalities(db.clone());
-        *ext.chain_head.write().unwrap() = Some(head);
+        set_head(&ext, head).await;
 
         let payload = Operations::new(vec![
             Operation::AdvanceTillEthereumBlock {
@@ -1834,8 +1844,8 @@ mod tests {
     /// from the local chain head. With `(canonical_quarantine = 2,
     /// post_quarantine_delay = 3)` the candidate sits 5 blocks below
     /// head — exactly what we verify by walking parent links.
-    #[test]
-    fn producer_picks_anchor_at_canonical_plus_post_delay() {
+    #[tokio::test]
+    async fn producer_picks_anchor_at_canonical_plus_post_delay() {
         use ethexe_common::db::OnChainStorageRO;
 
         let db = Database::memory();
@@ -1873,20 +1883,21 @@ mod tests {
         let (event_tx, _event_rx) = mpsc::unbounded_channel();
         let ext = EthexeExternalities {
             db: db.clone(),
-            mempool: Arc::new(EmptyMempool),
-            chain_head: Arc::new(RwLock::new(Some(head))),
-            chain_head_notify: Arc::new(Notify::new()),
+            mempool: Some(Arc::new(EmptyMempool)),
+            chain_head: make_chain_head(),
             event_tx,
-            pending_events: Mutex::new(VecDeque::new()),
+            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 2,
                 post_quarantine_delay: 3,
             },
         };
+        set_head(&ext, head).await;
 
         let candidate = ext
             .find_eb_candidate_for_advancing(H256::zero())
+            .await
             .expect("must surface a candidate — chain is deep enough");
         // Walk back `2 + 3 = 5` parents from head; that's the expected
         // anchor.
