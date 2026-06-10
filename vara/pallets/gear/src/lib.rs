@@ -150,11 +150,6 @@ pub mod pallet {
         + pallet_timestamp::Config
         + pallet_gear_bank::Config
     {
-        /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type RuntimeEvent: From<Event<Self>>
-            + TryInto<Event<Self>>
-            + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-
         /// The generator used to supply randomness to programs through `seal_random`
         type Randomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 

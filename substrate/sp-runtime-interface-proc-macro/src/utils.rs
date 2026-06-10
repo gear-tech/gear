@@ -133,7 +133,7 @@ impl RuntimeInterfaceFunctionSet {
             .insert(version.version, RuntimeInterfaceFunction::new(trait_item)?);
         if self
             .latest_version_to_call
-            .map_or(true, |v| v < version.version)
+            .is_none_or(|v| v < version.version)
             && version.is_callable()
         {
             self.latest_version_to_call = Some(version.version);
@@ -234,7 +234,7 @@ pub fn get_function_arguments(sig: &Signature) -> impl Iterator<Item = PatType> 
                     wild.span(),
                 );
 
-                res.pat = Box::new(parse_quote!( #ident ))
+                *res.pat = parse_quote!( #ident )
             }
 
             res
@@ -372,7 +372,8 @@ pub fn host_inner_arg_ty(ty: &syn::Type) -> syn::Type {
 }
 
 pub fn pat_ty_to_host_inner(mut pat: syn::PatType) -> syn::PatType {
-    pat.ty = Box::new(host_inner_arg_ty(&pat.ty));
+    let ty = host_inner_arg_ty(&pat.ty);
+    *pat.ty = ty;
     pat
 }
 

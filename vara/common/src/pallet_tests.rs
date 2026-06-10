@@ -209,6 +209,7 @@ macro_rules! impl_pallet_staking {
             BlockNumber,
             pallet_staking::Pallet<Test>,
             ConstU32<100>,
+            ConstU32<100>,
         );
 
         #[allow(dead_code)]

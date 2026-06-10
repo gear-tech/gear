@@ -1335,13 +1335,13 @@ mod utils {
         TransactionValidityError,
     > {
         let extension = CustomChargeTransactionPayment::<Test>::from(0);
-        let implicit = extension.implicit()?;
+        extension.implicit()?;
         let (_, val, origin) = extension.validate(
             RuntimeOrigin::signed(*who),
             call,
             info,
             len,
-            implicit,
+            (),
             &TxBaseImplication(()),
             TransactionSource::External,
         )?;

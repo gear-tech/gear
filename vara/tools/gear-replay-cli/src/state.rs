@@ -173,7 +173,7 @@ where
                     .collect::<Result<Vec<_>, _>>()?;
                 Builder::<Block>::new().mode(Mode::Online(OnlineConfig {
                     at,
-                    transport: uri.to_owned().into(),
+                    transport_uris: vec![uri.to_owned()],
                     state_snapshot,
                     pallets: pallet.clone(),
                     child_trie: *child_tree,

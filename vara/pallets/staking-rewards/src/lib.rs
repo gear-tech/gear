@@ -100,9 +100,6 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config + pallet_staking::Config {
-        /// The overarching event type.
-        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-
         /// RuntimeCall filter that matches the `Staking::bond()` call
         type BondCallFilter: Contains<<Self as frame_system::Config>::RuntimeCall>;
 
@@ -429,17 +426,17 @@ fn pay_rent_rewards_out<T: Config>(maybe_active_era_info: Option<ActiveEraInfo>)
     let funds: u128 = pallet::Pallet::<T>::rent_pool_balance().unique_saturated_into();
     for (account_id, points) in reward_points.individual {
         let payout = funds.saturating_mul(u128::from(points)) / total;
-        if payout > 0 {
-            if let Err(e) = CurrencyOf::<T>::transfer(
+        if payout > 0
+            && let Err(e) = CurrencyOf::<T>::transfer(
                 &pallet::Pallet::<T>::rent_pool_account_id(),
                 &account_id,
                 payout.unique_saturated_into(),
                 Preservation::Preserve,
-            ) {
-                log::error!(
-                    "Failed to transfer rent reward: {e:?}; account_id = {account_id:#?}, points = {points}, payout = {payout}"
-                );
-            }
+            )
+        {
+            log::error!(
+                "Failed to transfer rent reward: {e:?}; account_id = {account_id:#?}, points = {points}, payout = {payout}"
+            );
         }
     }
 }

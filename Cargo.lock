@@ -21028,6 +21028,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
+ "sp-maybe-compressed-blob",
  "sp-offchain",
  "sp-runtime",
  "sp-session",

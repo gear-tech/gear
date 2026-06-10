@@ -50,12 +50,11 @@ where
         _: &impl Implication,
         _: TransactionSource,
     ) -> Result<(ValidTransaction, Self::Val, T::RuntimeOrigin), TransactionValidityError> {
-        if T::BondCallFilter::contains(call) {
-            if let Ok(from) = frame_system::ensure_signed(origin.clone()) {
-                if T::AccountFilter::contains(&from) {
-                    return Err(TransactionValidityError::Invalid(InvalidTransaction::Call));
-                }
-            }
+        if T::BondCallFilter::contains(call)
+            && let Ok(from) = frame_system::ensure_signed(origin.clone())
+            && T::AccountFilter::contains(&from)
+        {
+            return Err(TransactionValidityError::Invalid(InvalidTransaction::Call));
         }
         Ok((Default::default(), (), origin))
     }

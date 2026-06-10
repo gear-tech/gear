@@ -9,7 +9,7 @@ use sp_core::{Pair, ed25519};
 use sp_runtime::{BuildStorage, traits::IdentityLookup};
 use std::sync::Mutex;
 
-type Extrinsic = sp_runtime::testing::TestXt<Call<Test>, ()>;
+type Extrinsic = sp_runtime::testing::TestXt<RuntimeCall, ()>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 frame_support::construct_runtime!(
@@ -75,15 +75,21 @@ impl frame_system::Config for Test {
     type PreInherents = ();
     type PostInherents = ();
     type PostTransactions = ();
+    type ExtensionsWeightInfo = ();
 }
 
-impl frame_system::offchain::SendTransactionTypes<Call<Test>> for Test {
+impl frame_system::offchain::CreateTransactionBase<Call<Test>> for Test {
     type Extrinsic = Extrinsic;
-    type OverarchingCall = Call<Test>;
+    type RuntimeCall = RuntimeCall;
+}
+
+impl frame_system::offchain::CreateBare<Call<Test>> for Test {
+    fn create_bare(call: Self::RuntimeCall) -> Self::Extrinsic {
+        Extrinsic::new_bare(call)
+    }
 }
 
 impl Config for Test {
-    type RuntimeEvent = RuntimeEvent;
     type AuthorityId = ed25519::Public;
     type AuthoritySignature = ed25519::Signature;
     type MaxPayloadLength = MaxPayloadLength;

@@ -9,6 +9,9 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 builtins-common = { workspace = true, optional = true }
 gear-core.workspace = true

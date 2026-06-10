@@ -50,9 +50,12 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .build_storage()
         .unwrap();
 
-    pallet_balances::GenesisConfig::<Test> { balances: vec![] }
-        .assimilate_storage(&mut t)
-        .unwrap();
+    pallet_balances::GenesisConfig::<Test> {
+        balances: vec![],
+        dev_accounts: None,
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
 
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| System::set_block_number(1));

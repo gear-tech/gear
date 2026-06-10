@@ -189,10 +189,6 @@ impl Behaviour {
 
         for (recipient, identity) in recipients {
             let peer_id = identity.peer_id();
-            for address in identity.addresses() {
-                self.inner.add_address(&peer_id, address.clone());
-            }
-
             let id = self
                 .inner
                 .send_request(&peer_id, InnerRequest(transaction.clone()));
@@ -466,6 +462,10 @@ mod tests {
         let transaction = signed_injected_tx();
         let identities = [(bob_identity.address(), bob_identity)].into();
 
+        crate::register_validator_addresses(
+            &mut alice,
+            crate::validator_peer_addresses(&identities),
+        );
         alice
             .behaviour_mut()
             .broadcast_transaction(&identities, transaction.clone())
@@ -506,6 +506,10 @@ mod tests {
         ]
         .into();
 
+        crate::register_validator_addresses(
+            &mut alice,
+            crate::validator_peer_addresses(&identities),
+        );
         alice
             .behaviour_mut()
             .broadcast_transaction(&identities, transaction.clone())
@@ -552,6 +556,10 @@ mod tests {
         let transaction = signed_injected_tx();
         let identities = [(bob_identity.address(), bob_identity)].into();
 
+        crate::register_validator_addresses(
+            &mut alice,
+            crate::validator_peer_addresses(&identities),
+        );
         alice
             .behaviour_mut()
             .broadcast_transaction(&identities, transaction.clone())
@@ -594,6 +602,10 @@ mod tests {
         let transaction = signed_injected_tx();
         let identities = [(bob_identity.address(), bob_identity)].into();
 
+        crate::register_validator_addresses(
+            &mut alice,
+            crate::validator_peer_addresses(&identities),
+        );
         alice
             .behaviour_mut()
             .broadcast_transaction(&identities, transaction.clone())

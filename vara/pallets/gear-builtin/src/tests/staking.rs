@@ -600,7 +600,7 @@ fn gas_allowance_respected() {
             payee: pallet_staking::RewardDestination::None,
         }
         .get_dispatch_info()
-        .weight
+        .total_weight()
         .ref_time();
 
         System::reset_events();
@@ -751,7 +751,7 @@ mod util {
     use sp_runtime::{
         BuildStorage, KeyTypeId, Perbill, Permill,
         testing::UintAuthorityId,
-        traits::{BlakeTwo256, ConstU32, IdentityLookup, OpaqueKeys},
+        traits::{BlakeTwo256, ConstBool, ConstU32, ConvertInto, IdentityLookup, OpaqueKeys},
     };
     use sp_std::convert::{TryFrom, TryInto};
 
@@ -818,8 +818,10 @@ mod util {
         type Solver = SequentialPhragmen<AccountId, Perbill>;
         type DataProvider = Staking;
         type WeightInfo = ();
-        type MaxWinners = ConstU32<100>;
+        type MaxBackersPerWinner = ConstU32<100>;
+        type MaxWinnersPerPage = ConstU32<100>;
         type Bounds = ElectionBoundsOnChain;
+        type Sort = ConstBool<true>;
     }
 
     common::impl_pallet_staking!(
@@ -869,18 +871,23 @@ mod util {
     impl pallet_session::Config for Test {
         type RuntimeEvent = RuntimeEvent;
         type ValidatorId = AccountId;
-        type ValidatorIdOf = pallet_staking::StashOf<Self>;
+        type ValidatorIdOf = ConvertInto;
         type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
         type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
         type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
         type SessionHandler = TestSessionHandler;
         type Keys = UintAuthorityId;
         type WeightInfo = ();
+        type DisablingStrategy =
+            pallet_session::disabling::UpToLimitWithReEnablingDisablingStrategy<1>;
+        type Currency = Balances;
+        type KeyDeposit = ();
     }
 
     impl pallet_session_historical::Config for Test {
+        type RuntimeEvent = RuntimeEvent;
         type FullIdentification = pallet_staking::Exposure<AccountId, u128>;
-        type FullIdentificationOf = pallet_staking::ExposureOf<Test>;
+        type FullIdentificationOf = pallet_staking::DefaultExposureOf<Test>;
     }
 
     pallet_gear_bank::impl_config!(Test);
@@ -940,6 +947,7 @@ mod util {
                     .map(|x| (x.0, self.endowment))
                     .chain(self.endowed_accounts.iter().map(|k| (*k, self.endowment)))
                     .collect(),
+                dev_accounts: None,
             }
             .assimilate_storage(&mut storage)
             .unwrap();

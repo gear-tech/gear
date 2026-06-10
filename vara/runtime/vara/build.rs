@@ -94,7 +94,10 @@ fn regenerate_gsdk_scale() {
     .build();
 
     // 4. Extract last supported metadata version
-    let runtime_blob = RuntimeBlob::uncompress_if_needed(&code).unwrap();
+    let code =
+        sp_maybe_compressed_blob::decompress(&code, sp_maybe_compressed_blob::CODE_BLOB_BOMB_LIMIT)
+            .unwrap();
+    let runtime_blob = RuntimeBlob::new(&code).unwrap();
     let mut externalities = sp_io::TestExternalities::default();
 
     let versions = executor

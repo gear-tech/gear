@@ -135,7 +135,7 @@ fn gas_allowance_respected() {
             delay: 0,
         }
         .get_dispatch_info()
-        .weight
+        .total_weight()
         .ref_time();
 
         let broker_gas_allowance = 1;

@@ -139,6 +139,7 @@ impl ExtBuilder {
                 .iter()
                 .map(|k| (*k, self.endowment))
                 .collect(),
+            dev_accounts: None,
         }
         .assimilate_storage(&mut storage)
         .unwrap();

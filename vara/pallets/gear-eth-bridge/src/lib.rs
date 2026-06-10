@@ -77,11 +77,6 @@ pub mod pallet {
     pub trait Config:
         frame_system::Config + pallet_gear_bank::Config + pallet_grandpa::Config
     {
-        /// Type representing aggregated runtime event.
-        type RuntimeEvent: From<Event<Self>>
-            + TryInto<Event<Self>>
-            + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-
         /// The bridge' pallet id, used for deriving its sovereign account ID.
         #[pallet::constant]
         type PalletId: Get<PalletId>;

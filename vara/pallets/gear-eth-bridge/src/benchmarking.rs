@@ -55,7 +55,7 @@ benchmarks! {
         let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
         let _ = crate::CurrencyOf::<T>::deposit_creating(&origin, CurrencyOf::<T>::minimum_balance());
 
-        let destination = [42; 20].into();
+        let destination = gprimitives::H160::from([42; 20]).into();
 
         let payload = vec![42; T::MaxPayloadSize::get() as usize];
     }: _(RawOrigin::Signed(origin), destination, payload)

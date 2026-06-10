@@ -70,7 +70,7 @@ impl SystemReason for () {}
 #[derive(Debug, Encode, Decode, DecodeWithMemTracking, Clone, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub enum Reason<R: RuntimeReason, S: SystemReason> {
+pub enum Reason<R, S> {
     /// Runtime reason variant.
     ///
     /// This means that actor explicitly forced some action,

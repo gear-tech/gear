@@ -150,7 +150,7 @@ impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
 )]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone, Funds> {
+pub enum GasNode<ExternalId, Id, Balance, Funds> {
     /// A root node for each gas tree.
     ///
     /// Usually created when a new gasful logic started (i.e., message sent).

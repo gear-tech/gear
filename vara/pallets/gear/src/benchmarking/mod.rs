@@ -185,14 +185,14 @@ where
 pub fn find_latest_event<T, F, R>(mapping_filter: F) -> Option<R>
 where
     T: Config,
+    <T as frame_system::Config>::RuntimeEvent: TryInto<Event<T>>,
     F: Fn(Event<T>) -> Option<R>,
 {
     SystemPallet::<T>::events()
         .into_iter()
         .rev()
         .filter_map(|event_record| {
-            let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
-            let event: Result<Event<T>, _> = event.try_into();
+            let event: Result<Event<T>, _> = event_record.event.try_into();
 
             event.ok()
         })
@@ -279,6 +279,7 @@ benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+        <T as frame_system::Config>::RuntimeEvent: TryInto<Event<T>>,
         T: pallet_gear_voucher::Config,
     }
 

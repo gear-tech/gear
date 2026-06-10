@@ -129,6 +129,7 @@ substrate-wasm-builder = { workspace = true, optional = true }
 sc-executor.workspace = true
 sc-executor-common.workspace = true
 sp-io.workspace = true
+sp-maybe-compressed-blob.workspace = true
 gear-runtime-interface = { workspace = true, features = ["std"] }
 parity-scale-codec.workspace = true
 

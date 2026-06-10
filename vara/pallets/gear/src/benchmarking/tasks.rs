@@ -10,6 +10,7 @@ const DEFAULT_GAS_LIMIT: u64 = 15_000_000_000;
 fn send_user_message_prepare<T>(delay: u32)
 where
     T: Config,
+    <T as frame_system::Config>::RuntimeEvent: TryInto<Event<T>>,
     T::AccountId: Origin,
 {
     use demo_delayed_sender::WASM_BINARY;
@@ -40,6 +41,7 @@ where
 pub(super) fn remove_gas_reservation<T>() -> (ActorId, ReservationId)
 where
     T: Config,
+    <T as frame_system::Config>::RuntimeEvent: TryInto<Event<T>>,
     T::AccountId: Origin,
 {
     use demo_reserve_gas::{InitAction, WASM_BINARY};
@@ -85,6 +87,7 @@ where
 pub(super) fn send_user_message<T>() -> MessageId
 where
     T: Config,
+    <T as frame_system::Config>::RuntimeEvent: TryInto<Event<T>>,
     T::AccountId: Origin,
 {
     let delay = 1u32;
@@ -219,6 +222,7 @@ where
 pub(super) fn remove_from_waitlist<T>() -> (ActorId, MessageId)
 where
     T: Config,
+    <T as frame_system::Config>::RuntimeEvent: TryInto<Event<T>>,
     T::AccountId: Origin,
 {
     use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
@@ -276,6 +280,7 @@ where
 pub(super) fn remove_from_mailbox<T>() -> (ActorId, MessageId)
 where
     T: Config,
+    <T as frame_system::Config>::RuntimeEvent: TryInto<Event<T>>,
     T::AccountId: Origin,
 {
     send_user_message_prepare::<T>(0u32);

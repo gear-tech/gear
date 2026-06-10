@@ -33,14 +33,6 @@ type AccountId = u64;
 pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
 
-pub(crate) type Executive = frame_executive::Executive<
-    Test,
-    Block,
-    frame_system::ChainContext<Test>,
-    Test,
-    AllPalletsWithSystem,
->;
-
 pub(crate) const SIGNER: AccountId = 1;
 pub(crate) const VAL_1_STASH: AccountId = 10;
 pub(crate) const BLOCK_AUTHOR: AccountId = VAL_1_STASH;
@@ -160,7 +152,6 @@ parameter_types! {
 
 }
 impl pallet_gear_staking_rewards::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
     type BondCallFilter = BondCallFilter;
     type AccountFilter = NonStakingAccountsFilter;
     type PalletId = StakingRewardsPalletId;
@@ -196,7 +187,7 @@ impl pallet_session::Config for Test {
 impl pallet_session_historical::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type FullIdentification = pallet_staking::Exposure<AccountId, u128>;
-    type FullIdentificationOf = pallet_staking::ExposureOf<Test>;
+    type FullIdentificationOf = pallet_staking::DefaultExposureOf<Test>;
 }
 
 type AuthorityId = AccountId;
@@ -790,7 +781,7 @@ pub(crate) mod two_block_producers {
     impl pallet_session_historical::Config for Test {
         type RuntimeEvent = RuntimeEvent;
         type FullIdentification = pallet_staking::Exposure<AccountId, u128>;
-        type FullIdentificationOf = pallet_staking::ExposureOf<Test>;
+        type FullIdentificationOf = pallet_staking::DefaultExposureOf<Test>;
     }
 
     parameter_types! {
@@ -883,7 +874,6 @@ pub(crate) mod two_block_producers {
     }
 
     impl pallet_gear_staking_rewards::Config for Test {
-        type RuntimeEvent = RuntimeEvent;
         type BondCallFilter = ();
         type AccountFilter = NonStakingAccountsFilter;
         type PalletId = StakingRewardsPalletId;

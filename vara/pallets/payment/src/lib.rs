@@ -274,7 +274,7 @@ impl<T: Config> Pallet<T> {
             pays_fee,
         } = <Extrinsic as GetDispatchInfo>::get_dispatch_info(&unchecked_extrinsic);
 
-        let partial_fee = if unchecked_extrinsic.is_signed().unwrap_or(false) {
+        let partial_fee = if !unchecked_extrinsic.is_bare() {
             let call: CallOf<T> =
                 <Extrinsic as ExtractCall<CallOf<T>>>::extract_call(&unchecked_extrinsic);
             // If call is exempted from weight multiplication pre-divide it with the fee multiplier
@@ -331,7 +331,7 @@ impl<T: Config> Pallet<T> {
 
         let tip = 0u32.into();
 
-        if unchecked_extrinsic.is_signed().unwrap_or(false) {
+        if !unchecked_extrinsic.is_bare() {
             let call: CallOf<T> =
                 <Extrinsic as ExtractCall<CallOf<T>>>::extract_call(&unchecked_extrinsic);
             let adjusted_call_weight = if !T::ExtraFeeCallFilter::contains(&call) {

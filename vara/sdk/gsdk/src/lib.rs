@@ -29,7 +29,7 @@ pub use crate::{
     },
 };
 pub use gear_core::rpc::GasInfo;
-pub use sp_keyring::AccountKeyring;
+pub use sp_keyring::Sr25519Keyring as AccountKeyring;
 pub use subxt::dynamic::Value;
 
 use crate::gear::runtime_types::{

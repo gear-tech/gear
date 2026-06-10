@@ -26,7 +26,6 @@ macro_rules! impl_config {
 macro_rules! impl_config_inner {
     ($runtime:ty$(,)?) => {
         impl pallet_gear::Config for $runtime {
-            type RuntimeEvent = RuntimeEvent;
             type Randomness = TestRandomness<Self>;
             type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
             type Schedule = GearConfigSchedule;

@@ -50,8 +50,8 @@ use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::{ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId, ed25519};
 use sp_runtime::{
-    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, create_runtime_str,
-    generic, impl_opaque_keys,
+    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, generic,
+    impl_opaque_keys,
     traits::{
         AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
         DispatchInfoOf, Dispatchable, IdentityLookup, Implication, NumberFor, One,
@@ -158,8 +158,8 @@ static _WASM_BLOB_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IM
 #[cfg(not(feature = "dev"))]
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("vara"),
-    impl_name: create_runtime_str!("vara"),
+    spec_name: alloc::borrow::Cow::Borrowed("vara"),
+    impl_name: alloc::borrow::Cow::Borrowed("vara"),
 
     spec_version: 2_00_00,
 
@@ -174,8 +174,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 #[cfg(feature = "dev")]
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("vara-testnet"),
-    impl_name: create_runtime_str!("vara-testnet"),
+    spec_name: alloc::borrow::Cow::Borrowed("vara-testnet"),
+    impl_name: alloc::borrow::Cow::Borrowed("vara-testnet"),
 
     spec_version: 2_00_00,
 
@@ -210,8 +210,12 @@ parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
     pub const SS58Prefix: u8 = VARA_SS58_PREFIX;
     pub RuntimeBlockWeights: BlockWeights = gear_runtime_common::block_weights_for(MAXIMUM_BLOCK_WEIGHT);
-    pub RuntimeBlockLength: BlockLength =
-        BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_LENGTH_RATIO);
+    pub RuntimeBlockLength: BlockLength = BlockLength::builder()
+        .max_length(5 * 1024 * 1024)
+        .modify_max_length_for_class(DispatchClass::Normal, |m| {
+            *m = NORMAL_DISPATCH_LENGTH_RATIO * *m
+        })
+        .build();
 }
 
 // Configure FRAME pallets to include in runtime.
@@ -497,7 +501,7 @@ impl pallet_session::Config for Runtime {
 impl pallet_session_historical::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
-    type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
+    type FullIdentificationOf = pallet_staking::DefaultExposureOf<Runtime>;
 }
 
 // Filter that matches `pallet_staking::Pallet<T>::bond()` call
@@ -551,7 +555,6 @@ parameter_types! {
 }
 
 impl pallet_gear_staking_rewards::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
     type BondCallFilter = BondCallFilter;
     type AccountFilter = NonStakingAccountsFilter;
     type PalletId = StakingRewardsPalletId;
@@ -824,6 +827,7 @@ impl pallet_nomination_pools::Config for Runtime {
     type RewardCounter = FixedU128;
     type BalanceToU256 = BalanceToU256;
     type U256ToBalance = U256ToBalance;
+    #[allow(deprecated)]
     type StakeAdapter = pallet_nomination_pools::adapter::TransferStake<Self, Staking>;
     type PostUnbondingPoolsWindow = ConstU32<4>;
     type MaxMetadataLen = ConstU32<256>;
@@ -1190,7 +1194,6 @@ impl pallet_gear_bank::Config for Runtime {
 }
 
 impl pallet_gear::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
     type WeightInfo = pallet_gear::weights::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
@@ -1271,7 +1274,6 @@ impl SortedMembers<AccountId> for GearEthBridgeAdminAccounts {
 }
 
 impl pallet_gear_eth_bridge::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
     type BuiltinAddress = GearEthBridgeBuiltinAddress;
     type AdminOrigin = frame_system::EnsureSignedBy<GearEthBridgeAdminAccounts, AccountId>;
@@ -1316,7 +1318,6 @@ impl pallet_grandpa_signer::AuthorityProvider<ed25519::Public> for GrandpaAuthor
 }
 
 impl pallet_grandpa_signer::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
     type AuthorityId = ed25519::Public;
     type AuthoritySignature = ed25519::Signature;
     type MaxPayloadLength = GrandpaSignerMaxPayloadLength;
@@ -1366,7 +1367,6 @@ parameter_types! {
 }
 
 impl pallet_gear_voucher::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = pallet_gear_voucher::weights::SubstrateWeight<Runtime>;
@@ -1382,7 +1382,7 @@ where
     RuntimeCall: From<LocalCall>,
 {
     fn create_bare(call: RuntimeCall) -> UncheckedExtrinsic {
-        generic::UncheckedExtrinsic::new_bare(call).into()
+        generic::UncheckedExtrinsic::new_bare(call)
     }
 }
 
@@ -1968,7 +1968,7 @@ impl_runtime_apis_plus_common! {
         }
 
         fn execute_block(
-            block: Block,
+            block: <Block as BlockT>::LazyBlock,
             state_root_check: bool,
             signature_check: bool,
             select: frame_try_runtime::TryStateSelect

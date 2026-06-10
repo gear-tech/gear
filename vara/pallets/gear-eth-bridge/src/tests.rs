@@ -114,10 +114,10 @@ fn bridge_got_initialized() {
             [
                 SessionEvent::NewSession { session_index: 6 }.into(),
                 Event::BridgeInitialized.into(),
-                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+                Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
             ],
         );
-        assert_eq!(QueueMerkleRoot::get(), Some(H256::zero()));
+        assert_eq!(QueueMerkleRoot::get(), Some(H256::zero().into()));
         assert!(Initialized::get());
         assert!(Paused::get());
 
@@ -192,7 +192,7 @@ fn bridge_send_eth_message_works() {
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
         assert_noop!(
-            GearEthBridge::send_eth_message(RuntimeOrigin::root(), H160::zero(), vec![]),
+            GearEthBridge::send_eth_message(RuntimeOrigin::root(), H160::zero().into(), vec![]),
             BadOrigin
         );
 
@@ -210,14 +210,14 @@ fn bridge_send_eth_message_works() {
         let fee = MockTransportFee::get();
 
         let message = unsafe {
-            EthMessage::new_unchecked(0.into(), SIGNER.cast(), destination, payload.clone())
+            EthMessage::new_unchecked(0.into(), SIGNER.cast(), destination.into(), payload.clone())
         };
         let hash = message.hash();
         let mut queue = vec![hash];
 
         assert_ok!(GearEthBridge::send_eth_message(
             RuntimeOrigin::signed(SIGNER),
-            destination,
+            destination.into(),
             payload
         ));
 
@@ -236,7 +236,7 @@ fn bridge_send_eth_message_works() {
         let payload = H256::random().as_bytes().to_vec();
 
         let message = unsafe {
-            EthMessage::new_unchecked(1.into(), SIGNER.cast(), destination, payload.clone())
+            EthMessage::new_unchecked(1.into(), SIGNER.cast(), destination.into(), payload.clone())
         };
         let nonce = message.nonce();
         let hash = message.hash();
@@ -265,7 +265,7 @@ fn bridge_send_eth_message_works() {
             response,
             Response::EthMessageQueued {
                 block_number,
-                hash,
+                hash: hash.into(),
                 nonce,
                 queue_id
             }
@@ -294,21 +294,23 @@ fn bridge_queue_root_changes() {
         for _ in 0..4 {
             assert_ok!(GearEthBridge::send_eth_message(
                 RuntimeOrigin::signed(SIGNER),
-                H160::random(),
+                H160::random().into(),
                 H256::random().as_bytes().to_vec()
             ));
 
             assert!(QueueChanged::get());
         }
 
-        let expected_root = binary_merkle_tree::merkle_root_raw::<Keccak256, _>(Queue::get());
+        let expected_root = binary_merkle_tree::merkle_root_raw::<Keccak256, _>(
+            Queue::get().into_iter().map(Into::<H256>::into),
+        );
 
         on_finalize_gear_block(WHEN_INITIALIZED);
 
         System::assert_last_event(
             Event::QueueMerkleRootChanged {
                 queue_id: 0,
-                root: expected_root,
+                root: expected_root.into(),
             }
             .into(),
         );
@@ -350,7 +352,7 @@ fn bridge_updates_authorities_and_clears() {
 
         assert_eq!(
             AuthoritySetHash::get().expect("infallible"),
-            authority_set_hash
+            authority_set_hash.into()
         );
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
@@ -358,7 +360,7 @@ fn bridge_updates_authorities_and_clears() {
         for _ in 0..5 {
             assert_ok!(GearEthBridge::send_eth_message(
                 RuntimeOrigin::signed(SIGNER),
-                H160::zero(),
+                H160::zero().into(),
                 vec![]
             ));
         }
@@ -370,7 +372,10 @@ fn bridge_updates_authorities_and_clears() {
             System::events().last().expect("infallible").event,
             RuntimeEvent::GearEthBridge(Event::QueueMerkleRootChanged { .. })
         ));
-        assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
+        assert_ne!(
+            QueueMerkleRoot::get().expect("infallible"),
+            H256::zero().into()
+        );
 
         on_initialize(ERA_BLOCKS + 3);
         do_events_assertion(6, 39, None::<[_; 0]>);
@@ -401,20 +406,23 @@ fn bridge_updates_authorities_and_clears() {
             67,
             [SessionEvent::NewSession { session_index: 11 }.into()],
         );
-        assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
+        assert_ne!(
+            QueueMerkleRoot::get().expect("infallible"),
+            H256::zero().into()
+        );
 
         run_to_block(ERA_BLOCKS * 2 + 1);
 
         assert_eq!(
             AuthoritySetHash::get().expect("infallible"),
-            authority_set_hash
+            authority_set_hash.into()
         );
         do_events_assertion(
             12,
             73,
             [
                 SessionEvent::NewSession { session_index: 12 }.into(),
-                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+                Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
             ],
         );
 
@@ -426,7 +434,10 @@ fn bridge_updates_authorities_and_clears() {
         on_initialize(ERA_BLOCKS * 2 + 2);
         do_events_assertion(12, 74, [Event::QueueReset.into()]);
 
-        assert!(QueueMerkleRoot::get().expect("infallible").is_zero());
+        assert_eq!(
+            QueueMerkleRoot::get().expect("infallible"),
+            H256::zero().into()
+        );
 
         run_to_block(ERA_BLOCKS * 2 + EPOCH_BLOCKS * 5);
         do_events_assertion(
@@ -462,7 +473,7 @@ fn bridge_updates_authorities_and_clears() {
             109,
             [
                 SessionEvent::NewSession { session_index: 18 }.into(),
-                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+                Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
                 GrandpaEvent::NewAuthorities { authority_set }.into(),
             ],
         );
@@ -490,7 +501,7 @@ fn bridge_queues_governance_messages_when_over_capacity() {
         for _ in 0..queue_capacity {
             assert_ok!(GearEthBridge::send_eth_message(
                 RuntimeOrigin::signed(SIGNER),
-                H160::zero(),
+                H160::zero().into(),
                 vec![]
             ));
         }
@@ -500,7 +511,7 @@ fn bridge_queues_governance_messages_when_over_capacity() {
 
         GearEthBridge::send_eth_message(
             RuntimeOrigin::signed(<Test as crate::Config>::BridgeAdmin::get()),
-            H160::zero(),
+            H160::zero().into(),
             vec![],
         )
         .unwrap();
@@ -598,7 +609,7 @@ fn bridge_queue_capacity_exceeded_and_reset() {
         for _ in 0..<Test as crate::Config>::QueueCapacity::get() {
             assert_ok!(GearEthBridge::send_eth_message(
                 RuntimeOrigin::signed(SIGNER),
-                H160::zero(),
+                H160::zero().into(),
                 vec![]
             ));
 
@@ -805,7 +816,7 @@ mod utils {
                 } => {
                     GearEthBridge::send_eth_message(
                         RuntimeOrigin::signed(SIGNER),
-                        destination,
+                        destination.into(),
                         payload,
                     )
                 }
@@ -1020,10 +1031,10 @@ fn rotate_keys() {
             [
                 SessionEvent::NewSession { session_index: 3 }.into(),
                 Event::BridgeInitialized.into(),
-                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+                Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
             ],
         );
-        assert_eq!(QueueMerkleRoot::get(), Some(H256::zero()));
+        assert_eq!(QueueMerkleRoot::get(), Some(H256::zero().into()));
         assert!(Initialized::get());
         assert!(Paused::get());
 
@@ -1076,7 +1087,7 @@ fn rotate_keys() {
             37,
             [
                 SessionEvent::NewSession { session_index: 6 }.into(),
-                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+                Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
             ],
         );
 
@@ -1148,7 +1159,7 @@ fn rotate_keys() {
             49,
             [
                 SessionEvent::NewSession { session_index: 8 }.into(),
-                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+                Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
             ],
         );
 

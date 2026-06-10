@@ -163,7 +163,6 @@ parameter_types! {
 }
 
 impl pallet_gear_voucher::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();

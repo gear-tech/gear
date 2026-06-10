@@ -109,13 +109,11 @@ pub fn sign(
                 signature,
                 extra,
             )
-            .into()
         }
-        ExtrinsicFormat::Bare => generic::UncheckedExtrinsic::new_bare(xt.function).into(),
+        ExtrinsicFormat::Bare => generic::UncheckedExtrinsic::new_bare(xt.function),
         ExtrinsicFormat::General(ext_version, extra) => generic::UncheckedExtrinsic::from_parts(
             xt.function,
             generic::Preamble::General(ext_version, extra),
-        )
-        .into(),
+        ),
     }
 }
