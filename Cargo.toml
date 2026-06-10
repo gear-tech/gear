@@ -17,7 +17,6 @@ exclude = [
   "ethexe/docker",
   "ethexe/malachite",
   "ethexe/scripts",
-  "third-party/libp2p-swarm-0.45.1",
 ]
 
 members = [
@@ -723,7 +722,7 @@ debug = true
 
 [patch.crates-io]
 gear-workspace-hack = { path = "utils/gear-workspace-hack" }
-libp2p-swarm = { path = "third-party/libp2p-swarm-0.45.1" }
+libp2p-swarm = { git = "https://github.com/gear-tech/rust-libp2p", rev = "dc3cefa6db9958faa330aaf3e9cce8edd8740a19", package = "libp2p-swarm" }
 # core2 0.4.0 was yanked on crates.io; pin upstream git so cargo metadata doesn't fail on yanked lookup.
 # Needed by cid -> sc-network transitive; triggers during wasm-builder sub-project resolve.
 core2 = { git = "https://github.com/bbqsrc/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7" }

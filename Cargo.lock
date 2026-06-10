@@ -11139,6 +11139,7 @@ dependencies = [
 [[package]]
 name = "libp2p-swarm"
 version = "0.45.1"
+source = "git+https://github.com/gear-tech/rust-libp2p?rev=dc3cefa6db9958faa330aaf3e9cce8edd8740a19#dc3cefa6db9958faa330aaf3e9cce8edd8740a19"
 dependencies = [
  "either",
  "fnv",
