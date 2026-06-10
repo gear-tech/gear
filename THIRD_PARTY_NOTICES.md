@@ -25,5 +25,15 @@ uses upstream `sc-mixnet` from the Polkadot SDK source reference above.
 
 Additional third-party file: `substrate/runtime-executor/wasmtime/src/test-guard-page-skip.wat` is a modified WebAssembly testsuite fixture from <https://github.com/WebAssembly/testsuite/blob/01efde81028c5b0d099eb836645a2dc5e7755449/skip-stack-guard-page.wast>, licensed under Apache-2.0.
 
+## libp2p Copied Source
+
+`third-party/libp2p-swarm-0.45.1` is copied from the crates.io
+`libp2p-swarm` 0.45.1 package, originally published from
+<https://github.com/libp2p/rust-libp2p>. Gear patches only its
+`libp2p-swarm-derive` dependency to `=0.35.1` so the stable2603 Substrate
+networking stack can coexist with ethexe's upstream libp2p 0.56 dependency
+line. `libp2p-swarm` declares the MIT license in its package manifest.
+
 Apache-2.0 license text: <https://www.apache.org/licenses/LICENSE-2.0>
+MIT license text: <https://opensource.org/license/mit>
 GPL-3.0-or-later WITH Classpath-exception-2.0 license text: [`LICENSE`](LICENSE)

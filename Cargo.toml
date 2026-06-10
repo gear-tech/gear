@@ -12,7 +12,13 @@ resolver = "3"
 
 default-members = ["vara/node/cli"]
 
-exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/malachite", "ethexe/scripts"]
+exclude = [
+  "ethexe/contracts",
+  "ethexe/docker",
+  "ethexe/malachite",
+  "ethexe/scripts",
+  "third-party/libp2p-swarm-0.45.1",
+]
 
 members = [
   # substrate
@@ -390,20 +396,19 @@ libp2p-identity = { version = "0.2", default-features = false, features = ["secp
 # `links = "rocksdb"` crate may live in the dependency graph.
 rocksdb = { version = "0.24", default-features = false, features = ["snappy"] }
 
-# Malachite BFT engine — Gear compatibility fork pinned so all sub-crates share
-# the stable2603-compatible libp2p snapshot.
-malachitebft-app-channel = { package = "arc-malachitebft-app-channel", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
-malachitebft-app = { package = "arc-malachitebft-app", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
-malachitebft-codec = { package = "arc-malachitebft-codec", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
-malachitebft-core-consensus = { package = "arc-malachitebft-core-consensus", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
-malachitebft-core-types = { package = "arc-malachitebft-core-types", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
-malachitebft-engine = { package = "arc-malachitebft-engine", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
-malachitebft-proto = { package = "arc-malachitebft-proto", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
-malachitebft-signing = { package = "arc-malachitebft-signing", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
-malachitebft-signing-ed25519 = { package = "arc-malachitebft-signing-ed25519", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
-malachitebft-signing-ecdsa = { package = "arc-malachitebft-signing-ecdsa", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3", default-features = false, features = ["k256", "rand", "serde", "std"] }
-malachitebft-sync = { package = "arc-malachitebft-sync", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
-malachitebft-test = { package = "arc-malachitebft-test", git = "https://github.com/gear-tech/malachite", rev = "c53a7a2b424b5d951de8284529c2e7d36901f3b3" }
+# Malachite BFT engine.
+malachitebft-app-channel = { package = "arc-malachitebft-app-channel", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-app = { package = "arc-malachitebft-app", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-codec = { package = "arc-malachitebft-codec", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-core-consensus = { package = "arc-malachitebft-core-consensus", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-core-types = { package = "arc-malachitebft-core-types", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-engine = { package = "arc-malachitebft-engine", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-proto = { package = "arc-malachitebft-proto", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-signing = { package = "arc-malachitebft-signing", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-signing-ed25519 = { package = "arc-malachitebft-signing-ed25519", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-signing-ecdsa = { package = "arc-malachitebft-signing-ecdsa", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7", default-features = false, features = ["k256", "rand", "serde", "std"] }
+malachitebft-sync = { package = "arc-malachitebft-sync", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-test = { package = "arc-malachitebft-test", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { version = "0.38" }
@@ -718,6 +723,7 @@ debug = true
 
 [patch.crates-io]
 gear-workspace-hack = { path = "utils/gear-workspace-hack" }
+libp2p-swarm = { path = "third-party/libp2p-swarm-0.45.1" }
 # core2 0.4.0 was yanked on crates.io; pin upstream git so cargo metadata doesn't fail on yanked lookup.
 # Needed by cid -> sc-network transitive; triggers during wasm-builder sub-project resolve.
 core2 = { git = "https://github.com/bbqsrc/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7" }

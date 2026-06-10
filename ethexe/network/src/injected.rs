@@ -219,6 +219,7 @@ impl Behaviour {
                         request,
                         channel,
                     },
+                ..
             } => {
                 let InnerRequest(transaction) = request;
                 let (tx, rx) = oneshot::channel();
@@ -242,6 +243,7 @@ impl Behaviour {
                         request_id,
                         response,
                     },
+                ..
             } => {
                 let transaction_hash = self
                     .pending_requests
@@ -258,6 +260,7 @@ impl Behaviour {
                 peer,
                 request_id,
                 error,
+                ..
             } => {
                 let transaction_hash = self
                     .pending_requests
@@ -280,6 +283,7 @@ impl Behaviour {
                 peer,
                 request_id: _,
                 error: InboundFailure::UnsupportedProtocols,
+                ..
             } => {
                 log::debug!(
                     "request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"

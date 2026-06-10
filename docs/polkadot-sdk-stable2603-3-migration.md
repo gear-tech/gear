@@ -101,11 +101,11 @@ match stable2603's `PassFatPointerAndReadWrite<&mut [u8]>` FFI shape.
 ## Deferred Items
 
 - Evaluate `system_version >= 3` pending-code runtime-upgrade semantics.
-- ethexe Malachite is re-enabled through the Gear compatibility fork at
-  `gear-tech/malachite` commit
-  `c53a7a2b424b5d951de8284529c2e7d36901f3b3`. The fork keeps Malachite on
-  the stable2603 `libp2p` 0.54 / `libp2p-swarm` 0.45 line so the workspace has
-  one `libp2p-swarm-derive` identity.
+- ethexe Malachite uses upstream Circle Malachite at
+  `circlefin/malachite` commit
+  `1fe7961aca933cefad8e4d9a52f50eda565288e7`. Substrate stable2603 may keep
+  its own libp2p line, while ethexe networking and Malachite stay aligned with
+  upstream Malachite on libp2p 0.56.
 - Port prior Malachite hardening work after the stable2603 dependency update:
   validator identity/peer gating, bounded stream cleanup, injected transaction
   caps and duplicate checks, quarantine liveness, and typed-hash audit items.
