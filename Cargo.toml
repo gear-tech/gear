@@ -288,8 +288,8 @@ metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
 
 # Published deps
 #
-# https://github.com/gear-tech/gear-dlmalloc/tree/0.2.0
-dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
+# https://github.com/gear-tech/gear-dlmalloc/tree/0.2.1
+dlmalloc = { package = "gear-dlmalloc", version = "0.2.1" }
 
 # Internal deps
 authorship = { package = "gear-authorship", path = "vara/node/authorship" }
