@@ -19,11 +19,18 @@ pub(crate) struct Toolchain(String);
 
 impl Toolchain {
     /// This is a toolchain version tested on our CI.
-    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "1.96";
+    const RECOMMENDED_STABLE_TOOLCHAIN: &'static str = "1.96";
+    /// This is a nightly toolchain used for unstable Rust features.
+    const NIGHTLY_TOOLCHAIN: &'static str = "nightly";
 
-    /// Returns `Toolchain` representing the recommended nightly version.
+    /// Returns `Toolchain` representing the recommended stable version.
     pub fn recommended_stable() -> Self {
-        Self(Self::PINNED_NIGHTLY_TOOLCHAIN.into())
+        Self(Self::RECOMMENDED_STABLE_TOOLCHAIN.into())
+    }
+
+    /// Returns `Toolchain` representing a nightly version.
+    pub fn nightly() -> Self {
+        Self(Self::NIGHTLY_TOOLCHAIN.into())
     }
 
     /// Fetches `Toolchain` via rustup.
@@ -74,7 +81,7 @@ impl Toolchain {
 
     /// Checks whether the toolchain is recommended.
     pub fn check_recommended_toolchain(&self) -> Result<()> {
-        let toolchain = Self::PINNED_NIGHTLY_TOOLCHAIN;
+        let toolchain = Self::RECOMMENDED_STABLE_TOOLCHAIN;
         ensure!(
             self.raw_toolchain_str() == toolchain,
             "recommended toolchain `{toolchain}` not found, install it using the command:\n\

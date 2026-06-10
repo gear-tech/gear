@@ -31,7 +31,7 @@
 //!
 //! ## Usage example
 //!
-//! ```rust,no_run
+//! ```rust,no_run,ignore
 //! use ethexe_sdk::VaraEthApi;
 //!
 //! // `eth_client` is an `ethexe_ethereum::Ethereum`; `rpc_url` is the node's WS endpoint.

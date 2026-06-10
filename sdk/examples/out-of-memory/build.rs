@@ -4,11 +4,10 @@
 use gear_wasm_builder::WasmBuilder;
 
 fn main() {
-    // We are forcing recommended toolchain due to the need to compile this
-    // program with `oom-handler` feature. The WASM binary of this program is then
-    // used by the `oom_handler_works` pallet test.
+    // This program exercises `#[alloc_error_handler]`, which is still nightly-only.
+    // The WASM binary is used by the `oom_handler_works` pallet test.
     WasmBuilder::new()
         .exclude_features(vec!["std"])
-        .with_forced_recommended_toolchain() // NOTE: Don't use this in production programs!
+        .with_forced_nightly_toolchain()
         .build();
 }

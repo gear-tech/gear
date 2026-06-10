@@ -17,6 +17,7 @@ pub struct CargoCommand {
     toolchain: Toolchain,
     check_recommended_toolchain: bool,
     force_recommended_toolchain: bool,
+    force_nightly_toolchain: bool,
 }
 
 impl CargoCommand {
@@ -60,6 +61,7 @@ impl CargoCommand {
             toolchain,
             check_recommended_toolchain: false,
             force_recommended_toolchain: false,
+            force_nightly_toolchain: false,
         }
     }
 }
@@ -103,13 +105,20 @@ impl CargoCommand {
         self.force_recommended_toolchain = force_recommended_toolchain;
     }
 
+    /// Sets whether to force the nightly toolchain.
+    pub fn set_force_nightly_toolchain(&mut self, force_nightly_toolchain: bool) {
+        self.force_nightly_toolchain = force_nightly_toolchain;
+    }
+
     /// Execute the `cargo` command with invoking supplied arguments.
     pub fn run(&self) -> Result<()> {
         if self.check_recommended_toolchain {
             self.toolchain.check_recommended_toolchain()?;
         }
 
-        let toolchain = if self.force_recommended_toolchain {
+        let toolchain = if self.force_nightly_toolchain {
+            Toolchain::nightly()
+        } else if self.force_recommended_toolchain {
             Toolchain::recommended_stable()
         } else {
             self.toolchain.clone()
@@ -121,7 +130,7 @@ impl CargoCommand {
             .arg(toolchain.raw_toolchain_str().as_ref())
             .arg("cargo");
 
-        if self.force_recommended_toolchain {
+        if self.force_recommended_toolchain || self.force_nightly_toolchain {
             self.clean_up_environment(&mut cargo);
         }
 

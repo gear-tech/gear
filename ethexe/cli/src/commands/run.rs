@@ -13,7 +13,6 @@ use ethexe_service::Service;
 use std::time::Duration;
 use tokio::runtime::Builder;
 
-
 /// Run the node.
 #[derive(Debug, Args)]
 pub struct RunCommand {

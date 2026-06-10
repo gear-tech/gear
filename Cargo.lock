@@ -8476,6 +8476,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "hex",
  "parity-scale-codec",
+ "rustc_version 0.4.1",
  "scale-info",
  "thiserror 2.0.17",
  "waker-fn",
