@@ -3,10 +3,10 @@
 
 //! Application callbacks the service makes to the outside world.
 
+use crate::types::{Block, BlockPayload, CommitCertificate, H256};
 use anyhow::Result;
 use async_trait::async_trait;
-
-use crate::types::{Block, BlockPayload, CommitCertificate, H256};
+use ethexe_common::Acceptance;
 
 /// Application-side callbacks the consensus service requires.
 ///
@@ -99,6 +99,6 @@ pub trait Externalities: Send + Sync + 'static {
     async fn validate_block_above(
         &self,
         parent_mb_hash: H256,
-        payload: BlockPayload,
-    ) -> Result<bool>;
+        payload: &BlockPayload,
+    ) -> Result<Acceptance<(), String>>;
 }

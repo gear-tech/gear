@@ -5712,6 +5712,7 @@ dependencies = [
  "arc-malachitebft-test",
  "async-trait",
  "bytes",
+ "ethexe-common",
  "futures",
  "gear-core",
  "gear-workspace-hack",

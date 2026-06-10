@@ -37,8 +37,9 @@ use crate::{
     streaming::ProposalParts,
     types::{Address, Block, CommitCertificate, H256},
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, ensure};
 use bytes::Bytes;
+use ethexe_common::Acceptance;
 use malachitebft_app_channel::{
     AppMsg, Channels, NetworkMsg,
     app::{
@@ -55,7 +56,7 @@ use malachitebft_app_channel::{
 use malachitebft_core_types::Height as _;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::RangeInclusive, sync::Arc};
-use tracing::{error, info};
+use tracing::{debug, error, info, trace, warn};
 
 /// Max allowed distance into the future for pending proposal parts.
 const FUTURE_HEIGHT_WINDOW: u64 = 4;
@@ -188,12 +189,12 @@ where
                     StreamContent::Data(p) => p.get_type(),
                     StreamContent::Fin => "fin",
                 };
-                info!(%from, %part.sequence, part.type = %part_type, "ReceivedProposalPart");
+                trace!(%from, %part.sequence, part.type = %part_type, "ReceivedProposalPart");
                 let value = self
                     .process_received_proposal_part(from, part)
                     .await
                     .unwrap_or_else(|e| {
-                        error!(?e, "ReceivedProposalPart: process failed");
+                        error!("ReceivedProposalPart: process failed, {e}");
                         None
                     });
                 if reply.send(value).is_err() {
@@ -346,12 +347,17 @@ where
         let pending = self.state.store.get_pending_proposal_parts(height, round)?;
         for parts in pending {
             let promote = async {
-                let proposed = self.assemble_and_validate(&parts).await?;
+                let (proposed, block) = match self.assemble_and_validate(&parts).await? {
+                    Acceptance::Accepted(res) => res,
+                    Acceptance::Rejected(reason) => {
+                        warn!(%height, %round, reason, "rejecting pending proposal");
+                        return Ok(());
+                    }
+                };
                 self.state.store.store_undecided_proposal(&proposed)?;
-                let block = Block::decode(&mut &proposed.value.block_bytes[..])
-                    .map_err(|e| anyhow!("decoding Block from pending proposal: {e}"))?;
                 self.record_assembled_block(block).await
             };
+
             if let Err(e) = promote.await {
                 error!(?e, "rejecting invalid pending proposal");
             }
@@ -445,10 +451,14 @@ where
                 .store_pending_proposal_parts(&parts, &value_id)?;
             Ok(None)
         } else {
-            let proposed = self.assemble_and_validate(&parts).await?;
+            let (proposed, block) = match self.assemble_and_validate(&parts).await? {
+                Acceptance::Accepted(res) => res,
+                Acceptance::Rejected(reason) => {
+                    warn!(%parts.height, %parts.round, reason, "rejecting received proposal");
+                    return Ok(None);
+                }
+            };
             self.state.store.store_undecided_proposal(&proposed)?;
-            let block = Block::decode(&mut &proposed.value.block_bytes[..])
-                .map_err(|e| anyhow!("decoding Block from received proposal: {e}"))?;
             self.record_assembled_block(block).await?;
             Ok(Some(proposed))
         }
@@ -571,17 +581,25 @@ where
     async fn assemble_and_validate(
         &self,
         parts: &ProposalParts,
-    ) -> Result<ProposedValue<MalachiteCtx>> {
+    ) -> Result<Acceptance<(ProposedValue<MalachiteCtx>, Block), String>> {
         let proposed = State::assemble_value_from_parts(parts.clone())?;
-        let block = Block::decode(&mut &proposed.value.block_bytes[..])
-            .map_err(|e| anyhow!("decoding Block from value bytes: {e}"))?;
+
+        let block = match Block::decode(&mut &proposed.value.block_bytes[..]) {
+            Ok(b) => b,
+            Err(e) => {
+                let reason = format!("unable to decode Block from proposal: {e}");
+                return Ok(Acceptance::Rejected(reason));
+            }
+        };
+
         if block.height != proposed.height.as_u64() {
-            return Err(anyhow!(
+            let reason = format!(
                 "block.height ({}) does not match proposed height ({})",
-                block.height,
-                proposed.height
-            ));
+                block.height, proposed.height
+            );
+            return Ok(Acceptance::Rejected(reason));
         }
+
         let local_parent = if proposed.height.as_u64() <= 1 {
             H256::zero()
         } else {
@@ -595,29 +613,25 @@ where
                     )
                 })?
         };
+
         if block.parent_hash != local_parent {
-            return Err(anyhow!(
-                "parent_hash mismatch at height {}: block claims {:?}, local view {:?}",
-                proposed.height,
-                block.parent_hash,
-                local_parent
-            ));
+            let reason = format!(
+                "proposal parent_hash mismatch at height {}: block claims {:?}, local view {:?}",
+                proposed.height, block.parent_hash, local_parent
+            );
+            return Ok(Acceptance::Rejected(reason));
         }
-        // Parent + height already validated above. The application
-        // only sees the parent hash + payload — payload-level checks
-        // live there.
-        let valid = self
+
+        let validation_status = self
             .externalities
-            .validate_block_above(block.parent_hash, block.payload)
+            .validate_block_above(block.parent_hash, &block.payload)
             .await
-            .context("Externalities::validate_block_above")?;
-        if !valid {
-            return Err(anyhow!(
-                "application rejected proposal at height {}",
-                proposed.height
-            ));
+            .context("assemble_and_validate: validate block")?;
+
+        match validation_status {
+            Acceptance::Accepted(()) => Ok(Acceptance::Accepted((proposed, block))),
+            Acceptance::Rejected(reason) => Ok(Acceptance::Rejected(reason)),
         }
-        Ok(proposed)
     }
 
     /// Drive the strict-ordering save cascade against the application
@@ -794,8 +808,12 @@ mod tests {
         async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
             Ok(test_payload())
         }
-        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
-            Ok(true)
+        async fn validate_block_above(
+            &self,
+            _: H256,
+            _: &BlockPayload,
+        ) -> Result<Acceptance<(), String>> {
+            Ok(Acceptance::Accepted(()))
         }
     }
 
@@ -977,8 +995,12 @@ mod tests {
         async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
             Ok(test_payload())
         }
-        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
-            Ok(true)
+        async fn validate_block_above(
+            &self,
+            _: H256,
+            _: &BlockPayload,
+        ) -> Result<Acceptance<(), String>> {
+            Ok(Acceptance::Accepted(()))
         }
     }
 
