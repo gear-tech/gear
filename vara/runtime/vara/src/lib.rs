@@ -1768,7 +1768,6 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
-    migrations::Migrations,
 >;
 
 #[cfg(test)]
