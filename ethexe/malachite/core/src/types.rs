@@ -7,7 +7,6 @@ use gear_core::limited::LimitedVec;
 pub use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
 
 /// Hard cap on a block's encoded application payload — the SCALE-encoded
 /// application operation list carried in [`Block::payload`] (the service treats
@@ -34,14 +33,21 @@ pub type BlockPayload = LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>;
 /// arbitrary other consumers tomorrow) share a single address shape
 /// without each side reaching across crate boundaries for the inner
 /// representation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    derive_more::Display,
+)]
+#[display("0x{}", hex::encode(_0.0))]
 pub struct Address(pub gsigner::schemes::secp256k1::Address);
-
-impl Display for Address {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0.0))
-    }
-}
 
 impl Address {
     pub const fn from_inner(addr: gsigner::schemes::secp256k1::Address) -> Self {

@@ -80,12 +80,17 @@ pub struct CommitCertificate {
 }
 
 /// Output event stream of the Malachite service.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum MalachiteEvent {
     /// New sequencer block persisted; `mb_hash` is the Blake2b envelope hash.
+    #[display("BlockProposal(height: {height}, mb_hash: {mb_hash})")]
     BlockProposal { height: u64, mb_hash: H256 },
 
     /// BFT-committed block; `globals.latest_finalized_mb_hash` now points at it.
+    #[display(
+        "BlockFinalized(height: {height}, mb_hash: {mb_hash}, sigs: {})",
+        cert.signatures.len()
+    )]
     BlockFinalized {
         cert: CommitCertificate,
         height: u64,
@@ -93,41 +98,14 @@ pub enum MalachiteEvent {
     },
 
     /// Transactions that were purged from the mempool.
+    #[display(
+        "PurgedTransactions(eb_hash: {eb_hash}, transactions_len: {})",
+        transactions.len()
+    )]
     PurgedTransactions {
         eb_hash: H256,
         transactions: Vec<PurgedTransaction>,
     },
-}
-
-impl std::fmt::Display for MalachiteEvent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::BlockProposal { height, mb_hash } => {
-                write!(f, "BlockProposal(height: {height}, mb_hash: {mb_hash})")
-            }
-            Self::BlockFinalized {
-                cert,
-                height,
-                mb_hash,
-            } => write!(
-                f,
-                "BlockFinalized(height: {}, mb_hash: {}, sigs: {})",
-                height,
-                mb_hash,
-                cert.signatures.len()
-            ),
-            Self::PurgedTransactions {
-                eb_hash,
-                transactions,
-            } => {
-                write!(
-                    f,
-                    "PurgedTransactions(eb_hash: {eb_hash}, transactions_len: {})",
-                    transactions.len()
-                )
-            }
-        }
-    }
 }
 
 // Static check: the public types are stable.

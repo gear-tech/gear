@@ -26,6 +26,8 @@ advisory-lock.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
+derive-where.workspace = true
+derive_more.workspace = true
 futures.workspace = true
 hex.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive", "std"] }

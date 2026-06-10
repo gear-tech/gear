@@ -148,11 +148,13 @@ impl<C: Currency> str::FromStr for FormattedValue<C> {
 }
 
 /// Accepts either a raw integer or a formatted value with a currency suffix.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum RawOrFormattedValue<C: Currency> {
     /// Value expressed directly in the smallest unit.
+    #[display("{_0}")]
     Raw(u128),
     /// Value expressed with the currency suffix, such as `1 ETH`.
+    #[display("{_0}")]
     Formatted(FormattedValue<C>),
 }
 
@@ -162,15 +164,6 @@ impl<C: Currency> RawOrFormattedValue<C> {
         match self {
             Self::Raw(value) => value,
             Self::Formatted(formatted) => formatted.into_inner(),
-        }
-    }
-}
-
-impl<C: Currency> fmt::Display for RawOrFormattedValue<C> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Raw(value) => write!(f, "{value}"),
-            Self::Formatted(formatted) => write!(f, "{formatted}"),
         }
     }
 }
