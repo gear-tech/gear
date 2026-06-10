@@ -83,6 +83,11 @@ impl MalachiteService {
             return;
         }
 
+        // Publish the synced head for the externalities' quarantine
+        // checks BEFORE waking the producer, so the woken round
+        // already sees it.
+        *self.chain_head.latest_synced.write().await = chain_head;
+
         // Notify inner proposer if it waits (see EthexeExternalities::wait_for_proposable_content)
         self.chain_head.notify.notify_one();
 
