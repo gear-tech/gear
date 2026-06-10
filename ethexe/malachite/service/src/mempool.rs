@@ -803,6 +803,275 @@ mod tests {
         assert_eq!(pool.len(), 1);
     }
 
+    /// REPRODUCES: the mempool accepts txs whose `reference_block` is at a
+    /// height STRICTLY GREATER than the current chain head ("future
+    /// reference"). Such txs are NEVER fetchable (the future block is not
+    /// on `recent_ancestors` of any present head) and `tx_validity.rs`
+    /// (`is_reference_block_within_validity_window`) explicitly rejects
+    /// `reference_block_height > chain_head_height`. They are also not
+    /// purged by `set_chain_head` until the head catches up past their
+    /// height + VALIDITY_WINDOW. That window can be made arbitrarily wide
+    /// — a malicious caller can mint a payload to permanently exhaust pool
+    /// capacity with txs that no producer will ever include.
+    ///
+    /// The desired behaviour is that the mempool refuses to accept
+    /// future-anchored refs (aligning with `tx_validity.rs:184`). The
+    /// final assertion below pins that invariant; the test currently
+    /// fails because mempool accepts the legitimate fresh tx after the
+    /// poisoned ones (capacity is not actually full — because the future
+    /// txs are unfetchable but still occupy slots — the inserts succeed
+    /// when they should have been rejected outright).
+    #[test]
+    #[ignore = "tracks bug: mempool accepts future-anchored ref_block but tx_validity rejects it — capacity DoS"]
+    fn insert_should_reject_future_ref_block() {
+        let db = Database::memory();
+        // Build a short canonical chain so head_height is meaningful.
+        let chain = linear_chain(&db, 3);
+        // Inject a "future" block header at height 100 — well above the
+        // head_height of 2 that we will set. This simulates a block the
+        // observer wrote (any branch ever seen lands in DB) that hasn't
+        // been promoted to head locally.
+        let future_hash = H256::from([0xFE; 32]);
+        let future_header = BlockHeader {
+            height: 100,
+            timestamp: 100,
+            parent_hash: chain[2].hash,
+        };
+        db.set_block_header(future_hash, future_header);
+        db.mutate_block_meta(future_hash, |_| {});
+
+        let pool = InjectedTxMempool::with_capacity(db, 4);
+        pool.set_chain_head(chain[2]); // head_height = 2
+
+        let pk = PrivateKey::random();
+        // A tx anchored to a FUTURE block (height 100 > head_height 2).
+        // Desired: rejected. Actual (bug): accepted.
+        let future_tx = signed_tx(&pk, ActorId::zero(), future_hash, 0);
+        let insert_result = pool.insert(future_tx);
+        assert!(
+            matches!(insert_result, Err(MempoolInsertError::ExpiredRefBlock)),
+            "tx with reference_block_height ({}) > chain_head_height ({}) \
+             must be rejected at insert to match tx_validity.rs:184 \
+             (`reference_block_height <= chain_head_height`); got {:?}",
+            100,
+            2,
+            insert_result,
+        );
+    }
+
+    /// REPRODUCES: `insert` deliberately tolerates a `reference_block`
+    /// that hasn't yet been observed locally (see the comment at
+    /// mempool.rs:298-301: "ref_block resolution is best-effort: a
+    /// recipient that hasn't yet observed the producer's reference Eth
+    /// block accepts and filters at fetch time once the block lands
+    /// locally").
+    ///
+    /// But `purge_expired` — invoked by `set_chain_head` on every
+    /// height advance — treats `db.block_header(ref_block) == None` as
+    /// "drop this tx". So the very next time the local node receives a
+    /// block, every pool entry whose ref_block hasn't yet replicated
+    /// is silently evicted, even though the network as a whole has it
+    /// and would have produced the block in a few hundred ms.
+    ///
+    /// Concrete attack/race: validator A publishes its `BlockSynced`
+    /// for an EB at the same instant validator B fans out an injected
+    /// tx whose ref_block is that EB. If B's RPC reaches A a tick
+    /// before A's observer writes the EB header, A accepts the tx
+    /// (insert tolerates unknown ref_block). The next `set_chain_head`
+    /// on A (very next EB) purges the tx — but A's RPC had already
+    /// returned `Accept` to the client, and the promise will never
+    /// fire because the tx is gone before any producer fetched it.
+    ///
+    /// Desired behaviour (one of two fixes):
+    ///   (a) `purge_expired` keeps unknown-ref_block entries that
+    ///       arrived within a short grace window of `latest_head_height`
+    ///       (mirroring the insert tolerance), OR
+    ///   (b) `insert` rejects unknown ref_block when a `chain_head` is
+    ///       already set, so RPC's `Accept` matches the runtime fate.
+    ///
+    /// This test asserts (a): an unknown-ref_block tx accepted by
+    /// `insert` must survive the next `set_chain_head` for at least
+    /// one block. It currently fails because the tx is dropped
+    /// immediately.
+    #[test]
+    #[ignore = "tracks bug: purge_expired drops unknown-ref_block txs that insert just accepted"]
+    fn purge_expired_must_not_evict_unknown_ref_block_within_grace() {
+        let db = Database::memory();
+        // Canonical chain so set_chain_head has a real head to consume.
+        let chain = linear_chain(&db, 3);
+        let pool = InjectedTxMempool::with_capacity(db, 8);
+        let pk = PrivateKey::random();
+
+        // Simulate the race: the producer's ref_block hasn't replicated
+        // to this validator's DB yet. Use a random hash that's NOT in
+        // the DB. insert tolerates this and accepts.
+        let unsynced_ref_block = H256::from([0xCA; 32]);
+        let tx = signed_tx(&pk, ActorId::zero(), unsynced_ref_block, 0);
+        pool.insert(tx).expect("insert tolerates unknown ref_block");
+        assert_eq!(pool.len(), 1, "insert path accepted the tx");
+
+        // The very next chain-head advance triggers purge_expired.
+        // The tx's ref_block is still unknown in the local DB — but
+        // that's the EXACT race the insert tolerance is meant to
+        // cover. The producer-side EB will replicate to this node a
+        // few hundred ms later, and at that point the tx should still
+        // be fetchable.
+        pool.set_chain_head(chain[1]);
+
+        assert_eq!(
+            pool.len(),
+            1,
+            "tx with not-yet-replicated ref_block must survive \
+             set_chain_head for at least one block — insert tolerates \
+             unknown ref_block, so purge_expired must mirror that \
+             tolerance (else RPC returns Accept but the promise never \
+             fires)",
+        );
+    }
+
+    /// REPRODUCES: `forget()` unconditionally stamps every committed
+    /// tx into the `seen` table with its `reference_block` hash. When
+    /// `ref_block` isn't (yet) in this node's local DB,
+    /// `purge_expired` — fired on every `set_chain_head` — evicts the
+    /// seen entry because the `db.block_header(ref_block)` lookup
+    /// returns `None` (see `Self::purge_expired`'s seen-retain loop:
+    /// match arm `_ => false`). Once the seen entry is gone, the
+    /// network-committed tx can be re-inserted into the local pool —
+    /// the dedup guarantee `forget_moves_committed_to_seen_table`
+    /// relies on is silently broken in this race.
+    ///
+    /// The race is realistic: the proposer's MB references an EB the
+    /// validator hasn't yet observed via the observer stream
+    /// (the insert path explicitly tolerates this in
+    /// `mempool.rs:298-301`). `process_finalized` calls `forget()`
+    /// for every tx in the committed MB — including ones the local
+    /// node never saw because its EB stream lags. Those forgotten
+    /// txs are then evicted from `seen` on the next chain-head
+    /// advance.
+    ///
+    /// Concrete consequence: a client can re-submit the SAME signed
+    /// tx after it was already committed by the network, and this
+    /// node will admit it into its pool a second time. If this node
+    /// later becomes proposer, it would include the duplicate —
+    /// `TxValidityChecker::recent_included_txs` covers only the last
+    /// `VALIDITY_WINDOW` MBs, so a sufficiently lagged ref_block plus
+    /// a deeply committed earlier tx slip through. Even before that,
+    /// it inflates pool occupancy with already-committed work.
+    ///
+    /// Expected fix: `purge_expired` must retain `seen` entries
+    /// whose ref_block isn't yet in the DB — same grace the insert
+    /// path extends to incoming txs. The eviction rule should be
+    /// "known AND expired", not "known AND expired OR unknown".
+    /// (Symmetric to iter #4 but on the forget→purge path, not the
+    /// insert→purge path.)
+    #[test]
+    #[ignore = "tracks bug: purge_expired evicts seen-table entries whose ref_block hasn't replicated yet"]
+    fn forget_then_purge_evicts_seen_entry_for_unknown_ref_block() {
+        let db = Database::memory();
+        // Canonical chain so set_chain_head has a real head to consume.
+        let chain = linear_chain(&db, 3);
+        let pool = InjectedTxMempool::with_capacity(db, 8);
+        let pk = PrivateKey::random();
+
+        // The committed tx references an EB that this validator hasn't
+        // yet observed — its ref_block hash is NOT in the local DB.
+        // process_finalized calls forget() with this tx anyway: the
+        // tx was committed by the network, and the local node accepts
+        // the commit even when its observer stream lags.
+        let unsynced_ref_block = H256::from([0xCA; 32]);
+        let tx = signed_tx(&pk, ActorId::zero(), unsynced_ref_block, 0);
+
+        // Simulate process_finalized → forget() for a tx that was
+        // never in our local pool. forget() unconditionally stamps
+        // the tx_hash into `seen` with its ref_block.
+        futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
+
+        // Sanity: re-inserting the just-forgotten tx is blocked by the
+        // seen-hash gate.
+        assert!(
+            matches!(
+                pool.insert(tx.clone()),
+                Err(MempoolInsertError::AlreadyCommitted),
+            ),
+            "seen-hash gate must block re-insert of a just-forgotten tx",
+        );
+
+        // The next chain-head advance triggers purge_expired. Its
+        // seen-retain loop falls through to `_ => false` for the
+        // unknown ref_block — and silently drops the seen entry.
+        pool.set_chain_head(chain[1]);
+
+        // The bug: the dedup gate is gone. The same network-committed
+        // tx now slips back into the local pool.
+        let reinsert = pool.insert(tx);
+        assert!(
+            matches!(reinsert, Err(MempoolInsertError::AlreadyCommitted)),
+            "forgotten tx with not-yet-replicated ref_block must remain \
+             in the `seen` table across set_chain_head — purge_expired \
+             must mirror insert's tolerance for unknown ref_block. \
+             Currently re-insert returns: {reinsert:?}",
+        );
+    }
+
+    /// REPRODUCES: `insert` gates the `is_expired` check on
+    /// `latest_head_height.is_some()`. Before the first `set_chain_head`
+    /// arrives — the node's "cold start" window between process boot
+    /// and the first observer tick — the check is silently skipped.
+    /// During fast-sync the local DB already holds a long chain of
+    /// `block_header` rows (so `ref_block_height` resolves), but
+    /// `set_chain_head` hasn't fired yet because the observer hasn't
+    /// produced its first event. In this window, a public RPC caller
+    /// can submit txs anchored on arbitrarily-old ref_blocks (well
+    /// past `VALIDITY_WINDOW`) and the pool accepts them.
+    ///
+    /// Concrete consequence: RPC returns `Accept` to the client, the
+    /// tx occupies a pool slot, and the first `set_chain_head` call
+    /// then evicts it via `purge_expired` — the promise the client is
+    /// waiting on never resolves. An attacker who races the cold-start
+    /// window can DoS legitimate clients by burning capacity slots
+    /// AND by tricking the local RPC into returning misleading
+    /// acceptances. Distinct from iter #2 (future-anchored ref_block,
+    /// chain_head SET) and iter #4 (unknown ref_block, insert tolerance
+    /// vs purge mismatch).
+    ///
+    /// Expected fix: when `latest_head_height` is `None` but the
+    /// `ref_block` IS in the local DB, derive the expiry from a
+    /// canonical-head proxy (e.g. the DB's `latest_synced_eb` or the
+    /// max known block_header height), so cold-start inserts use the
+    /// same expiry rule as steady-state inserts.
+    #[test]
+    #[ignore = "tracks bug: cold-start mempool insert skips is_expired when latest_head_height is None"]
+    fn cold_start_insert_accepts_expired_ref_block_before_first_set_chain_head() {
+        let db = Database::memory();
+        // A long chain in the DB — mirrors the post-fast-sync state at
+        // boot, BEFORE the observer has produced its first event.
+        let chain = linear_chain(&db, (VALIDITY_WINDOW as usize) + 5);
+        let pool = InjectedTxMempool::with_capacity(db, 4);
+        let pk = PrivateKey::random();
+
+        // No `pool.set_chain_head(..)` call — simulate cold start.
+
+        // A tx anchored at block 1 — height 1. The actual chain tip
+        // (chain[VALIDITY_WINDOW + 4]) is well past the validity window
+        // for block 1, so this tx would be expired against any sane
+        // canonical head. Insert MUST reject it; current behaviour
+        // accepts it because `latest_head_height` is None.
+        let expired_tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
+        let insert_result = pool.insert(expired_tx);
+
+        assert!(
+            matches!(insert_result, Err(MempoolInsertError::ExpiredRefBlock)),
+            "cold-start insert accepted an expired-against-DB-tip tx \
+             (ref_block height 1; DB has blocks up to height {}). The \
+             pool must apply the same `is_expired` rule when \
+             `latest_head_height` is None — otherwise public RPC \
+             returns Accept to clients for txs that the very next \
+             `set_chain_head` will silently purge. Got: {:?}",
+            (VALIDITY_WINDOW as usize) + 4,
+            insert_result,
+        );
+    }
+
     #[tokio::test(start_paused = true)]
     async fn wait_for_new_tx_wakes_on_insert() {
         let db = Database::memory();
