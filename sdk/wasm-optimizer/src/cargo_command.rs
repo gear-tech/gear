@@ -22,7 +22,10 @@ pub struct CargoCommand {
 impl CargoCommand {
     /// Initialize new cargo command.
     pub fn new() -> CargoCommand {
+        #[cfg(not(target_os = "android"))]
         let toolchain = Toolchain::try_from_rustup().expect("Failed to resolve toolchain version");
+        #[cfg(target_os = "android")]
+        let toolchain = Toolchain::stable();
         let rustc_version = rustc_version::version().expect("Failed to get rustc version");
         let linker_plugin_lto = rustc_version.major == 1 && rustc_version.minor >= 91;
         let allow_undefined = rustc_version.major == 1 && rustc_version.minor >= 96;
@@ -109,17 +112,23 @@ impl CargoCommand {
             self.toolchain.check_recommended_toolchain()?;
         }
 
+        #[cfg(not(target_os = "android"))]
         let toolchain = if self.force_recommended_toolchain {
             Toolchain::recommended_nightly()
         } else {
             self.toolchain.clone()
         };
 
+        #[cfg(not(target_os = "android"))]
         let mut cargo = Command::new(&self.path);
+        #[cfg(not(target_os = "android"))]
         cargo
             .arg("run")
             .arg(toolchain.raw_toolchain_str().as_ref())
             .arg("cargo");
+
+        #[cfg(target_os = "android")]
+        let mut cargo = Command::new("cargo");
 
         if self.force_recommended_toolchain {
             self.clean_up_environment(&mut cargo);
