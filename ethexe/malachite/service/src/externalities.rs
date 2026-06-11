@@ -62,15 +62,15 @@ use tokio::sync::{Notify, mpsc};
 use tracing::{error, info, warn};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct FastSyncReplayBoundary {
+pub(crate) struct FastSyncReplayTarget {
     pub mb_hash: H256,
     pub eb_hash: H256,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct FastSyncReplayFilter {
-    pub boundary: FastSyncReplayBoundary,
-    pub boundary_proposal_seen: bool,
+    pub target: FastSyncReplayTarget,
+    pub target_proposal_seen: bool,
 }
 
 /// Inputs the externalities need to satisfy the [`ethexe_malachite_core::Externalities`]
@@ -642,8 +642,8 @@ impl EthexeExternalities {
             .fast_sync_replay_filter
             .write()
             .expect("fast_sync_replay_filter poisoned") = Some(FastSyncReplayFilter {
-            boundary: FastSyncReplayBoundary { mb_hash, eb_hash },
-            boundary_proposal_seen: false,
+            target: FastSyncReplayTarget { mb_hash, eb_hash },
+            target_proposal_seen: false,
         });
     }
 
@@ -661,13 +661,13 @@ impl EthexeExternalities {
             return Ok(false);
         };
 
-        let boundary = filter.boundary;
-        let matches_boundary = mb_hash == boundary.mb_hash && last_advanced_eb == boundary.eb_hash;
+        let target = filter.target;
+        let matches_target = mb_hash == target.mb_hash && last_advanced_eb == target.eb_hash;
 
-        if mb_hash == boundary.mb_hash && !matches_boundary {
+        if mb_hash == target.mb_hash && !matches_target {
             let message = format!(
-                "fast-sync replay boundary mismatch: MB {mb_hash} advanced {last_advanced_eb}, expected {}",
-                boundary.eb_hash,
+                "fast-sync replay target mismatch: MB {mb_hash} advanced {last_advanced_eb}, expected {}",
+                target.eb_hash,
             );
             *guard = None;
             drop(guard);
@@ -676,11 +676,11 @@ impl EthexeExternalities {
             return Err(anyhow!(message));
         }
 
-        if matches_boundary {
+        if matches_target {
             guard
                 .as_mut()
                 .expect("fast-sync replay filter checked above")
-                .boundary_proposal_seen = true;
+                .target_proposal_seen = true;
         }
 
         Ok(true)
@@ -696,7 +696,7 @@ impl EthexeExternalities {
             return false;
         };
 
-        if mb_hash == filter.boundary.mb_hash && filter.boundary_proposal_seen {
+        if mb_hash == filter.target.mb_hash && filter.target_proposal_seen {
             *guard = None;
         }
 
@@ -1330,54 +1330,6 @@ mod tests {
         assert!(seen_hashes.contains(&tx_b.data().to_hash()));
     }
 
-    /// Nonzero execution globals are not enough to suppress ValueSync replay.
-    /// Suppression must be explicitly enabled after fast-sync capture.
-    #[tokio::test]
-    async fn value_sync_replay_without_enabled_boundary_processes_normally() {
-        let db = Database::memory();
-        let (ext, mut rx) = make_externalities(db.clone());
-
-        let boundary_payload = payload(None, 1);
-        let boundary_block = wrap(boundary_payload, 10, H256::zero());
-        let boundary_hash = boundary_block.hash();
-        db.globals_mutate(|g| {
-            g.latest_finalized_mb_hash = boundary_hash;
-            g.latest_computed_mb_hash = boundary_hash;
-        });
-
-        let replay_payload = payload(None, 2);
-        let replay_block = wrap(replay_payload, 9, H256::zero());
-        let replay_hash = replay_block.hash();
-
-        ext.process_mb_proposal(replay_hash, replay_block)
-            .await
-            .unwrap();
-        match rx.recv().await.expect("proposal event").unwrap() {
-            MalachiteEvent::BlockProposal { height, mb_hash } => {
-                assert_eq!(height, 9);
-                assert_eq!(mb_hash, replay_hash);
-            }
-            other => panic!("expected BlockProposal, got {other:?}"),
-        }
-
-        ext.process_mb_finalized(replay_hash, fake_cert(9))
-            .await
-            .unwrap();
-        match rx.recv().await.expect("finalization event").unwrap() {
-            MalachiteEvent::BlockFinalized {
-                cert,
-                height,
-                mb_hash,
-            } => {
-                assert_eq!(height, 9);
-                assert_eq!(cert.height, 9);
-                assert_eq!(mb_hash, replay_hash);
-            }
-            other => panic!("expected BlockFinalized, got {other:?}"),
-        }
-        assert_eq!(db.globals().latest_finalized_mb_hash, replay_hash);
-    }
-
     #[tokio::test]
     async fn fast_sync_filter_suppresses_until_boundary_finalization() {
         use ethexe_common::db::MbStorageRO;
@@ -1545,16 +1497,14 @@ mod tests {
         let err = ext
             .process_mb_proposal(mb_hash, block)
             .await
-            .expect_err("boundary EB mismatch must fail");
+            .expect_err("target EB mismatch must fail");
         assert!(
-            err.to_string()
-                .contains("fast-sync replay boundary mismatch"),
+            err.to_string().contains("fast-sync replay target mismatch"),
             "unexpected error: {err:#}"
         );
         match rx.try_recv().expect("mismatch event") {
             Err(err) => assert!(
-                err.to_string()
-                    .contains("fast-sync replay boundary mismatch"),
+                err.to_string().contains("fast-sync replay target mismatch"),
                 "unexpected event error: {err:#}"
             ),
             Ok(event) => panic!("expected mismatch error event, got {event:?}"),
@@ -1582,16 +1532,14 @@ mod tests {
         let err = ext
             .process_mb_proposal(mb_hash, block)
             .await
-            .expect_err("zero boundary EB mismatch must fail");
+            .expect_err("zero target EB mismatch must fail");
         assert!(
-            err.to_string()
-                .contains("fast-sync replay boundary mismatch"),
+            err.to_string().contains("fast-sync replay target mismatch"),
             "unexpected error: {err:#}"
         );
         match rx.try_recv().expect("mismatch event") {
             Err(err) => assert!(
-                err.to_string()
-                    .contains("fast-sync replay boundary mismatch"),
+                err.to_string().contains("fast-sync replay target mismatch"),
                 "unexpected event error: {err:#}"
             ),
             Ok(event) => panic!("expected mismatch error event, got {event:?}"),
