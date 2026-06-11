@@ -16,6 +16,8 @@
 //
 // TODO: update docs after merging with `gclient`.
 
+const _: &str = env!("GSDK_METADATA_FINGERPRINT");
+
 pub use crate::{
     api::{Api, ApiBuilder},
     config::GearConfig,

@@ -455,7 +455,17 @@ jobs:
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
       - name: "Test: Download Vara Mainnet snapshot"
-        run: curl -o vara_ci.snap -L https://snapshots.vara.network/vara-mainnet.snap
+        run: >-
+          curl
+          --fail
+          --location
+          --retry 5
+          --retry-all-errors
+          --retry-delay 10
+          --continue-at -
+          --http1.1
+          -o vara_ci.snap
+          https://snapshots.vara.network/vara-mainnet.snap
 
       - name: "Test: on-runtime-upgrade"
         run: >-
