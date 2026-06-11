@@ -1373,6 +1373,15 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         })
     }
 
+    fn crypto(
+        &mut self,
+        _op: gsys::CryptoOp,
+        _input: &[u8],
+    ) -> Result<Vec<u8>, Self::FallibleError> {
+        // `gr_crypto` is ethexe-only and never linked into Vara programs.
+        Err(FallibleExtError::Core(FallibleExtErrorCore::Unsupported))
+    }
+
     fn create_program(
         &mut self,
         packet: InitPacket,

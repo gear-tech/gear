@@ -11,7 +11,7 @@ use crate::{
     message::{DispatchKind, HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
 };
-use alloc::{collections::BTreeSet, string::String};
+use alloc::{collections::BTreeSet, string::String, vec::Vec};
 use core::fmt::Display;
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SyscallName;
@@ -206,6 +206,9 @@ pub trait Externalities {
 
     /// Wake the waiting message and move it to the processing queue.
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::FallibleError>;
+
+    /// Perform a cryptographic operation on `input` (ethexe-only `gr_crypto`).
+    fn crypto(&mut self, op: gsys::CryptoOp, input: &[u8]) -> Result<Vec<u8>, Self::FallibleError>;
 
     /// Send init message to create a new program.
     fn create_program(

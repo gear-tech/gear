@@ -4,7 +4,7 @@
 //! Externalities implementation for ethexe runtime.
 
 use crate::RuntimeInterface;
-use alloc::collections::btree_set::BTreeSet;
+use alloc::{collections::btree_set::BTreeSet, vec::Vec};
 use core_processor::{
     Ext as CoreExt, ExtInfo, FallibleExtError, ProcessorContext, ProcessorExternalities,
     configs::SyscallName,
@@ -112,6 +112,9 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
             fn value_available(&self) -> Result<u128, Self::UnrecoverableError>;
             fn wait_for(&mut self, duration: u32) -> Result<(), Self::UnrecoverableError>;
             fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::UnrecoverableError>;
+            // TODO #5456: forward to the real host crypto implementation
+            // instead of the core Ext unsupported stub.
+            fn crypto(&mut self, op: gsys::CryptoOp, input: &[u8]) -> Result<Vec<u8>, Self::FallibleError>;
             fn forbidden_funcs(&self) -> &BTreeSet<SyscallName>;
             fn msg_ctx(&self) -> &MessageContext;
         }

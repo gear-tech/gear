@@ -110,6 +110,12 @@ pub(crate) struct WriteInGrRead {
     write: WasmMemoryWrite,
 }
 
+/// Registers a mut write of wasm args in `(ptr, len)` order,
+/// unlike [`WriteInGrRead`] which consumes `(len, ptr)`.
+pub(crate) struct WriteBuffer {
+    write: WasmMemoryWrite,
+}
+
 pub(crate) struct WriteAs<T> {
     write: WasmMemoryWriteAs<T>,
 }
@@ -364,6 +370,34 @@ impl SyscallArg for WriteInGrRead {
     }
 }
 
+impl SyscallArg for WriteBuffer {
+    type Output = WasmMemoryWrite;
+    const REQUIRED_ARGS: usize = 2;
+
+    fn pre_process<Caller, Ext>(
+        registry: &mut Option<MemoryAccessRegistry<Caller>>,
+        args: &[Value],
+    ) -> Result<Self::Output, HostError>
+    where
+        Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
+        Ext: BackendExternalities + 'static,
+    {
+        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
+
+        let ptr = SyscallValue(args[0]).try_into()?;
+        let size = SyscallValue(args[1]).try_into()?;
+
+        Ok(registry.get_or_insert_default().register_write(ptr, size))
+    }
+
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        _ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self {
+        Self { write: output }
+    }
+}
+
 impl<T> SyscallArg for WriteAs<T> {
     type Output = WasmMemoryWriteAs<T>;
     const REQUIRED_ARGS: usize = 1;
@@ -424,6 +458,26 @@ impl<T> ReadAsOption<T> {
 }
 
 impl WriteInGrRead {
+    pub fn write<Caller, Ext>(
+        self,
+        ctx: &mut MemoryCallerContext<Caller>,
+        buff: &[u8],
+    ) -> Result<(), MemoryAccessError>
+    where
+        Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
+        Ext: BackendExternalities + 'static,
+    {
+        ctx.memory_wrap
+            .io_mut_ref()
+            .and_then(|io| io.write(&mut ctx.caller_wrap, self.write, buff))
+    }
+
+    pub fn size(&self) -> u32 {
+        self.write.size
+    }
+}
+
+impl WriteBuffer {
     pub fn write<Caller, Ext>(
         self,
         ctx: &mut MemoryCallerContext<Caller>,

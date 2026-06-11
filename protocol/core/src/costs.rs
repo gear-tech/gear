@@ -292,6 +292,36 @@ pub struct SyscallCosts {
 
     /// Cost per salt byte by `gr_create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: CostOf<BytesAmount>,
+
+    /// Cost of calling `gr_crypto` with `CryptoOp::Keccak256`.
+    pub gr_crypto_keccak256: CostOf<CallsAmount>,
+
+    /// Cost per input byte by `gr_crypto` with `CryptoOp::Keccak256`.
+    pub gr_crypto_keccak256_per_byte: CostOf<BytesAmount>,
+
+    /// Cost of calling `gr_crypto` with `CryptoOp::Sha256`.
+    pub gr_crypto_sha256: CostOf<CallsAmount>,
+
+    /// Cost per input byte by `gr_crypto` with `CryptoOp::Sha256`.
+    pub gr_crypto_sha256_per_byte: CostOf<BytesAmount>,
+
+    /// Cost of calling `gr_crypto` with `CryptoOp::Blake2b256`.
+    pub gr_crypto_blake2b256: CostOf<CallsAmount>,
+
+    /// Cost per input byte by `gr_crypto` with `CryptoOp::Blake2b256`.
+    pub gr_crypto_blake2b256_per_byte: CostOf<BytesAmount>,
+
+    /// Cost of calling `gr_crypto` with `CryptoOp::Bls12381Verify`.
+    pub gr_crypto_bls12_381_verify: CostOf<CallsAmount>,
+
+    /// Cost per input byte by `gr_crypto` with `CryptoOp::Bls12381Verify`.
+    pub gr_crypto_bls12_381_verify_per_byte: CostOf<BytesAmount>,
+
+    /// Cost of calling `gr_crypto` with `CryptoOp::Bls12381AggregateG1`.
+    pub gr_crypto_bls12_381_aggregate_g1: CostOf<CallsAmount>,
+
+    /// Cost per input byte by `gr_crypto` with `CryptoOp::Bls12381AggregateG1`.
+    pub gr_crypto_bls12_381_aggregate_g1_per_byte: CostOf<BytesAmount>,
 }
 
 /// Enumerates syscalls that can be charged by gas meter.
@@ -405,6 +435,10 @@ pub enum CostToken {
     CreateProgram(BytesAmount, BytesAmount),
     /// Cost of calling `gr_create_program_wgas`, taking in account payload and salt size.
     CreateProgramWGas(BytesAmount, BytesAmount),
+    /// Cost of calling `gr_crypto`, taking in account operation kind and input
+    /// size. `None` means an unknown operation id, which is charged with the
+    /// base cost so an invalid op still burns gas before erroring.
+    Crypto(Option<gsys::CryptoOp>, BytesAmount),
 }
 
 impl SyscallCosts {
@@ -483,6 +517,18 @@ impl SyscallCosts {
                     .with_bytes(self.gr_create_program_wgas_payload_per_byte, payload),
             )
             .with_bytes(self.gr_create_program_wgas_salt_per_byte, salt),
+            Crypto(op, len) => match op {
+                Some(gsys::CryptoOp::Keccak256) => cost_with_per_byte!(gr_crypto_keccak256, len),
+                Some(gsys::CryptoOp::Sha256) => cost_with_per_byte!(gr_crypto_sha256, len),
+                Some(gsys::CryptoOp::Blake2b256) => cost_with_per_byte!(gr_crypto_blake2b256, len),
+                Some(gsys::CryptoOp::Bls12381Verify) => {
+                    cost_with_per_byte!(gr_crypto_bls12_381_verify, len)
+                }
+                Some(gsys::CryptoOp::Bls12381AggregateG1) => {
+                    cost_with_per_byte!(gr_crypto_bls12_381_aggregate_g1, len)
+                }
+                None => self.gr_crypto_keccak256.cost_for_one(),
+            },
         }
     }
 }

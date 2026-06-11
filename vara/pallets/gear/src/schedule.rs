@@ -1296,6 +1296,17 @@ impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
                 .gr_create_program_wgas_salt_per_byte
                 .ref_time()
                 .into(),
+            // `gr_crypto` is ethexe-only and never linked on Vara, so its costs are zero.
+            gr_crypto_keccak256: 0.into(),
+            gr_crypto_keccak256_per_byte: 0.into(),
+            gr_crypto_sha256: 0.into(),
+            gr_crypto_sha256_per_byte: 0.into(),
+            gr_crypto_blake2b256: 0.into(),
+            gr_crypto_blake2b256_per_byte: 0.into(),
+            gr_crypto_bls12_381_verify: 0.into(),
+            gr_crypto_bls12_381_verify_per_byte: 0.into(),
+            gr_crypto_bls12_381_aggregate_g1: 0.into(),
+            gr_crypto_bls12_381_aggregate_g1_per_byte: 0.into(),
         }
     }
 }

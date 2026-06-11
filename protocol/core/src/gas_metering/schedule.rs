@@ -498,6 +498,26 @@ pub struct SyscallWeights {
     pub gr_create_program_wgas_payload_per_byte: Weight,
     #[doc = " Weight per salt byte by `create_program_wgas`."]
     pub gr_create_program_wgas_salt_per_byte: Weight,
+    #[doc = " Weight of calling `gr_crypto` with `CryptoOp::Keccak256`."]
+    pub gr_crypto_keccak256: Weight,
+    #[doc = " Weight per input byte by `gr_crypto` with `CryptoOp::Keccak256`."]
+    pub gr_crypto_keccak256_per_byte: Weight,
+    #[doc = " Weight of calling `gr_crypto` with `CryptoOp::Sha256`."]
+    pub gr_crypto_sha256: Weight,
+    #[doc = " Weight per input byte by `gr_crypto` with `CryptoOp::Sha256`."]
+    pub gr_crypto_sha256_per_byte: Weight,
+    #[doc = " Weight of calling `gr_crypto` with `CryptoOp::Blake2b256`."]
+    pub gr_crypto_blake2b256: Weight,
+    #[doc = " Weight per input byte by `gr_crypto` with `CryptoOp::Blake2b256`."]
+    pub gr_crypto_blake2b256_per_byte: Weight,
+    #[doc = " Weight of calling `gr_crypto` with `CryptoOp::Bls12381Verify`."]
+    pub gr_crypto_bls12_381_verify: Weight,
+    #[doc = " Weight per input byte by `gr_crypto` with `CryptoOp::Bls12381Verify`."]
+    pub gr_crypto_bls12_381_verify_per_byte: Weight,
+    #[doc = " Weight of calling `gr_crypto` with `CryptoOp::Bls12381AggregateG1`."]
+    pub gr_crypto_bls12_381_aggregate_g1: Weight,
+    #[doc = " Weight per input byte by `gr_crypto` with `CryptoOp::Bls12381AggregateG1`."]
+    pub gr_crypto_bls12_381_aggregate_g1_per_byte: Weight,
 }
 
 impl Default for SyscallWeights {
@@ -781,6 +801,49 @@ impl Default for SyscallWeights {
             },
             gr_create_program_wgas_salt_per_byte: Weight {
                 ref_time: 1238,
+                proof_size: 0,
+            },
+            // TODO #5456: benchmark `gr_crypto` operations; for now hash bases
+            // mirror `gr_send`, per-byte costs mirror `gr_debug_per_byte`, BLS
+            // verify is 100x and aggregate is 10x of the keccak base.
+            gr_crypto_keccak256: Weight {
+                ref_time: 2467510,
+                proof_size: 0,
+            },
+            gr_crypto_keccak256_per_byte: Weight {
+                ref_time: 280,
+                proof_size: 0,
+            },
+            gr_crypto_sha256: Weight {
+                ref_time: 2467510,
+                proof_size: 0,
+            },
+            gr_crypto_sha256_per_byte: Weight {
+                ref_time: 280,
+                proof_size: 0,
+            },
+            gr_crypto_blake2b256: Weight {
+                ref_time: 2467510,
+                proof_size: 0,
+            },
+            gr_crypto_blake2b256_per_byte: Weight {
+                ref_time: 280,
+                proof_size: 0,
+            },
+            gr_crypto_bls12_381_verify: Weight {
+                ref_time: 246751000,
+                proof_size: 0,
+            },
+            gr_crypto_bls12_381_verify_per_byte: Weight {
+                ref_time: 280,
+                proof_size: 0,
+            },
+            gr_crypto_bls12_381_aggregate_g1: Weight {
+                ref_time: 24675100,
+                proof_size: 0,
+            },
+            gr_crypto_bls12_381_aggregate_g1_per_byte: Weight {
+                ref_time: 280,
                 proof_size: 0,
             },
         }
@@ -1193,6 +1256,25 @@ impl From<SyscallWeights> for SyscallCosts {
                 .into(),
             gr_create_program_wgas_salt_per_byte: val
                 .gr_create_program_wgas_salt_per_byte
+                .ref_time()
+                .into(),
+            gr_crypto_keccak256: val.gr_crypto_keccak256.ref_time().into(),
+            gr_crypto_keccak256_per_byte: val.gr_crypto_keccak256_per_byte.ref_time().into(),
+            gr_crypto_sha256: val.gr_crypto_sha256.ref_time().into(),
+            gr_crypto_sha256_per_byte: val.gr_crypto_sha256_per_byte.ref_time().into(),
+            gr_crypto_blake2b256: val.gr_crypto_blake2b256.ref_time().into(),
+            gr_crypto_blake2b256_per_byte: val.gr_crypto_blake2b256_per_byte.ref_time().into(),
+            gr_crypto_bls12_381_verify: val.gr_crypto_bls12_381_verify.ref_time().into(),
+            gr_crypto_bls12_381_verify_per_byte: val
+                .gr_crypto_bls12_381_verify_per_byte
+                .ref_time()
+                .into(),
+            gr_crypto_bls12_381_aggregate_g1: val
+                .gr_crypto_bls12_381_aggregate_g1
+                .ref_time()
+                .into(),
+            gr_crypto_bls12_381_aggregate_g1_per_byte: val
+                .gr_crypto_bls12_381_aggregate_g1_per_byte
                 .ref_time()
                 .into(),
         }
