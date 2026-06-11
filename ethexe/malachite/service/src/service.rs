@@ -165,7 +165,7 @@ impl MalachiteService {
             gas_allowance: config.gas_allowance,
             canonical_quarantine: config.canonical_quarantine,
             post_quarantine_delay: config.post_quarantine_delay,
-            fast_sync_replay_filter: std::sync::RwLock::new(None),
+            fast_sync_replay_filter: std::sync::Mutex::new(None),
         });
 
         // On-chain addresses → pub keys, so era rotations resolve back without an out-of-band lookup.
