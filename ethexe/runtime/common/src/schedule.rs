@@ -151,10 +151,10 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
 /// Used primary for fast sync and tests.
 ///
 /// No expiry filtering is applied: every scheduled task found in the dumped
-/// states is restored. Committed states never hold a task already expired at
-/// the dumped block, and the executor drains the full backlog with no lower
-/// bound, so any restored task fires at the first computed block regardless of
-/// its expiry.
+/// states is restored. A committed schedule may hold overdue tasks (capped
+/// processing defers the excess — see `MAX_SCHEDULE_TASKS_PER_MB`), and the
+/// executor drains the backlog with no lower bound, so any restored task
+/// fires starting from the first computed block, subject to the same cap.
 #[derive(Default)]
 pub struct Restorer {
     schedule: Schedule,

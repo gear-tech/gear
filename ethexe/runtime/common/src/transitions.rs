@@ -90,6 +90,45 @@ impl InBlockTransitions {
         due.into_values().flatten().collect()
     }
 
+    /// Like [`Self::take_actual_tasks`], but drains at most `limit` tasks.
+    /// The remainder stays in the schedule under its original heights —
+    /// it is still due on following blocks and `remove_task` with the
+    /// original expiry keeps working for deferred entries.
+    pub fn take_actual_tasks_capped(&mut self, limit: NonZero<usize>) -> Vec<ScheduledTask> {
+        let limit = limit.get();
+        let mut taken = Vec::with_capacity(limit.min(16));
+
+        while taken.len() < limit {
+            let Some((&height, _)) = self.schedule.first_key_value() else {
+                break;
+            };
+            if height > self.block_height {
+                break;
+            }
+
+            let tasks = self.schedule.get_mut(&height).expect("peeked above");
+            while taken.len() < limit
+                && let Some(task) = tasks.pop_first()
+            {
+                taken.push(task);
+            }
+
+            if tasks.is_empty() {
+                self.schedule.remove(&height);
+            }
+        }
+
+        taken
+    }
+
+    /// Number of tasks still due at or before the current block height.
+    pub fn due_tasks_len(&self) -> usize {
+        self.schedule
+            .range(..=self.block_height)
+            .map(|(_, tasks)| tasks.len())
+            .sum()
+    }
+
     pub fn schedule_task(&mut self, in_blocks: NonZero<u32>, task: ScheduledTask) -> u32 {
         let scheduled_block = self.block_height + u32::from(in_blocks);
 
@@ -311,6 +350,78 @@ mod tests {
 
     fn transitions_with_schedule(block_height: u32, schedule: Schedule) -> InBlockTransitions {
         InBlockTransitions::new(block_height, ProgramStates::default(), schedule)
+    }
+
+    #[test]
+    fn capped_drain_respects_limit_and_order() {
+        let mut schedule = Schedule::new();
+        schedule
+            .entry(5)
+            .or_default()
+            .extend([wake(1, 1), wake(2, 2)]);
+        schedule
+            .entry(7)
+            .or_default()
+            .extend([wake(3, 3), wake(4, 4), wake(5, 5)]);
+        schedule.entry(20).or_default().insert(wake(9, 9));
+        let mut t = transitions_with_schedule(10, schedule);
+
+        let limit = NonZero::new(4).unwrap();
+        let taken = t.take_actual_tasks_capped(limit);
+        // Oldest height first; BTreeSet order within a height.
+        assert_eq!(taken, vec![wake(1, 1), wake(2, 2), wake(3, 3), wake(4, 4)]);
+
+        // Leftover stays at its ORIGINAL height and is still removable
+        // with the original expiry.
+        assert_eq!(t.due_tasks_len(), 1);
+        t.remove_task(7, &wake(5, 5))
+            .expect("deferred task must stay addressable");
+        assert_eq!(t.due_tasks_len(), 0);
+
+        // Future tasks are untouched.
+        assert_eq!(t.schedule.get(&20).map(|s| s.len()), Some(1));
+    }
+
+    #[test]
+    fn capped_drain_iterated_equals_one_shot() {
+        let mut schedule = Schedule::new();
+        for height in [3u32, 4, 9, 10] {
+            for msg in 0..5u8 {
+                schedule
+                    .entry(height)
+                    .or_default()
+                    .insert(wake(height as u8, msg));
+            }
+        }
+        let mut capped = transitions_with_schedule(10, schedule.clone());
+        let mut one_shot = transitions_with_schedule(10, schedule);
+
+        let limit = NonZero::new(3).unwrap();
+        let mut collected = Vec::new();
+        loop {
+            let chunk = capped.take_actual_tasks_capped(limit);
+            if chunk.is_empty() {
+                break;
+            }
+            assert!(chunk.len() <= limit.get());
+            collected.extend(chunk);
+        }
+
+        assert_eq!(collected, one_shot.take_actual_tasks());
+    }
+
+    #[test]
+    fn capped_drain_ignores_future_heights() {
+        let mut schedule = Schedule::new();
+        schedule.entry(11).or_default().insert(wake(1, 1));
+        let mut t = transitions_with_schedule(10, schedule);
+
+        assert!(
+            t.take_actual_tasks_capped(NonZero::new(10).unwrap())
+                .is_empty()
+        );
+        assert_eq!(t.due_tasks_len(), 0);
+        assert_eq!(t.schedule.len(), 1);
     }
 
     #[test]
