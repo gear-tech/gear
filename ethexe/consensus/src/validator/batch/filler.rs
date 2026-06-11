@@ -7,8 +7,6 @@ use ethexe_common::gear::{
     ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
 };
 
-// TODO #5356: squash transitions before charging size so repeated actors are
-// counted against the actual committed payload rather than the pre-squash input.
 /// Stateful helper used by [`BatchCommitmentManager`](super::manager::BatchCommitmentManager)
 /// to assemble a candidate batch commitment under protocol size limits.
 ///
@@ -47,12 +45,7 @@ impl BatchFiller {
         }
     }
 
-    pub fn into_parts(mut self) -> BatchParts {
-        if let Some(chain) = &mut self.parts.chain_commitment {
-            chain.transitions =
-                super::utils::squash_transitions_by_actor(std::mem::take(&mut chain.transitions));
-            super::utils::sort_transitions_by_value_to_receive(&mut chain.transitions);
-        }
+    pub fn into_parts(self) -> BatchParts {
         self.parts
     }
 
@@ -107,6 +100,10 @@ impl BatchFiller {
 
     /// Include a freshly aggregated chain commitment in the batch.
     ///
+    /// Transitions must already be squashed (unique actor ids) and sorted
+    /// negative-`value_to_receive` first — the charged size is the final
+    /// committed payload.
+    ///
     /// A commitment with neither transitions nor an Ethereum-anchor
     /// advance carries no payload and is dropped — the next coordinator
     /// round will re-walk and pick up whatever has finalized since.
@@ -114,6 +111,23 @@ impl BatchFiller {
     /// `last_advanced_eth_block` are kept: they exist specifically to push
     /// the on-chain Ethereum anchor forward during long quiet stretches.
     pub fn include_chain_commitment(&mut self, commitment: ChainCommitment) -> FillerResult {
+        debug_assert!(
+            {
+                let mut seen = std::collections::HashSet::new();
+                commitment
+                    .transitions
+                    .iter()
+                    .all(|t| seen.insert(t.actor_id))
+            },
+            "chain commitment transitions must be squashed (unique actor ids)"
+        );
+        debug_assert!(
+            commitment
+                .transitions
+                .is_sorted_by_key(|t| !t.value_to_receive_negative_sign),
+            "chain commitment transitions must be sorted negative value_to_receive first"
+        );
+
         if commitment.transitions.is_empty() && commitment.last_advanced_eth_block.is_zero() {
             return Ok(());
         }
