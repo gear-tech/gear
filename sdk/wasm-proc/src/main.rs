@@ -11,7 +11,7 @@ use std::{collections::HashSet, fs, path::PathBuf};
 use tracing_subscriber::EnvFilter;
 use wasmparser::{Parser as WasmParser, Payload, TypeRef};
 
-const RT_ALLOWED_IMPORTS: [&str; 78] = [
+const RT_ALLOWED_IMPORTS: &[&str] = &[
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -97,6 +97,8 @@ const RT_ALLOWED_IMPORTS: [&str; 78] = [
     "ext_host_calls_bls12_381_final_exponentiation_version_1",
     "ext_host_calls_bls12_381_msm_g1_version_1",
     "ext_host_calls_bls12_381_msm_g2_version_1",
+    "ext_host_calls_bls12_381_mul_g1_version_1",
+    "ext_host_calls_bls12_381_mul_g2_version_1",
     "ext_host_calls_bls12_381_mul_projective_g1_version_1",
     "ext_host_calls_bls12_381_mul_projective_g2_version_1",
     "ext_host_calls_bls12_381_multi_miller_loop_version_1",
@@ -218,7 +220,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_env_filter(env_filter.from_env_lossy())
         .init();
 
-    let rt_allowed_imports: HashSet<&str> = RT_ALLOWED_IMPORTS.into();
+    let rt_allowed_imports: HashSet<&str> = RT_ALLOWED_IMPORTS.iter().copied().collect();
 
     for file in &wasm_files {
         if !file.ends_with(".wasm") || file.ends_with(".opt.wasm") {
