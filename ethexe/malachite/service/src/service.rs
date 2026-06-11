@@ -20,7 +20,6 @@ use crate::{
     MalachiteEvent, Mempool, ValidatorEntry, externalities::EthexeExternalities,
     mempool::TxInsertionStatus, types::ChainHead,
 };
-use alloy::providers::BoxedFut;
 use anyhow::Result;
 use ethexe_common::{
     Address, SimpleBlockData,
@@ -28,11 +27,11 @@ use ethexe_common::{
     injected::SignedInjectedTransaction,
 };
 use ethexe_malachite_core::MalachiteCore;
-use futures::{FutureExt, Stream, stream::FusedStream};
+use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use gsigner::schemes::secp256k1::PublicKey;
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},

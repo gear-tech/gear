@@ -583,7 +583,6 @@ impl EthexeExternalities {
     }
 }
 
-#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1249,7 +1248,7 @@ mod tests {
 
         let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
         // Drive validity-window GC.
-        let _ = mempool.set_chain_head(head);
+        let _ = mempool.set_chain_head(head).await;
 
         let pk = ethexe_common::PrivateKey::random();
         let valid = signed_injected_tx(&pk, dest, chain.blocks[9].hash, 0);
@@ -1265,12 +1264,12 @@ mod tests {
         )
         .unwrap();
 
-        mempool.insert(valid.clone());
+        mempool.insert(valid.clone()).await;
         assert_eq!(
-            mempool.insert(value_tx.clone()),
+            mempool.insert(value_tx.clone()).await,
             crate::mempool::TxInsertionStatus::NonZeroValue,
         );
-        assert_eq!(mempool.len(), 1);
+        assert_eq!(mempool.len().await, 1);
 
         let (ext, _rx) = make_externalities_with_pool(db, mempool);
         set_head(&ext, head).await;
@@ -1329,19 +1328,21 @@ mod tests {
 
         let head = chain.blocks[10].to_simple();
         let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
-        let _ = mempool.set_chain_head(head);
+        let _ = mempool.set_chain_head(head).await;
         let pk = ethexe_common::PrivateKey::random();
         // Push 50 txs targeting the upper half of destinations (the ones
         // NOT pre-touched by EB events).
         let push_start = MAX_TOUCHED_PROGRAMS_PER_MB / 2 + 1;
         let push_end = MAX_TOUCHED_PROGRAMS_PER_MB + 1;
         for i in push_start..push_end {
-            mempool.insert(signed_injected_tx(
-                &pk,
-                ActorId::from(i as u64),
-                chain.blocks[9].hash,
-                i as u8,
-            ));
+            mempool
+                .insert(signed_injected_tx(
+                    &pk,
+                    ActorId::from(i as u64),
+                    chain.blocks[9].hash,
+                    i as u8,
+                ))
+                .await;
         }
 
         let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
@@ -1466,7 +1467,7 @@ mod tests {
         db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
 
         let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
-        let _ = mempool.set_chain_head(head);
+        let _ = mempool.set_chain_head(head).await;
         let pk = ethexe_common::PrivateKey::random();
         // Each tx carries the maximum-size payload; the pool is loaded
         // with enough of them that two fit but three don't.
@@ -1484,9 +1485,9 @@ mod tests {
                 },
             )
             .unwrap();
-            mempool.insert(tx);
+            mempool.insert(tx).await;
         }
-        assert_eq!(mempool.len(), 3);
+        assert_eq!(mempool.len().await, 3);
 
         let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
         set_head(&ext, head).await;
@@ -1895,6 +1896,7 @@ mod tests {
         let candidate = ext
             .find_eb_candidate_for_advancing(H256::zero())
             .await
+            .unwrap()
             .expect("must surface a candidate — chain is deep enough");
         // Walk back `2 + 3 = 5` parents from head; that's the expected
         // anchor.

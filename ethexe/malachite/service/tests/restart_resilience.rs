@@ -16,8 +16,6 @@
 //!    `globals.latest_finalized_mb_hash` is gap-free across the
 //!    restart boundary, and the latest pointer never rewinds.
 
-#![cfg(feature = "disable-tests")]
-
 use std::{path::Path, time::Duration};
 
 use async_trait::async_trait;
@@ -43,11 +41,11 @@ struct EmptyMempool;
 
 #[async_trait]
 impl Mempool for EmptyMempool {
-    fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
+    async fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
         TxInsertionStatus::Inserted
     }
 
-    fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
+    async fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
         Vec::new()
     }
 

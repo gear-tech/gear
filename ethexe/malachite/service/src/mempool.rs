@@ -450,7 +450,6 @@ impl Mempool for InjectedTxMempool {
     }
 }
 
-#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -495,8 +494,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn insert_rejects_non_zero_value_before_pool_state_checks() {
+    #[tokio::test]
+    async fn insert_rejects_non_zero_value_before_pool_state_checks() {
         // Verifies NonZeroValue fires *before* the pool is consulted —
         // a tx with value != 0 must never reach the seen / duplicate /
         // capacity gates. We seed the pool to capacity first to make
@@ -507,7 +506,8 @@ mod tests {
         let pk = PrivateKey::random();
 
         // Fill to capacity with a valid tx so PoolFull would normally fire.
-        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0));
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0))
+            .await;
 
         let value_tx = SignedMessage::create(
             pk.clone(),
@@ -521,60 +521,64 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(pool.insert(value_tx), TxInsertionStatus::NonZeroValue,);
-        assert_eq!(pool.len(), 1, "non-zero-value tx must not enter the pool");
+        assert_eq!(pool.insert(value_tx).await, TxInsertionStatus::NonZeroValue);
+        assert_eq!(
+            pool.len().await,
+            1,
+            "non-zero-value tx must not enter the pool"
+        );
     }
 
     /// Fresh insert that passes every gate must return `Inserted`.
-    #[test]
-    fn insert_returns_inserted_for_fresh_tx() {
+    #[tokio::test]
+    async fn insert_returns_inserted_for_fresh_tx() {
         let db = Database::memory();
         let chain = linear_chain(&db, 2);
         let pool = InjectedTxMempool::new(db);
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
 
-        assert_eq!(pool.insert(tx), TxInsertionStatus::Inserted);
-        assert_eq!(pool.len(), 1);
+        assert_eq!(pool.insert(tx).await, TxInsertionStatus::Inserted);
+        assert_eq!(pool.len().await, 1);
     }
 
     /// Same tx inserted twice — second insert hits the pool table and
     /// returns `AlreadyInPool` without bumping the size.
-    #[test]
-    fn insert_returns_already_in_pool_for_duplicate() {
+    #[tokio::test]
+    async fn insert_returns_already_in_pool_for_duplicate() {
         let db = Database::memory();
         let chain = linear_chain(&db, 2);
         let pool = InjectedTxMempool::new(db);
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 5);
 
-        assert_eq!(pool.insert(tx.clone()), TxInsertionStatus::Inserted);
-        assert_eq!(pool.insert(tx), TxInsertionStatus::AlreadyInPool,);
-        assert_eq!(pool.len(), 1);
+        assert_eq!(pool.insert(tx.clone()).await, TxInsertionStatus::Inserted);
+        assert_eq!(pool.insert(tx).await, TxInsertionStatus::AlreadyInPool);
+        assert_eq!(pool.len().await, 1);
     }
 
     /// After `forget`, re-inserting the same tx hits the seen-hash table
     /// and returns `AlreadyIncluded`.
-    #[test]
-    fn insert_returns_already_included_for_committed_tx() {
+    #[tokio::test]
+    async fn insert_returns_already_included_for_committed_tx() {
         let db = Database::memory();
         let chain = linear_chain(&db, 2);
         let pool = InjectedTxMempool::new(db);
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 11);
 
-        pool.insert(tx.clone());
-        futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
-        assert_eq!(pool.len(), 0);
+        pool.insert(tx.clone()).await;
+        pool.forget(std::slice::from_ref(&tx)).await;
+        assert_eq!(pool.len().await, 0);
 
-        assert_eq!(pool.insert(tx), TxInsertionStatus::AlreadyIncluded,);
-        assert_eq!(pool.len(), 0);
+        assert_eq!(pool.insert(tx).await, TxInsertionStatus::AlreadyIncluded);
+        assert_eq!(pool.len().await, 0);
     }
 
     /// `ExpiredRefBlock` fires once `set_chain_head` has advanced past
     /// `ref_block_height + VALIDITY_WINDOW` and the tx is brand new.
-    #[test]
-    fn insert_returns_expired_ref_block() {
+    #[tokio::test]
+    async fn insert_returns_expired_ref_block() {
         let db = Database::memory();
         let chain = linear_chain(&db, (VALIDITY_WINDOW as usize) + 5);
         let pool = InjectedTxMempool::new(db);
@@ -582,11 +586,11 @@ mod tests {
 
         // Advance head so block 1 is past the validity window.
         let head_idx = (VALIDITY_WINDOW as usize) + 1;
-        let _ = pool.set_chain_head(chain[head_idx]);
+        let _ = pool.set_chain_head(chain[head_idx]).await;
 
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
-        assert_eq!(pool.insert(tx), TxInsertionStatus::ExpiredRefBlock,);
-        assert_eq!(pool.len(), 0);
+        assert_eq!(pool.insert(tx).await, TxInsertionStatus::ExpiredRefBlock);
+        assert_eq!(pool.len().await, 0);
     }
 
     /// Persist a synthetic linear chain of length `len` into the DB.
@@ -633,18 +637,18 @@ mod tests {
         .unwrap()
     }
 
-    #[test]
-    fn insert_unknown_ref_block_is_accepted() {
+    #[tokio::test]
+    async fn insert_unknown_ref_block_is_accepted() {
         let db = Database::memory();
         let pool = InjectedTxMempool::new(db);
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), H256::random(), 1);
-        pool.insert(tx);
-        assert_eq!(pool.len(), 1);
+        pool.insert(tx).await;
+        assert_eq!(pool.len().await, 1);
     }
 
-    #[test]
-    fn insert_then_fetch_round_trip() {
+    #[tokio::test]
+    async fn insert_then_fetch_round_trip() {
         let db = Database::memory();
         let chain = linear_chain(&db, 3);
         let pool = InjectedTxMempool::new(db);
@@ -653,35 +657,42 @@ mod tests {
         let tx = signed_tx(&pk, ActorId::zero(), chain[2].hash, 1);
         let tx_hash = tx.data().to_hash();
 
-        pool.insert(tx.clone());
-        assert_eq!(pool.len(), 1);
+        pool.insert(tx.clone()).await;
+        assert_eq!(pool.len().await, 1);
 
         // The pool fetches when ref_block is on the canonical chain
         // of the head we hand it.
         let head = chain[2];
-        let fetched = futures::executor::block_on(pool.fetch(head));
+        let fetched = pool.fetch(head).await;
         assert_eq!(fetched.len(), 1);
         assert_eq!(fetched[0].data().to_hash(), tx_hash);
     }
 
-    #[test]
-    fn capacity_limit_blocks_further_inserts() {
+    #[tokio::test]
+    async fn capacity_limit_blocks_further_inserts() {
         let db = Database::memory();
         let chain = linear_chain(&db, 2);
         let pool = InjectedTxMempool::with_capacity(db, 2);
 
         let pk = PrivateKey::random();
-        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0));
-        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 1));
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0))
+            .await;
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 1))
+            .await;
         assert_eq!(
-            pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 2)),
+            pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 2))
+                .await,
             TxInsertionStatus::PoolFull,
         );
-        assert_eq!(pool.len(), 2, "third insert must hit the capacity cap");
+        assert_eq!(
+            pool.len().await,
+            2,
+            "third insert must hit the capacity cap"
+        );
     }
 
-    #[test]
-    fn pool_retains_unresolved_ref_block_indefinitely() {
+    #[tokio::test]
+    async fn unresolved_ref_block_txs_purged_on_head_advance() {
         let db = Database::memory();
         // Use a real chain so set_chain_head can drive `head_height`
         // forward beyond `VALIDITY_WINDOW`.
@@ -692,28 +703,27 @@ mod tests {
         // 100 txs each anchored at a random ref_block NOT in our DB.
         for salt in 0..100u8 {
             let bogus_ref_block = H256::random();
-            pool.insert(signed_tx(&pk, ActorId::zero(), bogus_ref_block, salt));
+            pool.insert(signed_tx(&pk, ActorId::zero(), bogus_ref_block, salt))
+                .await;
         }
-        assert_eq!(pool.len(), 100);
+        assert_eq!(pool.len().await, 100);
 
-        // Advance head far past any tx's lifetime.
+        // Advance head far past any tx's lifetime. Txs whose ref_block
+        // never resolved are purged as `UnknownReferenceBlock` so the
+        // public RPC `injected_send` can't permanently exhaust capacity.
         let head_idx = (VALIDITY_WINDOW as usize) + 1;
-        let _ = pool.set_chain_head(chain[head_idx]);
-
-        // Desired behaviour: txs whose ref_block never resolved AND
-        // whose insert is older than VALIDITY_WINDOW should be evicted
-        // (mirroring the `seen` retain policy). Currently they all
-        // stay — capacity is permanently exhausted.
+        let purged = pool.set_chain_head(chain[head_idx]).await;
+        assert_eq!(pool.len().await, 0, "unresolved-ref_block txs must purge");
+        assert_eq!(purged.len(), 100);
         assert!(
-            pool.len() < 100,
-            "pool retains all {} unresolved-ref_block txs after head advanced past WINDOW — \
-             public RPC `injected_send` can permanently exhaust capacity",
-            pool.len(),
+            purged
+                .iter()
+                .all(|p| matches!(p.reason, TransactionPurgedReason::UnknownReferenceBlock))
         );
     }
 
-    #[test]
-    fn set_chain_head_purges_expired() {
+    #[tokio::test]
+    async fn set_chain_head_purges_expired() {
         let db = Database::memory();
         // Build a chain long enough that `head_height -
         // VALIDITY_WINDOW` passes some block we'll insert against.
@@ -723,41 +733,45 @@ mod tests {
         let pk = PrivateKey::random();
         // tx anchored at block 1 — height 1
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
-        pool.insert(tx);
-        assert_eq!(pool.len(), 1);
+        pool.insert(tx).await;
+        assert_eq!(pool.len().await, 1);
 
         // Advance head far enough that block 1's height is past the
         // validity window. `is_expired` is `ref_height + WINDOW <= head_height`.
         let head_idx = (VALIDITY_WINDOW as usize) + 1;
-        let _ = pool.set_chain_head(chain[head_idx]);
+        let _ = pool.set_chain_head(chain[head_idx]).await;
         assert_eq!(
-            pool.len(),
+            pool.len().await,
             0,
             "set_chain_head should purge txs whose ref_block aged out"
         );
     }
 
-    #[test]
-    fn forget_moves_committed_to_seen_table() {
+    #[tokio::test]
+    async fn forget_moves_committed_to_seen_table() {
         let db = Database::memory();
         let chain = linear_chain(&db, 2);
         let pool = InjectedTxMempool::new(db);
 
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 99);
-        pool.insert(tx.clone());
-        assert_eq!(pool.len(), 1);
+        pool.insert(tx.clone()).await;
+        assert_eq!(pool.len().await, 1);
 
-        futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
-        assert_eq!(pool.len(), 0);
+        pool.forget(std::slice::from_ref(&tx)).await;
+        assert_eq!(pool.len().await, 0);
 
         // Re-inserting the same tx is a seen-hash no-op.
-        assert_eq!(pool.insert(tx), TxInsertionStatus::AlreadyIncluded);
-        assert_eq!(pool.len(), 0, "forgotten tx must not return to the pool");
+        assert_eq!(pool.insert(tx).await, TxInsertionStatus::AlreadyIncluded);
+        assert_eq!(
+            pool.len().await,
+            0,
+            "forgotten tx must not return to the pool"
+        );
     }
 
-    #[test]
-    fn fetch_filters_non_canonical_branches() {
+    #[tokio::test]
+    async fn fetch_filters_non_canonical_branches() {
         // Two branches diverging at block 1:
         //   genesis (hash[0]) -> b1 (hash[1])
         //                    \-> b1' (hash[1_alt])
@@ -783,19 +797,19 @@ mod tests {
 
         // tx anchored to the ALT branch
         let tx_alt = signed_tx(&pk, ActorId::zero(), alt_hash, 1);
-        pool.insert(tx_alt);
-        assert_eq!(pool.len(), 1);
+        pool.insert(tx_alt).await;
+        assert_eq!(pool.len().await, 1);
 
         // Fetching for canonical branch (chain[1]) — alt tx must NOT
         // surface.
-        let fetched = futures::executor::block_on(pool.fetch(chain[1]));
+        let fetched = pool.fetch(chain[1]).await;
         assert!(
             fetched.is_empty(),
             "tx on alt branch must not be fetched against canonical head"
         );
 
         // Pool still holds it for a possible reorg.
-        assert_eq!(pool.len(), 1);
+        assert_eq!(pool.len().await, 1);
     }
 
     #[tokio::test(start_paused = true)]
@@ -815,7 +829,8 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         let pk = PrivateKey::random();
-        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0));
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0))
+            .await;
 
         // Waiter should now wake up promptly.
         tokio::time::timeout(Duration::from_secs(1), waiter)
@@ -837,7 +852,7 @@ mod tests {
 
         // Seed one accepted insert and consume the resulting permit so
         // the next `.notified()` re-blocks until the next signal.
-        pool.insert(tx.clone());
+        pool.insert(tx.clone()).await;
         pool.wait_for_new_tx().await;
 
         let waiter = {
@@ -850,7 +865,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         // Same tx hash — idempotent no-op, no signal sent.
-        pool.insert(tx);
+        pool.insert(tx).await;
 
         // Waiter must still be pending.
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -880,6 +895,12 @@ mod tests {
     // and check the invariants hold at every step.
 
     use proptest::prelude::*;
+
+    /// Proptest bodies are sync — drive the pool's async API with a
+    /// local executor (tokio sync primitives are runtime-agnostic).
+    fn bo<F: std::future::Future>(fut: F) -> F::Output {
+        futures::executor::block_on(fut)
+    }
 
     /// Build a deterministic linear chain in `db` and return the
     /// blocks oldest-first. `seed` makes hashes predictable across
@@ -950,7 +971,7 @@ mod tests {
                         // `AlreadyInPool` / `AlreadyIncluded` / capacity
                         // rejects must not feed `live`, otherwise Forget
                         // would target a different occurrence.
-                        if pool.insert(tx.clone()) == TxInsertionStatus::Inserted {
+                        if bo(pool.insert(tx.clone())) == TxInsertionStatus::Inserted {
                             live.push(tx);
                         }
                     }
@@ -958,15 +979,15 @@ mod tests {
                         if !live.is_empty() {
                             let idx = which % live.len();
                             let victim = live.swap_remove(idx);
-                            futures::executor::block_on(pool.forget(std::slice::from_ref(&victim)));
+                            bo(pool.forget(std::slice::from_ref(&victim)));
                         }
                     }
                 }
                 // Capacity invariant — must hold after every step.
                 prop_assert!(
-                    pool.len() <= cap,
+                    bo(pool.len()) <= cap,
                     "pool.len()={} exceeded capacity {}",
-                    pool.len(),
+                    bo(pool.len()),
                     cap
                 );
             }
@@ -1004,11 +1025,11 @@ mod tests {
             // Inserts: alternating canonical-tail and alt anchors.
             for i in 0..n_txs {
                 let anchor = if i % 2 == 0 { chain[3].hash } else { alt_hash };
-                pool.insert(signed_tx(&pk, ActorId::zero(), anchor, i as u8));
+                bo(pool.insert(signed_tx(&pk, ActorId::zero(), anchor, i as u8)));
             }
 
             let head = chain[3];
-            let fetched = futures::executor::block_on(pool.fetch(head));
+            let fetched = bo(pool.fetch(head));
             for tx in &fetched {
                 prop_assert_ne!(
                     tx.data().reference_block, alt_hash,
@@ -1030,14 +1051,14 @@ mod tests {
             let pool = InjectedTxMempool::new(db);
             let pk = PrivateKey::random();
             let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, salt);
-            pool.insert(tx.clone());
-            prop_assert_eq!(pool.len(), 1);
-            futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
-            prop_assert_eq!(pool.len(), 0);
+            bo(pool.insert(tx.clone()));
+            prop_assert_eq!(bo(pool.len()), 1);
+            bo(pool.forget(std::slice::from_ref(&tx)));
+            prop_assert_eq!(bo(pool.len()), 0);
             // Re-insert: idempotent no-op because the hash sits in
             // the seen-set and `reference_block` hasn't aged out.
-            pool.insert(tx);
-            prop_assert_eq!(pool.len(), 0);
+            bo(pool.insert(tx));
+            prop_assert_eq!(bo(pool.len()), 0);
         }
     }
 }

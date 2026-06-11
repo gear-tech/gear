@@ -103,18 +103,15 @@ pub fn is_strict_descendant_of(
     )))
 }
 
-#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{
-        BlockHeader,
-        db::{BlockMetaStorageRW, OnChainStorageRW},
-    };
+    use ethexe_common::{BlockHeader, db::OnChainStorageRW};
+    use ethexe_db::Database;
 
     /// Synthetic linear chain, oldest-first; parent[0] == zero.
-    fn linear_chain(db: &Database, len: usize) -> Vec<H256> {
-        let mut hashes = Vec::with_capacity(len);
+    fn linear_chain(db: &Database, len: usize) -> Vec<SimpleBlockData> {
+        let mut blocks = Vec::with_capacity(len);
         let mut parent = H256::zero();
         for i in 0..len {
             let mut hash_bytes = [0u8; 32];
@@ -123,54 +120,64 @@ mod tests {
             hash_bytes[1] = (i >> 8) as u8;
             hash_bytes[2] = i as u8;
             let hash = H256::from(hash_bytes);
-            db.set_block_header(
-                hash,
-                BlockHeader {
-                    height: i as u32,
-                    timestamp: i as u64,
-                    parent_hash: parent,
-                },
-            );
-            db.mutate_block_meta(hash, |_| {});
-            hashes.push(hash);
+            let header = BlockHeader {
+                height: i as u32,
+                timestamp: i as u64,
+                parent_hash: parent,
+            };
+            db.set_block_header(hash, header);
+            blocks.push(SimpleBlockData { hash, header });
             parent = hash;
         }
-        hashes
+        blocks
     }
 
     #[test]
     fn zero_ancestor_is_always_descendant() {
         let db = Database::memory();
-        let hashes = linear_chain(&db, 3);
+        let chain = linear_chain(&db, 3);
         // arbitrary candidate; ancestor = zero (pre-genesis sentinel)
-        assert!(is_strict_descendant_of(&db, hashes[2], H256::zero(), H256::zero()).unwrap());
+        assert!(
+            is_strict_descendant_of(&db, chain[2], H256::zero(), H256::zero())
+                .unwrap()
+                .is_accepted()
+        );
     }
 
     #[test]
     fn same_block_is_not_strict_descendant() {
         let db = Database::memory();
-        let hashes = linear_chain(&db, 3);
-        assert!(!is_strict_descendant_of(&db, hashes[1], hashes[1], hashes[0]).unwrap());
+        let chain = linear_chain(&db, 3);
+        assert!(
+            is_strict_descendant_of(&db, chain[1], chain[1].hash, chain[0].hash)
+                .unwrap()
+                .is_rejected()
+        );
     }
 
     #[test]
-    fn proper_ancestor_resolves_to_true() {
+    fn proper_ancestor_resolves_to_accepted() {
         let db = Database::memory();
-        let hashes = linear_chain(&db, 5);
-        // hashes[4] should be a strict descendant of hashes[1]
+        let chain = linear_chain(&db, 5);
+        // chain[4] should be a strict descendant of chain[1]
         // through 3 parent steps.
-        assert!(is_strict_descendant_of(&db, hashes[4], hashes[1], hashes[0]).unwrap());
+        assert!(
+            is_strict_descendant_of(&db, chain[4], chain[1].hash, chain[0].hash)
+                .unwrap()
+                .is_accepted()
+        );
     }
 
     #[test]
     fn unrelated_ancestor_errors() {
         let db = Database::memory();
-        let hashes = linear_chain(&db, 5);
-        // ancestor = a hash that's not in the chain at all
+        let chain = linear_chain(&db, 5);
+        // ancestor = a hash that's not in the chain at all — the local
+        // header lookup fails, which is a local-view error, not a vote.
         let mut orphan_bytes = [0xFFu8; 32];
         orphan_bytes[0] = 0x42;
         let orphan = H256::from(orphan_bytes);
-        let res = is_strict_descendant_of(&db, hashes[4], orphan, hashes[0]);
+        let res = is_strict_descendant_of(&db, chain[4], orphan, chain[0].hash);
         assert!(res.is_err(), "expected Err for orphan ancestor: {res:?}");
     }
 
@@ -185,8 +192,8 @@ mod tests {
 
         /// `anchor(head)` walks back exactly `canonical_quarantine`
         /// steps along the canonical chain, so for any pair
-        /// (chain_len, q) with `q < chain_len` the returned hash is
-        /// the block at index `chain_len - 1 - q`.
+        /// (chain_len, q) with `q < chain_len` the returned block is
+        /// the one at index `chain_len - 1 - q`.
         #[test]
         fn anchor_walks_exactly_q_steps(
             chain_len in 2usize..32,
@@ -195,25 +202,18 @@ mod tests {
             let q_usize = q as usize;
             prop_assume!(q_usize < chain_len);
             let db = Database::memory();
-            let hashes = linear_chain(&db, chain_len);
-            let head = SimpleBlockData {
-                hash: hashes[chain_len - 1],
-                header: ethexe_common::BlockHeader {
-                    height: (chain_len - 1) as u32,
-                    timestamp: (chain_len - 1) as u64,
-                    parent_hash: if chain_len >= 2 { hashes[chain_len - 2] } else { H256::zero() },
-                },
-            };
+            let chain = linear_chain(&db, chain_len);
+            let head = chain[chain_len - 1];
             // start_block = genesis (so the fence never trips).
-            let result = anchor(&db, head, q as u32, hashes[0]).unwrap();
-            let expected = hashes[chain_len - 1 - q_usize];
+            let result = anchor(&db, head, q as u32, chain[0].hash).unwrap();
+            let expected = chain[chain_len - 1 - q_usize];
             prop_assert_eq!(result, Some(expected));
         }
 
         /// `is_strict_descendant_of(c, a)` is the transitive closure
         /// of "next-block": for any (i, j) on a single chain, with
-        /// `i > j > 0`, the chain[i] descends from chain[j]; with
-        /// `i == j`, it does NOT (strictness).
+        /// `i > j`, chain[i] descends from chain[j]; with `i <= j`,
+        /// it does NOT (strictness / height check).
         #[test]
         fn descendant_relation_matches_chain_indices(
             chain_len in 2usize..16,
@@ -223,50 +223,17 @@ mod tests {
             prop_assume!(i < chain_len);
             prop_assume!(j < chain_len);
             let db = Database::memory();
-            let hashes = linear_chain(&db, chain_len);
+            let chain = linear_chain(&db, chain_len);
 
-            let result = is_strict_descendant_of(&db, hashes[i], hashes[j], hashes[0]);
+            let result = is_strict_descendant_of(&db, chain[i], chain[j].hash, chain[0].hash)
+                .unwrap();
             if i > j {
-                prop_assert_eq!(result.unwrap(), true);
-            } else if i == j {
-                prop_assert_eq!(result.unwrap(), false);
+                prop_assert!(result.is_accepted(), "expected Accepted: {result:?}");
             } else {
-                // i < j → walking back from i never reaches j.
-                // The walk hits genesis (parent_hash zero) → Err.
-                prop_assert!(result.is_err());
-            }
-        }
-
-        /// `verify_passed(head, candidate)` succeeds iff `candidate`
-        /// sits at depth >= q from `head` on the canonical chain.
-        #[test]
-        fn verify_passed_matches_depth(
-            chain_len in 4usize..16,
-            head_idx in 0usize..16,
-            cand_idx in 0usize..16,
-            q in 0u8..6,
-        ) {
-            prop_assume!(head_idx < chain_len);
-            prop_assume!(cand_idx <= head_idx);
-            let db = Database::memory();
-            let hashes = linear_chain(&db, chain_len);
-            let head_hash = hashes[head_idx];
-            let head_height = head_idx as u32;
-            let head_parent = if head_idx > 0 { hashes[head_idx - 1] } else { H256::zero() };
-            let head = SimpleBlockData {
-                hash: head_hash,
-                header: ethexe_common::BlockHeader {
-                    height: head_height,
-                    timestamp: head_idx as u64,
-                    parent_hash: head_parent,
-                },
-            };
-            let depth = head_idx - cand_idx;
-            let result = verify_passed(&db, head, hashes[cand_idx], q, hashes[0]);
-            if depth >= q as usize {
-                prop_assert!(result.is_ok(), "expected pass: {result:?}");
-            } else {
-                prop_assert!(result.is_err(), "expected too-shallow err: {result:?}");
+                // i == j → strictness; i < j → candidate height below
+                // ancestor height. Both are proposer-controlled inputs,
+                // so they reject (vote nil) rather than error.
+                prop_assert!(result.is_rejected(), "expected Rejected: {result:?}");
             }
         }
     }
