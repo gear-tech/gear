@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{Mirror, Router, WVara};
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use ethexe_common::Address;
 use ethexe_ethereum::{Ethereum, EthereumBuilder};
 use gprimitives::ActorId;
@@ -21,14 +21,14 @@ pub const DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI: u64 =
 pub const DEFAULT_BLOB_GAS_MULTIPLIER: u64 = Ethereum::INCREASED_BLOB_GAS_MULTIPLIER as u64;
 
 pub struct VaraEthApi {
-    pub(crate) vara_eth_client: Option<WsClient>,
+    pub(crate) vara_eth_client: WsClient,
     pub(crate) ethereum_client: Ethereum,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct VaraEthApiBuilder {
-    vara_eth_rpc_url: Option<String>,
-    ethereum_rpc_url: Option<String>,
+    vara_eth_rpc_url: String,
+    ethereum_rpc_url: String,
     router_address: Option<Address>,
     signer: Option<Signer>,
     sender_address: Option<Address>,
@@ -37,15 +37,27 @@ pub struct VaraEthApiBuilder {
 }
 
 impl VaraEthApiBuilder {
+    fn new(vara_eth_rpc_url: impl Into<String>, ethereum_rpc_url: impl Into<String>) -> Self {
+        Self {
+            vara_eth_rpc_url: vara_eth_rpc_url.into(),
+            ethereum_rpc_url: ethereum_rpc_url.into(),
+            router_address: None,
+            signer: None,
+            sender_address: None,
+            eip1559_fee_increase_percentage: None,
+            blob_gas_multiplier: None,
+        }
+    }
+
     /// Sets the Vara.ETH WebSocket RPC URL.
     pub fn vara_eth_rpc_url(mut self, vara_eth_rpc_url: impl Into<String>) -> Self {
-        self.vara_eth_rpc_url = Some(vara_eth_rpc_url.into());
+        self.vara_eth_rpc_url = vara_eth_rpc_url.into();
         self
     }
 
     /// Sets the Ethereum RPC URL.
     pub fn ethereum_rpc_url(mut self, ethereum_rpc_url: impl Into<String>) -> Self {
-        self.ethereum_rpc_url = Some(ethereum_rpc_url.into());
+        self.ethereum_rpc_url = ethereum_rpc_url.into();
         self
     }
 
@@ -81,18 +93,12 @@ impl VaraEthApiBuilder {
 
     /// Builds an SDK client.
     pub async fn build(self) -> Result<VaraEthApi> {
-        let ethereum_rpc_url = self
-            .ethereum_rpc_url
-            .context("Ethereum RPC URL is required")?;
         let router_address = self.router_address.context("Router address is required")?;
         let signer = self.signer.context("signer is required")?;
         let sender_address = self.sender_address.context("sender address is required")?;
-        let vara_eth_rpc_url = self
-            .vara_eth_rpc_url
-            .context("Vara.ETH RPC URL is required")?;
 
         let ethereum_client = EthereumBuilder::default()
-            .rpc_url(ethereum_rpc_url)
+            .rpc_url(self.ethereum_rpc_url)
             .router_address(router_address)
             .signer(signer)
             .sender_address(sender_address)
@@ -102,14 +108,17 @@ impl VaraEthApiBuilder {
             .await
             .with_context(|| "failed to create Ethereum client")?;
 
-        VaraEthApi::new(&vara_eth_rpc_url, ethereum_client).await
+        VaraEthApi::new(&self.vara_eth_rpc_url, ethereum_client).await
     }
 }
 
 impl VaraEthApi {
     /// Builds a new SDK client builder.
-    pub fn builder() -> VaraEthApiBuilder {
-        VaraEthApiBuilder::default()
+    pub fn builder(
+        vara_eth_rpc_url: impl Into<String>,
+        ethereum_rpc_url: impl Into<String>,
+    ) -> VaraEthApiBuilder {
+        VaraEthApiBuilder::new(vara_eth_rpc_url, ethereum_rpc_url)
     }
 
     pub async fn new(vara_eth_rpc_url: &str, ethereum_client: Ethereum) -> Result<Self> {
@@ -118,25 +127,13 @@ impl VaraEthApi {
             .await
             .with_context(|| "failed to create WS client for Vara.ETH RPC")?;
         Ok(Self {
-            vara_eth_client: Some(vara_eth_client),
+            vara_eth_client,
             ethereum_client,
         })
     }
 
-    /// Builds an SDK client for Ethereum contract access only.
-    ///
-    /// Methods that need the Vara.ETH RPC endpoint return an error when called on this instance.
-    pub fn from_ethereum(ethereum_client: Ethereum) -> Self {
-        Self {
-            vara_eth_client: None,
-            ethereum_client,
-        }
-    }
-
-    pub(crate) fn vara_eth_client(&self) -> Result<&WsClient> {
-        self.vara_eth_client
-            .as_ref()
-            .ok_or_else(|| anyhow!("Vara.ETH RPC client is not configured for this SDK instance"))
+    pub(crate) fn vara_eth_client(&self) -> &WsClient {
+        &self.vara_eth_client
     }
 
     pub fn mirror(&self, actor_id: ActorId) -> Mirror<'_> {

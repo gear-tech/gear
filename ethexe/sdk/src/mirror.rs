@@ -48,7 +48,7 @@ impl<'a> Mirror<'a> {
     pub async fn code_id(&self) -> Result<CodeId> {
         let code_id = self
             .api
-            .vara_eth_client()?
+            .vara_eth_client()
             .code_id(self.actor_id().to_address_lossy())
             .await?;
         Ok(code_id.into())
@@ -69,7 +69,7 @@ impl<'a> Mirror<'a> {
 
     pub async fn state_at_hash(&self, state_hash: H256) -> Result<ProgramState> {
         self.api
-            .vara_eth_client()?
+            .vara_eth_client()
             .read_state(state_hash)
             .map_err(Into::into)
             .await
@@ -78,7 +78,7 @@ impl<'a> Mirror<'a> {
     pub async fn full_state(&self) -> Result<FullProgramState> {
         let state_hash = self.state_hash().await?;
         self.api
-            .vara_eth_client()?
+            .vara_eth_client()
             .read_full_state(state_hash)
             .map_err(Into::into)
             .await
@@ -127,7 +127,7 @@ impl<'a> Mirror<'a> {
         let source: ActorId = sender_address.into();
         let destination = self.actor_id();
         self.api
-            .vara_eth_client()?
+            .vara_eth_client()
             .calculate_reply_for_handle(
                 at,
                 source.to_address_lossy(),
@@ -259,7 +259,7 @@ impl<'a> Mirror<'a> {
 
         let result: InjectedTransactionAcceptance = self
             .api
-            .vara_eth_client()?
+            .vara_eth_client()
             .send_transaction(transaction)
             .await
             .with_context(|| "failed to send injected transaction")?;
@@ -293,7 +293,7 @@ impl<'a> Mirror<'a> {
 
         let mut subscription = self
             .api
-            .vara_eth_client()?
+            .vara_eth_client()
             .send_transaction_and_watch(transaction)
             .await
             .with_context(|| "failed to send injected transaction and subscribe to it's promise")?;

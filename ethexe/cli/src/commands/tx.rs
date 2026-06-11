@@ -23,7 +23,7 @@ use ethexe_common::{
     Address,
     gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo},
 };
-use ethexe_sdk::{CodeValidationResult, Ethereum, ValueClaim, VaraEthApi};
+use ethexe_sdk::{CodeValidationResult, ValueClaim, VaraEthApi};
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use gsigner::secp256k1::Signer;
 use serde::Serialize;
@@ -211,6 +211,9 @@ pub struct TxCommand {
     /// Ethereum RPC endpoint to use.
     #[arg(long, alias = "eth-rpc")]
     pub ethereum_rpc: Option<String>,
+    /// Vara.eth RPC endpoint to use.
+    #[arg(long, alias = "vara-eth-rpc")]
+    pub vara_eth_rpc: Option<String>,
 
     /// Ethereum router address to use.
     #[arg(long, alias = "eth-router")]
@@ -246,6 +249,13 @@ impl TxCommand {
                 .ethereum
                 .as_ref()
                 .and_then(|p| p.ethereum_rpc.clone())
+        });
+
+        self.vara_eth_rpc = self.vara_eth_rpc.take().or_else(|| {
+            params
+                .ethereum
+                .as_ref()
+                .and_then(|p| p.vara_eth_rpc.clone())
         });
 
         self.ethereum_router = self
@@ -301,33 +311,22 @@ impl TxCommand {
 
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
-        let vara_eth_rpc_url = match &self.command {
-            TxSubcommand::Query { rpc_url, .. } | TxSubcommand::SendMessage { rpc_url, .. } => {
-                Some(rpc_url.clone())
-            }
-            _ => None,
-        };
+        let vara_eth_rpc_url = self
+            .vara_eth_rpc
+            .ok_or_else(|| anyhow!("missing `vara-eth-rpc`"))?;
 
-        let ethereum_client = Ethereum::builder()
-            .rpc_url(rpc.clone())
+        let api = VaraEthApi::builder(vara_eth_rpc_url.clone(), rpc.clone())
             .router_address(router_addr)
             .signer(signer.clone())
             .sender_address(sender)
-            .eip1559_fee_increase_percentage_opt(self.eip1559_fee_increase_percentage)
-            .blob_gas_multiplier_opt(self.blob_gas_multiplier)
+            .eip1559_fee_increase_percentage(self.eip1559_fee_increase_percentage)
+            .blob_gas_multiplier(self.blob_gas_multiplier)
             .build()
             .await
-            .with_context(|| "failed to create Ethereum client")?;
-
-        let api = match &vara_eth_rpc_url {
-            Some(rpc_url) => VaraEthApi::new(rpc_url, ethereum_client).await?,
-            None => VaraEthApi::from_ethereum(ethereum_client),
-        };
+            .with_context(|| "failed to create Vara.eth API client")?;
 
         eprintln!("RPC:      {rpc}");
-        if let Some(rpc_url) = &vara_eth_rpc_url {
-            eprintln!("WS RPC:   {rpc_url}");
-        }
+        eprintln!("WS RPC:   {vara_eth_rpc_url}");
         let router = api.router();
         let chain_id = api
             .chain_id()
@@ -684,11 +683,7 @@ impl TxCommand {
 
                 create_abi_result?;
             }
-            TxSubcommand::Query {
-                rpc_url: _,
-                mirror,
-                json,
-            } => {
+            TxSubcommand::Query { mirror, json } => {
                 // TODO: consider moving this out of tx subcommand
                 let query_result = (async || -> Result<MirrorState> {
                     let maybe_code_id = router
@@ -982,7 +977,6 @@ impl TxCommand {
                 mirror,
                 payload,
                 value,
-                rpc_url: _,
                 injected,
                 watch,
                 json,
@@ -1710,9 +1704,6 @@ pub enum TxSubcommand {
     },
     /// Query mirror state on Vara.eth.
     Query {
-        /// RPC URL of Vara.eth node. Example: ws://127.0.0.1:9944.
-        #[arg(short, long)]
-        rpc_url: String,
         /// Mirror address.
         #[arg()]
         mirror: Address,
@@ -1767,9 +1758,6 @@ pub enum TxSubcommand {
         /// ETH value to send with message.
         #[arg()]
         value: RawOrFormattedValue<EthereumCurrency>,
-        /// RPC URL of Vara.eth node. Example: ws://127.0.0.1:9944.
-        #[arg(short, long)]
-        rpc_url: String,
         /// Flag to send injected transaction. If false, normal transaction is sent.
         #[arg(short, long, default_value = "false")]
         injected: bool,

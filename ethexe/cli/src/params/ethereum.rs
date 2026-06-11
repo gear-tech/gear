@@ -26,6 +26,11 @@ pub struct EthereumParams {
     #[serde(rename = "rpc")]
     pub ethereum_rpc: Option<String>,
 
+    /// Vara.eth RPC endpoint.
+    #[arg(long, alias = "vara-eth-rpc")]
+    #[serde(rename = "vara-eth-rpc")]
+    pub vara_eth_rpc: Option<String>,
+
     /// Ethereum Beacon RPC endpoint.
     #[arg(long, alias = "eth-beacon-rpc")]
     #[serde(rename = "beacon-rpc")]
@@ -113,6 +118,7 @@ impl MergeParams for EthereumParams {
     fn merge(self, with: Self) -> Self {
         Self {
             ethereum_rpc: self.ethereum_rpc.or(with.ethereum_rpc),
+            vara_eth_rpc: self.vara_eth_rpc.or(with.vara_eth_rpc),
             ethereum_beacon_rpc: self.ethereum_beacon_rpc.or(with.ethereum_beacon_rpc),
             ethereum_router: self.ethereum_router.or(with.ethereum_router),
             block_time: self.block_time.or(with.block_time),
