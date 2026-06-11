@@ -1165,6 +1165,141 @@ mod tests {
         assert!(!squashed[0].value_to_receive_negative_sign);
     }
 
+    mod props {
+        use super::*;
+        use proptest::prelude::*;
+
+        /// Small actor pool forces collisions; `value_to_receive` bounded to
+        /// `u64::MAX` so 64 summed items can never overflow the `u128`
+        /// magnitude (or the `i128` reference model).
+        fn arb_transition() -> impl Strategy<Value = StateTransition> {
+            (
+                0u8..4,
+                any::<u8>(),
+                any::<bool>(),
+                any::<u8>(),
+                0u128..=u64::MAX as u128,
+                any::<bool>(),
+            )
+                .prop_map(|(actor, hash, exited, inheritor, value, negative)| {
+                    StateTransition {
+                        actor_id: ActorId::from([actor; 32]),
+                        new_state_hash: H256::from([hash; 32]),
+                        exited,
+                        inheritor: ActorId::from([inheritor; 32]),
+                        value_to_receive: value,
+                        value_to_receive_negative_sign: negative,
+                        value_claims: vec![],
+                        messages: vec![],
+                    }
+                })
+        }
+
+        proptest! {
+            #[test]
+            fn squash_is_idempotent(
+                transitions in proptest::collection::vec(arb_transition(), 0..64),
+            ) {
+                let once = squash_transitions_by_actor(transitions);
+                let twice = squash_transitions_by_actor(once.clone());
+                prop_assert_eq!(once, twice);
+            }
+
+            #[test]
+            fn incremental_squasher_equals_one_shot(
+                transitions in proptest::collection::vec(arb_transition(), 0..64),
+                cuts in proptest::collection::vec(any::<prop::sample::Index>(), 0..6),
+            ) {
+                let one_shot = squash_transitions_by_actor(transitions.clone());
+
+                let mut bounds: Vec<usize> = cuts
+                    .iter()
+                    .map(|i| i.index(transitions.len() + 1))
+                    .collect();
+                bounds.push(0);
+                bounds.push(transitions.len());
+                bounds.sort_unstable();
+
+                let mut squasher = TransitionsSquasher::default();
+                for w in bounds.windows(2) {
+                    squasher.extend(transitions[w[0]..w[1]].iter().cloned());
+                }
+                prop_assert_eq!(squasher.finish(), one_shot);
+            }
+
+            #[test]
+            fn squashed_value_matches_signed_sum(
+                transitions in proptest::collection::vec(arb_transition(), 0..64),
+            ) {
+                let mut expected: HashMap<ActorId, i128> = HashMap::new();
+                for t in &transitions {
+                    let v = t.value_to_receive as i128;
+                    *expected.entry(t.actor_id).or_default() +=
+                        if t.value_to_receive_negative_sign { -v } else { v };
+                }
+
+                for st in squash_transitions_by_actor(transitions) {
+                    let signed = if st.value_to_receive_negative_sign {
+                        -(st.value_to_receive as i128)
+                    } else {
+                        st.value_to_receive as i128
+                    };
+                    prop_assert_eq!(signed, expected[&st.actor_id]);
+                    if st.value_to_receive == 0 {
+                        prop_assert!(
+                            !st.value_to_receive_negative_sign,
+                            "zero must be canonicalized to non-negative",
+                        );
+                    }
+                }
+            }
+
+            #[test]
+            fn squash_preserves_first_seen_order_and_uniqueness(
+                transitions in proptest::collection::vec(arb_transition(), 0..64),
+            ) {
+                let mut expected_order = Vec::new();
+                let mut seen = std::collections::HashSet::new();
+                for t in &transitions {
+                    if seen.insert(t.actor_id) {
+                        expected_order.push(t.actor_id);
+                    }
+                }
+
+                let actual: Vec<_> = squash_transitions_by_actor(transitions)
+                    .into_iter()
+                    .map(|t| t.actor_id)
+                    .collect();
+                prop_assert_eq!(actual, expected_order);
+            }
+
+            /// `sort_transitions_by_value_to_receive` puts router-returning
+            /// (negative) transitions first and is stable within each group.
+            #[test]
+            fn sort_is_negative_first_and_stable(
+                transitions in proptest::collection::vec(arb_transition(), 0..64),
+            ) {
+                let squashed = squash_transitions_by_actor(transitions);
+                let mut sorted = squashed.clone();
+                sort_transitions_by_value_to_receive(&mut sorted);
+
+                prop_assert!(
+                    sorted.is_sorted_by_key(|t| !t.value_to_receive_negative_sign)
+                );
+                for negative in [true, false] {
+                    let group =
+                        |ts: &[StateTransition]| -> Vec<ActorId> {
+                            ts.iter()
+                                .filter(|t| t.value_to_receive_negative_sign == negative)
+                                .map(|t| t.actor_id)
+                                .collect()
+                        };
+                    prop_assert_eq!(group(&sorted), group(&squashed));
+                }
+            }
+        }
+    }
+
     #[test]
     fn test_squash_exact_value_cancellation() {
         let actor = ActorId::from([0xAC; 32]);
