@@ -42,6 +42,12 @@ pub type TestingEventReceiver = KickingStream<EventReceiver<TestingEvent>>;
 pub type ObserverEventSender = EventSender<ObserverEvent>;
 pub type ObserverEventReceiver = KickingStream<EventReceiver<ObserverEvent>>;
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct LatestFastSyncedBlocks {
+    pub eb_hash: H256,
+    pub mb_hash: H256,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkInjectedEvent {
     InboundTransaction {
@@ -124,7 +130,7 @@ impl TestingRpcEvent {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingEvent {
     // Fast sync done. Sent just once.
-    FastSyncDone { eb_hash: H256, mb_hash: H256 },
+    FastSyncDone(LatestFastSyncedBlocks),
     // Basic event to notify that service has started. Sent just once.
     ServiceStarted,
     // Services events.

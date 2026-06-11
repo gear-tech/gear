@@ -753,10 +753,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     #[cfg(test)]
     sender
-        .send(crate::tests::utils::TestingEvent::FastSyncDone {
-            eb_hash: latest_committed_eb,
-            mb_hash: latest_committed_mb,
-        })
+        .send(crate::tests::utils::TestingEvent::FastSyncDone(
+            crate::tests::utils::LatestFastSyncedBlocks {
+                eb_hash: latest_committed_eb,
+                mb_hash: latest_committed_mb,
+            },
+        ))
         .await;
 
     Ok(())

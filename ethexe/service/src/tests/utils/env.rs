@@ -6,7 +6,10 @@ use crate::{
     config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
-        events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
+        events::{
+            self, LatestFastSyncedBlocks, ObserverEventReceiver, ObserverEventSender,
+            TestingEventReceiver,
+        },
     },
 };
 use alloy::{
@@ -39,9 +42,9 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    FastSyncReplayTarget, InjectedTxMempool, MalachiteConfig, MalachiteConfigEnvironment,
-    MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry,
-    derive_libp2p_secret, malachite_libp2p_peer_id,
+    InjectedTxMempool, MalachiteConfig, MalachiteConfigEnvironment, MalachiteService,
+    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
+    malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
@@ -1004,8 +1007,6 @@ impl Wallets {
     }
 }
 
-pub type LatestFastSyncedBlocks = FastSyncReplayTarget;
-
 pub struct Node {
     pub name: Option<String>,
     pub db: Database,
@@ -1271,34 +1272,20 @@ impl Node {
         self.running_service_handle = Some(handle);
         self.shutdown_tx = Some(shutdown_tx);
 
-        let mut service_started = false;
         if self.fast_sync {
-            match self
-                .events()
-                .find(|event| {
-                    matches!(
-                        event,
-                        TestingEvent::FastSyncDone { .. } | TestingEvent::ServiceStarted
-                    )
-                })
-                .await
-            {
-                TestingEvent::FastSyncDone { eb_hash, mb_hash } => {
-                    self.latest_fast_synced_blocks =
-                        Some(LatestFastSyncedBlocks { eb_hash, mb_hash });
-                }
-                TestingEvent::ServiceStarted => {
-                    service_started = true;
-                }
-                _ => unreachable!("filter only allows fast-sync or service-started events"),
-            }
+            self.latest_fast_synced_blocks = Some(
+                self.events()
+                    .find_map(|event| match event {
+                        TestingEvent::FastSyncDone(blocks) => Some(blocks),
+                        _ => None,
+                    })
+                    .await,
+            );
         }
 
-        if !service_started {
-            self.events()
-                .find(|e| matches!(e, TestingEvent::ServiceStarted))
-                .await;
-        }
+        self.events()
+            .find(|e| matches!(e, TestingEvent::ServiceStarted))
+            .await;
 
         // fast sync implies network has connections
         if wait_for_network && !self.fast_sync {
