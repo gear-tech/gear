@@ -829,7 +829,6 @@ mod tests {
         latest_validators: ValidatorsVec,
         signer: Signer,
         validator_key: Option<PublicKey>,
-        bootstrap_addresses: HashSet<Multiaddr>,
     }
 
     impl NetworkServiceBuilder {
@@ -839,7 +838,6 @@ mod tests {
                 latest_validators: nonempty![Address::default()].into(),
                 signer: Signer::memory(),
                 validator_key: None,
-                bootstrap_addresses: HashSet::new(),
             }
         }
 
@@ -861,7 +859,6 @@ mod tests {
                 latest_validators,
                 signer,
                 validator_key,
-                bootstrap_addresses,
             } = self;
 
             db.set_config(DBConfig {
@@ -870,8 +867,7 @@ mod tests {
             });
 
             let key = signer.generate().unwrap();
-            let mut config = NetworkConfig::new_test(key, Address::default());
-            config.bootstrap_addresses = bootstrap_addresses;
+            let config = NetworkConfig::new_test(key, Address::default());
 
             let runtime_config = NetworkRuntimeConfig {
                 latest_block_header: GENESIS_BLOCK_HEADER,
