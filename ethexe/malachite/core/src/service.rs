@@ -14,7 +14,7 @@ use crate::{
     },
     state::{SharedValidatorSet, State},
     store::Store,
-    types::Address,
+    types::{Address, H256},
 };
 use advisory_lock::{AdvisoryFileLock, FileLockMode};
 use anyhow::{Context as _, Result};
@@ -63,6 +63,10 @@ pub struct MalachiteService<EXT: Externalities> {
     /// Shared with the inner app loop; [`Self::update_validators`]
     /// writes here, the next `Finalized` / `ConsensusReady` reply reads.
     validator_set: SharedValidatorSet,
+    /// Persistent app store, shared with the app task. Kept here for
+    /// startup decisions that need to inspect replay state before the
+    /// app task is released.
+    store: Store,
     _externalities: Arc<EXT>,
 }
 
@@ -258,7 +262,7 @@ impl<EXT: Externalities> MalachiteService<EXT> {
             signer,
             validator_set.clone(),
             address,
-            store,
+            store.clone(),
             config.propose_timeout,
         )?;
 
@@ -282,6 +286,7 @@ impl<EXT: Externalities> MalachiteService<EXT> {
             app_handle,
             wal_path,
             validator_set,
+            store,
             _externalities: externalities,
         })
     }
@@ -292,6 +297,11 @@ impl<EXT: Externalities> MalachiteService<EXT> {
             .expect("app task has been already started")
             .send(())
             .expect("start receiver has been dropped");
+    }
+
+    /// Whether `block_hash` is already finalized in the persistent app store.
+    pub fn is_finalized(&self, block_hash: H256) -> Result<bool> {
+        self.store.is_finalized(block_hash)
     }
 
     /// Swap the active validator set used at the next height start.
