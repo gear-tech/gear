@@ -23,7 +23,7 @@
 //! - *"quarantine-passed"* means the block has ≥ `canonical_quarantine`
 //!   canonical descendants on top.
 
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Result, anyhow};
 use ethexe_common::{Acceptance, SimpleBlockData, db::OnChainStorageRO};
 use gprimitives::H256;
 
@@ -69,9 +69,9 @@ pub fn is_strict_descendant_of(
         return Ok(Acceptance::Accepted(()));
     }
 
-    let ancestor = db.block_simple_data(ancestor_hash).with_context(|| {
-        anyhow!("descendant check: missing header for ancestor {ancestor_hash}")
-    })?;
+    let ancestor = db
+        .block_simple_data(ancestor_hash)
+        .ok_or_else(|| anyhow!("descendant check: missing header for ancestor {ancestor_hash}"))?;
 
     let Some(depth) = candidate.header.height.checked_sub(ancestor.header.height) else {
         return Ok(Acceptance::Rejected(format!(
@@ -93,9 +93,9 @@ pub fn is_strict_descendant_of(
             )));
         }
 
-        cursor = db.block_simple_data(parent_hash).with_context(|| {
-            anyhow!("descendant check: missing header for parent {parent_hash}")
-        })?;
+        cursor = db
+            .block_simple_data(parent_hash)
+            .ok_or_else(|| anyhow!("descendant check: missing header for parent {parent_hash}"))?;
     }
 
     Ok(Acceptance::Rejected(format!(

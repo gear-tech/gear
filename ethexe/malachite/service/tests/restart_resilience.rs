@@ -115,7 +115,7 @@ fn build_signer(home: &Path) -> (Signer<Secp256k1>, gsigner::schemes::secp256k1:
     (signer, pub_key)
 }
 
-/// Build the MalachiteConfig used by the resilience tests:
+/// Build the MalachiteServiceConfig used by the resilience tests:
 /// quarantine-off (so the producer can advance immediately on each
 /// new chain head), default listen address, no persistent peers,
 /// single-validator set so the local node can decide on its own.
@@ -262,7 +262,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     // ---- shutdown --------------------------------------------------
     // `shutdown().await` waits for the engine actor + RocksDB store
     // to drop synchronously — `drop(svc)` alone is fire-and-forget
-    // and would race the second `MalachiteService::new` against the
+    // and would race the restarted service against the
     // RocksDB advisory lock.
     svc.shutdown().await;
     // libp2p TCP listener still takes a moment past the actor kill

@@ -47,7 +47,7 @@ impl MalachiteServiceStarter {
             .with_context(|| format!("creating Malachite home dir {:?}", config.home_dir))?;
 
         if config.validators.is_empty() {
-            return Err(anyhow!("MalachiteConfig::validators is empty"));
+            return Err(anyhow!("MalachiteServiceConfig::validators is empty"));
         }
 
         let active_era = db

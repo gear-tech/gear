@@ -504,7 +504,7 @@ impl EthexeExternalities {
 
             let chain_head = *self.chain_head.latest_synced.read().await;
             let Some(mempool) = self.mempool.as_ref() else {
-                panic!("must never call wait_for_proposable_content when not a validator");
+                anyhow::bail!("must never call wait_for_proposable_content when not a validator");
             };
             let injected_txs = mempool.fetch(chain_head).await;
 
@@ -1536,7 +1536,7 @@ mod tests {
     /// in `ProcessQueues.gas_allowance` and force every participant to attempt
     /// an unbounded queue drain. Validator must reject MBs whose
     /// `gas_allowance` exceeds the protocol cap
-    /// (`MalachiteConfig::DEFAULT_GAS_ALLOWANCE`).
+    /// (`MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE`).
     #[tokio::test]
     async fn validate_rejects_gas_allowance_above_default() {
         let db = Database::memory();

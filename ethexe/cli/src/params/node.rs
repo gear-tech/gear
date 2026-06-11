@@ -95,7 +95,7 @@ pub struct NodeParams {
     #[serde(rename = "canonical-quarantine")]
     pub canonical_quarantine: Option<u8>,
 
-    /// See `MalachiteConfig::post_quarantine_delay`. Default 1.
+    /// See `MalachiteServiceConfig::post_quarantine_delay`. Default 1.
     #[arg(long)]
     #[serde(rename = "post-quarantine-delay")]
     pub post_quarantine_delay: Option<u32>,

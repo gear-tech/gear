@@ -6,6 +6,9 @@ use tokio::sync::{Notify, RwLock};
 
 /// Ethereum chain-head register shared between [`crate::MalachiteService`]
 /// (writer) and the externalities (reader).
+///
+/// Invariant: only the service event loop writes these fields, and no guard
+/// is ever held across an `.await` — keep it that way to stay deadlock-free.
 pub struct ChainHead {
     /// Latest observed EB.
     pub latest: RwLock<SimpleBlockData>,

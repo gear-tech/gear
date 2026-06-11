@@ -79,32 +79,40 @@ impl MalachiteService {
     /// Handle a fully synced Ethereum block: publish it for the producer's
     /// quarantine checks, rotate the validator set on era change and GC the mempool.
     pub async fn receive_eb_synced(&mut self, eb_hash: H256) {
-        let chain_head = *self.chain_head.latest.read().await;
-        if chain_head.hash != eb_hash {
-            tracing::trace!(
-                chain_head = %chain_head,
-                synced = %eb_hash,
-                "synced EB is not the current chain head, ignoring"
-            );
+        let Some(synced) = self.externalities.db.block_simple_data(eb_hash) else {
+            tracing::error!(synced = %eb_hash, "synced EB header not found in local DB, ignoring");
             return;
-        }
+        };
 
-        // Publish the synced head for the externalities' quarantine
-        // checks BEFORE waking the producer, so the woken round
-        // already sees it.
-        *self.chain_head.latest_synced.write().await = chain_head;
+        // Publish the synced head for the externalities' quarantine checks
+        // BEFORE waking the producer, so the woken round already sees it.
+        // A synced block may lag the latest observed head — advance whenever
+        // it is strictly newer than the current synced head.
+        {
+            let mut latest_synced = self.chain_head.latest_synced.write().await;
+            if !latest_synced.hash.is_zero() && synced.header.height <= latest_synced.header.height
+            {
+                tracing::trace!(
+                    latest_synced = %*latest_synced,
+                    synced = %synced,
+                    "synced EB is not newer than the current synced head, ignoring"
+                );
+                return;
+            }
+            *latest_synced = synced;
+        }
 
         // Notify inner proposer if it waits (see EthexeExternalities::wait_for_proposable_content)
         self.chain_head.notify.notify_one();
 
         // Rotate before waking the producer so the next round sees the new set.
-        self.maybe_rotate_validators_for_era(chain_head);
+        self.maybe_rotate_validators_for_era(synced);
 
         if let Some(pool) = self.mempool.as_ref() {
-            let purged_txs = pool.set_chain_head(chain_head).await;
+            let purged_txs = pool.set_chain_head(synced).await;
             if !purged_txs.is_empty() {
                 let event = MalachiteEvent::PurgedTransactions {
-                    eb_hash: chain_head.hash,
+                    eb_hash: synced.hash,
                     transactions: purged_txs,
                 };
                 if let Err(err) = self.externalities.event_tx.send(Ok(event)) {

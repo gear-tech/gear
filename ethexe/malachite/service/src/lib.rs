@@ -11,8 +11,9 @@
 //! [`MalachiteEvent`]s.
 //!
 //! `ethexe-service` constructs the service at startup and is the sole consumer of
-//! its output `Stream` of [`MalachiteEvent`]; it calls `receive_new_chain_head`
-//! on each `ObserverEvent::BlockSynced`.
+//! its output `Stream` of [`MalachiteEvent`]; it calls `receive_new_eb` on each
+//! `ObserverEvent::Block` and `receive_eb_synced` on each
+//! `ObserverEvent::BlockSynced`.
 //!
 //! ## Public API
 //!
@@ -27,17 +28,18 @@
 //! - [`TxValidity`] (enum) — Validity verdict: `Valid`, `Duplicate`, `Outdated`, …
 //!
 //! Driver methods on [`MalachiteService`]: `receive_injected_transaction`,
-//! `receive_new_chain_head`, `receive_eb_prepared`, `shutdown`.
+//! `receive_new_eb`, `receive_eb_synced`, `receive_eb_prepared`, `shutdown`.
 //!
 //! [`TxValidity`] gates inclusion: a producer drops any non-`Valid` tx when
 //! building an MB, and a validator rejects an entire MB that contains one.
 //!
 //! ## Caller Invariants
 //!
-//! - Construct with `MalachiteService::new(config, db, signer, validator_pub_key,
-//!   mempool)`. A `Some` key starts a `Validator` and must appear in
-//!   `config.validators`; `None` starts a gossip/sync-only `FullNode`. `new`
-//!   returns `Err` if `config.validators` is empty or the local key is absent.
+//! - Construct with `MalachiteServiceStarter::new(config, validator_config, db,
+//!   initial_chain_head)` followed by `.start()`. A `Some(validator_config)`
+//!   starts a `Validator` whose key must appear in `config.validators`; `None`
+//!   starts a gossip/sync-only `FullNode`. `new` returns `Err` if
+//!   `config.validators` is empty or the local key is absent from the signer.
 //! - `BlockProposal` is always emitted before the matching `BlockFinalized` for a
 //!   height; both series are emitted ancestor-first.
 //! - Tendermint's quorum threshold is `> 2/3` of total voting power across the

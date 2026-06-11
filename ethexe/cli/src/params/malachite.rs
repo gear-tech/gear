@@ -72,7 +72,7 @@ pub struct MalachiteParams {
 impl MalachiteParams {
     /// Converts CLI/TOML Malachite parameters into a service-ready
     /// [`MalachiteCliConfig`]. Missing fields fall back to sensible
-    /// defaults from [`MalachiteConfig`].
+    /// defaults from `MalachiteServiceConfig`.
     pub fn into_config(self) -> Result<MalachiteCliConfig> {
         let validator_pub_keys = match self.validators_malachite_pub_keys {
             Some(path) => load_validator_pub_keys_table(&path)?,

@@ -1036,7 +1036,7 @@ pub struct Node {
     /// Snapshot of `env.validators` at `new_node` time — drives the
     /// boot-time filter on `malachite_endpoints` in `start_service`.
     active_validator_pub_keys: Vec<PublicKey>,
-    /// Port reservation; dropped just before the first `MalachiteService::new`.
+    /// Port reservation; dropped just before the first malachite service start.
     malachite_listener: Option<TcpListener>,
 
     running_service_handle: Option<JoinHandle<()>>,

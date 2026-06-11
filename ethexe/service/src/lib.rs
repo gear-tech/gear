@@ -508,17 +508,17 @@ impl Service {
                 &config.malachite.validator_pub_keys,
             )?;
 
-            let malachite_service_config = MalachiteServiceConfig::from_home_dir(malachite_home)
+            let malachite_config = MalachiteServiceConfig::from_home_dir(malachite_home)
                 .with_listen_addr(config.malachite.listen_addr)
                 .with_persistent_peers(config.malachite.persistent_peers.clone())
                 .with_canonical_quarantine(config.node.canonical_quarantine)
                 .with_post_quarantine_delay(config.node.post_quarantine_delay)
-                .with_validators(malachite_validator_set.clone());
+                .with_validators(malachite_validator_set);
 
             log::info!(
                 "Malachite listen: {}  persistent_peers: {}",
-                malachite_service_config.listen_addr,
-                malachite_service_config.persistent_peers.len(),
+                malachite_config.listen_addr,
+                malachite_config.persistent_peers.len(),
             );
 
             let validator_config =
@@ -532,10 +532,7 @@ impl Service {
                 .as_ref()
                 .map(|_| "validator")
                 .unwrap_or("full");
-            log::info!("Malachite not local role: {role}",);
-
-            let malachite_config =
-                malachite_service_config.with_validators(malachite_validator_set);
+            log::info!("Malachite node role: {role}");
 
             MalachiteServiceStarter::new(
                 malachite_config,
