@@ -46,10 +46,15 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct CommittedChain {
+    pub mb_hash: H256,
+    pub eb_hash: H256,
+}
+
 struct EventData {
     latest_committed_batch: Digest,
-    latest_committed_mb: H256,
-    latest_committed_eb: Option<H256>,
+    latest_committed_chain: CommittedChain,
 }
 
 impl EventData {
@@ -59,13 +64,13 @@ impl EventData {
         highest_block: H256,
     ) -> Result<Option<Self>> {
         let mut latest_committed_batch = None;
-        let mut latest_committed_mb = None;
-        let mut latest_committed_eb = None;
+        let mut latest_committed_chain = None;
 
         let mut block = highest_block;
         while !db.block_meta(block).prepared {
             let block_data = block_loader.load(block, None).await?;
 
+            let mut pending_eb = None;
             for event in block_data.events.iter().rev() {
                 match event {
                     BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
@@ -73,14 +78,21 @@ impl EventData {
                     })) => {
                         latest_committed_batch.get_or_insert(*digest);
                     }
-                    BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(mb_hash))) => {
-                        latest_committed_mb.get_or_insert(*mb_hash);
-                    }
                     BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(eb_hash))) => {
-                        latest_committed_eb.get_or_insert(*eb_hash);
+                        pending_eb = Some(*eb_hash);
+                    }
+                    BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(mb_hash))) => {
+                        latest_committed_chain.get_or_insert(CommittedChain {
+                            mb_hash: *mb_hash,
+                            eb_hash: pending_eb.take().unwrap_or_default(),
+                        });
                     }
                     _ => {}
                 }
+            }
+
+            if latest_committed_chain.is_some() {
+                break;
             }
 
             block = block_data.header.parent_hash;
@@ -89,14 +101,13 @@ impl EventData {
             }
         }
 
-        let Some(latest_committed_mb) = latest_committed_mb else {
+        let Some(latest_committed_chain) = latest_committed_chain else {
             return Ok(None);
         };
 
         Ok(Some(Self {
             latest_committed_batch: latest_committed_batch.unwrap_or_default(),
-            latest_committed_mb,
-            latest_committed_eb,
+            latest_committed_chain,
         }))
     }
 }
@@ -651,11 +662,15 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let EventData {
         latest_committed_batch,
-        latest_committed_mb,
-        latest_committed_eb,
+        latest_committed_chain,
     } = event_data;
 
-    let latest_committed_eb = latest_committed_eb.unwrap_or(genesis_block_hash);
+    let latest_committed_mb = latest_committed_chain.mb_hash;
+    let latest_committed_eb = if latest_committed_chain.eb_hash.is_zero() {
+        genesis_block_hash
+    } else {
+        latest_committed_chain.eb_hash
+    };
     let block_data = block_loader.load(latest_committed_eb, None).await?;
 
     let code_ids = collect_code_ids(
@@ -748,4 +763,133 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         .await;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{BlockHeader, SimpleBlockData};
+    use ethexe_ethereum::IntoBlockId;
+    use std::{
+        collections::{BTreeMap, HashMap},
+        ops::RangeInclusive,
+    };
+
+    #[derive(Default)]
+    struct TestBlockLoader {
+        blocks: BTreeMap<H256, BlockData>,
+    }
+
+    impl BlockLoader for TestBlockLoader {
+        async fn load_simple(&self, _block: impl IntoBlockId) -> Result<SimpleBlockData> {
+            anyhow::bail!("load_simple is not used by EventData::collect tests")
+        }
+
+        async fn load(&self, hash: H256, _header: Option<BlockHeader>) -> Result<BlockData> {
+            self.blocks
+                .get(&hash)
+                .cloned()
+                .with_context(|| format!("missing test block {hash}"))
+        }
+
+        async fn load_many(&self, _range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>> {
+            anyhow::bail!("load_many is not used by EventData::collect tests")
+        }
+    }
+
+    fn test_block(hash: H256, parent_hash: H256, events: Vec<BlockEvent>) -> BlockData {
+        BlockData {
+            hash,
+            header: BlockHeader {
+                height: hash.to_low_u64_be() as u32,
+                timestamp: 0,
+                parent_hash,
+            },
+            events,
+        }
+    }
+
+    #[tokio::test]
+    async fn event_data_collects_committed_chain_as_single_pair() {
+        let db = Database::memory();
+        let older_block = H256::from_low_u64_be(1);
+        let newer_block = H256::from_low_u64_be(2);
+        let older_mb = H256::repeat_byte(0x11);
+        let older_eb = H256::repeat_byte(0x22);
+        let newer_mb = H256::repeat_byte(0x33);
+        let newer_eb = H256::repeat_byte(0x44);
+
+        let mut loader = TestBlockLoader::default();
+        loader.blocks.insert(
+            newer_block,
+            test_block(
+                newer_block,
+                older_block,
+                vec![
+                    BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(newer_mb))),
+                    BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(newer_eb))),
+                ],
+            ),
+        );
+        loader.blocks.insert(
+            older_block,
+            test_block(
+                older_block,
+                H256::zero(),
+                vec![
+                    BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(older_mb))),
+                    BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(older_eb))),
+                ],
+            ),
+        );
+
+        let event_data = EventData::collect(&loader, &db, newer_block)
+            .await
+            .unwrap()
+            .expect("committed chain found");
+
+        assert_eq!(event_data.latest_committed_chain.mb_hash, newer_mb);
+        assert_eq!(event_data.latest_committed_chain.eb_hash, newer_eb);
+    }
+
+    #[tokio::test]
+    async fn event_data_does_not_mix_newer_mb_with_older_eb() {
+        let db = Database::memory();
+        let older_block = H256::from_low_u64_be(1);
+        let newer_block = H256::from_low_u64_be(2);
+        let older_mb = H256::repeat_byte(0x11);
+        let older_eb = H256::repeat_byte(0x22);
+        let newer_mb = H256::repeat_byte(0x33);
+
+        let mut loader = TestBlockLoader::default();
+        loader.blocks.insert(
+            newer_block,
+            test_block(
+                newer_block,
+                older_block,
+                vec![BlockEvent::Router(RouterEvent::MBCommitted(
+                    MBCommittedEvent(newer_mb),
+                ))],
+            ),
+        );
+        loader.blocks.insert(
+            older_block,
+            test_block(
+                older_block,
+                H256::zero(),
+                vec![
+                    BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(older_mb))),
+                    BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(older_eb))),
+                ],
+            ),
+        );
+
+        let event_data = EventData::collect(&loader, &db, newer_block)
+            .await
+            .unwrap()
+            .expect("committed chain found");
+
+        assert_eq!(event_data.latest_committed_chain.mb_hash, newer_mb);
+        assert_eq!(event_data.latest_committed_chain.eb_hash, H256::zero());
+    }
 }
