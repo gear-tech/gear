@@ -63,15 +63,16 @@ use std::{
 use tokio::sync::{Notify, mpsc};
 use tracing::{error, info, warn};
 
-#[derive(Clone, Copy)]
-pub(crate) enum ReplayBoundary {
-    /// No replay boundary configured (both hashes are zero).
-    Disabled,
-    /// Stable replay suppression applies for MBs at or below this height.
-    AtHeight(u64),
-    /// Boundary hash is known, but compact is not yet available.
-    /// Suppress replay callbacks until the boundary MB itself is observed.
-    AtHash(H256),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FastSyncReplayBoundary {
+    pub mb_hash: H256,
+    pub eb_hash: H256,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FastSyncReplayFilter {
+    pub boundary: FastSyncReplayBoundary,
+    pub boundary_proposal_seen: bool,
 }
 
 /// Inputs the externalities need to satisfy the [`ethexe_malachite_core::Externalities`]
@@ -113,9 +114,11 @@ pub(crate) struct EthexeExternalities {
     /// time they see the MB. Validators do NOT apply this depth — they accept
     /// any advance at depth ≥ `canonical_quarantine`.
     pub(crate) post_quarantine_delay: u32,
-    /// Captured once per externalities instance; prevents mutable live
-    /// computed progression from changing replay suppression scope.
-    pub(crate) replay_boundary: RwLock<ReplayBoundary>,
+    /// Fast-sync startup gate, not a general live/replay classifier.
+    /// While active it suppresses all Malachite callbacks until the
+    /// captured boundary proposal and finalization are replayed. Callers
+    /// must enable it before starting the Malachite application task.
+    pub(crate) fast_sync_replay_filter: RwLock<Option<FastSyncReplayFilter>>,
 }
 
 /// One outbound [`MalachiteEvent`] that can't be released until its
@@ -135,7 +138,7 @@ impl Externalities for EthexeExternalities {
         &self,
         mb_hash: H256,
         mb: Block,
-        origin: CallbackOrigin,
+        _origin: CallbackOrigin,
     ) -> Result<()> {
         // Runs on the proposer, participant, and sync paths. Frozen
         // discriminants mean every historical operation always decodes; an
@@ -183,9 +186,7 @@ impl Externalities for EthexeExternalities {
             meta.last_advanced_eb = last_advanced;
         });
 
-        if origin == CallbackOrigin::ValueSyncReplay
-            && self.is_replay_mb_below_or_at_execution_boundary(mb_hash, mb.height)
-        {
+        if self.suppress_for_fast_sync_replay_proposal(mb_hash, last_advanced)? {
             return Ok(());
         }
 
@@ -203,7 +204,7 @@ impl Externalities for EthexeExternalities {
         &self,
         mb_hash: H256,
         cert: ethexe_malachite_core::CommitCertificate,
-        origin: CallbackOrigin,
+        _origin: CallbackOrigin,
     ) -> Result<()> {
         let compact = self.db.mb_compact_block(mb_hash).ok_or_else(|| {
             anyhow!(
@@ -218,9 +219,7 @@ impl Externalities for EthexeExternalities {
             )
         })?;
 
-        if origin == CallbackOrigin::ValueSyncReplay
-            && self.is_replay_mb_below_or_at_execution_boundary(mb_hash, compact.height)
-        {
+        if self.suppress_for_fast_sync_replay_finalization(mb_hash) {
             return Ok(());
         }
 
@@ -646,70 +645,70 @@ impl Externalities for EthexeExternalities {
 }
 
 impl EthexeExternalities {
-    /// Whether `mb_hash`/`mb_height` are at or below the execution replay
-    /// boundary.
-    ///
-    /// Capture once per externalities instance and keep stable even if
-    /// live compute advances globals in between replay callbacks.
-    fn is_replay_mb_below_or_at_execution_boundary(&self, mb_hash: H256, mb_height: u64) -> bool {
-        let mut replay_boundary = self
-            .replay_boundary
+    pub(crate) fn enable_fast_sync_replay_filter(&self, mb_hash: H256, eb_hash: H256) {
+        *self
+            .fast_sync_replay_filter
             .write()
-            .expect("replay_boundary poisoned");
-
-        match *replay_boundary {
-            ReplayBoundary::Disabled => false,
-            ReplayBoundary::AtHeight(height) => mb_height <= height,
-            ReplayBoundary::AtHash(boundary_hash) => {
-                if mb_hash != boundary_hash {
-                    return true;
-                }
-
-                if let Some(boundary_compact) = self.db.mb_compact_block(boundary_hash) {
-                    *replay_boundary = ReplayBoundary::AtHeight(boundary_compact.height);
-                    return mb_height <= boundary_compact.height;
-                }
-
-                true
-            }
-        }
+            .expect("fast_sync_replay_filter poisoned") = Some(FastSyncReplayFilter {
+            boundary: FastSyncReplayBoundary { mb_hash, eb_hash },
+            boundary_proposal_seen: false,
+        });
     }
 
-    /// Capture a replay boundary from DB globals, preferring
-    /// `latest_computed_mb_hash` and falling back to
-    /// `latest_finalized_mb_hash`.
-    ///
-    /// This method intentionally does not mutate globals and does not
-    /// infer a boundary from any other signal. If no execution boundary
-    /// is available, suppression stays disabled.
-    fn read_replay_boundary_from_db(&self) -> ReplayBoundary {
-        let boundary_hash = {
-            let globals = self.db.globals();
-            if !globals.latest_computed_mb_hash.is_zero() {
-                globals.latest_computed_mb_hash
-            } else {
-                globals.latest_finalized_mb_hash
-            }
+    fn suppress_for_fast_sync_replay_proposal(
+        &self,
+        mb_hash: H256,
+        last_advanced_eb: H256,
+    ) -> Result<bool> {
+        let mut guard = self
+            .fast_sync_replay_filter
+            .write()
+            .expect("fast_sync_replay_filter poisoned");
+
+        let Some(filter) = *guard else {
+            return Ok(false);
         };
 
-        if boundary_hash.is_zero() {
-            return ReplayBoundary::Disabled;
+        let boundary = filter.boundary;
+        let matches_boundary = mb_hash == boundary.mb_hash && last_advanced_eb == boundary.eb_hash;
+
+        if mb_hash == boundary.mb_hash && !matches_boundary {
+            let message = format!(
+                "fast-sync replay boundary mismatch: MB {mb_hash} advanced {last_advanced_eb}, expected {}",
+                boundary.eb_hash,
+            );
+            *guard = None;
+            drop(guard);
+
+            let _ = self.event_tx.send(Err(anyhow!(message.clone())));
+            return Err(anyhow!(message));
         }
 
-        self.db.mb_compact_block(boundary_hash).map_or_else(
-            || ReplayBoundary::AtHash(boundary_hash),
-            |boundary_compact| ReplayBoundary::AtHeight(boundary_compact.height),
-        )
+        if matches_boundary {
+            guard
+                .as_mut()
+                .expect("fast-sync replay filter checked above")
+                .boundary_proposal_seen = true;
+        }
+
+        Ok(true)
     }
 
-    /// Enable replay-boundary suppression from the current execution snapshot
-    /// persisted in DB globals.
-    pub(crate) fn enable_replay_boundary_from_execution_snapshot(&self) {
-        let replay_boundary = self.read_replay_boundary_from_db();
-        *self
-            .replay_boundary
+    fn suppress_for_fast_sync_replay_finalization(&self, mb_hash: H256) -> bool {
+        let mut guard = self
+            .fast_sync_replay_filter
             .write()
-            .expect("replay_boundary poisoned") = replay_boundary;
+            .expect("fast_sync_replay_filter poisoned");
+
+        let Some(filter) = *guard else {
+            return false;
+        };
+
+        if mb_hash == filter.boundary.mb_hash && filter.boundary_proposal_seen {
+            *guard = None;
+        }
+
+        true
     }
 
     /// True iff `prerequisite.is_zero()` (no prerequisite — genesis
@@ -840,7 +839,7 @@ mod tests {
     use crate::{MalachiteEvent, mempool::EmptyMempool};
     use anyhow::Context;
     use ethexe_common::{
-        BlockHeader, DEFAULT_BLOCK_GAS_LIMIT,
+        BlockHeader,
         db::{BlockMetaStorageRW, OnChainStorageRW},
         injected::PurgedTransaction,
     };
@@ -890,7 +889,7 @@ mod tests {
             gas_allowance: 1_000_000,
             canonical_quarantine: 0,
             post_quarantine_delay: 0,
-            replay_boundary: RwLock::new(ReplayBoundary::Disabled),
+            fast_sync_replay_filter: RwLock::new(None),
         };
         (ext, event_rx)
     }
@@ -1320,7 +1319,7 @@ mod tests {
             gas_allowance: 1_000_000,
             canonical_quarantine: 0,
             post_quarantine_delay: 0,
-            replay_boundary: RwLock::new(ReplayBoundary::Disabled),
+            fast_sync_replay_filter: RwLock::new(None),
         };
 
         let payload = Operations::new(vec![
@@ -1411,24 +1410,18 @@ mod tests {
         assert_eq!(db.globals().latest_finalized_mb_hash, replay_hash);
     }
 
-    /// MBs at or below the execution boundary must persist MB
-    /// identity rows but never emit service events or retreat finalized
-    /// globals.
     #[tokio::test]
-    async fn replay_below_execution_boundary_does_not_emit_or_retreat_globals() {
+    async fn fast_sync_filter_suppresses_until_boundary_finalization() {
         use ethexe_common::db::MbStorageRO;
 
         let db = Database::memory();
         let (ext, mut rx) = make_externalities(db.clone());
 
-        let boundary_payload = payload(None, 1);
+        let boundary_eb = H256::repeat_byte(0xA1);
+        let boundary_payload = payload(Some(boundary_eb), 1);
         let boundary_block = wrap(boundary_payload, 10, H256::zero());
         let boundary_hash = boundary_block.hash();
-        db.globals_mutate(|g| {
-            g.latest_finalized_mb_hash = boundary_hash;
-            g.latest_computed_mb_hash = boundary_hash;
-        });
-        ext.enable_replay_boundary_from_execution_snapshot();
+        ext.enable_fast_sync_replay_filter(boundary_hash, boundary_eb);
 
         ext.process_mb_proposal(
             boundary_hash,
@@ -1437,313 +1430,52 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(
-            rx.try_recv().is_err(),
-            "boundary replay should be suppressed"
-        );
+        assert!(rx.try_recv().is_err(), "boundary proposal is suppressed");
         assert!(
             ext.pending_events
                 .lock()
                 .expect("pending_events poisoned")
-                .is_empty(),
-            "boundary replay should not queue events",
+                .is_empty()
         );
-
-        let old_eb = H256::repeat_byte(0xA1);
-        let replay_payload = Operations::new(vec![
-            Operation::AdvanceTillEthereumBlock { block_hash: old_eb },
-            Operation::ProgressTasks,
-            Operation::ProcessQueues {
-                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            },
-        ]);
-        let replay_block = wrap(replay_payload, 10, H256::zero());
-        let replay_hash = replay_block.hash();
-
-        ext.process_mb_proposal(replay_hash, replay_block, CallbackOrigin::ValueSyncReplay)
-            .await
-            .unwrap();
-        assert!(rx.try_recv().is_err(), "proposal replay must not emit");
-        assert!(
-            ext.pending_events
-                .lock()
-                .expect("pending_events poisoned")
-                .is_empty(),
-            "old replay must not queue service events",
-        );
-
-        assert_eq!(db.mb_meta(replay_hash).last_advanced_eb, old_eb);
-        let replay_compact = db
-            .mb_compact_block(replay_hash)
-            .expect("replay compact persisted");
-        assert_eq!(replay_compact.height, 10);
-        assert!(db.operations(replay_compact.operations_hash).is_some());
-
-        ext.process_mb_finalized(replay_hash, fake_cert(10), CallbackOrigin::ValueSyncReplay)
-            .await
-            .unwrap();
-        assert_eq!(db.globals().latest_finalized_mb_hash, boundary_hash);
-        assert!(rx.try_recv().is_err(), "finalization replay must not emit");
-        assert!(
-            ext.pending_events
-                .lock()
-                .expect("pending_events poisoned")
-                .is_empty(),
-            "old replay must not enqueue pending service events",
-        );
-    }
-
-    /// Post-boundary MBs should keep normal service event behavior.
-    #[tokio::test]
-    async fn post_boundary_mb_emits_events_normally() {
-        let db = Database::memory();
-        let (ext, mut rx) = make_externalities(db.clone());
-
-        let boundary_payload = payload(None, 1);
-        let boundary_block = wrap(boundary_payload, 10, H256::zero());
-        let boundary_hash = boundary_block.hash();
-        db.globals_mutate(|g| {
-            g.latest_finalized_mb_hash = boundary_hash;
-            g.latest_computed_mb_hash = boundary_hash;
-        });
-        ext.enable_replay_boundary_from_execution_snapshot();
-
-        ext.process_mb_proposal(
-            boundary_hash,
-            boundary_block,
-            CallbackOrigin::ValueSyncReplay,
-        )
-        .await
-        .unwrap();
-        assert!(
-            rx.try_recv().is_err(),
-            "boundary replay should be suppressed"
-        );
-        assert!(
-            ext.pending_events
-                .lock()
-                .expect("pending_events poisoned")
-                .is_empty(),
-            "boundary replay should not queue events",
-        );
-
-        let advanced_eb = H256::repeat_byte(0xA2);
-        db.mutate_block_meta(advanced_eb, |meta| {
-            meta.prepared = true;
-        });
-
-        let replay_payload = Operations::new(vec![
-            Operation::AdvanceTillEthereumBlock {
-                block_hash: advanced_eb,
-            },
-            Operation::ProgressTasks,
-            Operation::ProcessQueues {
-                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            },
-        ]);
-        let replay_block = wrap(replay_payload, 11, boundary_hash);
-        let replay_hash = replay_block.hash();
-
-        ext.process_mb_proposal(replay_hash, replay_block, CallbackOrigin::ValueSyncReplay)
-            .await
-            .unwrap();
-        assert_eq!(
-            ext.pending_events
-                .lock()
-                .expect("pending_events poisoned")
-                .len(),
-            0
-        );
-        match rx.recv().await.expect("proposal event").unwrap() {
-            MalachiteEvent::BlockProposal { height, mb_hash } => {
-                assert_eq!(height, 11);
-                assert_eq!(mb_hash, replay_hash);
-            }
-            other => panic!("expected BlockProposal, got {other:?}"),
-        }
-
-        ext.process_mb_finalized(replay_hash, fake_cert(11), CallbackOrigin::ValueSyncReplay)
-            .await
-            .unwrap();
-        match rx.recv().await.expect("finalization event").unwrap() {
-            MalachiteEvent::BlockFinalized {
-                cert,
-                height,
-                mb_hash,
-            } => {
-                assert_eq!(height, 11);
-                assert_eq!(cert.height, 11);
-                assert_eq!(mb_hash, replay_hash);
-            }
-            other => panic!("expected BlockFinalized, got {other:?}"),
-        }
-        assert_eq!(db.globals().latest_finalized_mb_hash, replay_hash);
-    }
-
-    /// If the execution boundary compact is still missing, suppress replay
-    /// callbacks by hash until the boundary MB is observed.
-    #[tokio::test]
-    async fn replay_with_missing_boundary_compact_suppresses_until_boundary_is_seen() {
-        let db = Database::memory();
-        let (ext, mut rx) = make_externalities(db.clone());
-
-        let boundary_payload = payload(None, 2);
-        let boundary_block = wrap(boundary_payload, 10, H256::zero());
-        let boundary_hash = boundary_block.hash();
-
-        db.globals_mutate(|g| {
-            g.latest_finalized_mb_hash = boundary_hash;
-            g.latest_computed_mb_hash = boundary_hash;
-        });
-        ext.enable_replay_boundary_from_execution_snapshot();
-
-        let old_eb = H256::repeat_byte(0xB1);
-        let old_payload = Operations::new(vec![
-            Operation::AdvanceTillEthereumBlock { block_hash: old_eb },
-            Operation::ProgressTasks,
-            Operation::ProcessQueues {
-                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            },
-        ]);
-        let old_block = wrap(old_payload, 9, H256::zero());
-        let old_hash = old_block.hash();
-
-        ext.process_mb_proposal(old_hash, old_block, CallbackOrigin::ValueSyncReplay)
-            .await
-            .unwrap();
-        ext.process_mb_finalized(old_hash, fake_cert(9), CallbackOrigin::ValueSyncReplay)
-            .await
-            .unwrap();
-
-        assert!(rx.try_recv().is_err(), "replay should be suppressed");
-        assert!(
-            ext.pending_events
-                .lock()
-                .expect("pending_events poisoned")
-                .is_empty(),
-            "replay should not enqueue pending service events",
-        );
-        assert_eq!(
-            db.globals().latest_finalized_mb_hash,
-            boundary_hash,
-            "replay finalization must not retreat finalized boundary",
-        );
-
-        // Boundary MB itself is still missing in compact storage when replay starts.
-        // Process it now to both persist consensus identity and switch boundary mode.
-        ext.process_mb_proposal(
-            boundary_hash,
-            boundary_block,
-            CallbackOrigin::ValueSyncReplay,
-        )
-        .await
-        .unwrap();
-        assert!(
-            rx.try_recv().is_err(),
-            "boundary MB is still replay context"
-        );
-
-        let advanced_eb = H256::repeat_byte(0xB2);
-        db.mutate_block_meta(advanced_eb, |meta| {
-            meta.prepared = true;
-        });
-
-        let post_boundary_payload = Operations::new(vec![
-            Operation::AdvanceTillEthereumBlock {
-                block_hash: advanced_eb,
-            },
-            Operation::ProgressTasks,
-            Operation::ProcessQueues {
-                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            },
-        ]);
-        let post_boundary_block = wrap(post_boundary_payload, 11, boundary_hash);
-        let post_boundary_hash = post_boundary_block.hash();
-
-        ext.process_mb_proposal(
-            post_boundary_hash,
-            post_boundary_block,
-            CallbackOrigin::ValueSyncReplay,
-        )
-        .await
-        .unwrap();
-        match rx.recv().await.expect("proposal event").unwrap() {
-            MalachiteEvent::BlockProposal { height, mb_hash } => {
-                assert_eq!(height, 11);
-                assert_eq!(mb_hash, post_boundary_hash);
-            }
-            other => panic!("expected BlockProposal, got {other:?}"),
-        }
+        assert_eq!(db.mb_meta(boundary_hash).last_advanced_eb, boundary_eb);
+        assert!(db.mb_compact_block(boundary_hash).is_some());
 
         ext.process_mb_finalized(
-            post_boundary_hash,
-            fake_cert(11),
+            boundary_hash,
+            fake_cert(10),
             CallbackOrigin::ValueSyncReplay,
         )
         .await
         .unwrap();
-        match rx.recv().await.expect("finalization event").unwrap() {
-            MalachiteEvent::BlockFinalized {
-                height, mb_hash, ..
-            } => {
-                assert_eq!(height, 11);
-                assert_eq!(mb_hash, post_boundary_hash);
-            }
-            other => panic!("expected BlockFinalized, got {other:?}"),
-        }
-        assert_eq!(db.globals().latest_finalized_mb_hash, post_boundary_hash);
-    }
+        assert!(
+            rx.try_recv().is_err(),
+            "boundary finalization is suppressed"
+        );
+        assert!(
+            ext.pending_events
+                .lock()
+                .expect("pending_events poisoned")
+                .is_empty()
+        );
 
-    /// When the boundary compact is missing, old replay callbacks are
-    /// still suppressed, but live callbacks for post-boundary MBs must
-    /// continue to emit and advance globals.
-    #[tokio::test]
-    async fn live_callbacks_not_suppressed_when_boundary_compact_is_missing() {
-        let db = Database::memory();
-        let (ext, mut rx) = make_externalities(db.clone());
+        let post_eb = H256::repeat_byte(0xA2);
+        db.mutate_block_meta(post_eb, |meta| meta.prepared = true);
+        let post_payload = payload(Some(post_eb), 2);
+        let post_block = wrap(post_payload, 11, boundary_hash);
+        let post_hash = post_block.hash();
 
-        let boundary_payload = payload(None, 2);
-        let boundary_block = wrap(boundary_payload, 10, H256::zero());
-        let boundary_hash = boundary_block.hash();
-        db.globals_mutate(|g| {
-            g.latest_finalized_mb_hash = boundary_hash;
-            g.latest_computed_mb_hash = boundary_hash;
-        });
-        ext.enable_replay_boundary_from_execution_snapshot();
-
-        let replay_payload = Operations::new(vec![
-            Operation::ProgressTasks,
-            Operation::ProcessQueues {
-                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            },
-        ]);
-        let old_block = wrap(replay_payload, 9, H256::zero());
-        let old_hash = old_block.hash();
-        ext.process_mb_proposal(old_hash, old_block, CallbackOrigin::ValueSyncReplay)
-            .await
-            .unwrap();
-        assert!(rx.try_recv().is_err(), "replay should be suppressed");
-
-        let live_payload = Operations::new(vec![
-            Operation::ProgressTasks,
-            Operation::ProcessQueues {
-                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            },
-        ]);
-        let live_block = wrap(live_payload, 11, boundary_hash);
-        let live_hash = live_block.hash();
-        ext.process_mb_proposal(live_hash, live_block, CallbackOrigin::Live)
+        ext.process_mb_proposal(post_hash, post_block, CallbackOrigin::ValueSyncReplay)
             .await
             .unwrap();
         match rx.recv().await.expect("proposal event").unwrap() {
             MalachiteEvent::BlockProposal { height, mb_hash } => {
                 assert_eq!(height, 11);
-                assert_eq!(mb_hash, live_hash);
+                assert_eq!(mb_hash, post_hash);
             }
             other => panic!("expected BlockProposal, got {other:?}"),
         }
 
-        ext.process_mb_finalized(live_hash, fake_cert(11), CallbackOrigin::Live)
+        ext.process_mb_finalized(post_hash, fake_cert(11), CallbackOrigin::ValueSyncReplay)
             .await
             .unwrap();
         match rx.recv().await.expect("finalization event").unwrap() {
@@ -1752,30 +1484,70 @@ mod tests {
                 height,
                 mb_hash,
             } => {
-                assert_eq!(height, 11);
                 assert_eq!(cert.height, 11);
-                assert_eq!(mb_hash, live_hash);
+                assert_eq!(height, 11);
+                assert_eq!(mb_hash, post_hash);
             }
             other => panic!("expected BlockFinalized, got {other:?}"),
         }
-        assert_eq!(db.globals().latest_finalized_mb_hash, live_hash);
+        assert_eq!(db.globals().latest_finalized_mb_hash, post_hash);
     }
 
-    /// Live recomputation progress must not make the replay boundary
-    /// move forward before finalization processing.
     #[tokio::test]
-    async fn computed_tip_advancing_does_not_disable_post_boundary_finalization_events() {
+    async fn fast_sync_filter_retains_until_boundary_proposal_seen() {
         let db = Database::memory();
         let (ext, mut rx) = make_externalities(db.clone());
 
-        let boundary_payload = payload(None, 1);
-        let boundary_block = wrap(boundary_payload, 10, H256::zero());
+        let boundary_eb = H256::repeat_byte(0xD1);
+        let boundary_payload = payload(Some(boundary_eb), 1);
+        let boundary_block = wrap(boundary_payload.clone(), 10, H256::zero());
         let boundary_hash = boundary_block.hash();
-        db.globals_mutate(|g| {
-            g.latest_finalized_mb_hash = boundary_hash;
-            g.latest_computed_mb_hash = boundary_hash;
-        });
-        ext.enable_replay_boundary_from_execution_snapshot();
+        ext.enable_fast_sync_replay_filter(boundary_hash, boundary_eb);
+
+        let operations_hash = db.set_operations(boundary_payload);
+        db.set_mb_compact_block(
+            boundary_hash,
+            CompactMb {
+                parent: H256::zero(),
+                height: 10,
+                operations_hash,
+            },
+        );
+
+        ext.process_mb_finalized(
+            boundary_hash,
+            fake_cert(10),
+            CallbackOrigin::ValueSyncReplay,
+        )
+        .await
+        .unwrap();
+        assert!(
+            rx.try_recv().is_err(),
+            "boundary finalization before proposal is suppressed"
+        );
+        assert!(
+            ext.fast_sync_replay_filter
+                .read()
+                .expect("fast_sync_replay_filter poisoned")
+                .is_some(),
+            "filter must stay active until boundary proposal is seen",
+        );
+
+        let retained_eb = H256::repeat_byte(0xD2);
+        db.mutate_block_meta(retained_eb, |meta| meta.prepared = true);
+        let retained_block = wrap(payload(Some(retained_eb), 2), 11, boundary_hash);
+        let retained_hash = retained_block.hash();
+        ext.process_mb_proposal(
+            retained_hash,
+            retained_block,
+            CallbackOrigin::ValueSyncReplay,
+        )
+        .await
+        .unwrap();
+        assert!(
+            rx.try_recv().is_err(),
+            "non-boundary proposal is still suppressed while filter is retained"
+        );
 
         ext.process_mb_proposal(
             boundary_hash,
@@ -1784,57 +1556,109 @@ mod tests {
         )
         .await
         .unwrap();
+        ext.process_mb_finalized(
+            boundary_hash,
+            fake_cert(10),
+            CallbackOrigin::ValueSyncReplay,
+        )
+        .await
+        .unwrap();
         assert!(
-            rx.try_recv().is_err(),
-            "boundary replay should be suppressed"
+            ext.fast_sync_replay_filter
+                .read()
+                .expect("fast_sync_replay_filter poisoned")
+                .is_none(),
+            "boundary proposal plus finalization clears filter",
         );
 
-        let advanced_eb = H256::repeat_byte(0xA3);
-        db.mutate_block_meta(advanced_eb, |meta| {
-            meta.prepared = true;
-        });
-
-        let replay_payload = Operations::new(vec![
-            Operation::AdvanceTillEthereumBlock {
-                block_hash: advanced_eb,
-            },
-            Operation::ProgressTasks,
-            Operation::ProcessQueues {
-                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            },
-        ]);
-        let replay_block = wrap(replay_payload, 11, boundary_hash);
-        let replay_hash = replay_block.hash();
-
-        ext.process_mb_proposal(replay_hash, replay_block, CallbackOrigin::ValueSyncReplay)
+        let post_eb = H256::repeat_byte(0xD3);
+        db.mutate_block_meta(post_eb, |meta| meta.prepared = true);
+        let post_block = wrap(payload(Some(post_eb), 3), 12, boundary_hash);
+        let post_hash = post_block.hash();
+        ext.process_mb_proposal(post_hash, post_block, CallbackOrigin::ValueSyncReplay)
             .await
             .unwrap();
         match rx.recv().await.expect("proposal event").unwrap() {
             MalachiteEvent::BlockProposal { height, mb_hash } => {
-                assert_eq!(height, 11);
-                assert_eq!(mb_hash, replay_hash);
+                assert_eq!(height, 12);
+                assert_eq!(mb_hash, post_hash);
             }
             other => panic!("expected BlockProposal, got {other:?}"),
         }
+    }
 
-        db.globals_mutate(|g| g.latest_computed_mb_hash = replay_hash);
+    #[tokio::test]
+    async fn fast_sync_filter_rejects_boundary_eb_mismatch() {
+        let db = Database::memory();
+        let (ext, mut rx) = make_externalities(db);
 
-        ext.process_mb_finalized(replay_hash, fake_cert(11), CallbackOrigin::ValueSyncReplay)
+        let expected_eb = H256::repeat_byte(0xB1);
+        let actual_eb = H256::repeat_byte(0xB2);
+        let block = wrap(payload(Some(actual_eb), 1), 10, H256::zero());
+        let mb_hash = block.hash();
+        ext.enable_fast_sync_replay_filter(mb_hash, expected_eb);
+
+        let err = ext
+            .process_mb_proposal(mb_hash, block, CallbackOrigin::ValueSyncReplay)
             .await
-            .unwrap();
-        match rx.recv().await.expect("finalization event").unwrap() {
-            MalachiteEvent::BlockFinalized {
-                cert,
-                height,
-                mb_hash,
-            } => {
-                assert_eq!(height, 11);
-                assert_eq!(cert.height, 11);
-                assert_eq!(mb_hash, replay_hash);
-            }
-            other => panic!("expected BlockFinalized, got {other:?}"),
+            .expect_err("boundary EB mismatch must fail");
+        assert!(
+            err.to_string()
+                .contains("fast-sync replay boundary mismatch"),
+            "unexpected error: {err:#}"
+        );
+        match rx.try_recv().expect("mismatch event") {
+            Err(err) => assert!(
+                err.to_string()
+                    .contains("fast-sync replay boundary mismatch"),
+                "unexpected event error: {err:#}"
+            ),
+            Ok(event) => panic!("expected mismatch error event, got {event:?}"),
         }
-        assert_eq!(db.globals().latest_finalized_mb_hash, replay_hash);
+        assert!(
+            ext.fast_sync_replay_filter
+                .read()
+                .expect("fast_sync_replay_filter poisoned")
+                .is_none(),
+            "mismatch must clear replay filter",
+        );
+    }
+
+    #[tokio::test]
+    async fn fast_sync_filter_rejects_zero_boundary_eb_mismatch() {
+        let db = Database::memory();
+        let (ext, mut rx) = make_externalities(db);
+
+        let expected_eb = H256::zero();
+        let actual_eb = H256::repeat_byte(0xC1);
+        let block = wrap(payload(Some(actual_eb), 1), 10, H256::zero());
+        let mb_hash = block.hash();
+        ext.enable_fast_sync_replay_filter(mb_hash, expected_eb);
+
+        let err = ext
+            .process_mb_proposal(mb_hash, block, CallbackOrigin::ValueSyncReplay)
+            .await
+            .expect_err("zero boundary EB mismatch must fail");
+        assert!(
+            err.to_string()
+                .contains("fast-sync replay boundary mismatch"),
+            "unexpected error: {err:#}"
+        );
+        match rx.try_recv().expect("mismatch event") {
+            Err(err) => assert!(
+                err.to_string()
+                    .contains("fast-sync replay boundary mismatch"),
+                "unexpected event error: {err:#}"
+            ),
+            Ok(event) => panic!("expected mismatch error event, got {event:?}"),
+        }
+        assert!(
+            ext.fast_sync_replay_filter
+                .read()
+                .expect("fast_sync_replay_filter poisoned")
+                .is_none(),
+            "mismatch must clear replay filter",
+        );
     }
 
     // ------------------------------------------------------------------
@@ -1864,7 +1688,7 @@ mod tests {
             gas_allowance: 1_000_000,
             canonical_quarantine: 0,
             post_quarantine_delay: 0,
-            replay_boundary: RwLock::new(ReplayBoundary::Disabled),
+            fast_sync_replay_filter: RwLock::new(None),
         };
         (ext, event_rx)
     }
@@ -2616,7 +2440,7 @@ mod tests {
             gas_allowance: 1_000_000,
             canonical_quarantine: 2,
             post_quarantine_delay: 3,
-            replay_boundary: RwLock::new(ReplayBoundary::Disabled),
+            fast_sync_replay_filter: RwLock::new(None),
         };
 
         let candidate = ext

@@ -745,7 +745,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     });
 
     if let Some(malachite) = malachite.as_mut() {
-        malachite.enable_replay_boundary_from_execution_snapshot();
+        // `Service::run` performs fast sync before `run_inner().start_app_task()`,
+        // so live Malachite callbacks cannot race this startup replay gate.
+        malachite.enable_fast_sync_replay_filter(
+            latest_committed_chain.mb_hash,
+            latest_committed_chain.eb_hash,
+        );
         malachite.receive_new_chain_head(block_data.to_simple());
     }
 
