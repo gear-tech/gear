@@ -39,9 +39,9 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteConfig, MalachiteConfigEnvironment, MalachiteService,
-    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
-    malachite_libp2p_peer_id,
+    FastSyncReplayTarget, InjectedTxMempool, MalachiteConfig, MalachiteConfigEnvironment,
+    MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry,
+    derive_libp2p_secret, malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
@@ -1004,11 +1004,7 @@ impl Wallets {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct LatestFastSyncedBlocks {
-    pub eb_hash: H256,
-    pub mb_hash: H256,
-}
+pub type LatestFastSyncedBlocks = FastSyncReplayTarget;
 
 pub struct Node {
     pub name: Option<String>,

@@ -372,6 +372,9 @@ fn build_inner_config(cfg: &MalachiteConfig, moniker: &str) -> InnerNodeConfig {
     let value_sync = match cfg.env {
         Environment::Production => ValueSyncConfig::default(),
         Environment::Test => ValueSyncConfig {
+            // Service tests do not run Malachite's application task forever, so
+            // use short value-sync waits and small batches to make missing replay
+            // data fail fast instead of blocking the event queue.
             status_update_interval: Duration::from_millis(500),
             request_timeout: Duration::from_secs(3),
             parallel_requests: 16,

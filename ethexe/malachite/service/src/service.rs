@@ -36,7 +36,8 @@ use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 use tokio::sync::{Notify, mpsc};
 
 use crate::{
-    MalachiteConfig, MalachiteEvent, Mempool, ValidatorEntry, externalities::EthexeExternalities,
+    FastSyncReplayTarget, MalachiteConfig, MalachiteEvent, Mempool, ValidatorEntry,
+    externalities::EthexeExternalities,
 };
 
 /// Public consensus service.
@@ -198,23 +199,22 @@ impl MalachiteService {
         }
     }
 
-    pub fn enable_fast_sync_replay_filter(&self, mb_hash: H256, eb_hash: H256) -> Result<bool> {
+    pub fn enable_fast_sync_replay_filter(&self, target: FastSyncReplayTarget) -> Result<bool> {
         if self
             .inner
             .as_ref()
             .context("Malachite inner service is shut down")?
-            .is_finalized(mb_hash)?
+            .is_finalized(target.mb_hash)?
         {
             tracing::info!(
-                mb_hash = %mb_hash,
-                eb_hash = %eb_hash,
+                mb_hash = %target.mb_hash,
+                eb_hash = %target.eb_hash,
                 "not enabling fast-sync replay filter for already-finalized MB",
             );
             return Ok(false);
         }
 
-        self.externalities
-            .enable_fast_sync_replay_filter(mb_hash, eb_hash);
+        self.externalities.enable_fast_sync_replay_filter(target);
         Ok(true)
     }
 

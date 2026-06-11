@@ -62,7 +62,7 @@ use tokio::sync::{Notify, mpsc};
 use tracing::{error, info, warn};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct FastSyncReplayTarget {
+pub struct FastSyncReplayTarget {
     pub mb_hash: H256,
     pub eb_hash: H256,
 }
@@ -179,6 +179,9 @@ impl Externalities for EthexeExternalities {
             meta.last_advanced_eb = last_advanced;
         });
 
+        // The fast-sync replay gate sits after durable MB writes so a suppressed
+        // replayed proposal is still available to finalization and DB walks; only
+        // outbound events are skipped.
         if self.suppress_for_fast_sync_replay_proposal(mb_hash, last_advanced)? {
             return Ok(());
         }
@@ -211,6 +214,9 @@ impl Externalities for EthexeExternalities {
             )
         })?;
 
+        // The replay gate sits after loading the compact block and operations:
+        // even suppressed finalizations must prove the proposal path persisted
+        // the MB before we skip mempool, globals, and event side effects.
         if self.suppress_for_fast_sync_replay_finalization(mb_hash) {
             return Ok(());
         }
@@ -637,13 +643,12 @@ impl Externalities for EthexeExternalities {
 }
 
 impl EthexeExternalities {
-    pub(crate) fn enable_fast_sync_replay_filter(&self, mb_hash: H256, eb_hash: H256) {
+    pub(crate) fn enable_fast_sync_replay_filter(&self, target: FastSyncReplayTarget) {
         *self
             .fast_sync_replay_filter
             .lock()
-            .expect("fast_sync_replay_filter poisoned") = Some(
-            FastSyncReplayFilter::UntilTargetProposal(FastSyncReplayTarget { mb_hash, eb_hash }),
-        );
+            .expect("fast_sync_replay_filter poisoned") =
+            Some(FastSyncReplayFilter::UntilTargetProposal(target));
     }
 
     fn suppress_for_fast_sync_replay_proposal(
@@ -663,6 +668,9 @@ impl EthexeExternalities {
                     mb_hash == target.mb_hash && last_advanced_eb == target.eb_hash;
 
                 if mb_hash == target.mb_hash && !matches_target {
+                    // Fast sync captures the on-chain committed MB/EB as one
+                    // event pair. Replaying the target MB with another advanced
+                    // EB means the restored anchor is internally inconsistent.
                     let message = format!(
                         "fast-sync replay target mismatch: MB {mb_hash} advanced {last_advanced_eb}, expected {}",
                         target.eb_hash,
@@ -1342,7 +1350,10 @@ mod tests {
         let boundary_payload = payload(Some(boundary_eb), 1);
         let boundary_block = wrap(boundary_payload, 10, H256::zero());
         let boundary_hash = boundary_block.hash();
-        ext.enable_fast_sync_replay_filter(boundary_hash, boundary_eb);
+        ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
+            mb_hash: boundary_hash,
+            eb_hash: boundary_eb,
+        });
 
         ext.process_mb_proposal(boundary_hash, boundary_block)
             .await
@@ -1423,7 +1434,10 @@ mod tests {
         let boundary_payload = payload(Some(boundary_eb), 1);
         let boundary_block = wrap(boundary_payload.clone(), 10, H256::zero());
         let boundary_hash = boundary_block.hash();
-        ext.enable_fast_sync_replay_filter(boundary_hash, boundary_eb);
+        ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
+            mb_hash: boundary_hash,
+            eb_hash: boundary_eb,
+        });
 
         let operations_hash = db.set_operations(boundary_payload);
         db.set_mb_compact_block(
@@ -1501,7 +1515,10 @@ mod tests {
         let actual_eb = H256::repeat_byte(0xB2);
         let block = wrap(payload(Some(actual_eb), 1), 10, H256::zero());
         let mb_hash = block.hash();
-        ext.enable_fast_sync_replay_filter(mb_hash, expected_eb);
+        ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
+            mb_hash,
+            eb_hash: expected_eb,
+        });
 
         let err = ext
             .process_mb_proposal(mb_hash, block)
@@ -1536,7 +1553,10 @@ mod tests {
         let actual_eb = H256::repeat_byte(0xC1);
         let block = wrap(payload(Some(actual_eb), 1), 10, H256::zero());
         let mb_hash = block.hash();
-        ext.enable_fast_sync_replay_filter(mb_hash, expected_eb);
+        ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
+            mb_hash,
+            eb_hash: expected_eb,
+        });
 
         let err = ext
             .process_mb_proposal(mb_hash, block)

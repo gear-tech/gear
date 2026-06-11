@@ -59,10 +59,7 @@ use libp2p::{
     metrics::Recorder,
     multiaddr::Protocol,
     ping,
-    swarm::{
-        Config as SwarmConfig, NetworkBehaviour, SwarmEvent, behaviour::toggle::Toggle,
-        dial_opts::DialOpts,
-    },
+    swarm::{Config as SwarmConfig, NetworkBehaviour, SwarmEvent, behaviour::toggle::Toggle},
     yamux,
 };
 #[cfg(test)]
@@ -315,25 +312,8 @@ impl NetworkService {
                 })
                 .context("bootstrap nodes are not allowed without peer ID")?;
 
-            let mut peer_addr = Multiaddr::empty();
-            for protocol in multiaddr.iter() {
-                if !matches!(protocol, Protocol::P2p(_)) {
-                    peer_addr.push(protocol);
-                }
-            }
-
-            swarm.add_peer_address(peer_id, peer_addr.clone());
-            swarm
-                .behaviour_mut()
-                .kad
-                .add_address(peer_id, peer_addr.clone());
-            if let Err(error) = swarm.dial(
-                DialOpts::peer_id(peer_id)
-                    .addresses(vec![peer_addr])
-                    .build(),
-            ) {
-                log::warn!("failed to dial bootstrap peer {peer_id}: {error}");
-            }
+            swarm.add_peer_address(peer_id, multiaddr.clone());
+            swarm.behaviour_mut().kad.add_address(peer_id, multiaddr);
             bootstrap_peers.insert(peer_id);
         }
 
@@ -863,11 +843,6 @@ mod tests {
             }
         }
 
-        fn bootstrap_address(mut self, address: Multiaddr) -> Self {
-            self.bootstrap_addresses.insert(address);
-            self
-        }
-
         fn build(self) -> NetworkService {
             const GENESIS_BLOCK_HEADER: BlockHeader = BlockHeader {
                 height: 0,
@@ -956,18 +931,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn request_db_data_from_bootstrap_peer() {
+    async fn request_db_data_from_connected_peer() {
         init_logger();
 
         let service2 = NetworkServiceBuilder::new();
         let hello = service2.db.cas().write(b"hello");
         let mut service2 = service2.build();
-        let service2_peer_id = service2.local_peer_id();
-        let (service2_addr, _) = service2.swarm.listen().with_memory_addr_external().await;
-        let service2_addr = service2_addr.with_p2p(service2_peer_id).unwrap();
 
-        let service1 = NetworkServiceBuilder::new().bootstrap_address(service2_addr);
-        let service1 = service1.build();
+        let mut service1 = NetworkServiceBuilder::new().build();
+        service1.connect(&mut service2).await;
         let service1_handle = service1.bitswap_handle();
 
         tokio::spawn(service1.loop_on_next());

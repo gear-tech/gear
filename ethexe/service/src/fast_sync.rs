@@ -29,6 +29,7 @@ use ethexe_db::{
     visitor::DatabaseVisitor,
 };
 use ethexe_ethereum::{mirror::MirrorQuery, router::RouterQuery};
+use ethexe_malachite::FastSyncReplayTarget;
 use ethexe_network::NetworkService;
 use ethexe_observer::{ObserverService, utils::BlockLoader};
 use ethexe_runtime_common::{
@@ -46,15 +47,9 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct CommittedChain {
-    pub mb_hash: H256,
-    pub eb_hash: H256,
-}
-
 struct EventData {
     latest_committed_batch: Digest,
-    latest_committed_chain: CommittedChain,
+    latest_committed_chain: FastSyncReplayTarget,
 }
 
 impl EventData {
@@ -82,7 +77,7 @@ impl EventData {
                         pending_eb = Some(*eb_hash);
                     }
                     BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(mb_hash))) => {
-                        latest_committed_chain.get_or_insert(CommittedChain {
+                        latest_committed_chain.get_or_insert(FastSyncReplayTarget {
                             mb_hash: *mb_hash,
                             eb_hash: pending_eb.take().unwrap_or_default(),
                         });
@@ -747,10 +742,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     if let Some(malachite) = malachite.as_mut() {
         // `Service::run` performs fast sync before `run_inner().start_app_task()`,
         // so live Malachite callbacks cannot race this startup replay gate.
-        let _ = malachite.enable_fast_sync_replay_filter(
-            latest_committed_chain.mb_hash,
-            latest_committed_chain.eb_hash,
-        )?;
+        let _ = malachite.enable_fast_sync_replay_filter(latest_committed_chain)?;
         malachite.receive_new_chain_head(block_data.to_simple());
     }
 
