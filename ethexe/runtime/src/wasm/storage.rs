@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::wasm::interface::promise_ri;
+use crate::wasm::interface::{crypto_ri, promise_ri};
 
 use super::interface::database_ri;
 use alloc::vec::Vec;
@@ -140,5 +140,9 @@ impl RuntimeInterface for NativeRuntimeInterface {
 
     fn publish_promise(&self, promise: &Promise) {
         promise_ri::publish_promise(promise);
+    }
+
+    fn crypto(op: gsys::CryptoOp, input: &[u8]) -> Option<Vec<u8>> {
+        crypto_ri::crypto(op, input)
     }
 }

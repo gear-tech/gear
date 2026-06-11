@@ -59,6 +59,10 @@ pub enum ExecutionError {
     /// An error occurs in attempt to send or push reply while reply function is banned.
     #[error("Reply sending is only allowed in `init` and `handle` functions")]
     IncorrectEntryForReply = 108,
+
+    /// The input of a `gr_crypto` operation is malformed (ethexe-only).
+    #[error("Invalid input for cryptographic operation")]
+    CryptoInputInvalid = 109,
 }
 
 /// Memory error.
@@ -227,6 +231,7 @@ impl ExtError {
             106 => Some(ExecutionError::NoSignalContext.into()),
             107 => Some(ExecutionError::NoStatusCodeContext.into()),
             108 => Some(ExecutionError::IncorrectEntryForReply.into()),
+            109 => Some(ExecutionError::CryptoInputInvalid.into()),
             //
             200 => Some(MemoryError::RuntimeAllocOutOfBounds.into()),
             201 => Some(MemoryError::AccessOutOfBounds.into()),

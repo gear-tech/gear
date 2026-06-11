@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 pub mod allocator;
+pub mod crypto;
 pub mod database;
 pub mod lazy_pages;
 pub mod logging;
