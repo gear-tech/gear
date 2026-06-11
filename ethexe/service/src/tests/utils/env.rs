@@ -1195,6 +1195,9 @@ impl Node {
                 .with_validators(validators);
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
+            // Tests drive content in bursts; a short propose timeout keeps
+            // idle rounds cheap instead of burning a 24s slot each.
+            mc.propose_timeout = Duration::from_secs(3);
 
             let malachite_validator_config =
                 self.validator_config
@@ -1214,7 +1217,6 @@ impl Node {
                 self.db.clone(),
                 latest_block,
             )
-            .await
             .expect("MalachiteServiceStarter::new")
         };
 

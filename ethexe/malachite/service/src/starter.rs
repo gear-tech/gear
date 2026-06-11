@@ -37,7 +37,7 @@ impl MalachiteServiceStarter {
     /// Prepare a service: resolve the node role (validator / full node),
     /// build the externalities and the core config.
     /// Fails if `config.validators` is empty or the validator key is absent in the signer.
-    pub async fn new<M: Mempool>(
+    pub fn new<M: Mempool>(
         config: MalachiteServiceConfig,
         validator_config: Option<ValidatorConfig<M>>,
         db: Database,
@@ -85,7 +85,7 @@ impl MalachiteServiceStarter {
             validator_secret,
             validators: config.validators.clone(),
             role,
-            propose_timeout: alloy::eips::merge::SLOT_DURATION * 2,
+            propose_timeout: config.propose_timeout,
         };
 
         let chain_head = Arc::new(ChainHead {

@@ -117,9 +117,12 @@ where
                 return Err(anyhow!("consensus channel closed"));
             };
 
-            if let Err(err) = self.handle_app_msg(msg).await {
-                error!("error handling AppMsg: {err}");
-            }
+            // `Err` from `handle_app_msg` means a FATAL failure (dropped
+            // engine reply channel, `FinalizationError::Fatal`, broken
+            // proposal production) — propagate so the app task terminates
+            // and the error surfaces on the service stream. Non-fatal
+            // cases are logged and absorbed inside `handle_app_msg`.
+            self.handle_app_msg(msg).await?;
         }
     }
 

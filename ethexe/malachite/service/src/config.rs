@@ -11,7 +11,7 @@
 use crate::Mempool;
 use ethexe_common::ecdsa::{PublicKey, Signer};
 pub use ethexe_malachite_core::{Multiaddr, ValidatorEntry};
-use std::{net::SocketAddr, path::PathBuf};
+use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
 #[derive(Clone, Debug)]
 pub struct MalachiteServiceConfig {
@@ -43,6 +43,10 @@ pub struct MalachiteServiceConfig {
     /// The complete validator set. Quorum is `> 2/3` of total voting power.
     /// A validator node's own public key must appear in this list.
     pub validators: Vec<ValidatorEntry>,
+
+    /// How long the proposer may wait for proposable content before the
+    /// round times out and rotates.
+    pub propose_timeout: Duration,
 }
 
 impl MalachiteServiceConfig {
@@ -56,6 +60,10 @@ impl MalachiteServiceConfig {
         std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
         20334,
     );
+    /// Ethereum block time occasionally stretches past one slot, so give
+    /// the producer more than `SLOT_DURATION` to find a fresh EB.
+    pub const DEFAULT_PROPOSE_TIMEOUT: Duration =
+        Duration::from_secs(2 * alloy::eips::merge::SLOT_DURATION.as_secs());
 
     /// Build a config with defaults from the node's home directory.
     /// The validator set is left empty — fill it in with [`Self::with_validators`].
@@ -68,6 +76,7 @@ impl MalachiteServiceConfig {
             home_dir,
             persistent_peers: Vec::new(),
             validators: Vec::new(),
+            propose_timeout: Self::DEFAULT_PROPOSE_TIMEOUT,
         }
     }
 

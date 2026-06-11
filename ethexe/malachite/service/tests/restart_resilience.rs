@@ -138,6 +138,7 @@ fn build_config(
             public_key: pub_key,
             voting_power: 1,
         }],
+        propose_timeout: Duration::from_secs(5),
     }
 }
 
@@ -232,7 +233,6 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         db.clone(),
         chain[0],
     )
-    .await
     .expect("create malachite service starter")
     .start()
     .await
@@ -280,7 +280,6 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         db.clone(),
         chain[31],
     )
-    .await
     .expect("create malachite service starter after restart")
     .start()
     .await

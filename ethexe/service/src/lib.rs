@@ -540,7 +540,6 @@ impl Service {
                 db.clone(),
                 initial_chain_head,
             )
-            .await
             .context("failed to create Malachite service starter")?
         };
 
@@ -982,18 +981,10 @@ impl Service {
                             "Malachite: BlockFinalized",
                         );
 
-                        // +_+_+ ??? whether we really need this?
-                        // Non-proposer nodes (validators that didn't propose
-                        // this height + every full/RPC node) first see the MB
-                        // here. Trigger compute so the body — including any
-                        // injected-tx `Promise` — is produced locally; the
-                        // matching `SignedCompactPromise` arrives via the
-                        // network and is joined into a full `SignedTxReceipt`
-                        // by the RPC subscription manager. Calls are
-                        // idempotent: a proposer that already computed via
-                        // `BlockProposal` short-circuits on
-                        // `mb_meta.computed`.
-                        compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
+                        // No compute here: `BlockProposal` is always emitted
+                        // before the matching `BlockFinalized` (on every node,
+                        // including the sync path), so compute for this MB has
+                        // already been triggered.
                     }
                     MalachiteEvent::PurgedTransactions {
                         eb_hash,

@@ -95,8 +95,12 @@ impl MalachiteService {
                 tracing::trace!(
                     latest_synced = %*latest_synced,
                     synced = %synced,
-                    "synced EB is not newer than the current synced head, ignoring"
+                    "synced EB is not newer than the current synced head"
                 );
+                drop(latest_synced);
+                // Still wake the producer: a lower-height sync may have just
+                // landed parent headers a failed descendant walk needs.
+                self.chain_head.notify.notify_one();
                 return;
             }
             *latest_synced = synced;

@@ -537,6 +537,11 @@ impl EthexeExternalities {
             Err(e) => return Err(anyhow!("quarantine anchor lookup failed: {e}")),
         };
 
+        if candidate.hash == parent_advance {
+            // No new EB past quarantine since the parent's advance.
+            return Ok(None);
+        }
+
         match quarantine::is_strict_descendant_of(&self.db, candidate, parent_advance, start) {
             Ok(Acceptance::Accepted(())) => Ok(Some(candidate.hash)),
             Ok(Acceptance::Rejected(reason)) => {
