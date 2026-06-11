@@ -156,7 +156,6 @@ parameter_types! {
 }
 
 impl pallet_gear_voucher::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
@@ -183,6 +182,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (RENT_POOL, ExistentialDeposit::get()),
             (GearBank::bank_address(), ExistentialDeposit::get()),
         ],
+        dev_accounts: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();

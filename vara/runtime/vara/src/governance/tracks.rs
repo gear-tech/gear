@@ -6,9 +6,23 @@
 #![allow(clippy::identity_op)]
 
 use super::*;
+use sp_std::borrow::Cow;
 
 const fn percent(x: i32) -> sp_runtime::FixedI64 {
     sp_runtime::FixedI64::from_rational(x as u128, 100)
+}
+
+const MAX_TRACK_NAME_LEN: usize = 25;
+
+const fn track_name(name: &str) -> [u8; MAX_TRACK_NAME_LEN] {
+    let bytes = name.as_bytes();
+    let mut out = [0; MAX_TRACK_NAME_LEN];
+    let mut i = 0;
+    while i < bytes.len() {
+        out[i] = bytes[i];
+        i += 1;
+    }
+    out
 }
 
 use pallet_referenda::Curve;
@@ -69,7 +83,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         0,
         pallet_referenda::TrackInfo {
-            name: "root",
+            name: track_name("root"),
             max_deciding: 1,
             decision_deposit: 100_000 * ECONOMIC_UNITS,
             prepare_period: 2 * HOURS,
@@ -83,7 +97,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         1,
         pallet_referenda::TrackInfo {
-            name: "whitelisted_caller",
+            name: track_name("whitelisted_caller"),
             max_deciding: 100,
             decision_deposit: 10_000 * ECONOMIC_UNITS,
             prepare_period: 30 * MINUTES,
@@ -97,7 +111,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         10,
         pallet_referenda::TrackInfo {
-            name: "staking_admin",
+            name: track_name("staking_admin"),
             max_deciding: 10,
             decision_deposit: 5_000 * ECONOMIC_UNITS,
             prepare_period: 2 * HOURS,
@@ -111,7 +125,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         11,
         pallet_referenda::TrackInfo {
-            name: "treasurer",
+            name: track_name("treasurer"),
             max_deciding: 10,
             decision_deposit: 1_000 * ECONOMIC_UNITS,
             prepare_period: 2 * HOURS,
@@ -125,7 +139,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         12,
         pallet_referenda::TrackInfo {
-            name: "fellowship_admin",
+            name: track_name("fellowship_admin"),
             max_deciding: 10,
             decision_deposit: 5_000 * ECONOMIC_UNITS,
             prepare_period: 2 * HOURS,
@@ -139,7 +153,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         13,
         pallet_referenda::TrackInfo {
-            name: "general_admin",
+            name: track_name("general_admin"),
             max_deciding: 10,
             decision_deposit: 5_000 * ECONOMIC_UNITS,
             prepare_period: 2 * HOURS,
@@ -153,7 +167,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         20,
         pallet_referenda::TrackInfo {
-            name: "referendum_canceller",
+            name: track_name("referendum_canceller"),
             max_deciding: 1_000,
             decision_deposit: 10_000 * ECONOMIC_UNITS,
             prepare_period: 2 * HOURS,
@@ -167,7 +181,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         21,
         pallet_referenda::TrackInfo {
-            name: "referendum_killer",
+            name: track_name("referendum_killer"),
             max_deciding: 1_000,
             decision_deposit: 50_000 * ECONOMIC_UNITS,
             prepare_period: 2 * HOURS,
@@ -181,7 +195,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         30,
         pallet_referenda::TrackInfo {
-            name: "small_tipper",
+            name: track_name("small_tipper"),
             max_deciding: 200,
             decision_deposit: ECONOMIC_UNITS,
             prepare_period: MINUTES,
@@ -195,7 +209,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         31,
         pallet_referenda::TrackInfo {
-            name: "big_tipper",
+            name: track_name("big_tipper"),
             max_deciding: 100,
             decision_deposit: 10 * ECONOMIC_UNITS,
             prepare_period: 10 * MINUTES,
@@ -209,7 +223,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         32,
         pallet_referenda::TrackInfo {
-            name: "small_spender",
+            name: track_name("small_spender"),
             max_deciding: 50,
             decision_deposit: 100 * ECONOMIC_UNITS,
             prepare_period: 4 * HOURS,
@@ -223,7 +237,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         33,
         pallet_referenda::TrackInfo {
-            name: "medium_spender",
+            name: track_name("medium_spender"),
             max_deciding: 50,
             decision_deposit: 200 * ECONOMIC_UNITS,
             prepare_period: 4 * HOURS,
@@ -237,7 +251,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         34,
         pallet_referenda::TrackInfo {
-            name: "big_spender",
+            name: track_name("big_spender"),
             max_deciding: 50,
             decision_deposit: 400 * ECONOMIC_UNITS,
             prepare_period: 4 * HOURS,
@@ -251,7 +265,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         40,
         pallet_referenda::TrackInfo {
-            name: "bridge_admin",
+            name: track_name("bridge_admin"),
             max_deciding: 3,
             decision_deposit: 100_000 * ECONOMIC_UNITS,
             prepare_period: 4 * HOURS,
@@ -265,7 +279,7 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
     (
         41,
         pallet_referenda::TrackInfo {
-            name: "bridge_pauser",
+            name: track_name("bridge_pauser"),
             max_deciding: 5,
             decision_deposit: 25_000 * ECONOMIC_UNITS,
             prepare_period: 3 * MINUTES,
@@ -283,8 +297,15 @@ pub struct TracksInfo;
 impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
     type Id = u16;
     type RuntimeOrigin = <RuntimeOrigin as frame_support::traits::OriginTrait>::PalletsOrigin;
-    fn tracks() -> &'static [(Self::Id, pallet_referenda::TrackInfo<Balance, BlockNumber>)] {
-        &TRACKS_DATA[..]
+    fn tracks()
+    -> impl Iterator<Item = Cow<'static, pallet_referenda::Track<Self::Id, Balance, BlockNumber>>>
+    {
+        TRACKS_DATA.iter().map(|(id, info)| {
+            Cow::Owned(pallet_referenda::Track {
+                id: *id,
+                info: info.clone(),
+            })
+        })
     }
     fn track_for(id: &Self::RuntimeOrigin) -> Result<Self::Id, ()> {
         if let Ok(system_origin) = frame_system::RawOrigin::try_from(id.clone()) {
@@ -327,4 +348,3 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
         }
     }
 }
-pallet_referenda::impl_tracksinfo_get!(TracksInfo, Balance, BlockNumber);

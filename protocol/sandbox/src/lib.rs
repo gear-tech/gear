@@ -44,12 +44,11 @@ pub use gear_sandbox_env::HostError;
 pub use sp_wasm_interface_common::{IntoValue, ReturnValue, TryFromValue, Value};
 
 use alloc::string::String;
-use sp_core::RuntimeDebug;
 use sp_std::prelude::*;
 use sp_wasm_interface_common::HostPointer;
 
 /// Error that can occur while using this crate.
-#[derive(RuntimeDebug)]
+#[derive(Debug)]
 pub enum Error {
     /// Module is not valid, couldn't be instantiated.
     Module,
@@ -179,7 +178,7 @@ pub trait SandboxEnvironmentBuilder<State, Memory>: Sized {
 }
 
 /// Error that can occur while using this crate.
-#[derive(RuntimeDebug)]
+#[derive(Debug)]
 pub enum GlobalsSetError {
     /// A global variable is not found.
     NotFound,

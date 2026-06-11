@@ -7,7 +7,11 @@
 
 #[cfg(feature = "std")]
 pub use gear_sandbox_host::sandbox::{SandboxBackend, env::Instantiate};
-use sp_runtime_interface::{Pointer, runtime_interface};
+use sp_runtime_interface::{
+    Pointer,
+    pass_by::{AllocateAndReturnByCodec, PassFatPointerAndDecode, PassFatPointerAndRead},
+    runtime_interface,
+};
 
 type HostPointer = u64;
 
@@ -25,8 +29,8 @@ pub trait Sandbox {
     fn instantiate(
         &mut self,
         dispatch_thunk_id: u32,
-        wasm_code: &[u8],
-        raw_env_def: &[u8],
+        wasm_code: PassFatPointerAndRead<&[u8]>,
+        raw_env_def: PassFatPointerAndRead<&[u8]>,
         state_ptr: Pointer<u8>,
     ) -> u32 {
         #[cfg(feature = "host-api")]
@@ -48,8 +52,8 @@ pub trait Sandbox {
     fn instantiate(
         &mut self,
         dispatch_thunk_id: u32,
-        wasm_code: &[u8],
-        raw_env_def: &[u8],
+        wasm_code: PassFatPointerAndRead<&[u8]>,
+        raw_env_def: PassFatPointerAndRead<&[u8]>,
         state_ptr: Pointer<u8>,
     ) -> u32 {
         #[cfg(feature = "host-api")]
@@ -70,8 +74,8 @@ pub trait Sandbox {
     fn invoke(
         &mut self,
         instance_idx: u32,
-        function: &str,
-        args: &[u8],
+        function: PassFatPointerAndRead<&str>,
+        args: PassFatPointerAndRead<&[u8]>,
         return_val_ptr: Pointer<u8>,
         return_val_len: u32,
         state_ptr: Pointer<u8>,
@@ -155,8 +159,8 @@ pub trait Sandbox {
     fn get_global_val(
         &mut self,
         instance_idx: u32,
-        name: &str,
-    ) -> Option<sp_wasm_interface::Value> {
+        name: PassFatPointerAndRead<&str>,
+    ) -> AllocateAndReturnByCodec<Option<sp_wasm_interface::Value>> {
         #[cfg(feature = "host-api")]
         return detail::get_global_val(*self, instance_idx, name);
 
@@ -169,8 +173,8 @@ pub trait Sandbox {
     fn set_global_val(
         &mut self,
         instance_idx: u32,
-        name: &str,
-        value: sp_wasm_interface::Value,
+        name: PassFatPointerAndRead<&str>,
+        value: PassFatPointerAndDecode<sp_wasm_interface::Value>,
     ) -> u32 {
         #[cfg(feature = "host-api")]
         return detail::set_global_val(*self, instance_idx, name, value);

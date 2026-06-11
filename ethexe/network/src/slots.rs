@@ -45,6 +45,8 @@ use tokio::{
     time::{Instant, Interval},
 };
 
+type PendingEvent = ToSwarm<Infallible, THandlerInEvent<dummy::Behaviour>>;
+
 #[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe_network_slots")]
 struct Metrics {
@@ -249,7 +251,7 @@ pub struct Behaviour {
     config: Config,
     pending_outbound_peers: ConnectionMap<NoLimits>,
     peers: HashMap<PeerId, PeerState>,
-    pending_events: VecDeque<ToSwarm<Infallible, Infallible>>,
+    pending_events: VecDeque<PendingEvent>,
     addresses: PeerAddresses,
     driver: Interval,
     metrics: Metrics,

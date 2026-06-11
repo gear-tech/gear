@@ -96,6 +96,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (BLOCK_AUTHOR, 500_000_u128),
             (GearBank::bank_address(), ExistentialDeposit::get()),
         ],
+        dev_accounts: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();

@@ -136,6 +136,7 @@ pub trait PrepaidCallsDispatcher {
     TypeInfo,
     Encode,
     Decode,
+    DecodeWithMemTracking,
     MaxEncodedLen,
 )]
 pub struct VoucherId([u8; 32]);
@@ -187,7 +188,9 @@ impl<AccountId, BlockNumber> VoucherInfo<AccountId, BlockNumber> {
 }
 
 /// Prepaid call to be executed on-chain.
-#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Encode, Decode, DecodeWithMemTracking, TypeInfo, PartialEq, Eq, PartialOrd, Ord,
+)]
 pub enum PrepaidCall<Balance> {
     SendMessage {
         destination: ActorId,

@@ -3,7 +3,7 @@
 
 use super::*;
 use frame_support::traits::tokens::Balance as BalanceTrait;
-use sp_runtime::{RuntimeDebug, traits::Zero};
+use sp_runtime::traits::Zero;
 use sp_std::marker::PhantomData;
 
 mod error;

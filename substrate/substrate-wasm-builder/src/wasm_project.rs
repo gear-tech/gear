@@ -1073,7 +1073,8 @@ fn try_compress_blob(compact_blob_path: &Path, out_name: &str) -> Option<WasmBin
 
     let start = std::time::Instant::now();
     let data = fs::read(compact_blob_path).expect("Failed to read WASM binary");
-    if let Some(compressed) = sp_maybe_compressed_blob::compress(&data, CODE_BLOB_BOMB_LIMIT) {
+    if let Some(compressed) = sp_maybe_compressed_blob::compress_weakly(&data, CODE_BLOB_BOMB_LIMIT)
+    {
         fs::write(&compact_compressed_blob_path, &compressed[..])
             .expect("Failed to write WASM binary");
 

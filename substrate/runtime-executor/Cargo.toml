@@ -1,6 +1,6 @@
 [package]
 name = "sc-executor"
-version = "0.40.1"
+version = "0.48.0"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true

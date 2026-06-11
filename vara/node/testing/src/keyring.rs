@@ -5,8 +5,8 @@
 
 use parity_scale_codec::Encode;
 use runtime_primitives::{AccountId, Nonce};
-use sp_keyring::{AccountKeyring, Ed25519Keyring, Sr25519Keyring};
-use sp_runtime::generic::Era;
+use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
+use sp_runtime::generic::{self, Era, ExtrinsicFormat};
 use vara_runtime::{
     CustomChargeTransactionPayment, CustomCheckNonce, RuntimeCall, SessionKeys, SignedExtra,
     StakingBlackList, UncheckedExtrinsic,
@@ -17,32 +17,32 @@ pub type CheckedExtrinsic =
 
 /// Alice's account id.
 pub fn alice() -> AccountId {
-    AccountKeyring::Alice.into()
+    Sr25519Keyring::Alice.into()
 }
 
 /// Bob's account id.
 pub fn bob() -> AccountId {
-    AccountKeyring::Bob.into()
+    Sr25519Keyring::Bob.into()
 }
 
 /// Charlie's account id.
 pub fn charlie() -> AccountId {
-    AccountKeyring::Charlie.into()
+    Sr25519Keyring::Charlie.into()
 }
 
 /// Dave's account id.
 pub fn dave() -> AccountId {
-    AccountKeyring::Dave.into()
+    Sr25519Keyring::Dave.into()
 }
 
 /// Eve's account id.
 pub fn eve() -> AccountId {
-    AccountKeyring::Eve.into()
+    Sr25519Keyring::Eve.into()
 }
 
 /// Ferdie's account id.
 pub fn ferdie() -> AccountId {
-    AccountKeyring::Ferdie.into()
+    Sr25519Keyring::Ferdie.into()
 }
 
 /// Convert keyrings into `SessionKeys`.
@@ -82,8 +82,8 @@ pub fn sign(
     genesis_hash: [u8; 32],
     metadata_hash: Option<[u8; 32]>,
 ) -> UncheckedExtrinsic {
-    match xt.signed {
-        Some((signed, extra)) => {
+    match xt.format {
+        ExtrinsicFormat::Signed(signed, extra) => {
             let payload = (
                 xt.function,
                 extra.clone(),
@@ -93,7 +93,7 @@ pub fn sign(
                 genesis_hash,
                 metadata_hash,
             );
-            let key = AccountKeyring::from_account_id(&signed).unwrap();
+            let key = Sr25519Keyring::from_account_id(&signed).unwrap();
             let signature = payload
                 .using_encoded(|b| {
                     if b.len() > 256 {
@@ -103,14 +103,17 @@ pub fn sign(
                     }
                 })
                 .into();
-            UncheckedExtrinsic {
-                signature: Some((sp_runtime::MultiAddress::Id(signed), signature, extra)),
-                function: payload.0,
-            }
+            generic::UncheckedExtrinsic::new_signed(
+                payload.0,
+                sp_runtime::MultiAddress::Id(signed),
+                signature,
+                extra,
+            )
         }
-        None => UncheckedExtrinsic {
-            signature: None,
-            function: xt.function,
-        },
+        ExtrinsicFormat::Bare => generic::UncheckedExtrinsic::new_bare(xt.function),
+        ExtrinsicFormat::General(ext_version, extra) => generic::UncheckedExtrinsic::from_parts(
+            xt.function,
+            generic::Preamble::General(ext_version, extra),
+        ),
     }
 }

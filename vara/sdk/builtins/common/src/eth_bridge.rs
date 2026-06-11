@@ -14,8 +14,7 @@ pub fn bridge_call_hash(
     payload: &[u8],
     hashing_fn: impl Fn(&[u8]) -> H256,
 ) -> H256 {
-    let mut nonce_bytes = [0; 32];
-    nonce.to_big_endian(&mut nonce_bytes);
+    let nonce_bytes = nonce.to_big_endian();
 
     let bytes = [
         nonce_bytes.as_ref(),

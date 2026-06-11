@@ -1,6 +1,6 @@
 [package]
 name = "sp-wasm-interface"
-version = "21.0.1"
+version = "24.0.0"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -21,7 +21,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { features = ["derive"], workspace = true }
 impl-trait-for-tuples = { workspace = true }
 log = { optional = true, workspace = true, default-features = true }
-wasmtime = { features = ["runtime"], optional = true, workspace = true }
+wasmtime = { optional = true, workspace = true }
 anyhow = { optional = true, workspace = true }
 sp-wasm-interface-common = { workspace = true, default-features = false }
 sp-allocator = { workspace = true, default-features = false }

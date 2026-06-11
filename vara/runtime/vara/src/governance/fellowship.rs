@@ -13,9 +13,23 @@ use sp_runtime::{
     morph_types,
     traits::{ConstU16, Replace, ReplaceWithDefault, TypedGet},
 };
+use sp_std::borrow::Cow;
 
 use super::*;
 use crate::{DAYS, ECONOMIC_UNITS};
+
+const MAX_TRACK_NAME_LEN: usize = 25;
+
+const fn track_name(name: &str) -> [u8; MAX_TRACK_NAME_LEN] {
+    let bytes = name.as_bytes();
+    let mut out = [0; MAX_TRACK_NAME_LEN];
+    let mut i = 0;
+    while i < bytes.len() {
+        out[i] = bytes[i];
+        i += 1;
+    }
+    out
+}
 
 parameter_types! {
     pub const AlarmInterval: BlockNumber = 1;
@@ -27,12 +41,14 @@ pub struct TracksInfo;
 impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
     type Id = u16;
     type RuntimeOrigin = <RuntimeOrigin as frame_support::traits::OriginTrait>::PalletsOrigin;
-    fn tracks() -> &'static [(Self::Id, pallet_referenda::TrackInfo<Balance, BlockNumber>)] {
+    fn tracks()
+    -> impl Iterator<Item = Cow<'static, pallet_referenda::Track<Self::Id, Balance, BlockNumber>>>
+    {
         static DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 10] = [
             (
                 0u16,
                 pallet_referenda::TrackInfo {
-                    name: "candidates",
+                    name: track_name("candidates"),
                     max_deciding: 10,
                     decision_deposit: 100 * ECONOMIC_UNITS,
                     prepare_period: 30 * MINUTES,
@@ -54,7 +70,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             (
                 1u16,
                 pallet_referenda::TrackInfo {
-                    name: "members",
+                    name: track_name("members"),
                     max_deciding: 10,
                     decision_deposit: 10 * ECONOMIC_UNITS,
                     prepare_period: 30 * MINUTES,
@@ -76,7 +92,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             (
                 2u16,
                 pallet_referenda::TrackInfo {
-                    name: "proficients",
+                    name: track_name("proficients"),
                     max_deciding: 10,
                     decision_deposit: 10 * ECONOMIC_UNITS,
                     prepare_period: 30 * MINUTES,
@@ -98,7 +114,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             (
                 3u16,
                 pallet_referenda::TrackInfo {
-                    name: "fellows",
+                    name: track_name("fellows"),
                     max_deciding: 10,
                     decision_deposit: 10 * ECONOMIC_UNITS,
                     prepare_period: 30 * MINUTES,
@@ -120,7 +136,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             (
                 4u16,
                 pallet_referenda::TrackInfo {
-                    name: "senior fellows",
+                    name: track_name("senior fellows"),
                     max_deciding: 10,
                     decision_deposit: 10 * ECONOMIC_UNITS,
                     prepare_period: 30 * MINUTES,
@@ -142,7 +158,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             (
                 5u16,
                 pallet_referenda::TrackInfo {
-                    name: "experts",
+                    name: track_name("experts"),
                     max_deciding: 10,
                     decision_deposit: 1 * ECONOMIC_UNITS,
                     prepare_period: 30 * MINUTES,
@@ -164,7 +180,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             (
                 6u16,
                 pallet_referenda::TrackInfo {
-                    name: "senior experts",
+                    name: track_name("senior experts"),
                     max_deciding: 10,
                     decision_deposit: 1 * ECONOMIC_UNITS,
                     prepare_period: 30 * MINUTES,
@@ -186,7 +202,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             (
                 7u16,
                 pallet_referenda::TrackInfo {
-                    name: "masters",
+                    name: track_name("masters"),
                     max_deciding: 10,
                     decision_deposit: 1 * ECONOMIC_UNITS,
                     prepare_period: 30 * MINUTES,
@@ -208,7 +224,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             (
                 8u16,
                 pallet_referenda::TrackInfo {
-                    name: "senior masters",
+                    name: track_name("senior masters"),
                     max_deciding: 10,
                     decision_deposit: 1 * ECONOMIC_UNITS,
                     prepare_period: 30 * MINUTES,
@@ -230,7 +246,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             (
                 9u16,
                 pallet_referenda::TrackInfo {
-                    name: "grand masters",
+                    name: track_name("grand masters"),
                     max_deciding: 10,
                     decision_deposit: 1 * ECONOMIC_UNITS,
                     prepare_period: 30 * MINUTES,
@@ -250,7 +266,12 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
                 },
             ),
         ];
-        &DATA[..]
+        DATA.iter().map(|(id, info)| {
+            Cow::Owned(pallet_referenda::Track {
+                id: *id,
+                info: info.clone(),
+            })
+        })
     }
 
     fn track_for(id: &Self::RuntimeOrigin) -> Result<Self::Id, ()> {
@@ -281,7 +302,6 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
         }
     }
 }
-pallet_referenda::impl_tracksinfo_get!(TracksInfo, Balance, BlockNumber);
 
 pub type FellowshipReferendaInstance = pallet_referenda::Instance2;
 
@@ -304,6 +324,7 @@ impl pallet_referenda::Config<FellowshipReferendaInstance> for Runtime {
     type AlarmInterval = AlarmInterval;
     type Tracks = TracksInfo;
     type Preimages = Preimage;
+    type BlockNumberProvider = System;
 }
 
 pub type FellowshipCollectiveInstance = pallet_ranked_collective::Instance1;

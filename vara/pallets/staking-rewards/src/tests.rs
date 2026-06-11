@@ -4,8 +4,15 @@
 //! Staking rewards pallet tests.
 
 use crate::{mock::*, *};
-use frame_support::{assert_noop, assert_ok, traits::EstimateNextNewSession};
-use sp_runtime::{PerThing, Perbill, traits::Convert};
+use frame_support::{
+    assert_noop, assert_ok,
+    dispatch::GetDispatchInfo,
+    traits::{Currency, EstimateNextNewSession},
+};
+use sp_runtime::{
+    PerThing, Perbill,
+    traits::{Convert, TransactionExtension, TxBaseImplication},
+};
 
 macro_rules! assert_approx_eq {
     ($left:expr, $right:expr, $tol:expr) => {{
@@ -264,13 +271,15 @@ fn validators_rewards_disbursement_works() {
         // All the rewards should have landed at the VAL_1_STASH account -
         // the only one who has earned any points for authoring blocks
         assert_eq!(
-            Balances::free_balance(VAL_1_STASH),
-            VALIDATOR_STAKE + expected_payout_0 + expected_payout_1
+            <Balances as Currency<u64>>::total_balance(&VAL_1_STASH),
+            VALIDATOR_STAKE + EXISTENTIAL_DEPOSIT + expected_payout_0 + expected_payout_1
         );
         // Other validators' balances remained intact
         assert_eq!(
             validators_total_balance(),
-            VALIDATOR_STAKE * num_validators as u128 + expected_payout_0 + expected_payout_1
+            (VALIDATOR_STAKE + EXISTENTIAL_DEPOSIT) * num_validators as u128
+                + expected_payout_0
+                + expected_payout_1
         );
     });
 }
@@ -477,85 +486,85 @@ fn nominators_rewards_disbursement_works() {
         // All the rewards should have landed at the VAL_1_STASH account -
         // the only one who has earned any points for authoring blocks
         assert_eq!(
-            Balances::free_balance(VAL_1_STASH),
-            VALIDATOR_STAKE + expected_payout_0 + expected_validators_payout
+            <Balances as Currency<u64>>::total_balance(&VAL_1_STASH),
+            VALIDATOR_STAKE + EXISTENTIAL_DEPOSIT + expected_payout_0 + expected_validators_payout
         );
         // Other validators' balances remained intact
         assert_eq!(
             validators_total_balance(),
-            VALIDATOR_STAKE * 3_u128 + expected_payout_0 + expected_validators_payout
+            (VALIDATOR_STAKE + EXISTENTIAL_DEPOSIT) * 3_u128
+                + expected_payout_0
+                + expected_validators_payout
         );
     });
 }
 
 #[test]
 fn staking_blacklist_works() {
-    use sp_runtime::{testing::TestXt, transaction_validity::InvalidTransaction};
+    use sp_runtime::transaction_validity::{InvalidTransaction, TransactionSource};
 
     init_logger();
 
-    let extra: SignedExtra = StakingBlackList::<Test>::new();
+    fn validate_blacklist(
+        signer: u64,
+        call: RuntimeCall,
+    ) -> sp_runtime::transaction_validity::TransactionValidity {
+        let info = call.get_dispatch_info();
+        StakingBlackList::<Test>::new()
+            .validate(
+                RuntimeOrigin::signed(signer),
+                &call,
+                &info,
+                0,
+                (),
+                &TxBaseImplication(()),
+                TransactionSource::External,
+            )
+            .map(|(validity, _, _)| validity)
+    }
 
-    let invalid_call = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Staking(pallet_staking::Call::bond {
-            value: 10_000_u128,
-            payee: pallet_staking::RewardDestination::Stash,
-        }),
-        Some((NOM_1_STASH, extra.clone())),
-    );
+    let invalid_call = RuntimeCall::Staking(pallet_staking::Call::bond {
+        value: 10_000_u128,
+        payee: pallet_staking::RewardDestination::Stash,
+    });
 
     // Wrapping `bond` call in a batch is also illegal
-    let invalid_batch = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Utility(pallet_utility::Call::batch {
-            calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
-                value: 10_000_u128,
-                payee: pallet_staking::RewardDestination::Stash,
-            })],
-        }),
-        Some((NOM_1_STASH, extra.clone())),
-    );
-
-    let invalid_batch_all = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Utility(pallet_utility::Call::batch_all {
-            calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
-                value: 10_000_u128,
-                payee: pallet_staking::RewardDestination::Stash,
-            })],
-        }),
-        Some((NOM_1_STASH, extra.clone())),
-    );
-
-    // Nested batches and/or other `Utility` calls shouldn't work, as well
-    let nested_batches = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Utility(pallet_utility::Call::batch {
-            calls: vec![RuntimeCall::Utility(pallet_utility::Call::batch_all {
-                calls: vec![RuntimeCall::Utility(pallet_utility::Call::as_derivative {
-                    index: 0,
-                    call: Box::new(RuntimeCall::Staking(pallet_staking::Call::bond {
-                        value: 10_000_u128,
-                        payee: pallet_staking::RewardDestination::Stash,
-                    })),
-                })],
-            })],
-        }),
-        Some((NOM_1_STASH, extra.clone())),
-    );
-
-    let valid_call = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Balances(pallet_balances::Call::transfer_allow_death {
-            dest: NOM_1_STASH,
-            value: 10_000_u128,
-        }),
-        Some((NOM_1_STASH, extra.clone())),
-    );
-
-    let valid_signer = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Staking(pallet_staking::Call::bond {
+    let invalid_batch = RuntimeCall::Utility(pallet_utility::Call::batch {
+        calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
             value: 10_000_u128,
             payee: pallet_staking::RewardDestination::Stash,
-        }),
-        Some((SIGNER, extra)),
-    );
+        })],
+    });
+
+    let invalid_batch_all = RuntimeCall::Utility(pallet_utility::Call::batch_all {
+        calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
+            value: 10_000_u128,
+            payee: pallet_staking::RewardDestination::Stash,
+        })],
+    });
+
+    // Nested batches and/or other `Utility` calls shouldn't work, as well
+    let nested_batches = RuntimeCall::Utility(pallet_utility::Call::batch {
+        calls: vec![RuntimeCall::Utility(pallet_utility::Call::batch_all {
+            calls: vec![RuntimeCall::Utility(pallet_utility::Call::as_derivative {
+                index: 0,
+                call: Box::new(RuntimeCall::Staking(pallet_staking::Call::bond {
+                    value: 10_000_u128,
+                    payee: pallet_staking::RewardDestination::Stash,
+                })),
+            })],
+        })],
+    });
+
+    let valid_call = RuntimeCall::Balances(pallet_balances::Call::transfer_allow_death {
+        dest: NOM_1_STASH,
+        value: 10_000_u128,
+    });
+
+    let valid_signer = RuntimeCall::Staking(pallet_staking::Call::bond {
+        value: 10_000_u128,
+        payee: pallet_staking::RewardDestination::Stash,
+    });
 
     ExtBuilder::<Test>::default()
         .initial_authorities(vec![
@@ -570,56 +579,28 @@ fn staking_blacklist_works() {
         .build()
         .execute_with(|| {
             assert_eq!(
-                Executive::validate_transaction(
-                    sp_runtime::transaction_validity::TransactionSource::External,
-                    invalid_call,
-                    Default::default(),
-                )
-                .unwrap_err(),
+                validate_blacklist(NOM_1_STASH, invalid_call).unwrap_err(),
                 InvalidTransaction::Call.into()
             );
 
             assert_eq!(
-                Executive::validate_transaction(
-                    sp_runtime::transaction_validity::TransactionSource::External,
-                    invalid_batch,
-                    Default::default(),
-                )
-                .unwrap_err(),
+                validate_blacklist(NOM_1_STASH, invalid_batch).unwrap_err(),
                 InvalidTransaction::Call.into()
             );
 
             assert_eq!(
-                Executive::validate_transaction(
-                    sp_runtime::transaction_validity::TransactionSource::External,
-                    invalid_batch_all,
-                    Default::default(),
-                )
-                .unwrap_err(),
+                validate_blacklist(NOM_1_STASH, invalid_batch_all).unwrap_err(),
                 InvalidTransaction::Call.into()
             );
 
             assert_eq!(
-                Executive::validate_transaction(
-                    sp_runtime::transaction_validity::TransactionSource::External,
-                    nested_batches,
-                    Default::default(),
-                )
-                .unwrap_err(),
+                validate_blacklist(NOM_1_STASH, nested_batches).unwrap_err(),
                 InvalidTransaction::Call.into()
             );
 
-            assert_ok!(Executive::validate_transaction(
-                sp_runtime::transaction_validity::TransactionSource::External,
-                valid_call,
-                Default::default(),
-            ));
+            assert_ok!(validate_blacklist(NOM_1_STASH, valid_call));
 
-            assert_ok!(Executive::validate_transaction(
-                sp_runtime::transaction_validity::TransactionSource::External,
-                valid_signer,
-                Default::default(),
-            ));
+            assert_ok!(validate_blacklist(SIGNER, valid_signer));
         });
 }
 
@@ -1379,7 +1360,7 @@ fn rent_pool_disbursments_work() {
 
         // imitate rent charging
         let rent = u128::from(1 + (blocks_1 + blocks_2) * reward_points);
-        let imbalance = CurrencyOf::<Test>::issue(rent);
+        let imbalance = <CurrencyOf<Test> as Currency<u64>>::issue(rent);
         let result = CurrencyOf::<Test>::resolve_into_existing(
             &StakingRewards::rent_pool_account_id(),
             imbalance,

@@ -183,10 +183,18 @@ impl PointerType for u32 {}
 impl PointerType for u64 {}
 
 /// Type to represent a pointer in wasm at the host.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Pointer<T: PointerType> {
     ptr: u32,
     _marker: PhantomData<T>,
+}
+
+impl<T: PointerType> Copy for Pointer<T> {}
+
+impl<T: PointerType> Clone for Pointer<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<T: PointerType> Pointer<T> {

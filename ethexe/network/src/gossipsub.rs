@@ -217,10 +217,9 @@ impl Behaviour {
             }
             gossipsub::Event::SlowPeer {
                 peer_id,
-                failed_messages: _,
+                failed_messages,
             } => {
-                // TODO: consider to score peer
-                log::trace!("SlowPeer received {peer_id}");
+                log::trace!("peer is too slow: {peer_id}, failed messages: {failed_messages:?}");
                 Poll::Pending
             }
         }
@@ -310,7 +309,9 @@ impl NetworkBehaviour for Behaviour {
                 Ok(_msg_id) => {
                     let _ = self.message_queue.pop_front().expect("checked above");
                 }
-                Err(PublishError::NoPeersSubscribedToTopic) => break,
+                Err(PublishError::NoPeersSubscribedToTopic | PublishError::AllQueuesFull(_)) => {
+                    break;
+                }
                 Err(error) => {
                     let message = self.message_queue.pop_front().expect("checked above");
                     return Poll::Ready(ToSwarm::GenerateEvent(Event::PublishFailure {

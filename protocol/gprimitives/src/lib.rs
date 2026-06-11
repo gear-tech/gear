@@ -36,7 +36,7 @@ use scale_encode::EncodeAsType;
 #[cfg(feature = "codec")]
 use scale_info::{
     TypeInfo,
-    scale::{self, Decode, Encode, MaxEncodedLen},
+    scale::{self, Decode, DecodeWithMemTracking, Encode, MaxEncodedLen},
 };
 #[cfg(all(feature = "serde", not(feature = "ethexe")))]
 use serde::de;
@@ -68,7 +68,7 @@ pub enum ConversionError {
 /// message sending.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, From, Into, Zeroable, Pod)]
-#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, MaxEncodedLen), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, DecodeWithMemTracking, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageHandle(u32);
 
 /// Program (actor) identifier.
@@ -99,7 +99,7 @@ pub struct MessageHandle(u32);
 )]
 #[as_ref(forward)]
 #[as_mut(forward)]
-#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, MaxEncodedLen), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, DecodeWithMemTracking, MaxEncodedLen), codec(crate = scale))]
 pub struct ActorId([u8; 32]);
 
 macros::impl_primitive!(new zero into_bytes from_h256 into_h256 try_from_slice debug, ActorId);
@@ -346,7 +346,7 @@ impl<'de> Deserialize<'de> for ActorId {
 )]
 #[as_ref(forward)]
 #[as_mut(forward)]
-#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, MaxEncodedLen), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, DecodeWithMemTracking, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageId([u8; 32]);
 
 macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str display debug serde, MessageId);
@@ -378,7 +378,7 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_st
 )]
 #[as_ref(forward)]
 #[as_mut(forward)]
-#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, MaxEncodedLen), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, DecodeWithMemTracking, MaxEncodedLen), codec(crate = scale))]
 pub struct CodeId([u8; 32]);
 
 macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str try_from_slice display debug serde, CodeId);
@@ -406,7 +406,7 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_st
 )]
 #[as_ref(forward)]
 #[as_mut(forward)]
-#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, MaxEncodedLen), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, DecodeWithMemTracking, MaxEncodedLen), codec(crate = scale))]
 pub struct ReservationId([u8; 32]);
 
 macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str display debug serde, ReservationId);

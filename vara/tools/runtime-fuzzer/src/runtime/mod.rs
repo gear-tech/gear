@@ -49,6 +49,7 @@ pub fn new_test_ext() -> TestExternalities {
                     .map(|(acc, ..)| (acc, Balances::minimum_balance())),
             )
             .collect(),
+        dev_accounts: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();

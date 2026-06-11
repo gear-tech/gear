@@ -5,9 +5,8 @@
 
 pub use self::{pair_signer::PairSigner, tx_output::TxOutput};
 
-use crate::{Api, backtrace::Backtrace, config::GearConfig, result::Result};
+use crate::{AccountKeyring, Api, backtrace::Backtrace, config::GearConfig, result::Result};
 use sp_core::{Pair as PairT, sr25519::Pair};
-use sp_keyring::AccountKeyring;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
 

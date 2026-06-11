@@ -57,6 +57,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (BOB, 2_u128),
             (BLOCK_AUTHOR, 1_u128),
         ],
+        dev_accounts: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();

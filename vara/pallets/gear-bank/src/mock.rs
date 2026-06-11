@@ -87,9 +87,12 @@ pub fn new_test_ext() -> TestExternalities {
         (TREASURY, EXISTENTIAL_DEPOSIT),
     ];
 
-    pallet_balances::GenesisConfig::<Test> { balances }
-        .assimilate_storage(&mut storage)
-        .unwrap();
+    pallet_balances::GenesisConfig::<Test> {
+        balances,
+        dev_accounts: None,
+    }
+    .assimilate_storage(&mut storage)
+    .unwrap();
 
     pallet_gear_bank::GenesisConfig::<Test> {
         _config: Default::default(),

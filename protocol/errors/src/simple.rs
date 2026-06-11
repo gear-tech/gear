@@ -8,7 +8,7 @@ use enum_iterator::Sequence;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "codec")]
 use {
-    parity_scale_codec::{Decode, Encode},
+    parity_scale_codec::{Decode, DecodeWithMemTracking, Encode},
     scale_decode::DecodeAsType,
     scale_encode::EncodeAsType,
     scale_info::TypeInfo,
@@ -19,7 +19,14 @@ use {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(
     feature = "codec",
-    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+    derive(
+        Encode,
+        EncodeAsType,
+        Decode,
+        DecodeAsType,
+        DecodeWithMemTracking,
+        TypeInfo
+    )
 )]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ReplyCode {
@@ -99,7 +106,14 @@ impl ReplyCode {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(
     feature = "codec",
-    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+    derive(
+        Encode,
+        EncodeAsType,
+        Decode,
+        DecodeAsType,
+        DecodeWithMemTracking,
+        TypeInfo
+    )
 )]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SuccessReplyReason {
@@ -138,7 +152,14 @@ impl SuccessReplyReason {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(
     feature = "codec",
-    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+    derive(
+        Encode,
+        EncodeAsType,
+        Decode,
+        DecodeAsType,
+        DecodeWithMemTracking,
+        TypeInfo
+    )
 )]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ErrorReplyReason {
@@ -216,7 +237,14 @@ impl ErrorReplyReason {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(
     feature = "codec",
-    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+    derive(
+        Encode,
+        EncodeAsType,
+        Decode,
+        DecodeAsType,
+        DecodeWithMemTracking,
+        TypeInfo
+    )
 )]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SimpleExecutionError {
@@ -275,7 +303,14 @@ impl SimpleExecutionError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(
     feature = "codec",
-    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+    derive(
+        Encode,
+        EncodeAsType,
+        Decode,
+        DecodeAsType,
+        DecodeWithMemTracking,
+        TypeInfo
+    )
 )]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SimpleUnavailableActorError {
@@ -332,7 +367,14 @@ impl SimpleUnavailableActorError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(
     feature = "codec",
-    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+    derive(
+        Encode,
+        EncodeAsType,
+        Decode,
+        DecodeAsType,
+        DecodeWithMemTracking,
+        TypeInfo
+    )
 )]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SignalCode {

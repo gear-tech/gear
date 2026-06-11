@@ -24,7 +24,8 @@ use sp_runtime::{
     traits::{Block as BlockT, HashingFor, Header as HeaderT},
 };
 use sp_state_machine::{
-    OverlayedChanges, StateMachine, TestExternalities, backend::BackendRuntimeCode,
+    OverlayedChanges, StateMachine, TestExternalities,
+    backend::{BackendRuntimeCode, TryPendingCode},
 };
 use std::{
     fmt::{self, Debug},
@@ -190,7 +191,7 @@ pub(crate) fn state_machine_call<Block: BlockT, Executor: CodeExecutor>(
         method,
         data,
         &mut extensions,
-        &BackendRuntimeCode::new(&ext.backend).runtime_code()?,
+        &BackendRuntimeCode::new(&ext.backend, TryPendingCode::No).runtime_code()?,
         CallContext::Offchain,
     )
     .execute()

@@ -25,7 +25,22 @@ runs:
         timeout_minutes: 15
         max_attempts: 5
         retry_wait_seconds: 10
-        command: brew install protobuf binaryen
+        command: brew install protobuf binaryen llvm openssl@3
+
+    - name: "Install: macOS package env"
+      if: runner.os == 'macOS'
+      run: |
+        LLVM_PREFIX="$(brew --prefix llvm)"
+        OPENSSL_PREFIX="$(brew --prefix openssl@3)"
+        echo "LIBCLANG_PATH=${LLVM_PREFIX}/lib" >> "$GITHUB_ENV"
+        echo "${LLVM_PREFIX}/bin" >> "$GITHUB_PATH"
+        echo "DYLD_FALLBACK_LIBRARY_PATH=${LLVM_PREFIX}/lib:/usr/local/lib:/usr/lib" >> "$GITHUB_ENV"
+        echo "OPENSSL_DIR=${OPENSSL_PREFIX}" >> "$GITHUB_ENV"
+        OPENSSL_DIR_VAR="$(echo "${{ inputs.target }}_OPENSSL_DIR" | tr '[:lower:]-' '[:upper:]_')"
+        echo "${OPENSSL_DIR_VAR}=${OPENSSL_PREFIX}" >> "$GITHUB_ENV"
+        echo "PKG_CONFIG_ALLOW_CROSS=1" >> "$GITHUB_ENV"
+        echo "PKG_CONFIG_PATH=${OPENSSL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+      shell: bash
 
     - name: "Install: Linux packages"
       if: runner.os == 'Linux'

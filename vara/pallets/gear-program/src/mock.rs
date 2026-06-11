@@ -92,6 +92,7 @@ impl pallet_treasury::Config for Test {
     type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
     type BalanceConverter = UnityAssetBalanceConversion;
     type PayoutPeriod = ConstU64<10>;
+    type BlockNumberProvider = System;
 }
 
 // Build genesis storage according to the mock runtime.
@@ -108,6 +109,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
         ],
+        dev_accounts: None,
     }
     .assimilate_storage(&mut t)
     .unwrap();

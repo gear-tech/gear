@@ -23,10 +23,7 @@ use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
-use sp_runtime::{
-    RuntimeDebug,
-    codec::{Decode, Encode},
-};
+use sp_runtime::codec::{Decode, Encode};
 use sp_std::{marker::PhantomData, vec::Vec};
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
@@ -140,7 +137,7 @@ pub struct Schedule<T: Config> {
 /// values will break existing programs which are above the new limits when a
 /// re-instrumentation is triggered.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-#[derive(Clone, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, Debug, TypeInfo)]
 pub struct Limits {
     /// Maximum allowed stack height in number of elements.
     ///

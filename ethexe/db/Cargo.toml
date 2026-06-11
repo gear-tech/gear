@@ -40,12 +40,12 @@ futures.workspace = true
 [target.'cfg(target_env = "msvc")'.dependencies.rocksdb]
 default-features = false
 features = ["snappy"]
-version = "0.21"
+version = "0.24"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies.rocksdb]
 default-features = false
 features = ["snappy", "jemalloc"]
-version = "0.21"
+version = "0.24"
 
 [dev-dependencies]
 scopeguard.workspace = true

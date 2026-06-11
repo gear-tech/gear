@@ -16,6 +16,8 @@
 //
 // TODO: update docs after merging with `gclient`.
 
+const _: &str = env!("GSDK_METADATA_FINGERPRINT");
+
 pub use crate::{
     api::{Api, ApiBuilder},
     config::GearConfig,
@@ -29,7 +31,7 @@ pub use crate::{
     },
 };
 pub use gear_core::rpc::GasInfo;
-pub use sp_keyring::AccountKeyring;
+pub use sp_keyring::Sr25519Keyring as AccountKeyring;
 pub use subxt::dynamic::Value;
 
 use crate::gear::runtime_types::{

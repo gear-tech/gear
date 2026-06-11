@@ -91,6 +91,7 @@ macro_rules! with_signed_payload {
 
                 $( $usage )*
             },
+            Client::Unsupported => Err("unsupported runtime client"),
         }
     }
 }

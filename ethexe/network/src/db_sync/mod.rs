@@ -408,13 +408,13 @@ impl Behaviour {
         match event {
             request_response::Event::Message {
                 peer,
-                connection_id: _,
                 message:
                     Message::Request {
                         request_id: _,
                         request,
                         channel,
                     },
+                ..
             } => {
                 let response_id = self
                     .ongoing_responses
@@ -434,20 +434,20 @@ impl Behaviour {
             }
             request_response::Event::Message {
                 peer: _,
-                connection_id: _,
                 message:
                     Message::Response {
                         request_id,
                         response,
                     },
+                ..
             } => {
                 self.ongoing_requests.on_peer_response(request_id, response);
             }
             request_response::Event::OutboundFailure {
                 peer,
-                connection_id: _,
                 request_id,
                 error,
+                ..
             } => {
                 log::trace!("outbound failure for request {request_id} to {peer}: {error}");
 
@@ -461,9 +461,9 @@ impl Behaviour {
             }
             request_response::Event::InboundFailure {
                 peer,
-                connection_id: _,
                 request_id: _,
                 error: InboundFailure::UnsupportedProtocols,
+                ..
             } => {
                 log::debug!(
                     "request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"

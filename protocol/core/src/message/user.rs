@@ -9,14 +9,24 @@ use crate::{
 };
 use core::convert::TryFrom;
 use gear_core_errors::ReplyCode;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, DecodeWithMemTracking, Encode};
 use scale_decode::DecodeAsType;
 use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
 /// Message sent to user and deposited as event.
 #[derive(
-    Clone, Debug, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    Decode,
+    DecodeAsType,
+    DecodeWithMemTracking,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct UserMessage {
@@ -136,7 +146,17 @@ impl From<UserMessage> for StoredMessage {
 /// May be represented only with `DispatchKind::Handle`,
 /// so does not contain message details.
 #[derive(
-    Clone, Debug, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    Decode,
+    DecodeAsType,
+    DecodeWithMemTracking,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
 )]
 pub struct UserStoredMessage {
     /// Message id.

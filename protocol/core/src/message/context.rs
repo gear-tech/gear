@@ -15,7 +15,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, DecodeWithMemTracking, Encode};
 use scale_decode::DecodeAsType;
 use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
@@ -132,7 +132,9 @@ impl ContextOutcome {
     }
 }
 /// Store of current temporary message execution context.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, Hash, Decode, DecodeWithMemTracking, Encode, TypeInfo,
+)]
 pub struct OutgoingPayloads {
     handles: BTreeMap<u32, Option<Payload>>,
     reply: Option<Payload>,
@@ -141,7 +143,18 @@ pub struct OutgoingPayloads {
 
 /// Store of previous message execution context.
 #[derive(
-    Clone, Debug, Default, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    Decode,
+    DecodeAsType,
+    DecodeWithMemTracking,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContextStore {

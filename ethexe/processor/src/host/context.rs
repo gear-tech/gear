@@ -84,6 +84,11 @@ where
             .get_mut(ptr as usize..)
             .and_then(|s| s.get_mut(..len as usize))
     }
+
+    pub fn slice_mut_by_val(&mut self, ptr_len: i64) -> Option<&mut [u8]> {
+        let (ptr, len) = unpack_i64_to_u32(ptr_len);
+        self.slice_mut(ptr, len)
+    }
 }
 
 impl<C: AsContextMut> sp_allocator::Memory for MemoryWrapper<C> {
