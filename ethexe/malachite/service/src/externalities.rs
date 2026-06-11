@@ -68,18 +68,28 @@ pub struct ExternalitiesConfig {
 }
 
 pub(crate) struct EthexeExternalities {
+    /// Shared DB reference for all storage operations
     pub db: Database,
+    /// Constant externalities config parameters
     pub cfg: ExternalitiesConfig,
+    /// Optional mempool reference for injected-tx processing; `None` when not a validator.
     pub mempool: Option<Arc<dyn Mempool>>,
+    /// Reference to the latest chain head data.
     pub chain_head: Arc<ChainHead>,
+    /// Pending service events queue.
+    /// Release events from here only when their prerequisite EB is prepared.
     pub pending_events: RwLock<VecDeque<PendingEvent>>,
+    /// Channel to poll events in MalachiteService.
     pub event_tx: UnboundedSender<Result<MalachiteEvent>>,
 }
 
 /// One outbound [`MalachiteEvent`] that can't be released until its
-/// `prerequisite` Eth block is fully synced into the local DB.
+/// `prerequisite` Eth block is prepared in local DB.
 pub(crate) struct PendingEvent {
+    /// Event body
     pub event: MalachiteEvent,
+    /// Prerequisite Eth block hash
+    /// that must be prepared before this event can be emitted
     pub prerequisite: H256,
 }
 
@@ -414,37 +424,13 @@ impl Externalities for EthexeExternalities {
             }
         }
 
-        // (4) Touched-programs cap (master's #6). Only enforced on
-        // the validator side — the proposer in `build_block_above`
-        // already shapes the MB to stay within the cap; this check
-        // is the participant's guard against a malicious proposer.
-        //
-        // Per master: `limit = max(initial_touched.len(), MAX_*)` —
-        // the proposer can't *avoid* programs already touched by EB
-        // events, so those set the floor for the cap. We add every
-        // `Operation::Injected` destination on top of the EB-touched
-        // seed and reject if the union exceeds `limit`.
-        //
-        // NOTE: there is no per-MB size cap on the validator side
-        // (master parity). We rely on the Malachite engine's 1 MiB
-        // hard cap on the encoded `Block` payload — anything larger
-        // never reaches `validate_block_above` in the first place.
-        let parent_advanced = if parent_hash.is_zero() {
-            H256::zero()
-        } else {
-            self.db.mb_meta(parent_hash).last_advanced_eb
-        };
-        // `?` here only fires on local DB issues: missing
-        // `mb_program_states` for `latest_computed_mb_hash`, missing
-        // `block_header` on a canonical ancestor of `advance`, or
-        // missing `block_events` for one of them. After the quarantine
-        // gate above succeeded the observer has clearly synced
-        // `advance` and its ancestors, so any failure here is a local
-        // DB / sync race — not a proposer-controlled condition. Same
-        // reasoning as the other two `?`s in this function.
+        let parent_advanced = parent_hash
+            .is_zero()
+            .then(H256::zero)
+            .unwrap_or_else(|| self.db.mb_meta(parent_hash).last_advanced_eb);
         let mut touched = match advance {
             Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
-            None => std::collections::HashSet::new(),
+            None => Default::default(),
         };
         let limit = touched.len().max(MAX_TOUCHED_PROGRAMS_PER_MB as usize);
         for tx in payload.iter() {
@@ -464,31 +450,14 @@ impl Externalities for EthexeExternalities {
 }
 
 impl EthexeExternalities {
-    /// True iff `prerequisite.is_zero()` (no prerequisite — genesis
-    /// or pre-advance) or the prerequisite Eth block has been fully
-    /// **prepared** locally.
-    ///
-    /// "Prepared" (vs. merely observed via `block_events`) is the
-    /// stronger condition we need: `prepare_block`'s pipeline
-    /// transitions through `WaitingForCodes` and only flips
-    /// `block_meta.prepared = true` once every code referenced by
-    /// the block (and its ancestors) has been loaded and validated.
-    /// Releasing the BlockProposal event on merely-observed (but not
-    /// yet prepared) EBs would let downstream `compute_mb` race the
-    /// code-validation pipeline and fail with `MissingCode` when an
-    /// MB's advance chain contains a `ProgramCreated` event for a
-    /// not-yet-validated code.
+    /// Check whether the prerequisite EB is prepared in local DB.
+    /// Zero hash is a special case that always passes.
     fn prerequisite_satisfied(&self, prerequisite: H256) -> bool {
         use ethexe_common::db::BlockMetaStorageRO;
         prerequisite.is_zero() || self.db.block_meta(prerequisite).prepared
     }
 
-    /// Forward `event` to the outbound channel right away when its
-    /// `prerequisite` Eth block is locally synced AND no earlier
-    /// queued event is still waiting; otherwise push it onto the
-    /// pending buffer to keep ordering. Held entries are released
-    /// from the front by [`Self::drain_pending_events`] once their
-    /// prerequisite lands.
+    /// Send event immediately if prerequisite is satisfied, otherwise queue it for later emission.
     pub(crate) async fn try_emit_or_queue(&self, event: MalachiteEvent, prerequisite: H256) {
         let mut queue = self.pending_events.write().await;
         if queue.is_empty() && self.prerequisite_satisfied(prerequisite) {
@@ -502,11 +471,7 @@ impl EthexeExternalities {
         }
     }
 
-    /// Pop and emit pending events from the front while their
-    /// prerequisite is satisfied. Stops at the first still-blocked
-    /// entry so ordering is preserved (later events may have a
-    /// later prerequisite, but FIFO drain only releases what's
-    /// safely ready right now).
+    /// Check the pending events queue and release any events whose prerequisites are now satisfied.
     pub(crate) async fn drain_pending_events(&self) {
         let mut queue = self.pending_events.write().await;
         while let Some(front) = queue.front() {
@@ -551,7 +516,9 @@ impl EthexeExternalities {
         }
     }
 
-    // Candidate EB must be anchored in the quarantine and a strict descendant of the previously advanced EB.
+    // Find an EB candidate that can be advanced to according to the current chain head:
+    // 1. Should pass quarantine with post quarantine delay against the latest synced EB.
+    // 2. Should be a strict descendant of the previously advanced EB.
     async fn find_eb_candidate_for_advancing(&self, parent_advance: H256) -> Result<Option<H256>> {
         let chain_head = *self.chain_head.latest_synced.read().await;
         let start = self.db.globals().start_block_hash;
