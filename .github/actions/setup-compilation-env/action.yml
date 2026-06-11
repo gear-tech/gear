@@ -25,7 +25,16 @@ runs:
         timeout_minutes: 15
         max_attempts: 5
         retry_wait_seconds: 10
-        command: brew install protobuf binaryen
+        command: brew install protobuf binaryen llvm
+
+    - name: "Install: macOS LLVM env"
+      if: runner.os == 'macOS'
+      run: |
+        LLVM_PREFIX="$(brew --prefix llvm)"
+        echo "LIBCLANG_PATH=${LLVM_PREFIX}/lib" >> "$GITHUB_ENV"
+        echo "${LLVM_PREFIX}/bin" >> "$GITHUB_PATH"
+        echo "DYLD_FALLBACK_LIBRARY_PATH=${LLVM_PREFIX}/lib:/usr/local/lib:/usr/lib" >> "$GITHUB_ENV"
+      shell: bash
 
     - name: "Install: Linux packages"
       if: runner.os == 'Linux'

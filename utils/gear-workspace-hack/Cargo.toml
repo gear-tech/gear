@@ -17,6 +17,24 @@ publish = false
 # they have features like `runtime-benchmarks` and `try-runtime`
 # so we cannot, for example, run `cargo build -p gear-cli` without `--all-features`
 
+[features]
+runtime-benchmarks = [
+    "pallet-bags-list/runtime-benchmarks",
+    "pallet-conviction-voting/runtime-benchmarks",
+    "pallet-ranked-collective/runtime-benchmarks",
+    "pallet-referenda/runtime-benchmarks",
+    "pallet-session/runtime-benchmarks",
+    "pallet-staking/runtime-benchmarks",
+]
+try-runtime = [
+    "pallet-bags-list/try-runtime",
+    "pallet-conviction-voting/try-runtime",
+    "pallet-ranked-collective/try-runtime",
+    "pallet-referenda/try-runtime",
+    "pallet-session/try-runtime",
+    "pallet-staking/try-runtime",
+]
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.frame-executive]
 git = "https://github.com/paritytech/polkadot-sdk.git"
 rev = "e3737178ec726cffe506c907263aaaa417893fd0"
@@ -158,6 +176,12 @@ git = "https://github.com/paritytech/polkadot-sdk.git"
 rev = "e3737178ec726cffe506c907263aaaa417893fd0"
 default-features = false
 features = ["historical", "std"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-staking]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "e3737178ec726cffe506c907263aaaa417893fd0"
+default-features = false
+features = ["std"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-sudo]
 git = "https://github.com/paritytech/polkadot-sdk.git"

@@ -6,6 +6,7 @@ use frame_support::assert_ok;
 use gbuiltin_staking::{ActiveEraInfo, Response};
 use gprimitives::ActorId;
 use parity_scale_codec::Decode;
+use sp_runtime::Perbill;
 use sp_staking::StakingAccount;
 use util::*;
 
@@ -66,10 +67,9 @@ fn bonding_works() {
             signer_current_balance_at_blk_1 - 100 * UNITS - gas_price(gas_burned)
         );
 
-        // The contract's account has 10 * UNITS of the ED and 100 * UNITS of the bonded funds
-        assert_eq!(contract_account_data.free, 110 * UNITS);
-        // and all of it is frozen as bonded or locked
-        assert_eq!(contract_account_data.frozen, 100 * UNITS);
+        // The contract keeps its ED free; staking tracks the bonded funds as holds.
+        assert_eq!(contract_account_data.free, EXISTENTIAL_DEPOSIT);
+        assert_eq!(contract_account_data.frozen, EXISTENTIAL_DEPOSIT);
 
         // Asserting the expected events are present
         assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
@@ -106,10 +106,10 @@ fn bonding_works() {
             Balances::free_balance(SIGNER),
             signer_current_balance_at_blk_2 - 100 * UNITS - gas_price(gas_burned)
         );
-        // Another 50 * UNITS added to locked balance
+        // The contract account still exposes only its ED; staking holds the bonded funds.
         assert_eq!(
             System::account(contract_account_id).data.frozen,
-            150 * UNITS
+            EXISTENTIAL_DEPOSIT
         );
 
         // Asserting the expected events are present
@@ -293,8 +293,8 @@ fn withdraw_unbonded_works() {
 
         let contract_account_data = System::account(contract_account_id).data;
 
-        // Locked 500 * UNITS as bonded on contracts's account
-        assert_eq!(contract_account_data.frozen, 500 * UNITS);
+        // The contract keeps its ED free; staking tracks the bonded funds as holds.
+        assert_eq!(contract_account_data.frozen, EXISTENTIAL_DEPOSIT);
 
         System::reset_events();
 
@@ -311,10 +311,10 @@ fn withdraw_unbonded_works() {
         run_to_next_block();
         assert_staking_events(contract_account_id, 200 * UNITS, EventType::Unbonded);
 
-        // The funds are still locked
+        // The funds are still held by staking.
         assert_eq!(
             System::account(contract_account_id).data.frozen,
-            500 * UNITS
+            EXISTENTIAL_DEPOSIT
         );
 
         // Pretend we have run the chain for at least the `unbonding period` number of eras
@@ -337,10 +337,10 @@ fn withdraw_unbonded_works() {
 
         run_to_next_block();
 
-        // 200 * UNITS have been released, 300 * UNITS remain locked
+        // The staking ledger changed, while account data still exposes only the ED.
         assert_eq!(
             System::account(contract_account_id).data.frozen,
-            300 * UNITS
+            EXISTENTIAL_DEPOSIT
         );
         assert_staking_events(contract_account_id, 200 * UNITS, EventType::Withdrawn);
         let ledger =
@@ -413,8 +413,8 @@ fn rebond_works() {
 
         let contract_account_data = System::account(contract_account_id).data;
 
-        // Locked 500 * UNITS as bonded on contracts's account
-        assert_eq!(contract_account_data.frozen, 500 * UNITS);
+        // The contract keeps its ED free; staking tracks the bonded funds as holds.
+        assert_eq!(contract_account_data.frozen, EXISTENTIAL_DEPOSIT);
 
         System::reset_events();
 
@@ -431,10 +431,10 @@ fn rebond_works() {
         run_to_next_block();
         assert_staking_events(contract_account_id, 400 * UNITS, EventType::Unbonded);
 
-        // All the bonded funds are still locked
+        // All the bonded funds are still held by staking.
         assert_eq!(
             System::account(contract_account_id).data.frozen,
-            500 * UNITS
+            EXISTENTIAL_DEPOSIT
         );
 
         // However, the ledger has been updated
@@ -456,10 +456,10 @@ fn rebond_works() {
 
         run_to_next_block();
 
-        // All the bonded funds are still locked
+        // All bonded funds are still held by staking.
         assert_eq!(
             System::account(contract_account_id).data.frozen,
-            500 * UNITS
+            EXISTENTIAL_DEPOSIT
         );
 
         // However, the ledger has been updated again
@@ -481,10 +481,10 @@ fn rebond_works() {
 
         run_to_next_block();
 
-        // All the bonded funds are still locked
+        // All bonded funds are still held by staking.
         assert_eq!(
             System::account(contract_account_id).data.frozen,
-            500 * UNITS
+            EXISTENTIAL_DEPOSIT
         );
 
         // The ledger has been updated again, however, the rebonded amount was limited
@@ -566,11 +566,14 @@ fn payout_stakers_works() {
 
         run_to_next_block();
 
-        // Expecting the nominator to have received 1/5 of the rewards
+        // Expecting the nominator to receive rewards proportional to its exposure.
         let rewards_payee_final_balance = Balances::free_balance(REWARD_PAYEE);
+        let nominator_reward =
+            Perbill::from_rational(250 * UNITS, ENDOWMENT - EXISTENTIAL_DEPOSIT + 250 * UNITS)
+                * (100 * UNITS);
         assert_eq!(
             rewards_payee_final_balance,
-            rewards_payee_initial_balance + (100 * UNITS) / 5
+            rewards_payee_initial_balance + nominator_reward
         );
     });
 }
@@ -973,7 +976,7 @@ mod util {
                         (
                             x.0,
                             x.0,
-                            self.endowment,
+                            self.endowment.saturating_sub(EXISTENTIAL_DEPOSIT),
                             pallet_staking::StakerStatus::<AccountId>::Validator,
                         )
                     })

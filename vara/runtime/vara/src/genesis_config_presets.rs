@@ -79,7 +79,7 @@ pub fn testnet_genesis(
                     (
                         x.0.clone(),
                         x.1.clone(),
-                        STASH,
+                        STASH - EXISTENTIAL_DEPOSIT,
                         StakerStatus::<AccountId>::Validator,
                     )
                 })

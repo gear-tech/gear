@@ -370,7 +370,7 @@ impl ExtBuilder {
                     (
                         *x,
                         *x,
-                        self.endowment,
+                        self.endowment.saturating_sub(EXISTENTIAL_DEPOSIT),
                         pallet_staking::StakerStatus::<AccountId>::Validator,
                     )
                 })

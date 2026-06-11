@@ -124,13 +124,11 @@ where
         )],
     };
 
-    let bn = previous
-        .unwrap_or_else(Zero::zero)
-        .checked_add(&One::one())
-        .expect("overflow");
+    let previous = previous.unwrap_or_else(SystemPallet::<T>::block_number);
+    let bn = previous.checked_add(&One::one()).expect("overflow");
 
+    SystemPallet::<T>::set_block_number(previous);
     SystemPallet::<T>::initialize(&bn, &SystemPallet::<T>::parent_hash(), &pre_digest);
-    SystemPallet::<T>::set_block_number(bn);
     SystemPallet::<T>::on_initialize(bn);
     AuthorshipPallet::<T>::on_initialize(bn);
 }

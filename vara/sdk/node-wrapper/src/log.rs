@@ -5,7 +5,7 @@
 use anyhow::{Result, anyhow};
 use smallvec::SmallVec;
 use std::{
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader},
     process::Child,
     sync::{Arc, RwLock},
     thread,
@@ -13,7 +13,6 @@ use std::{
 };
 
 const DEFAULT_LOGS_LIMIT: usize = 256;
-const BLOCK_INITIALIZATION: &str = "Imported #1";
 
 /// Log filter for the node
 #[derive(Default)]
@@ -52,15 +51,7 @@ impl Log {
             return Err(anyhow!("Not stderr found"));
         };
 
-        // Blocking after initialization.
-        let mut reader = BufReader::new(stderr);
-        for line in reader.by_ref().lines().map_while(|result| result.ok()) {
-            if line.contains(BLOCK_INITIALIZATION) {
-                break;
-            }
-        }
-
-        // Mapping logs to memory
+        let reader = BufReader::new(stderr);
         let logs = Arc::clone(&self.logs);
         let handle = thread::spawn(move || {
             for line in reader.lines().map_while(|result| result.ok()) {

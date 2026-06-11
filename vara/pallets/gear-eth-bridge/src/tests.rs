@@ -53,47 +53,31 @@ fn bridge_got_initialized() {
         do_events_assertion(0, 6, []);
 
         run_to_block(EPOCH_BLOCKS + 1);
-        do_events_assertion(1, 7, [SessionEvent::NewSession { session_index: 1 }.into()]);
+        do_events_assertion(1, 7, new_session_events(1));
 
         run_to_block(EPOCH_BLOCKS * 2);
         do_events_assertion(1, 12, []);
 
         run_to_block(EPOCH_BLOCKS * 2 + 1);
-        do_events_assertion(
-            2,
-            13,
-            [SessionEvent::NewSession { session_index: 2 }.into()],
-        );
+        do_events_assertion(2, 13, new_session_events(2));
 
         run_to_block(EPOCH_BLOCKS * 3);
         do_events_assertion(2, 18, []);
 
         run_to_block(EPOCH_BLOCKS * 3 + 1);
-        do_events_assertion(
-            3,
-            19,
-            [SessionEvent::NewSession { session_index: 3 }.into()],
-        );
+        do_events_assertion(3, 19, new_session_events(3));
 
         run_to_block(EPOCH_BLOCKS * 4);
         do_events_assertion(3, 24, []);
 
         run_to_block(EPOCH_BLOCKS * 4 + 1);
-        do_events_assertion(
-            4,
-            25,
-            [SessionEvent::NewSession { session_index: 4 }.into()],
-        );
+        do_events_assertion(4, 25, new_session_events(4));
 
         run_to_block(EPOCH_BLOCKS * 5);
         do_events_assertion(4, 30, []);
 
         run_to_block(EPOCH_BLOCKS * 5 + 1);
-        do_events_assertion(
-            5,
-            31,
-            [SessionEvent::NewSession { session_index: 5 }.into()],
-        );
+        do_events_assertion(5, 31, queued_session_events(5));
 
         run_to_block(ERA_BLOCKS);
         do_events_assertion(5, 36, []);
@@ -112,7 +96,7 @@ fn bridge_got_initialized() {
             6,
             37,
             [
-                SessionEvent::NewSession { session_index: 6 }.into(),
+                new_session_event(6),
                 Event::BridgeInitialized.into(),
                 Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
             ],
@@ -385,10 +369,10 @@ fn bridge_updates_authorities_and_clears() {
             10,
             66,
             [
-                SessionEvent::NewSession { session_index: 7 }.into(),
-                SessionEvent::NewSession { session_index: 8 }.into(),
-                SessionEvent::NewSession { session_index: 9 }.into(),
-                SessionEvent::NewSession { session_index: 10 }.into(),
+                new_session_event(7),
+                new_session_event(8),
+                new_session_event(9),
+                new_session_event(10),
             ],
         );
 
@@ -401,11 +385,7 @@ fn bridge_updates_authorities_and_clears() {
         let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
 
         run_to_block(ERA_BLOCKS + EPOCH_BLOCKS * 5 + 1);
-        do_events_assertion(
-            11,
-            67,
-            [SessionEvent::NewSession { session_index: 11 }.into()],
-        );
+        do_events_assertion(11, 67, queued_session_events(11));
         assert_ne!(
             QueueMerkleRoot::get().expect("infallible"),
             H256::zero().into()
@@ -421,7 +401,7 @@ fn bridge_updates_authorities_and_clears() {
             12,
             73,
             [
-                SessionEvent::NewSession { session_index: 12 }.into(),
+                new_session_event(12),
                 Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
             ],
         );
@@ -444,10 +424,10 @@ fn bridge_updates_authorities_and_clears() {
             16,
             102,
             [
-                SessionEvent::NewSession { session_index: 13 }.into(),
-                SessionEvent::NewSession { session_index: 14 }.into(),
-                SessionEvent::NewSession { session_index: 15 }.into(),
-                SessionEvent::NewSession { session_index: 16 }.into(),
+                new_session_event(13),
+                new_session_event(14),
+                new_session_event(15),
+                new_session_event(16),
             ],
         );
 
@@ -460,11 +440,7 @@ fn bridge_updates_authorities_and_clears() {
         let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
 
         run_to_block(ERA_BLOCKS * 2 + EPOCH_BLOCKS * 5 + 1);
-        do_events_assertion(
-            17,
-            103,
-            [SessionEvent::NewSession { session_index: 17 }.into()],
-        );
+        do_events_assertion(17, 103, queued_session_events(17));
 
         run_to_block(ERA_BLOCKS * 3 + 1);
         on_finalize_gear_block(ERA_BLOCKS * 3 + 1);
@@ -472,7 +448,7 @@ fn bridge_updates_authorities_and_clears() {
             18,
             109,
             [
-                SessionEvent::NewSession { session_index: 18 }.into(),
+                new_session_event(18),
                 Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
                 GrandpaEvent::NewAuthorities { authority_set }.into(),
             ],
@@ -918,6 +894,21 @@ mod utils {
         System::reset_events();
     }
 
+    pub(crate) fn new_session_event(session_index: u32) -> RuntimeEvent {
+        SessionEvent::NewSession { session_index }.into()
+    }
+
+    pub(crate) fn new_session_events(session_index: u32) -> [RuntimeEvent; 1] {
+        [new_session_event(session_index)]
+    }
+
+    pub(crate) fn queued_session_events(session_index: u32) -> [RuntimeEvent; 2] {
+        [
+            SessionEvent::NewQueued.into(),
+            new_session_event(session_index),
+        ]
+    }
+
     pub(crate) fn balance_of(account: &AccountId) -> Value {
         Currency::free_balance(account)
     }
@@ -966,7 +957,7 @@ fn rotate_keys() {
         do_events_assertion(0, 6, []);
 
         run_to_block(EPOCH_BLOCKS + 1);
-        do_events_assertion(1, 7, [SessionEvent::NewSession { session_index: 1 }.into()]);
+        do_events_assertion(1, 7, new_session_events(1));
 
         let validators = era_validators(1, false);
         // emulate the situation if a validator rotates its keys (i.e. calls "author_rotateKeys" on
@@ -979,15 +970,17 @@ fn rotate_keys() {
         //
         // To the sum "SessionKeys::generate" expands to the following -
         // https://github.com/gear-tech/polkadot-sdk/blob/e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e/substrate/primitives/runtime/src/traits.rs#L2039
-        let session_keys_new = SessionKeys {
-            grandpa: <<Grandpa as sp_runtime::BoundToRuntimeAppPublic>::Public as sp_runtime::RuntimeAppPublic>::generate_pair(Some(b"//new_validator_keys".into())),
-        };
+        let generated = SessionKeys::generate(
+            &validators[0].encode(),
+            Some(b"//new_validator_keys".to_vec()),
+        );
+        let session_keys_new = generated.keys.clone();
 
         // validator changes its keys
         assert_ok!(Session::set_keys(
             RuntimeOrigin::signed(validators[0]),
             session_keys_new.clone(),
-            vec![],
+            generated.proof.encode(),
         ));
 
         // session doesn't end
@@ -996,11 +989,7 @@ fn rotate_keys() {
 
         // sessions ends. "Changed" validator set will be used on the next rotation of the session.
         run_to_block(EPOCH_BLOCKS * 2 + 1);
-        do_events_assertion(
-            2,
-            13,
-            [SessionEvent::NewSession { session_index: 2 }.into()],
-        );
+        do_events_assertion(2, 13, new_session_events(2));
 
         // session doesn't end
         run_to_block(EPOCH_BLOCKS * 3);
@@ -1029,7 +1018,7 @@ fn rotate_keys() {
             3,
             19,
             [
-                SessionEvent::NewSession { session_index: 3 }.into(),
+                new_session_event(3),
                 Event::BridgeInitialized.into(),
                 Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
             ],
@@ -1050,21 +1039,13 @@ fn rotate_keys() {
         do_events_assertion(3, 24, []);
 
         run_to_block(EPOCH_BLOCKS * 4 + 1);
-        do_events_assertion(
-            4,
-            25,
-            [SessionEvent::NewSession { session_index: 4 }.into()],
-        );
+        do_events_assertion(4, 25, new_session_events(4));
 
         run_to_block(EPOCH_BLOCKS * 5);
         do_events_assertion(4, 30, []);
 
         run_to_block(EPOCH_BLOCKS * 5 + 1);
-        do_events_assertion(
-            5,
-            31,
-            [SessionEvent::NewSession { session_index: 5 }.into()],
-        );
+        do_events_assertion(5, 31, queued_session_events(5));
 
         run_to_block(ERA_BLOCKS);
         do_events_assertion(5, 36, []);
@@ -1086,7 +1067,7 @@ fn rotate_keys() {
             6,
             37,
             [
-                SessionEvent::NewSession { session_index: 6 }.into(),
+                new_session_event(6),
                 Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
             ],
         );
@@ -1095,31 +1076,26 @@ fn rotate_keys() {
         do_events_assertion(
             6,
             37,
-            [GrandpaEvent::NewAuthorities {
-                authority_set,
-            }
-            .into()],
+            [GrandpaEvent::NewAuthorities { authority_set }.into()],
         );
 
         run_to_block(ERA_BLOCKS + 2);
-        do_events_assertion(
-            6,
-            38,
-            [Event::QueueReset.into()],
-        );
+        do_events_assertion(6, 38, [Event::QueueReset.into()]);
 
         System::reset_events();
 
         let validators = era_validators(6, false);
-        let session_keys_new = SessionKeys {
-            grandpa: <<Grandpa as sp_runtime::BoundToRuntimeAppPublic>::Public as sp_runtime::RuntimeAppPublic>::generate_pair(Some(b"//new_validator_keys2".into())),
-        };
+        let generated = SessionKeys::generate(
+            &validators[1].encode(),
+            Some(b"//new_validator_keys2".to_vec()),
+        );
+        let session_keys_new = generated.keys.clone();
 
         // validator changes its keys
         assert_ok!(Session::set_keys(
             RuntimeOrigin::signed(validators[1]),
             session_keys_new.clone(),
-            vec![],
+            generated.proof.encode(),
         ));
 
         // session doesn't end
@@ -1128,11 +1104,7 @@ fn rotate_keys() {
 
         // sessions ends. "Changed" validator set will be used on the next rotation of the session.
         run_to_block(ERA_BLOCKS + EPOCH_BLOCKS + 1);
-        do_events_assertion(
-            7,
-            43,
-            [SessionEvent::NewSession { session_index: 7 }.into()],
-        );
+        do_events_assertion(7, 43, new_session_events(7));
 
         // session doesn't end
         run_to_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS);
@@ -1146,7 +1118,11 @@ fn rotate_keys() {
 
         // the second validator changed its keys
         let authority_set = era_validators_authority_set(6);
-        let authority_set = vec![authority_set[0].clone(), (session_keys_new.grandpa, 1), authority_set[2].clone()];
+        let authority_set = vec![
+            authority_set[0].clone(),
+            (session_keys_new.grandpa, 1),
+            authority_set[2].clone(),
+        ];
         let authority_set_ids_concat = authority_set
             .clone()
             .into_iter()
@@ -1158,7 +1134,7 @@ fn rotate_keys() {
             8,
             49,
             [
-                SessionEvent::NewSession { session_index: 8 }.into(),
+                new_session_event(8),
                 Event::AuthoritySetHashChanged(authority_set_hash.into()).into(),
             ],
         );
@@ -1167,18 +1143,11 @@ fn rotate_keys() {
         do_events_assertion(
             8,
             49,
-            [GrandpaEvent::NewAuthorities {
-                authority_set,
-            }
-            .into()],
+            [GrandpaEvent::NewAuthorities { authority_set }.into()],
         );
 
         // the queue should be cleared on the next block
         run_to_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS + 2);
-        do_events_assertion(
-            8,
-            50,
-            [Event::QueueReset.into()],
-        );
+        do_events_assertion(8, 50, [Event::QueueReset.into()]);
     })
 }
