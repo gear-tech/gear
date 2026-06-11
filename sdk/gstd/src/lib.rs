@@ -165,6 +165,10 @@ pub use {
     async_runtime::handle_signal, common::primitives_ext::*, gcore::ReservationId, reservations::*,
 };
 
+/// Cryptographic host calls (ethexe-only).
+#[cfg(feature = "ethexe")]
+pub use gcore::crypto;
+
 /// Extensions for additional features.
 pub mod ext {
     pub use gcore::ext::*;
