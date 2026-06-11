@@ -23,141 +23,87 @@
 //! - *"quarantine-passed"* means the block has ≥ `canonical_quarantine`
 //!   canonical descendants on top.
 
-use anyhow::{Result, anyhow};
-use ethexe_common::{SimpleBlockData, db::OnChainStorageRO};
-use ethexe_db::Database;
+use anyhow::{Context as _, Result, anyhow};
+use ethexe_common::{Acceptance, SimpleBlockData, db::OnChainStorageRO};
 use gprimitives::H256;
 
-/// Cap on parent walks when verifying a peer's `AdvanceTillEthereumBlock`.
-const VERIFY_LOOKBACK_SLACK: u32 = 100_000;
-
-/// Youngest EB that has cleared quarantine. `Ok(None)` if the local chain is
-/// too short, `Err` on missing parent header.
+/// Youngest EB that has cleared the `depth` quarantine against the local head.
+/// Returns `Ok(None)` if no blocks passed the depth check since `start_eb`.
 ///
-/// `depth` is taken as `u32` to accommodate the proposer-side
-/// `canonical_quarantine + post_quarantine_delay` sum, which can exceed
-/// `u8::MAX`. `verify_passed` still takes `u8` because the protocol
-/// invariant validators enforce is anchored on `canonical_quarantine`
-/// only — the extra slack is a proposer-side hint.
+/// # Caller guarantees
+/// - `head` is synced block
+/// - `start_eb_hash` is hash of global start block (DB genesis or fast-sync pivot)
 pub fn anchor(
-    db: &Database,
+    db: &impl OnChainStorageRO,
     head: SimpleBlockData,
     depth: u32,
-    start_block_hash: H256,
-) -> Result<Option<H256>> {
-    let mut current = head.hash;
-    let mut header = head.header;
-
+    start_eb: H256,
+) -> Result<Option<SimpleBlockData>> {
+    let mut cursor = head;
     for _ in 0..depth {
-        if current == start_block_hash {
+        if cursor.hash == start_eb {
             return Ok(None);
         }
-        let parent = header.parent_hash;
-        header = db
-            .block_header(parent)
-            .ok_or_else(|| anyhow!("quarantine anchor: missing parent header for {parent}"))?;
-        current = parent;
+        cursor = db
+            .block_simple_data(cursor.header.parent_hash)
+            .ok_or_else(|| anyhow!("quarantine anchor: missing header for {cursor}"))?;
     }
 
-    Ok(Some(current))
+    Ok(Some(cursor))
 }
 
-/// `candidate` must be a canonical ancestor of `head` at depth ≥ `canonical_quarantine`.
-/// `Err` on still-quarantined / not-found / missing-parent.
-pub fn verify_passed(
-    db: &Database,
-    head: SimpleBlockData,
-    candidate: H256,
-    canonical_quarantine: u8,
-    start_block_hash: H256,
-) -> Result<()> {
-    let canonical_quarantine = canonical_quarantine as u32;
-    let max_steps = canonical_quarantine.saturating_add(VERIFY_LOOKBACK_SLACK);
-
-    let mut current = head.hash;
-    let mut header = head.header;
-
-    for depth in 0..=max_steps {
-        if current == candidate {
-            return if depth >= canonical_quarantine {
-                Ok(())
-            } else {
-                Err(anyhow!(
-                    "EB {candidate} is only {depth} block(s) behind head, \
-                     needs ≥ {canonical_quarantine}"
-                ))
-            };
-        }
-
-        if current == start_block_hash {
-            return Err(anyhow!(
-                "EB {candidate} is not a canonical ancestor of local chain head \
-                 (walk reached start_block at depth {depth})"
-            ));
-        }
-
-        let parent = header.parent_hash;
-        header = db.block_header(parent).ok_or_else(|| {
-            anyhow!("quarantine verify: missing parent header for {parent} at depth {depth}")
-        })?;
-        current = parent;
-    }
-
-    Err(anyhow!(
-        "EB {candidate} not found within {max_steps} ancestors of local chain head"
-    ))
-}
-
-/// `candidate` strictly descends from `ancestor` (depth ≥ 1). `H256::zero()` =
-/// pre-genesis sentinel; equal hashes return `Ok(false)`.
+/// Check whether `candidate` strictly descends from `ancestor`
+///
+/// # Caller guarantees
+/// - `candidate` is synced block
+/// - `ancestor` is hash of synced block or zero (pre-genesis sentinel)
+/// - `start_eb_hash` is hash of global start block (DB genesis or fast-sync pivot)
 pub fn is_strict_descendant_of(
-    db: &Database,
-    candidate: H256,
-    ancestor: H256,
-    start_block_hash: H256,
-) -> Result<bool> {
-    if ancestor.is_zero() {
-        return Ok(true);
-    }
-    if candidate == ancestor {
-        return Ok(false);
+    db: &impl OnChainStorageRO,
+    candidate: SimpleBlockData,
+    ancestor_hash: H256,
+    start_eb_hash: H256,
+) -> Result<Acceptance<(), String>> {
+    if ancestor_hash == H256::zero() {
+        // Special case: all blocks descend from the zero hash (pre-genesis sentinel).
+        return Ok(Acceptance::Accepted(()));
     }
 
-    let max_steps = VERIFY_LOOKBACK_SLACK;
-    let mut current = candidate;
-    let mut header = db
-        .block_header(current)
-        .ok_or_else(|| anyhow!("descendant check: missing header for candidate {candidate}"))?;
+    let ancestor = db.block_simple_data(ancestor_hash).with_context(|| {
+        anyhow!("descendant check: missing header for ancestor {ancestor_hash}")
+    })?;
 
-    for _ in 0..max_steps {
-        let parent = header.parent_hash;
-        if parent == ancestor {
-            return Ok(true);
+    let Some(depth) = candidate.header.height.checked_sub(ancestor.header.height) else {
+        return Ok(Acceptance::Rejected(format!(
+            "candidate {candidate} height is not greater than ancestor {ancestor}"
+        )));
+    };
+
+    let mut cursor = candidate;
+    for _ in 0..depth {
+        let parent_hash = cursor.header.parent_hash;
+        if parent_hash == ancestor.hash {
+            // Found the ancestor
+            return Ok(Acceptance::Accepted(()));
         }
-        if parent == H256::zero() {
-            return Err(anyhow!(
-                "descendant check: ancestor {ancestor} not in canonical ancestry of \
-                 candidate {candidate} — walk reached genesis"
-            ));
+
+        if parent_hash == start_eb_hash {
+            return Ok(Acceptance::Rejected(format!(
+                "ancestor {ancestor} not found within candidate's ancestry (walk reached start EB)"
+            )));
         }
-        if current == start_block_hash {
-            return Err(anyhow!(
-                "descendant check: ancestor {ancestor} not found before start_block fence \
-                 starting from candidate {candidate}"
-            ));
-        }
-        header = db
-            .block_header(parent)
-            .ok_or_else(|| anyhow!("descendant check: missing parent header for {parent}"))?;
-        current = parent;
+
+        cursor = db.block_simple_data(parent_hash).with_context(|| {
+            anyhow!("descendant check: missing header for parent {parent_hash}")
+        })?;
     }
 
-    Err(anyhow!(
-        "descendant check: ancestor {ancestor} not found within {max_steps} ancestors \
-         of candidate {candidate}"
-    ))
+    Ok(Acceptance::Rejected(format!(
+        "candidate {candidate} does not descend from ancestor {ancestor}"
+    )))
 }
 
+#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;

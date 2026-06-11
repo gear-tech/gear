@@ -713,7 +713,7 @@ impl Service {
                             c.receive_new_chain_head(block)?;
                         }
 
-                        malachite.receive_new_chain_head(block).await;
+                        malachite.receive_new_eb(block).await;
                     }
                     ObserverEvent::BlockSynced(block_hash) => {
                         log::info!("Ethereum block synced: {block_hash}");
@@ -835,8 +835,10 @@ impl Service {
                                 transaction,
                                 channel,
                             } => {
-                                let acceptance =
-                                    malachite.receive_injected_transaction(*transaction).into();
+                                let acceptance = malachite
+                                    .receive_injected_transaction(*transaction)
+                                    .await
+                                    .into();
                                 if let Err(err) = channel.send(acceptance) {
                                     tracing::error!(
                                         ?err,
@@ -880,8 +882,9 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            let status =
-                                malachite.receive_injected_transaction(transaction.clone());
+                            let status = malachite
+                                .receive_injected_transaction(transaction.clone())
+                                .await;
                             let local_acceptance = InjectedTransactionAcceptance::from(status);
 
                             match network.as_mut() {
@@ -967,10 +970,7 @@ impl Service {
                             mb_hash = %mb_hash,
                             "Malachite: BlockProposal",
                         );
-                        // Validators are interested in this MB's
-                        // promises so they can gossip them; the
-                        // service's `PromiseEmissionMode` can still
-                        // force the policy to `Enabled` regardless.
+
                         compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                     MalachiteEvent::BlockFinalized {
@@ -984,6 +984,8 @@ impl Service {
                             sigs = cert.signatures.len(),
                             "Malachite: BlockFinalized",
                         );
+
+                        // +_+_+ ??? whether we really need this?
                         // Non-proposer nodes (validators that didn't propose
                         // this height + every full/RPC node) first see the MB
                         // here. Trigger compute so the body — including any

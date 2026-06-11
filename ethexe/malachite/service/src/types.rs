@@ -1,4 +1,5 @@
-use ethexe_common::SimpleBlockData;
+use ethexe_common::{SimpleBlockData, injected::SignedInjectedTransaction};
+use gprimitives::H256;
 use tokio::sync::{Notify, RwLock};
 
 pub struct ChainHead {

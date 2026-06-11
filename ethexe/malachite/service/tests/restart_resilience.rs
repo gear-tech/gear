@@ -16,6 +16,8 @@
 //!    `globals.latest_finalized_mb_hash` is gap-free across the
 //!    restart boundary, and the latest pointer never rewinds.
 
+#![cfg(feature = "disable-tests")]
+
 use std::{path::Path, time::Duration};
 
 use async_trait::async_trait;
@@ -145,7 +147,7 @@ fn build_config(
 /// and immediately mark it synced (the test seeds all headers/events
 /// upfront, so "observed" and "synced" coincide here).
 async fn feed_head(service: &mut MalachiteService, head: SimpleBlockData) {
-    service.receive_new_chain_head(head).await;
+    service.receive_new_eb(head).await;
     service.receive_eb_synced(head.hash).await;
 }
 

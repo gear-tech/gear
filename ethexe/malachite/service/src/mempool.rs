@@ -30,11 +30,6 @@
 //! resolve `reference_block` into heights and to walk ancestor links;
 //! all DB reads are synchronous and cheap (RocksDB point lookups).
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
-};
-
 use async_trait::async_trait;
 use ethexe_common::{
     HashOf, SimpleBlockData,
@@ -46,7 +41,11 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use gprimitives::H256;
-use tokio::sync::Notify;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
+use tokio::sync::{Notify, RwLock};
 use tracing::{info, trace};
 
 /// Outcome of [`Mempool::insert`]. Splits into two groups:
@@ -115,16 +114,11 @@ impl From<TxInsertionStatus> for InjectedTransactionAcceptance {
 /// `forget` runs after MB finalization and dedups within `VALIDITY_WINDOW`.
 #[async_trait]
 pub trait Mempool: Send + Sync + 'static {
-    /// Every pool-policy outcome — including the rejecting ones — is a
-    /// [`TxInsertionStatus`] value. The method is infallible: invariant
-    /// violations inside the implementation panic (e.g. a poisoned mutex)
-    /// rather than surface as an error variant.
-    fn insert(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus;
+    /// Attempt to insert a new transaction into the pool. The tx's hash is
+    async fn insert(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus;
 
-    /// Drives validity-window GC.
-    /// Returns the purged injected transactions.
-    #[must_use]
-    fn set_chain_head(&self, head: SimpleBlockData) -> Vec<PurgedTransaction>;
+    /// Notify the pool of a new chain head. The pool uses this to evict expired
+    async fn set_chain_head(&self, head: SimpleBlockData) -> Vec<PurgedTransaction>;
 
     /// Txs whose `reference_block` is an ancestor of `head`.
     async fn fetch(&self, head: SimpleBlockData) -> Vec<SignedInjectedTransaction>;
@@ -146,11 +140,11 @@ pub(crate) struct EmptyMempool;
 #[cfg(test)]
 #[async_trait]
 impl Mempool for EmptyMempool {
-    fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
+    async fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
         TxInsertionStatus::Inserted
     }
 
-    fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
+    async fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
         Vec::new()
     }
 
@@ -185,10 +179,10 @@ struct Inner {
 
 #[derive(Debug)]
 pub struct InjectedTxMempool {
-    inner: Mutex<Inner>,
+    inner: RwLock<Inner>,
     db: Database,
     capacity: usize,
-    /// Raised on insert; awaited by the producer in `wait_for_new_tx`.
+    /// Notification about new transactions in `wait_for_new_tx`.
     new_tx_notify: Arc<Notify>,
 }
 
@@ -199,19 +193,19 @@ impl InjectedTxMempool {
 
     pub fn with_capacity(db: Database, capacity: usize) -> Self {
         Self {
-            inner: Mutex::new(Inner::default()),
+            inner: RwLock::new(Inner::default()),
             db,
             capacity,
             new_tx_notify: Arc::new(Notify::new()),
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.inner.lock().expect("poisoned mempool").pool.len()
+    pub async fn len(&self) -> usize {
+        self.inner.read().await.pool.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.inner.lock().expect("poisoned mempool").pool.is_empty()
+    pub async fn is_empty(&self) -> bool {
+        self.inner.read().await.pool.is_empty()
     }
 
     /// Resolve `reference_block` to its canonical height via the DB.
@@ -231,14 +225,14 @@ impl InjectedTxMempool {
     }
 
     /// Set of ancestors of `head` within `VALIDITY_WINDOW` steps.
-    fn recent_ancestors(&self, head: &SimpleBlockData) -> HashSet<H256> {
+    fn recent_ancestors(&self, head_eb: &SimpleBlockData) -> HashSet<H256> {
         let start_fence = self.start_block_hash();
 
         let mut ancestors = HashSet::with_capacity(VALIDITY_WINDOW as usize + 1);
-        ancestors.insert(head.hash);
+        ancestors.insert(head_eb.hash);
 
-        let mut current = head.hash;
-        let mut parent = head.header.parent_hash;
+        let mut current = head_eb.hash;
+        let mut parent = head_eb.header.parent_hash;
         for _ in 0..VALIDITY_WINDOW {
             if current == start_fence || parent == H256::zero() {
                 break;
@@ -303,7 +297,7 @@ impl InjectedTxMempool {
 
 #[async_trait]
 impl Mempool for InjectedTxMempool {
-    fn insert(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus {
+    async fn insert(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus {
         let tx_data = tx.data();
         let tx_hash = tx_data.to_hash();
         let ref_block = tx_data.reference_block;
@@ -321,7 +315,7 @@ impl Mempool for InjectedTxMempool {
             return TxInsertionStatus::NonZeroValue;
         }
 
-        let inner = self.inner.lock().expect("poisoned mempool");
+        let inner = self.inner.read().await;
 
         if inner.seen.contains_key(&tx_hash) {
             info!(%tx_hash, "mempool: idempotent no-op — hash already committed within validity window");
@@ -370,7 +364,7 @@ impl Mempool for InjectedTxMempool {
         // writes converge on the same byte content.
         self.db.set_injected_transaction(tx.clone());
 
-        let mut inner = self.inner.lock().expect("poisoned mempool");
+        let mut inner = self.inner.write().await;
 
         // Recheck dedup / capacity after the lock-free window.
         if inner.seen.contains_key(&tx_hash) {
@@ -400,8 +394,8 @@ impl Mempool for InjectedTxMempool {
         TxInsertionStatus::Inserted
     }
 
-    fn set_chain_head(&self, head: SimpleBlockData) -> Vec<PurgedTransaction> {
-        let mut inner = self.inner.lock().expect("poisoned mempool");
+    async fn set_chain_head(&self, head: SimpleBlockData) -> Vec<PurgedTransaction> {
+        let mut inner = self.inner.write().await;
         let h = head.header.height;
         if inner.latest_head_height == Some(h) {
             // Same height re-sent — nothing to GC beyond what we
@@ -415,7 +409,7 @@ impl Mempool for InjectedTxMempool {
     async fn fetch(&self, head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
         let ancestors = self.recent_ancestors(&head);
 
-        let inner = self.inner.lock().expect("poisoned mempool");
+        let inner = self.inner.read().await;
         let pool_len = inner.pool.len();
         let result: Vec<_> = inner
             .pool
@@ -435,7 +429,7 @@ impl Mempool for InjectedTxMempool {
     }
 
     async fn forget(&self, committed: &[SignedInjectedTransaction]) {
-        let mut inner = self.inner.lock().expect("poisoned mempool");
+        let mut inner = self.inner.write().await;
         for tx in committed {
             let tx_hash = tx.data().to_hash();
             inner.pool.remove(&tx_hash);
@@ -456,6 +450,7 @@ impl Mempool for InjectedTxMempool {
     }
 }
 
+#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;

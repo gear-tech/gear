@@ -20,6 +20,7 @@ use crate::{
     MalachiteEvent, Mempool, ValidatorEntry, externalities::EthexeExternalities,
     mempool::TxInsertionStatus, types::ChainHead,
 };
+use alloy::providers::BoxedFut;
 use anyhow::Result;
 use ethexe_common::{
     Address, SimpleBlockData,
@@ -27,11 +28,11 @@ use ethexe_common::{
     injected::SignedInjectedTransaction,
 };
 use ethexe_malachite_core::MalachiteCore;
-use futures::{Stream, stream::FusedStream};
+use futures::{FutureExt, Stream, stream::FusedStream};
 use gprimitives::H256;
 use gsigner::schemes::secp256k1::PublicKey;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -56,19 +57,23 @@ impl Drop for MalachiteService {
 }
 
 impl MalachiteService {
-    pub fn receive_injected_transaction(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus {
-        self.mempool
-            .as_ref()
-            .map(|pool| pool.insert(tx))
-            .unwrap_or(TxInsertionStatus::PoolFull)
+    pub async fn receive_injected_transaction(
+        &self,
+        tx: SignedInjectedTransaction,
+    ) -> TxInsertionStatus {
+        if let Some(pool) = self.mempool.as_ref() {
+            pool.insert(tx).await
+        } else {
+            TxInsertionStatus::PoolFull
+        }
     }
 
-    pub async fn receive_new_chain_head(&mut self, head: SimpleBlockData) {
+    pub async fn receive_new_eb(&mut self, eb: SimpleBlockData) {
         let mut current = self.chain_head.latest.write().await;
 
         // Filter the new head against the current one and update if it's strictly higher
-        if head.header.height > current.header.height {
-            *current = head;
+        if eb.header.height > current.header.height {
+            *current = eb;
         }
     }
 
@@ -95,7 +100,7 @@ impl MalachiteService {
         self.maybe_rotate_validators_for_era(chain_head);
 
         if let Some(pool) = self.mempool.as_ref() {
-            let purged_txs = pool.set_chain_head(chain_head);
+            let purged_txs = pool.set_chain_head(chain_head).await;
             if !purged_txs.is_empty() {
                 let event = MalachiteEvent::PurgedTransactions {
                     eb_hash: chain_head.hash,
@@ -113,6 +118,12 @@ impl MalachiteService {
 
     pub async fn receive_eb_prepared(&self, _eb_hash: H256) {
         self.externalities.drain_pending_events().await
+    }
+
+    pub async fn shutdown(mut self) {
+        if let Some(inner) = self.inner.take() {
+            inner.shutdown().await;
+        }
     }
 
     /// Push the on-chain validators for `head`'s era into the engine,
@@ -178,18 +189,15 @@ impl MalachiteService {
             "rotated malachite validator set to era's on-chain quorum"
         );
     }
-
-    pub async fn shutdown(mut self) {
-        if let Some(inner) = self.inner.take() {
-            inner.shutdown().await;
-        }
-    }
 }
 
 impl Stream for MalachiteService {
     type Item = Result<MalachiteEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // IMPORTANT: MalachiteService async methods (like receive_new_eb and other)
+        // are safe to call only because we do not lock any data from self in this method implementation.
+
         if let Some(inner) = self.inner.as_mut() {
             match Pin::new(&mut *inner).poll_next(cx) {
                 Poll::Ready(Some(e)) => return Poll::Ready(Some(Err(e))),
@@ -199,6 +207,7 @@ impl Stream for MalachiteService {
                 Poll::Pending => {}
             }
         }
+
         self.events_rx.poll_recv(cx)
     }
 }

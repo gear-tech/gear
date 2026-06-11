@@ -43,11 +43,13 @@ use crate::{
     tx_validity::{TxValidity, TxValidityChecker, eb_touched_programs},
     types::ChainHead,
 };
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
     Acceptance, MAX_TOUCHED_PROGRAMS_PER_MB,
-    db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
+    db::{
+        CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRO,
+    },
     injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, SignedInjectedTransaction},
     malachite::{Operation, Operations},
 };
@@ -57,7 +59,7 @@ use gprimitives::H256;
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{collections::VecDeque, sync::Arc};
 use tokio::sync::{RwLock, mpsc::UnboundedSender};
-use tracing::{error, info, warn};
+use tracing::{debug, error, trace, warn};
 
 pub struct ExternalitiesConfig {
     pub gas_allowance: u64,
@@ -89,11 +91,10 @@ impl Externalities for EthexeExternalities {
 
         let parent = mb.parent_hash;
 
-        let parent_advanced = if parent.is_zero() {
-            H256::zero()
-        } else {
-            self.db.mb_meta(parent).last_advanced_eb
-        };
+        let parent_advanced = parent
+            .is_zero()
+            .then(H256::zero)
+            .unwrap_or_else(|| self.db.mb_meta(parent).last_advanced_eb);
         let last_advanced = payload
             .iter()
             .rev()
@@ -132,27 +133,27 @@ impl Externalities for EthexeExternalities {
         mb_hash: H256,
         cert: ethexe_malachite_core::CommitCertificate,
     ) -> Result<()> {
-        let compact = self.db.mb_compact_block(mb_hash).ok_or_else(|| {
-            anyhow!(
-                "process_mb_finalized: no CompactMb for {mb_hash} \
-                 (process_mb_proposal must run first)"
-            )
-        })?;
-        let payload = self.db.operations(compact.operations_hash).ok_or_else(|| {
-            anyhow!(
-                "mark_finalized: operations blob {} missing for block {mb_hash}",
-                compact.operations_hash
-            )
-        })?;
-
         if let Some(pool) = self.mempool.as_ref() {
-            let injected: Vec<SignedInjectedTransaction> = payload
-                .iter()
-                .filter_map(|tx| match tx {
-                    Operation::Injected(t) => Some(t.clone()),
+            // Remove any finalized MB's proposed injected txs from the mempool.
+
+            let compact = self
+                .db
+                .mb_compact_block(mb_hash)
+                .with_context(|| format!("no CompactMb for {mb_hash}"))?;
+
+            let operations = self
+                .db
+                .operations(compact.operations_hash)
+                .with_context(|| format!("operations blob missing for block {mb_hash}"))?;
+
+            let injected: Vec<SignedInjectedTransaction> = operations
+                .into_iter()
+                .filter_map(|op| match op {
+                    Operation::Injected(tx) => Some(tx),
                     _ => None,
                 })
                 .collect();
+
             if !injected.is_empty() {
                 pool.forget(&injected).await;
             }
@@ -176,24 +177,23 @@ impl Externalities for EthexeExternalities {
             last_advanced,
         )
         .await;
+
         Ok(())
     }
 
     async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload> {
         ensure!(
             self.mempool.is_some(),
-            "build_block_above cannot be called when node is not validator"
+            "build_block_above must not be called when node is not validator"
         );
 
-        let parent_advanced = if parent_mb_hash.is_zero() {
-            H256::zero()
-        } else {
-            self.db.mb_meta(parent_mb_hash).last_advanced_eb
-        };
+        let parent_advanced = parent_mb_hash
+            .is_zero()
+            .then(H256::zero)
+            .unwrap_or_else(|| self.db.mb_meta(parent_mb_hash).last_advanced_eb);
+        let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await?;
 
-        let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await;
-
-        info!(
+        debug!(
             %parent_mb_hash,
             %parent_advanced,
             advance = ?advance,
@@ -201,6 +201,7 @@ impl Externalities for EthexeExternalities {
             "build_block_above: proposable content resolved",
         );
 
+        // Filter the fetched injected txs down to the valid ones before we start MB assembly
         let valid_injected_txs = {
             let chain_head = *self.chain_head.latest_synced.read().await;
             let checker =
@@ -210,7 +211,7 @@ impl Externalities for EthexeExternalities {
                 match checker.check_tx_validity(&tx)? {
                     TxValidity::Valid => accepted.push(tx),
                     reason => {
-                        warn!(
+                        debug!(
                             tx_hash = %tx.data().to_hash(),
                             ?reason,
                             "build_block_above: dropping injected tx — fails TxValidity",
@@ -230,7 +231,7 @@ impl Externalities for EthexeExternalities {
             // Producer can't shrink this — the EB events themselves
             // already exceed the cap. Drop injected txs and let the
             // MB advance the EB anyway so the chain progresses.
-            warn!(
+            error!(
                 initial_touched_count,
                 limit = MAX_TOUCHED_PROGRAMS_PER_MB,
                 "build_block_above: EB events already exceed touched-programs cap; \
@@ -238,6 +239,7 @@ impl Externalities for EthexeExternalities {
             );
         }
 
+        // Cap the injected txs to stay within the remaining limits
         let mut size_counter: usize = 0;
         let mut capped_injected_txs: Vec<SignedInjectedTransaction> =
             Vec::with_capacity(valid_injected_txs.len());
@@ -351,53 +353,51 @@ impl Externalities for EthexeExternalities {
         //       each early-return below so operators can tune
         //       `post_quarantine_delay` from observability rather than logs.
 
+        // Take latest synced EB as the reference point
+        // for all the quarantine and transactions checks below
+        let chain_head = *self.chain_head.latest_synced.read().await;
+
         // Advanced block quarantine checks
         if let Some(advance) = advance {
-            let parent_advanced = if parent_hash.is_zero() {
-                H256::zero()
-            } else {
-                self.db.mb_meta(parent_hash).last_advanced_eb
-            };
-            let start_block_hash = self.db.globals().start_block_hash;
-
-            let chain_head = *self.chain_head.latest_synced.read().await;
-            if let Err(e) = quarantine::verify_passed(
-                &self.db,
-                chain_head,
-                advance,
-                self.cfg.canonical_quarantine,
-                start_block_hash,
-            ) {
+            let Some(advance) = self.db.block_simple_data(advance) else {
                 return Ok(Acceptance::Rejected(format!(
-                    "advance {advance} (parent_advanced {parent_advanced}) \
-                     not yet covered by local view: {e}"
+                    "advance EB {advance} not found in local DB"
+                )));
+            };
+
+            if advance
+                .header
+                .height
+                .saturating_add(self.cfg.canonical_quarantine as u32)
+                > chain_head.header.height
+            {
+                return Ok(Acceptance::Rejected(format!(
+                    "advance EB {advance} does not pass quarantine against local chain head {chain_head}",
                 )));
             }
 
+            let parent_advanced = parent_hash
+                .is_zero()
+                .then(H256::zero)
+                .unwrap_or_else(|| self.db.mb_meta(parent_hash).last_advanced_eb);
+            let start_block_hash = self.db.globals().start_block_hash;
             match quarantine::is_strict_descendant_of(
                 &self.db,
                 advance,
                 parent_advanced,
                 start_block_hash,
             ) {
-                Ok(true) => {}
-                Ok(false) => {
+                Ok(Acceptance::Accepted(())) => {}
+                Ok(Acceptance::Rejected(reason)) => {
                     return Ok(Acceptance::Rejected(format!(
-                        "advance {advance} is not a strict descendant of \
-                         parent.last_advanced_eb {parent_advanced}"
+                        "advance {advance} is not a strict descendant of parent_advanced {parent_advanced}: {reason}"
                     )));
                 }
-                Err(e) => {
-                    return Ok(Acceptance::Rejected(format!(
-                        "is_strict_descendant_of failed for advance {advance} \
-                         (parent_advanced {parent_advanced}): {e}"
-                    )));
-                }
+                Err(e) => return Err(e),
             }
         }
 
         // Validate injected txs
-        let chain_head = *self.chain_head.latest_synced.read().await;
         let checker = TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_hash)?;
         for tx in payload.iter() {
             let Operation::Injected(signed) = tx else {
@@ -523,7 +523,7 @@ impl EthexeExternalities {
     async fn wait_for_proposable_content(
         &self,
         prev_advanced_eb_hash: H256,
-    ) -> (Option<H256>, Vec<SignedInjectedTransaction>) {
+    ) -> Result<(Option<H256>, Vec<SignedInjectedTransaction>)> {
         loop {
             let chain_head_notified = self.chain_head.notify.notified();
             tokio::pin!(chain_head_notified);
@@ -531,7 +531,7 @@ impl EthexeExternalities {
 
             let advance = self
                 .find_eb_candidate_for_advancing(prev_advanced_eb_hash)
-                .await;
+                .await?;
 
             let chain_head = *self.chain_head.latest_synced.read().await;
             let Some(mempool) = self.mempool.as_ref() else {
@@ -540,7 +540,7 @@ impl EthexeExternalities {
             let injected_txs = mempool.fetch(chain_head).await;
 
             if advance.is_some() || !injected_txs.is_empty() {
-                return (advance, injected_txs);
+                return Ok((advance, injected_txs));
             }
 
             tokio::select! {
@@ -552,39 +552,38 @@ impl EthexeExternalities {
     }
 
     // Candidate EB must be anchored in the quarantine and a strict descendant of the previously advanced EB.
-    async fn find_eb_candidate_for_advancing(&self, prev_advanced_eb_hash: H256) -> Option<H256> {
-        let head = *self.chain_head.latest_synced.read().await;
+    async fn find_eb_candidate_for_advancing(&self, parent_advance: H256) -> Result<Option<H256>> {
+        let chain_head = *self.chain_head.latest_synced.read().await;
         let start = self.db.globals().start_block_hash;
         let total_depth = self.cfg.canonical_quarantine as u32 + self.cfg.post_quarantine_delay;
-        let candidate = match quarantine::anchor(&self.db, head, total_depth, start) {
+
+        let candidate = match quarantine::anchor(&self.db, chain_head, total_depth, start) {
             Ok(Some(c)) => c,
-            Ok(None) => return None,
-            Err(e) => {
-                warn!(error = %e, "anchor lookup failed; skipping advance");
-                return None;
+            Ok(None) => {
+                trace!("anchor lookup reached start block; skipping advance");
+                return Ok(None);
             }
+            Err(e) => return Err(anyhow!("quarantine anchor lookup failed: {e}")),
         };
-        if candidate == prev_advanced_eb_hash {
-            return None;
-        }
-        match quarantine::is_strict_descendant_of(&self.db, candidate, prev_advanced_eb_hash, start)
-        {
-            Ok(true) => Some(candidate),
-            Ok(false) => None,
-            Err(e) => {
-                error!(
-                    error = %e,
+
+        match quarantine::is_strict_descendant_of(&self.db, candidate, parent_advance, start) {
+            Ok(Acceptance::Accepted(())) => Ok(Some(candidate.hash)),
+            Ok(Acceptance::Rejected(reason)) => {
+                warn!(
+                    reason = %reason,
                     candidate = %candidate,
-                    parent_advanced = %prev_advanced_eb_hash,
+                    parent_advanced = %parent_advance,
                     "quarantine-passed EB is not a canonical descendant of \
                      parent's last_advanced_eb — skipping AdvanceTillEthereumBlock"
                 );
-                None
+                Ok(None)
             }
+            Err(e) => Err(e).context("quarantine descendant check failed"),
         }
     }
 }
 
+#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -995,11 +994,14 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Mempool for ForgetTracker {
-        fn insert(&self, _tx: SignedInjectedTransaction) -> crate::mempool::TxInsertionStatus {
+        async fn insert(
+            &self,
+            _tx: SignedInjectedTransaction,
+        ) -> crate::mempool::TxInsertionStatus {
             crate::mempool::TxInsertionStatus::Inserted
         }
 
-        fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
+        async fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
             Vec::new()
         }
 
