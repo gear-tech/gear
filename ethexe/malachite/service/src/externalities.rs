@@ -51,9 +51,7 @@ use ethexe_common::{
     malachite::{Operation, Operations},
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{
-    Block, BlockPayload, CallbackOrigin, Externalities, MAX_BLOCK_PAYLOAD_BYTES,
-};
+use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
 use gprimitives::H256;
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{
@@ -134,12 +132,7 @@ pub(crate) struct PendingEvent {
 
 #[async_trait]
 impl Externalities for EthexeExternalities {
-    async fn process_mb_proposal(
-        &self,
-        mb_hash: H256,
-        mb: Block,
-        _origin: CallbackOrigin,
-    ) -> Result<()> {
+    async fn process_mb_proposal(&self, mb_hash: H256, mb: Block) -> Result<()> {
         // Runs on the proposer, participant, and sync paths. Frozen
         // discriminants mean every historical operation always decodes; an
         // unknown one can only come from a newer protocol this build doesn't
@@ -204,7 +197,6 @@ impl Externalities for EthexeExternalities {
         &self,
         mb_hash: H256,
         cert: ethexe_malachite_core::CommitCertificate,
-        _origin: CallbackOrigin,
     ) -> Result<()> {
         let compact = self.db.mb_compact_block(mb_hash).ok_or_else(|| {
             anyhow!(
@@ -843,8 +835,6 @@ mod tests {
         db::{BlockMetaStorageRW, OnChainStorageRW},
         injected::PurgedTransaction,
     };
-    use ethexe_malachite_core::CallbackOrigin;
-
     fn to_payload(bytes: Vec<u8>) -> BlockPayload {
         BlockPayload::try_from(bytes).expect("test payload within size cap")
     }
@@ -939,9 +929,7 @@ mod tests {
         let p = payload(None, 1);
         let block = wrap(p.clone(), 1, H256::zero());
         let mb_hash = block.hash();
-        ext.process_mb_proposal(mb_hash, block, CallbackOrigin::Live)
-            .await
-            .unwrap();
+        ext.process_mb_proposal(mb_hash, block).await.unwrap();
 
         let compact = db.mb_compact_block(mb_hash).expect("CompactMb saved");
         assert_eq!(compact.height, 1);
@@ -979,11 +967,9 @@ mod tests {
         let p = payload(None, 5);
         let block = wrap(p.clone(), 1, H256::zero());
         let mb_hash = block.hash();
-        ext.process_mb_proposal(mb_hash, block, CallbackOrigin::Live)
-            .await
-            .unwrap();
+        ext.process_mb_proposal(mb_hash, block).await.unwrap();
         let _ = rx.recv().await; // BlockProposal
-        ext.process_mb_finalized(mb_hash, fake_cert(1), CallbackOrigin::Live)
+        ext.process_mb_finalized(mb_hash, fake_cert(1))
             .await
             .unwrap();
         assert_eq!(db.globals().latest_finalized_mb_hash, mb_hash);
@@ -1019,12 +1005,9 @@ mod tests {
             let p = payload(None, i as u8);
             let block = wrap(p.clone(), i, parent);
             let mb_hash = block.hash();
+            ext_a.process_mb_proposal(mb_hash, block).await.unwrap();
             ext_a
-                .process_mb_proposal(mb_hash, block, CallbackOrigin::Live)
-                .await
-                .unwrap();
-            ext_a
-                .process_mb_finalized(mb_hash, fake_cert(i), CallbackOrigin::Live)
+                .process_mb_finalized(mb_hash, fake_cert(i))
                 .await
                 .unwrap();
             chain.push((mb_hash, p));
@@ -1054,15 +1037,9 @@ mod tests {
         let p4 = payload(None, 99);
         let block4 = wrap(p4.clone(), 4, last_pre);
         let mb4 = block4.hash();
-        ext_b
-            .process_mb_proposal(mb4, block4, CallbackOrigin::Live)
-            .await
-            .unwrap();
+        ext_b.process_mb_proposal(mb4, block4).await.unwrap();
         let _ = rx_b.recv().await; // proposal
-        ext_b
-            .process_mb_finalized(mb4, fake_cert(4), CallbackOrigin::Live)
-            .await
-            .unwrap();
+        ext_b.process_mb_finalized(mb4, fake_cert(4)).await.unwrap();
         assert_eq!(db.mb_compact_block(mb4).unwrap().parent, last_pre);
         assert_eq!(db.globals().latest_finalized_mb_hash, mb4);
     }
@@ -1087,10 +1064,8 @@ mod tests {
             let height = (i + 1) as u64;
             let block = wrap(p.clone(), height, parent);
             let mb_hash = block.hash();
-            ext.process_mb_proposal(mb_hash, block, CallbackOrigin::Live)
-                .await
-                .unwrap();
-            ext.process_mb_finalized(mb_hash, fake_cert(height), CallbackOrigin::Live)
+            ext.process_mb_proposal(mb_hash, block).await.unwrap();
+            ext.process_mb_finalized(mb_hash, fake_cert(height))
                 .await
                 .unwrap();
             chain.push(mb_hash);
@@ -1158,11 +1133,7 @@ mod tests {
         let (ext, _rx) = make_externalities(db.clone());
         let block = Block::new(H256::zero(), 1, to_payload(vec![0xff, 0xff, 0xff, 0xff]));
         let mb_hash = block.hash();
-        assert!(
-            ext.process_mb_proposal(mb_hash, block, CallbackOrigin::Live)
-                .await
-                .is_err()
-        );
+        assert!(ext.process_mb_proposal(mb_hash, block).await.is_err());
     }
 
     #[tokio::test]
@@ -1334,9 +1305,7 @@ mod tests {
         ]);
         let block = Block::new(H256::zero(), 1, to_payload(payload.encode()));
         let mb_hash = block.hash();
-        ext.process_mb_proposal(mb_hash, block, CallbackOrigin::Live)
-            .await
-            .unwrap();
+        ext.process_mb_proposal(mb_hash, block).await.unwrap();
         // Drain the BlockProposal event the save emits.
         let _ = event_rx.recv().await;
         ext.process_mb_finalized(
@@ -1346,7 +1315,6 @@ mod tests {
                 block_hash: mb_hash,
                 signatures: vec![],
             },
-            CallbackOrigin::Live,
         )
         .await
         .unwrap();
@@ -1381,7 +1349,7 @@ mod tests {
         let replay_block = wrap(replay_payload, 9, H256::zero());
         let replay_hash = replay_block.hash();
 
-        ext.process_mb_proposal(replay_hash, replay_block, CallbackOrigin::ValueSyncReplay)
+        ext.process_mb_proposal(replay_hash, replay_block)
             .await
             .unwrap();
         match rx.recv().await.expect("proposal event").unwrap() {
@@ -1392,7 +1360,7 @@ mod tests {
             other => panic!("expected BlockProposal, got {other:?}"),
         }
 
-        ext.process_mb_finalized(replay_hash, fake_cert(9), CallbackOrigin::ValueSyncReplay)
+        ext.process_mb_finalized(replay_hash, fake_cert(9))
             .await
             .unwrap();
         match rx.recv().await.expect("finalization event").unwrap() {
@@ -1423,13 +1391,9 @@ mod tests {
         let boundary_hash = boundary_block.hash();
         ext.enable_fast_sync_replay_filter(boundary_hash, boundary_eb);
 
-        ext.process_mb_proposal(
-            boundary_hash,
-            boundary_block,
-            CallbackOrigin::ValueSyncReplay,
-        )
-        .await
-        .unwrap();
+        ext.process_mb_proposal(boundary_hash, boundary_block)
+            .await
+            .unwrap();
         assert!(rx.try_recv().is_err(), "boundary proposal is suppressed");
         assert!(
             ext.pending_events
@@ -1440,13 +1404,9 @@ mod tests {
         assert_eq!(db.mb_meta(boundary_hash).last_advanced_eb, boundary_eb);
         assert!(db.mb_compact_block(boundary_hash).is_some());
 
-        ext.process_mb_finalized(
-            boundary_hash,
-            fake_cert(10),
-            CallbackOrigin::ValueSyncReplay,
-        )
-        .await
-        .unwrap();
+        ext.process_mb_finalized(boundary_hash, fake_cert(10))
+            .await
+            .unwrap();
         assert!(
             rx.try_recv().is_err(),
             "boundary finalization is suppressed"
@@ -1464,7 +1424,7 @@ mod tests {
         let post_block = wrap(post_payload, 11, boundary_hash);
         let post_hash = post_block.hash();
 
-        ext.process_mb_proposal(post_hash, post_block, CallbackOrigin::ValueSyncReplay)
+        ext.process_mb_proposal(post_hash, post_block)
             .await
             .unwrap();
         match rx.recv().await.expect("proposal event").unwrap() {
@@ -1475,7 +1435,7 @@ mod tests {
             other => panic!("expected BlockProposal, got {other:?}"),
         }
 
-        ext.process_mb_finalized(post_hash, fake_cert(11), CallbackOrigin::ValueSyncReplay)
+        ext.process_mb_finalized(post_hash, fake_cert(11))
             .await
             .unwrap();
         match rx.recv().await.expect("finalization event").unwrap() {
@@ -1514,13 +1474,9 @@ mod tests {
             },
         );
 
-        ext.process_mb_finalized(
-            boundary_hash,
-            fake_cert(10),
-            CallbackOrigin::ValueSyncReplay,
-        )
-        .await
-        .unwrap();
+        ext.process_mb_finalized(boundary_hash, fake_cert(10))
+            .await
+            .unwrap();
         assert!(
             rx.try_recv().is_err(),
             "boundary finalization before proposal is suppressed"
@@ -1537,32 +1493,20 @@ mod tests {
         db.mutate_block_meta(retained_eb, |meta| meta.prepared = true);
         let retained_block = wrap(payload(Some(retained_eb), 2), 11, boundary_hash);
         let retained_hash = retained_block.hash();
-        ext.process_mb_proposal(
-            retained_hash,
-            retained_block,
-            CallbackOrigin::ValueSyncReplay,
-        )
-        .await
-        .unwrap();
+        ext.process_mb_proposal(retained_hash, retained_block)
+            .await
+            .unwrap();
         assert!(
             rx.try_recv().is_err(),
             "non-boundary proposal is still suppressed while filter is retained"
         );
 
-        ext.process_mb_proposal(
-            boundary_hash,
-            boundary_block,
-            CallbackOrigin::ValueSyncReplay,
-        )
-        .await
-        .unwrap();
-        ext.process_mb_finalized(
-            boundary_hash,
-            fake_cert(10),
-            CallbackOrigin::ValueSyncReplay,
-        )
-        .await
-        .unwrap();
+        ext.process_mb_proposal(boundary_hash, boundary_block)
+            .await
+            .unwrap();
+        ext.process_mb_finalized(boundary_hash, fake_cert(10))
+            .await
+            .unwrap();
         assert!(
             ext.fast_sync_replay_filter
                 .read()
@@ -1575,7 +1519,7 @@ mod tests {
         db.mutate_block_meta(post_eb, |meta| meta.prepared = true);
         let post_block = wrap(payload(Some(post_eb), 3), 12, boundary_hash);
         let post_hash = post_block.hash();
-        ext.process_mb_proposal(post_hash, post_block, CallbackOrigin::ValueSyncReplay)
+        ext.process_mb_proposal(post_hash, post_block)
             .await
             .unwrap();
         match rx.recv().await.expect("proposal event").unwrap() {
@@ -1599,7 +1543,7 @@ mod tests {
         ext.enable_fast_sync_replay_filter(mb_hash, expected_eb);
 
         let err = ext
-            .process_mb_proposal(mb_hash, block, CallbackOrigin::ValueSyncReplay)
+            .process_mb_proposal(mb_hash, block)
             .await
             .expect_err("boundary EB mismatch must fail");
         assert!(
@@ -1636,7 +1580,7 @@ mod tests {
         ext.enable_fast_sync_replay_filter(mb_hash, expected_eb);
 
         let err = ext
-            .process_mb_proposal(mb_hash, block, CallbackOrigin::ValueSyncReplay)
+            .process_mb_proposal(mb_hash, block)
             .await
             .expect_err("zero boundary EB mismatch must fail");
         assert!(

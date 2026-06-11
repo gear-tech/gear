@@ -31,7 +31,7 @@
 use crate::{
     codec::{decode_value, encode_value},
     context::{Height, MalachiteCtx, ProposalPart, ValueId},
-    externalities::{CallbackOrigin, Externalities},
+    externalities::Externalities,
     state::State,
     store::BlockEntry,
     streaming::ProposalParts,
@@ -350,8 +350,7 @@ where
                 self.state.store.store_undecided_proposal(&proposed)?;
                 let block = Block::decode(&mut &proposed.value.block_bytes[..])
                     .map_err(|e| anyhow!("decoding Block from pending proposal: {e}"))?;
-                self.record_assembled_block(block, CallbackOrigin::Live)
-                    .await
+                self.record_assembled_block(block).await
             };
             if let Err(e) = promote.await {
                 error!(?e, "rejecting invalid pending proposal");
@@ -401,8 +400,7 @@ where
         // Hook process_mb_proposal at proposal-assembly time on the
         // proposer side. cascade_save guarantees ancestor-first
         // ordering against the application.
-        self.record_assembled_block(block, CallbackOrigin::Live)
-            .await?;
+        self.record_assembled_block(block).await?;
         Ok(locally)
     }
 
@@ -450,8 +448,7 @@ where
             self.state.store.store_undecided_proposal(&proposed)?;
             let block = Block::decode(&mut &proposed.value.block_bytes[..])
                 .map_err(|e| anyhow!("decoding Block from received proposal: {e}"))?;
-            self.record_assembled_block(block, CallbackOrigin::Live)
-                .await?;
+            self.record_assembled_block(block).await?;
             Ok(Some(proposed))
         }
     }
@@ -474,7 +471,7 @@ where
             .state
             .commit(certificate.clone())
             .map_err(FinalizationError::NonFatal)?;
-        self.ingest_finalized(certificate, block_bytes, CallbackOrigin::Live)
+        self.ingest_finalized(certificate, block_bytes)
             .await
             .context("ingest finalized")
             .map_err(FinalizationError::Fatal)
@@ -504,8 +501,7 @@ where
             // missing ancestor anyway — see `Store::save_chain`).
             let block = Block::decode(&mut &proposed.value.block_bytes[..])
                 .map_err(|e| anyhow!("decoding Block from synced value: {e}"))?;
-            self.record_assembled_block(block, CallbackOrigin::ValueSyncReplay)
-                .await?;
+            self.record_assembled_block(block).await?;
         }
         Ok(parsed)
     }
@@ -639,9 +635,8 @@ where
     /// dedup is idempotent and `cascade_save` skips already-saved
     /// entries, so the application's `process_mb_proposal` runs at
     /// most once per `block_hash`.
-    async fn record_assembled_block(&self, block: Block, origin: CallbackOrigin) -> Result<()> {
+    async fn record_assembled_block(&self, block: Block) -> Result<()> {
         let block_hash = block.hash();
-        self.state.store.set_mb_origin_once(block_hash, origin)?;
         self.state.store.insert_block(BlockEntry {
             block_hash,
             parent_hash: block.parent_hash,
@@ -656,12 +651,7 @@ where
             .store
             .cascade_save(vec![block_hash], |hash, blk| {
                 let ext = Arc::clone(&self.externalities);
-                let store = self.state.store.clone();
-                let fallback = origin;
-                async move {
-                    let cb_origin = store.mb_origin(hash)?.unwrap_or(fallback);
-                    ext.process_mb_proposal(hash, blk, cb_origin).await
-                }
+                async move { ext.process_mb_proposal(hash, blk).await }
             })
             .await
     }
@@ -677,12 +667,7 @@ where
     /// [`Store::cascade_finalize`] silently no-ops on an unsaved
     /// ancestor (the `finalize_chain` walk returns `None`), and the
     /// `errors_tx` channel surfaces the contract breach upstream.
-    async fn ingest_finalized(
-        &self,
-        cert: EngineCert,
-        block_bytes: Vec<u8>,
-        fallback_origin: CallbackOrigin,
-    ) -> Result<()> {
+    async fn ingest_finalized(&self, cert: EngineCert, block_bytes: Vec<u8>) -> Result<()> {
         let block = Block::decode(&mut &block_bytes[..])
             .map_err(|e| anyhow!("decoding Block at finalize: {e}"))?;
         let block_hash = block.hash();
@@ -730,11 +715,7 @@ where
             .store
             .cascade_finalize(vec![block_hash], |hash, cert| {
                 let ext = Arc::clone(&self.externalities);
-                let store = self.state.store.clone();
-                async move {
-                    let cb_origin = store.mb_origin(hash)?.unwrap_or(fallback_origin);
-                    ext.process_mb_finalized(hash, cert, cb_origin).await
-                }
+                async move { ext.process_mb_finalized(hash, cert).await }
             })
             .await?;
         Ok(())
@@ -780,7 +761,6 @@ fn compute_value_id_from_parts(parts: &ProposalParts) -> ValueId {
 mod tests {
     use super::*;
     use crate::{
-        codec::encode_value,
         context::{ProposalData, ProposalInit, Validator, ValidatorSet, Value},
         signing::{MalachiteSigner, libp2p_peer_id, private_key_from_bytes},
         state::SharedValidatorSet,
@@ -792,11 +772,7 @@ mod tests {
         ConsensusRequest, NetworkRequest,
         app::{events::TxEvent, streaming::StreamId},
     };
-    use malachitebft_core_types::Value as MalachiteBftValue;
-    use std::{
-        sync::{Arc, Mutex},
-        time::Duration,
-    };
+    use std::{sync::Arc, time::Duration};
     use tempfile::TempDir;
     use tokio::sync::mpsc;
 
@@ -808,79 +784,15 @@ mod tests {
 
     #[async_trait]
     impl Externalities for NoopExt {
-        async fn process_mb_proposal(&self, _: H256, _: Block, _: CallbackOrigin) -> Result<()> {
+        async fn process_mb_proposal(&self, _: H256, _: Block) -> Result<()> {
             Ok(())
         }
-        async fn process_mb_finalized(
-            &self,
-            _: H256,
-            _: CommitCertificate,
-            _: CallbackOrigin,
-        ) -> Result<()> {
+        async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Ok(())
         }
         async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
             Ok(test_payload())
         }
-        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
-            Ok(true)
-        }
-    }
-
-    #[derive(Clone, Default)]
-    struct OriginRecordingExt {
-        proposal_origins: Arc<Mutex<Vec<CallbackOrigin>>>,
-        finalized_origins: Arc<Mutex<Vec<CallbackOrigin>>>,
-    }
-
-    impl OriginRecordingExt {
-        fn proposal_origins(&self) -> Vec<CallbackOrigin> {
-            self.proposal_origins
-                .lock()
-                .expect("proposal_origins poisoned")
-                .clone()
-        }
-
-        fn finalized_origins(&self) -> Vec<CallbackOrigin> {
-            self.finalized_origins
-                .lock()
-                .expect("finalized_origins poisoned")
-                .clone()
-        }
-    }
-
-    #[async_trait]
-    impl Externalities for OriginRecordingExt {
-        async fn process_mb_proposal(
-            &self,
-            _: H256,
-            _: Block,
-            origin: CallbackOrigin,
-        ) -> Result<()> {
-            self.proposal_origins
-                .lock()
-                .expect("proposal_origins poisoned")
-                .push(origin);
-            Ok(())
-        }
-
-        async fn process_mb_finalized(
-            &self,
-            _: H256,
-            _: CommitCertificate,
-            origin: CallbackOrigin,
-        ) -> Result<()> {
-            self.finalized_origins
-                .lock()
-                .expect("finalized_origins poisoned")
-                .push(origin);
-            Ok(())
-        }
-
-        async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
-            Ok(test_payload())
-        }
-
         async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
             Ok(true)
         }
@@ -926,76 +838,6 @@ mod tests {
             ),
             StreamMessage::new(stream_id, 2, StreamContent::Fin),
         ]
-    }
-
-    /// Sync-path callbacks must be tagged as
-    /// `CallbackOrigin::ValueSyncReplay` all the way down to
-    /// application callbacks.
-    #[tokio::test]
-    async fn process_synced_value_forwards_value_sync_replay_origin() {
-        let ext = OriginRecordingExt::default();
-        let handler_ext = ext.clone();
-        let (mut handler, _dir, proposer) = make_handler_with(1, handler_ext);
-        let block = Block::new(H256::zero(), 1, test_payload());
-        let block_bytes = block.encode();
-        let value_bytes = encode_value(&crate::context::Value::new(block_bytes.clone()));
-
-        let parsed = handler
-            .process_synced_value(Height::new(1), Round::new(0), proposer, value_bytes)
-            .await
-            .expect("process_synced_value should decode and persist the block");
-        assert!(parsed.is_some());
-
-        assert_eq!(
-            ext.proposal_origins(),
-            vec![CallbackOrigin::ValueSyncReplay]
-        );
-
-        let value_id = crate::context::Value::new(block_bytes).id();
-        let cert = malachitebft_core_types::CommitCertificate {
-            height: Height::new(1),
-            round: Round::new(0),
-            value_id,
-            commit_signatures: Vec::new(),
-        };
-        assert!(
-            handler.process_finalized(cert).await.is_ok(),
-            "synced block must be finalized"
-        );
-        assert_eq!(
-            ext.finalized_origins(),
-            vec![CallbackOrigin::ValueSyncReplay]
-        );
-    }
-
-    /// Peer/engine proposal callbacks are marked as live traffic and
-    /// are not mistaken for sync replay callbacks.
-    #[tokio::test]
-    async fn process_received_proposal_part_marks_live_origin() {
-        let ext = OriginRecordingExt::default();
-        let handler_ext = ext.clone();
-        let (mut handler, _dir, address) = make_handler_with(1, handler_ext);
-        let block = Block::new(H256::zero(), 1, test_payload());
-        let stream = complete_stream(address, 1, &block.encode());
-
-        run_stream(&mut handler, test_peer(2), stream)
-            .await
-            .expect("process_received_proposal_part should assemble a complete proposal");
-
-        assert_eq!(ext.proposal_origins(), vec![CallbackOrigin::Live]);
-
-        let value_id = crate::context::Value::new(block.encode()).id();
-        let cert = malachitebft_core_types::CommitCertificate {
-            height: Height::new(1),
-            round: Round::new(0),
-            value_id,
-            commit_signatures: Vec::new(),
-        };
-        assert!(
-            handler.process_finalized(cert).await.is_ok(),
-            "proposal should finalize"
-        );
-        assert_eq!(ext.finalized_origins(), vec![CallbackOrigin::Live]);
     }
 
     /// Build an [`AppMsgHandler`] with the given `current_height` and
@@ -1125,15 +967,10 @@ mod tests {
 
     #[async_trait]
     impl Externalities for FailingFinalizeExt {
-        async fn process_mb_proposal(&self, _: H256, _: Block, _: CallbackOrigin) -> Result<()> {
+        async fn process_mb_proposal(&self, _: H256, _: Block) -> Result<()> {
             Ok(())
         }
-        async fn process_mb_finalized(
-            &self,
-            _: H256,
-            _: CommitCertificate,
-            _: CallbackOrigin,
-        ) -> Result<()> {
+        async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Err(anyhow!("application: finalize-side store write failed"))
         }
         async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
@@ -1226,7 +1063,7 @@ mod tests {
         // `all_ancestors_saved` returns false and the debug-build
         // assertion fires before the cascade).
         handler
-            .record_assembled_block(block, CallbackOrigin::Live)
+            .record_assembled_block(block)
             .await
             .expect("record_assembled_block must succeed under NoopFinalize proposal-side");
 
