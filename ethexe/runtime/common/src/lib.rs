@@ -100,6 +100,8 @@ pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTra
 pub mod proptest;
 pub mod state;
 
+#[cfg(feature = "std")]
+pub mod crypto_ops;
 mod ext;
 mod journal;
 mod schedule;

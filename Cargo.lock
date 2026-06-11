@@ -5959,7 +5959,13 @@ name = "ethexe-runtime-common"
 version = "2.0.0"
 dependencies = [
  "anyhow",
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff 0.4.2",
+ "ark-serialize 0.4.2",
+ "ark-std 0.4.0",
  "auto_impl",
+ "blake2 0.10.6",
  "delegate",
  "derive_more 2.1.1",
  "ethexe-common",
@@ -5975,6 +5981,8 @@ dependencies = [
  "parity-scale-codec",
  "proptest",
  "serde",
+ "sha2 0.10.9",
+ "sha3",
 ]
 
 [[package]]

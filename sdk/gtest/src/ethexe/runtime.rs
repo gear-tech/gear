@@ -68,6 +68,10 @@ impl RuntimeInterface for GTestEthexeRuntime {
     }
 
     fn publish_promise(&self, _promise: &Promise) {}
+
+    fn crypto(op: gsys::CryptoOp, input: &[u8]) -> Option<Vec<u8>> {
+        ethexe_runtime_common::crypto_ops::execute(op, input)
+    }
 }
 
 impl Storage for GTestEthexeRuntime {
