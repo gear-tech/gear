@@ -56,7 +56,7 @@ use malachitebft_app_channel::{
 use malachitebft_core_types::Height as _;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::RangeInclusive, sync::Arc};
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 /// Max allowed distance into the future for pending proposal parts.
 const FUTURE_HEIGHT_WINDOW: u64 = 4;
@@ -89,6 +89,14 @@ enum FinalizationError {
     NonFatal(anyhow::Error),
 }
 
+#[derive(derive_more::From, derive_more::Display)]
+enum ProcessGetValueError {
+    #[display("building block timeout elapsed: {_0}")]
+    TimeoutElapsed(tokio::time::error::Elapsed),
+    #[display(" {_0}")]
+    Any(anyhow::Error),
+}
+
 /// Owns the channel-app event-loop state and dispatches each
 /// [`AppMsg`] variant to its matching `process_*` method. The dispatch
 /// holds the engine reply channel — `process_*` only produces the
@@ -108,7 +116,10 @@ where
             let Some(msg) = self.channels.consensus.recv().await else {
                 return Err(anyhow!("consensus channel closed"));
             };
-            self.handle_app_msg(msg).await?;
+
+            if let Err(err) = self.handle_app_msg(msg).await {
+                error!("error handling AppMsg: {err}");
+            }
         }
     }
 
@@ -116,9 +127,9 @@ where
         match msg {
             // ConsensusReady
             AppMsg::ConsensusReady { reply } => {
-                if reply.send(self.process_consensus_ready()).is_err() {
-                    error!("ConsensusReady: failed to send reply");
-                }
+                reply
+                    .send(self.process_consensus_ready())
+                    .map_err(|e| anyhow!("failed to send ConsensusReady reply: {e:?}"))?;
             }
 
             // StartedRound
@@ -137,9 +148,9 @@ where
                         error!(?e, %height, %round, "StartedRound: process failed");
                         Vec::new()
                     });
-                if reply_value.send(proposals).is_err() {
-                    error!("StartedRound: failed to send proposals reply");
-                }
+                reply_value
+                    .send(proposals)
+                    .map_err(|e| anyhow!("failed to send StartedRound reply: {e:?}"))?;
             }
 
             // GetValue (we are proposer)
@@ -152,35 +163,44 @@ where
                 info!(%height, %round, "GetValue");
                 match self.process_get_value(height, round).await {
                     Ok(proposal) => {
-                        if reply.send(proposal.clone()).is_err() {
-                            error!("GetValue: failed to send proposal reply");
-                        }
+                        reply
+                            .send(proposal.clone())
+                            .map_err(|e| anyhow!("failed to send GetValue reply: {e:?}"))?;
+
                         for stream_message in self.state.stream_proposal(proposal, Round::Nil) {
-                            self.channels
+                            if let Err(err) = self
+                                .channels
                                 .network
                                 .send(NetworkMsg::PublishProposalPart(stream_message))
-                                .await?;
+                                .await
+                            {
+                                error!("failed to send PublishProposalPart: {err}");
+                            }
                         }
                     }
-                    Err(e) => {
-                        // No usable default for `LocallyProposedValue` —
-                        // dropping the reply sender lets the engine time
-                        // out the propose step and advance the round.
-                        error!(?e, %height, %round, "GetValue: process failed — skipping reply");
+
+                    // No usable default for `LocallyProposedValue` —
+                    // dropping the reply sender lets the engine time
+                    // out the propose step and advance the round.
+                    Err(ProcessGetValueError::TimeoutElapsed(e)) => {
+                        warn!(%height, %round, reason = %e, "unable to produce proposal");
+                    }
+                    Err(ProcessGetValueError::Any(e)) => {
+                        return Err(anyhow!("errors during proposal production: {e:?}"));
                     }
                 }
             }
 
             // Vote extensions (unused — return defaults).
             AppMsg::ExtendVote { reply, .. } => {
-                if reply.send(self.process_extend_vote()).is_err() {
-                    error!("ExtendVote: failed to send reply");
-                }
+                reply
+                    .send(self.process_extend_vote())
+                    .map_err(|e| anyhow!("failed to send ExtendVote reply: {e:?}"))?;
             }
             AppMsg::VerifyVoteExtension { reply, .. } => {
-                if reply.send(self.process_verify_vote_extension()).is_err() {
-                    error!("VerifyVoteExtension: failed to send reply");
-                }
+                reply
+                    .send(self.process_verify_vote_extension())
+                    .map_err(|e| anyhow!("failed to send VerifyVoteExtension reply: {e:?}"))?;
             }
 
             // ReceivedProposalPart (we are not proposer)
@@ -197,9 +217,9 @@ where
                         error!("ReceivedProposalPart: process failed, {e}");
                         None
                     });
-                if reply.send(value).is_err() {
-                    error!("ReceivedProposalPart: failed to send reply");
-                }
+                reply
+                    .send(value)
+                    .map_err(|e| anyhow!("failed to send ReceivedProposalPart reply: {e:?}"))?;
             }
 
             // Decided (info only — Finalized fires next).
@@ -250,9 +270,9 @@ where
                         return Err(anyhow!("Fatal error during finalization: {e:?}"));
                     }
                 };
-                if reply.send(next).is_err() {
-                    error!("Finalized: failed to send Next reply");
-                }
+                reply
+                    .send(next)
+                    .map_err(|e| anyhow!("failed to send Next reply: {e:?}"))?;
             }
 
             // Sync path
@@ -268,32 +288,32 @@ where
                     .process_synced_value(height, round, proposer, value_bytes)
                     .await
                     .unwrap_or_else(|e| {
-                        error!(?e, %height, %round, "ProcessSyncedValue: process failed");
+                        error!(?e, %height, %round, "process synced value failed");
                         None
                     });
-                if reply.send(value).is_err() {
-                    error!("ProcessSyncedValue: failed to send reply");
-                }
+                reply
+                    .send(value)
+                    .map_err(|e| anyhow!("failed to send ProcessSyncedValue reply: {e:?}"))?
             }
 
             AppMsg::GetDecidedValues { range, reply } => {
                 let values = self.process_get_decided_values(range).unwrap_or_else(|e| {
-                    error!(?e, "GetDecidedValues: process failed");
+                    error!(?e, "process get decided values failed");
                     Vec::new()
                 });
-                if reply.send(values).is_err() {
-                    error!("GetDecidedValues: failed to send reply");
-                }
+                reply
+                    .send(values)
+                    .map_err(|e| anyhow!("failed to send GetDecidedValues reply: {e:?}"))?;
             }
 
             AppMsg::GetHistoryMinHeight { reply } => {
                 let h = self.process_get_history_min_height().unwrap_or_else(|e| {
-                    error!(?e, "GetHistoryMinHeight: process failed");
+                    error!(?e, "process get history min height failed");
                     Height::default()
                 });
-                if reply.send(h).is_err() {
-                    error!("GetHistoryMinHeight: failed to send reply");
-                }
+                reply
+                    .send(h)
+                    .map_err(|e| anyhow!("failed to send GetHistoryMinHeight reply: {e:?}"))?;
             }
 
             AppMsg::RestreamProposal {
@@ -302,15 +322,12 @@ where
                 valid_round,
                 address: _,
                 value_id,
-            } => {
-                if let Err(e) = self
-                    .process_restream_proposal(height, round, valid_round, value_id)
-                    .await
-                {
-                    error!(?e, %height, %round, "RestreamProposal: process failed");
-                }
-            }
+            } => self
+                .process_restream_proposal(height, round, valid_round, value_id)
+                .await
+                .map_err(|e| anyhow!("restream proposal failed: {e:?}"))?,
         }
+
         Ok(())
     }
 
@@ -370,9 +387,9 @@ where
         &mut self,
         height: Height,
         round: Round,
-    ) -> Result<LocallyProposedValue<MalachiteCtx>> {
+    ) -> Result<LocallyProposedValue<MalachiteCtx>, ProcessGetValueError> {
         if let Some(p) = self.state.get_previously_built_value(height, round)? {
-            info!("re-using previously built value");
+            debug!("re-using previously built value");
             return Ok(p);
         }
 
@@ -394,9 +411,8 @@ where
 
         let build_fut = self.externalities.build_block_above(parent_hash);
         let payload = tokio::time::timeout(self.state.propose_timeout, build_fut)
-            .await
-            .context("block proposal timeout elapsed")?
-            .context("Proposal block building failed")?;
+            .await?
+            .context("build_block_above failed")?;
         let block = Block::new(parent_hash, height.as_u64(), payload);
         let block_bytes = block.encode();
         let locally = self
