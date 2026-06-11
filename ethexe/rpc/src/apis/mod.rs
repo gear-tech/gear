@@ -4,6 +4,7 @@
 mod block;
 mod code;
 mod dev;
+mod info;
 mod injected;
 mod program;
 
@@ -12,6 +13,7 @@ pub use crate::apis::{
     block::BlockClient,
     code::CodeClient,
     dev::DevClient,
+    info::{InfoClient, RPC_VERSION},
     injected::InjectedClient,
     program::{CalculateReplyForHandleResult, FullProgramState, ProgramClient},
 };
@@ -21,6 +23,8 @@ pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
 #[cfg(feature = "server")]
 pub use dev::{DevApi, DevServer};
+#[cfg(feature = "server")]
+pub use info::{InfoApi, InfoServer};
 #[cfg(feature = "server")]
 pub use injected::{InjectedApi, InjectedServer};
 #[cfg(feature = "server")]
