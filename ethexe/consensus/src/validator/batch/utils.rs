@@ -216,32 +216,36 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         return Ok(last_committed_mb);
     }
 
-    // Aggregate transitions incrementally; stop when the next MB blows the size budget.
-    let mut transitions: Vec<StateTransition> = Vec::new();
+    // Aggregate transitions incrementally; stop when the next MB blows the
+    // size budget. Trial-fitting probes the *squashed and sorted* payload —
+    // exactly the bytes that end up in the commitment — so repeated actors
+    // are charged once (#5356).
+    let mut squasher = TransitionsSquasher::default();
     let mut last_included = last_committed_mb;
     for mb_hash in &pending {
         let Some(mb_transitions) = db.mb_outcome(*mb_hash) else {
             anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
         };
 
-        // Trial-fit this MB; bail if it pushes us past the batch size budget.
-        let len_before = transitions.len();
-        transitions.extend(mb_transitions);
+        let mut trial = squasher.clone();
+        trial.extend(mb_transitions);
+        let mut trial_transitions = trial.squashed();
+        sort_transitions_by_value_to_receive(&mut trial_transitions);
         let trial_commitment = ChainCommitment {
             head: *mb_hash,
-            transitions,
+            transitions: trial_transitions,
             last_advanced_eth_block: db.mb_meta(*mb_hash).last_advanced_eb,
         };
-        let would_fit = batch_filler.would_fit_chain_commitment(&trial_commitment);
-        transitions = trial_commitment.transitions;
 
-        if !would_fit {
-            let _ = transitions.split_off(len_before);
+        if !batch_filler.would_fit_chain_commitment(&trial_commitment) {
             break;
         }
 
+        squasher = trial;
         last_included = *mb_hash;
     }
+
+    let mut transitions = squasher.finish();
 
     // Skip the commitment entirely when there are no state transitions
     // to carry on-chain. Pushing the Ethereum anchor forward on every
@@ -252,6 +256,8 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     if transitions.is_empty() {
         return Ok(last_committed_mb);
     }
+
+    sort_transitions_by_value_to_receive(&mut transitions);
 
     let commitment = ChainCommitment {
         head: last_included,
@@ -338,27 +344,54 @@ pub fn try_include_checkpoint_chain_commitment<
 /// messages / value claims / `value_to_receive`, exit-inheritor from the newest
 /// exit. First-seen order is preserved.
 pub fn squash_transitions_by_actor(transitions: Vec<StateTransition>) -> Vec<StateTransition> {
-    let mut positions = HashMap::new();
-    let mut aggregations = Vec::new();
+    let mut squasher = TransitionsSquasher::default();
+    squasher.extend(transitions);
+    squasher.finish()
+}
 
-    for transition in transitions {
-        match positions.entry(transition.actor_id) {
-            Entry::Vacant(entry) => {
-                entry.insert(aggregations.len());
-                aggregations.push(ActorAggregation::new(transition));
-            }
-            Entry::Occupied(entry) => {
-                aggregations[*entry.get()].join(transition);
+/// Incremental form of [`squash_transitions_by_actor`]: feed transitions
+/// MB by MB and snapshot the collapsed per-actor set at any point. Lets
+/// the producer trial-fit the *post-squash* payload against the batch
+/// size budget before adopting the next MB.
+#[derive(Default, Clone)]
+pub struct TransitionsSquasher {
+    positions: HashMap<ActorId, usize>,
+    aggregations: Vec<ActorAggregation>,
+}
+
+impl TransitionsSquasher {
+    pub fn extend(&mut self, transitions: impl IntoIterator<Item = StateTransition>) {
+        for transition in transitions {
+            match self.positions.entry(transition.actor_id) {
+                Entry::Vacant(entry) => {
+                    entry.insert(self.aggregations.len());
+                    self.aggregations.push(ActorAggregation::new(transition));
+                }
+                Entry::Occupied(entry) => {
+                    self.aggregations[*entry.get()].join(transition);
+                }
             }
         }
     }
 
-    aggregations
-        .into_iter()
-        .map(|aggregation| aggregation.finish())
-        .collect()
+    /// Squashed transitions accumulated so far, first-seen actor order.
+    pub fn squashed(&self) -> Vec<StateTransition> {
+        self.aggregations
+            .iter()
+            .cloned()
+            .map(ActorAggregation::finish)
+            .collect()
+    }
+
+    pub fn finish(self) -> Vec<StateTransition> {
+        self.aggregations
+            .into_iter()
+            .map(ActorAggregation::finish)
+            .collect()
+    }
 }
 
+#[derive(Clone)]
 struct ActorAggregation {
     newest: StateTransition,
     messages: Vec<Message>,
@@ -996,6 +1029,43 @@ mod tests {
             squashed[0].inheritor, inheritor_late,
             "latest exit's inheritor must win"
         );
+    }
+
+    /// Chunked incremental squashing must equal the one-shot squash and
+    /// `squashed()` snapshots must not disturb later accumulation.
+    #[test]
+    fn incremental_squasher_matches_one_shot() {
+        let t = |seed: u8, actor: u8, negative: bool| StateTransition {
+            actor_id: ActorId::from([actor; 32]),
+            new_state_hash: H256::from([seed; 32]),
+            exited: seed.is_multiple_of(3),
+            inheritor: ActorId::from([seed; 32]),
+            value_to_receive: seed as u128,
+            value_to_receive_negative_sign: negative,
+            value_claims: vec![],
+            messages: vec![],
+        };
+
+        let mb1 = vec![t(1, 0xA, false), t(2, 0xB, true)];
+        let mb2 = vec![t(3, 0xA, true), t(4, 0xC, false)];
+        let mb3 = vec![t(5, 0xB, false), t(6, 0xA, false)];
+
+        let one_shot =
+            squash_transitions_by_actor([mb1.clone(), mb2.clone(), mb3.clone()].concat());
+
+        let mut squasher = TransitionsSquasher::default();
+        squasher.extend(mb1);
+        let _ = squasher.squashed(); // snapshot must be side-effect free
+        squasher.extend(mb2);
+        assert_eq!(
+            squasher.squashed(),
+            squash_transitions_by_actor(squasher.squashed(),),
+            "snapshot must be squash-idempotent"
+        );
+        squasher.extend(mb3);
+
+        assert_eq!(squasher.squashed(), one_shot);
+        assert_eq!(squasher.finish(), one_shot);
     }
 
     #[test]
