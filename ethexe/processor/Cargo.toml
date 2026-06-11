@@ -46,12 +46,14 @@ ark-serialize = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 ark-std = { workspace = true, features = ["std"] }
+proptest.workspace = true
 anyhow.workspace = true
 rand.workspace = true
 tracing-subscriber.workspace = true
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
 demo-panic-payload = { workspace = true, features = ["debug", "ethexe"] }
+demo-crypto-ethexe = { workspace = true, features = ["debug", "ethexe"] }
 wat.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 ethexe-db = { workspace = true, features = ["mock"] }

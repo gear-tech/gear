@@ -84,6 +84,7 @@ members = [
   "sdk/examples/big-data-section",
   "sdk/examples/bls381",
   "sdk/examples/calc-hash",
+  "sdk/examples/crypto-ethexe",
   "sdk/examples/custom",
   "sdk/examples/delayed-reservation-sender",
   "sdk/examples/compose",
@@ -545,6 +546,7 @@ demo-bls381 = { path = "sdk/examples/bls381" }
 demo-calc-hash = { path = "sdk/examples/calc-hash" }
 demo-calc-hash-in-one-block = { path = "sdk/examples/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "sdk/examples/calc-hash/over-blocks" }
+demo-crypto-ethexe = { path = "sdk/examples/crypto-ethexe" }
 demo-custom = { path = "sdk/examples/custom" }
 demo-delayed-reservation-sender = { path = "sdk/examples/delayed-reservation-sender" }
 demo-compose = { path = "sdk/examples/compose" }

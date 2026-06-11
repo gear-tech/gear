@@ -417,7 +417,14 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
             .dependencies
             .iter()
             .any(|dep| dep.name == "gear-workspace-hack");
-        let syscall_kind = if is_workspace_hack {
+        // This runs inside the program's build script, so the program's own
+        // `ethexe` feature is visible as `CARGO_FEATURE_ETHEXE` — the most
+        // precise signal to validate against the ethexe syscall set. The
+        // workspace-hack check keeps in-tree Vara programs on Vara validation
+        // even when feature unification enables the builder's `ethexe`.
+        let syscall_kind = if env::var("CARGO_FEATURE_ETHEXE").is_ok() {
+            SyscallKind::Eth
+        } else if is_workspace_hack {
             SyscallKind::Vara
         } else {
             SYSCALL_KIND

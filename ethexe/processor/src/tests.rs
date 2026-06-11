@@ -657,7 +657,7 @@ async fn ping_pong() {
             actor_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested(
                 ExecutableBalanceTopUpRequestedEvent {
-                    value: 150_000_000_000,
+                    value: 1_500_000_000_000,
                 },
             ),
         )
@@ -2422,4 +2422,223 @@ async fn call_wait_up_to_with_huge_duration() {
     );
     let task = tasks.into_iter().next().unwrap();
     assert!(matches!(task, ScheduledTask::WakeMessage(_, _)));
+}
+
+/// End-to-end `gr_crypto` hashes: program output must match the native
+/// host implementation (which is itself pinned to reference vectors).
+#[tokio::test]
+async fn crypto_syscall_hashes() {
+    init_logger();
+
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_crypto_ethexe::WASM_BINARY]).await;
+    let block1 = chain.blocks[1].to_simple();
+
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 1_500_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+
+    // The first queued message becomes the Init dispatch (the demo has no
+    // `init` export, so it auto-replies with an empty payload) — spend it.
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(100),
+                source: user_id,
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to send init message");
+
+    let data = b"ethexe crypto syscall";
+    for op in [0u8, 1, 2] {
+        let mut payload = vec![op];
+        payload.extend_from_slice(data);
+        handler
+            .handle_mirror_event(
+                actor_id,
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: MessageId::from(op as u64 + 1),
+                    source: user_id,
+                    payload,
+                    value: 0,
+                    call_reply: false,
+                }),
+            )
+            .expect("failed to send message");
+    }
+
+    let to_users = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap()
+        .current_messages();
+
+    assert_eq!(to_users.len(), 4);
+    assert!(to_users[0].1.payload.is_empty(), "empty init auto-reply");
+    for (op, (_, message)) in to_users[1..].iter().enumerate() {
+        let expected = crate::host::api::crypto::ops::execute(
+            gsys::CryptoOp::from_u32(op as u32).unwrap(),
+            data,
+        )
+        .unwrap();
+        assert_eq!(message.destination, user_id);
+        assert_eq!(
+            message.payload, expected,
+            "digest mismatch for op {op} via the syscall path"
+        );
+    }
+}
+
+/// End-to-end BLS12-381 verification through the syscall: a valid
+/// signature yields `[1]`, a wrong message `[0]`, malformed input `b"err"`.
+#[tokio::test]
+async fn crypto_syscall_bls_verify() {
+    use ark_bls12_381::{Fr, G1Projective, G2Projective};
+    use ark_ec::{
+        Group,
+        bls12::Bls12Config,
+        hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
+    };
+    use ark_ff::{UniformRand, fields::field_hashers::DefaultFieldHasher};
+    use ark_serialize::CanonicalSerialize;
+    use ark_std::rand::{SeedableRng, rngs::StdRng};
+
+    init_logger();
+
+    type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
+    const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+
+    let mut rng = StdRng::seed_from_u64(1337);
+    let sk = Fr::rand(&mut rng);
+    let message = b"announce";
+
+    let mut pk = Vec::new();
+    (G1Projective::generator() * sk)
+        .serialize_compressed(&mut pk)
+        .unwrap();
+    let hasher =
+        MapToCurveBasedHasher::<G2Projective, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2)
+            .unwrap();
+    let mut signature = Vec::new();
+    (hasher.hash(message).unwrap() * sk)
+        .serialize_compressed(&mut signature)
+        .unwrap();
+
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_crypto_ethexe::WASM_BINARY]).await;
+    let block1 = chain.blocks[1].to_simple();
+
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 1_500_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+
+    // Spend the Init dispatch (no `init` export — empty auto-reply).
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(100),
+                source: user_id,
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to send init message");
+
+    let verify_payload = |msg: &[u8]| {
+        let mut payload = vec![3u8];
+        payload.extend_from_slice(&pk);
+        payload.extend_from_slice(&signature);
+        payload.extend_from_slice(msg);
+        payload
+    };
+    // Malformed: garbage points of correct length.
+    let mut malformed = vec![3u8];
+    malformed.extend_from_slice(&[0xFF; 144]);
+    malformed.extend_from_slice(message);
+
+    for (id, payload) in [
+        verify_payload(message),
+        verify_payload(b"forged"),
+        malformed,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        handler
+            .handle_mirror_event(
+                actor_id,
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: MessageId::from(id as u64 + 1),
+                    source: user_id,
+                    payload,
+                    value: 0,
+                    call_reply: false,
+                }),
+            )
+            .expect("failed to send message");
+    }
+
+    let to_users = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap()
+        .current_messages();
+
+    assert_eq!(to_users.len(), 4);
+    assert!(to_users[0].1.payload.is_empty(), "empty init auto-reply");
+    assert_eq!(to_users[1].1.payload, vec![1], "valid signature");
+    assert_eq!(to_users[2].1.payload, vec![0], "forged message");
+    assert_eq!(to_users[3].1.payload, b"err".to_vec(), "malformed points");
 }

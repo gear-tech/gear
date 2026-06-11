@@ -4316,6 +4316,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-crypto-ethexe"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gear-workspace-hack",
+ "gstd",
+]
+
+[[package]]
 name = "demo-ctor"
 version = "0.1.0"
 dependencies = [
@@ -5845,6 +5854,7 @@ dependencies = [
  "blake2 0.10.6",
  "crossbeam",
  "demo-async",
+ "demo-crypto-ethexe",
  "demo-panic-payload",
  "demo-ping",
  "derive_more 2.1.1",
@@ -5866,6 +5876,7 @@ dependencies = [
  "itertools 0.13.0",
  "log",
  "parity-scale-codec",
+ "proptest",
  "rand 0.8.5",
  "sha2 0.10.9",
  "sha3",

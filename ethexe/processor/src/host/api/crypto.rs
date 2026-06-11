@@ -141,6 +141,59 @@ pub(crate) mod ops {
         use ark_ff::UniformRand;
         use ark_std::rand::{SeedableRng, rngs::StdRng};
 
+        mod props {
+            use super::*;
+            use proptest::prelude::*;
+
+            proptest! {
+                /// Host crypto must never panic on attacker-controlled
+                /// input — malformed data maps to `Err`, and successful
+                /// results always match the declared output size.
+                #[test]
+                fn execute_never_panics_and_sizes_output(
+                    op_raw in 0u32..8,
+                    input in proptest::collection::vec(any::<u8>(), 0..512),
+                ) {
+                    let Some(op) = CryptoOp::from_u32(op_raw) else {
+                        return Ok(());
+                    };
+                    if let Ok(output) = execute(op, &input) {
+                        prop_assert_eq!(output.len(), op.output_len() as usize);
+                    }
+                }
+
+                /// G1 aggregation is order-independent.
+                #[test]
+                fn aggregate_g1_is_order_independent(
+                    seeds in proptest::collection::vec(any::<u64>(), 2..5),
+                    swap in any::<prop::sample::Index>(),
+                ) {
+                    let points: Vec<Vec<u8>> = seeds
+                        .iter()
+                        .map(|seed| {
+                            let mut rng = StdRng::seed_from_u64(*seed);
+                            pk_bytes(&Fr::rand(&mut rng))
+                        })
+                        .collect();
+
+                    let forward = execute(
+                        CryptoOp::Bls12381AggregateG1,
+                        &points.concat(),
+                    ).unwrap();
+
+                    let mut shuffled = points.clone();
+                    let i = swap.index(shuffled.len());
+                    shuffled.swap(0, i);
+                    let swapped = execute(
+                        CryptoOp::Bls12381AggregateG1,
+                        &shuffled.concat(),
+                    ).unwrap();
+
+                    prop_assert_eq!(forward, swapped);
+                }
+            }
+        }
+
         fn hex(bytes: &[u8]) -> String {
             bytes.iter().map(|b| format!("{b:02x}")).collect()
         }
