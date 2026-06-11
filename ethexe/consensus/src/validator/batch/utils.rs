@@ -1031,6 +1031,71 @@ mod tests {
         );
     }
 
+    /// Exactly what `BatchSizeCounter::charge_for_chain_commitment` charges.
+    fn charged_chain_size(commitment: &ChainCommitment) -> u64 {
+        use alloy::sol_types::SolValue;
+        let encoded: Vec<ethexe_ethereum::abi::Gear::ChainCommitment> =
+            vec![commitment.clone().into()];
+        encoded.abi_encoded_size() as u64
+    }
+
+    /// The core of #5356: with a budget that fits the SQUASHED payload but
+    /// not the raw concatenation, the producer must still include all MBs —
+    /// repeated actors are charged once.
+    #[test]
+    fn producer_charges_squashed_payload() {
+        use crate::validator::batch::{filler::BatchFiller, types::BatchLimits};
+
+        let db = Database::memory();
+        let actor = ActorId::from([7; 32]);
+        let transition = |seed: u8| StateTransition {
+            actor_id: actor,
+            new_state_hash: H256::from([seed; 32]),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: seed as u128,
+            value_to_receive_negative_sign: false,
+            value_claims: vec![],
+            messages: vec![],
+        };
+
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![transition(1)]);
+        let mb2 = write_mb(&db, mb1, 2, vec![transition(2)]);
+
+        let squashed_commitment = ChainCommitment {
+            head: mb2,
+            transitions: squash_transitions_by_actor(vec![transition(1), transition(2)]),
+            last_advanced_eth_block: H256::zero(),
+        };
+        let raw_commitment = ChainCommitment {
+            transitions: vec![transition(1), transition(2)],
+            ..squashed_commitment.clone()
+        };
+
+        // Budget fits the squashed payload only — pre-#5356 trial-fitting of
+        // the raw concatenation would have stopped at mb1.
+        let limit = charged_chain_size(&squashed_commitment);
+        assert!(charged_chain_size(&raw_commitment) > limit);
+
+        let mut filler = BatchFiller::new(BatchLimits {
+            batch_size_limit: limit,
+            ..BatchLimits::default()
+        });
+
+        let last_included =
+            try_include_chain_commitment(&db, H256::from([0xB1; 32]), mb2, &mut filler).unwrap();
+        assert_eq!(last_included, mb2, "both MBs must fit post-squash");
+
+        let chain = filler
+            .into_parts()
+            .chain_commitment
+            .expect("chain commitment must be included");
+        assert_eq!(chain.head, mb2);
+        assert_eq!(chain.transitions.len(), 1, "single squashed actor");
+        assert_eq!(chain.transitions[0].new_state_hash, H256::from([2; 32]));
+        assert_eq!(chain.transitions[0].value_to_receive, 3);
+    }
+
     /// Chunked incremental squashing must equal the one-shot squash and
     /// `squashed()` snapshots must not disturb later accumulation.
     #[test]

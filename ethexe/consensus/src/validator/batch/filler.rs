@@ -169,6 +169,60 @@ mod tests {
         );
     }
 
+    /// `into_parts` is a plain accessor: the included chain commitment
+    /// comes back byte-identical, with no squash/sort mutation.
+    #[test]
+    fn into_parts_returns_chain_commitment_unchanged() {
+        use ethexe_common::gear::StateTransition;
+        use gprimitives::ActorId;
+
+        let mut filler = BatchFiller::new(BatchLimits::default());
+        let transition = |actor: u8, negative: bool| StateTransition {
+            actor_id: ActorId::from([actor; 32]),
+            new_state_hash: H256::from([actor; 32]),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 10,
+            value_to_receive_negative_sign: negative,
+            value_claims: vec![],
+            messages: vec![],
+        };
+        let commitment = ChainCommitment {
+            head: H256::from_low_u64_be(0xC0DE),
+            transitions: vec![transition(1, true), transition(2, false)],
+            last_advanced_eth_block: H256::from_low_u64_be(0xEB),
+        };
+
+        filler.include_chain_commitment(commitment.clone()).unwrap();
+        assert_eq!(filler.into_parts().chain_commitment, Some(commitment));
+    }
+
+    /// The filler enforces (in debug) that callers pre-squash transitions.
+    #[test]
+    #[should_panic(expected = "must be squashed")]
+    fn include_chain_commitment_rejects_unsquashed_transitions() {
+        use ethexe_common::gear::StateTransition;
+        use gprimitives::ActorId;
+
+        let mut filler = BatchFiller::new(BatchLimits::default());
+        let transition = StateTransition {
+            actor_id: ActorId::from([1; 32]),
+            new_state_hash: H256::zero(),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 0,
+            value_to_receive_negative_sign: false,
+            value_claims: vec![],
+            messages: vec![],
+        };
+
+        let _ = filler.include_chain_commitment(ChainCommitment {
+            head: H256::from_low_u64_be(0xC0DE),
+            transitions: vec![transition.clone(), transition],
+            last_advanced_eth_block: H256::zero(),
+        });
+    }
+
     /// Once the running size budget is exhausted, further code commitments
     /// must be rejected — and the rejected commitment must not leak into
     /// the accumulated parts.
