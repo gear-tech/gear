@@ -18,4 +18,4 @@ gear-wasm-builder.workspace = true
 debug = ["gstd/debug"]
 std = []
 default = ["std"]
-ethexe = ["gstd/ethexe", "gear-wasm-builder/ethexe"]
+ethexe = ["gstd/ethexe"]
