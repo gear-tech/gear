@@ -223,6 +223,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     )
     .await
     .expect("start malachite service");
+    svc.start_app_task();
 
     // Feed chain heads one-per-round so the quarantine-advance
     // probe always sees a strictly newer EB (parent's
@@ -265,6 +266,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     )
     .await
     .expect("restart malachite service");
+    svc2.start_app_task();
     let mut pending2 = chain[32..].iter().copied();
     let (high2, finalized2) =
         collect_until_finalized(&mut svc2, &mut pending2, 3, Duration::from_secs(60)).await;
