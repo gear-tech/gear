@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Core public types for [`crate::MalachiteService`].
+//! Core public types for [`crate::MalachiteCore`].
 
 use gear_core::limited::LimitedVec;
 pub use gprimitives::H256;

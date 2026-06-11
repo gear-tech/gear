@@ -111,7 +111,7 @@ impl State {
     }
 
     /// Round timeouts. Propose phase is bounded by the configured
-    /// [`crate::MalachiteConfig::propose_timeout`] plus a small margin
+    /// [`crate::MalachiteCoreConfig::propose_timeout`] plus a small margin
     /// for non-proposers; everything else (including the per-round
     /// `propose_delta`) stays at the engine defaults.
     pub fn get_timeouts(&self, _height: Height) -> LinearTimeouts {

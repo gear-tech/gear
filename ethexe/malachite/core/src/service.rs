@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! [`MalachiteService`] — the public entry point.
+//! [`MalachiteCore`] — the public entry point.
 
 use crate::{
     app,
@@ -80,7 +80,7 @@ const WAL_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(25);
 /// The actor's `JoinHandle` is therefore *not* a sufficient barrier —
 /// the writer thread can still be live (and the lock still held) after
 /// the engine task exits. We probe the lock here so callers of
-/// [`MalachiteService::shutdown`] can immediately re-open the same
+/// [`MalachiteCore::shutdown`] can immediately re-open the same
 /// base dir without spurious "advisory lock held" errors.
 ///
 /// A missing WAL file means we never wrote one; nothing to wait for.
@@ -180,7 +180,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
 
         // ---- validator set from config ----
         if config.validators.is_empty() {
-            return Err(anyhow::anyhow!("MalachiteConfig::validators is empty"));
+            return Err(anyhow::anyhow!("MalachiteCoreConfig::validators is empty"));
         }
         let mut validators = Vec::with_capacity(config.validators.len());
         for entry in &config.validators {
@@ -197,7 +197,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             NodeRole::Validator => {
                 if !in_set {
                     return Err(anyhow::anyhow!(
-                        "NodeRole::Validator: local address {address} not present in MalachiteConfig::validators"
+                        "NodeRole::Validator: local address {address} not present in MalachiteCoreConfig::validators"
                     ));
                 }
                 let peer_id_bytes = libp2p_keypair.public().to_peer_id().to_bytes();
@@ -223,7 +223,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             NodeRole::FullNode => {
                 if in_set {
                     return Err(anyhow::anyhow!(
-                        "NodeRole::FullNode: local address {address} must NOT be in MalachiteConfig::validators"
+                        "NodeRole::FullNode: local address {address} must NOT be in MalachiteCoreConfig::validators"
                     ));
                 }
                 NetworkIdentity::new(moniker.clone(), libp2p_keypair, None)
@@ -290,7 +290,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
     pub fn update_validators(&self, validators: Vec<crate::ValidatorEntry>) -> Result<()> {
         if validators.is_empty() {
             return Err(anyhow::anyhow!(
-                "MalachiteService::update_validators: empty validators list"
+                "MalachiteCore::update_validators: empty validators list"
             ));
         }
         let mut converted = Vec::with_capacity(validators.len());

@@ -19,7 +19,7 @@
 //! - [`MalachiteService`] (struct) — Public facade; `Stream` + driver methods
 //! - [`MalachiteEvent`] (enum) — Output event: proposal, finalization, purged txs
 //! - [`CommitCertificate`] (struct) — BFT commit proof attached to `BlockFinalized`
-//! - [`MalachiteConfig`] (struct) — Service configuration
+//! - [`MalachiteServiceConfig`] (struct) — Service configuration
 //! - [`ValidatorEntry`] (struct) — Single entry in the validator set
 //! - [`Mempool`] (trait) — Producer-side injected-tx source
 //! - [`InjectedTxMempool`] (struct) — Real mempool implementation

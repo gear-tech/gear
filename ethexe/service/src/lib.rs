@@ -614,7 +614,7 @@ impl Service {
 
     /// Install a graceful-shutdown channel. The returned sender,
     /// when fired, breaks the run loop at the next yield and then
-    /// awaits [`MalachiteService::shutdown`] before `run` returns —
+    /// awaits [`ethexe_malachite::MalachiteService::shutdown`] before `run` returns —
     /// freeing the RocksDB advisory lock and libp2p listener
     /// synchronously, which a plain `JoinHandle::abort` does not
     /// guarantee.

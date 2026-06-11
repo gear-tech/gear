@@ -64,7 +64,7 @@ pub trait Externalities: Send + Sync + 'static {
     /// The future may take an arbitrarily long time — for example to
     /// wait on a mempool, an external block source, or a chain head
     /// — and the service races it against
-    /// [`crate::MalachiteConfig::propose_timeout`]. On timeout the
+    /// [`crate::MalachiteCoreConfig::propose_timeout`]. On timeout the
     /// future is cancelled (dropped); implementations must be
     /// cancellation-safe.
     ///

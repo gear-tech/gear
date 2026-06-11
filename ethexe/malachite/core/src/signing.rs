@@ -5,7 +5,7 @@
 //! derivation that the Malachite swarm uses.
 //!
 //! The node's master secret enters the service via
-//! [`crate::MalachiteConfig::validator_secret`] (a
+//! [`crate::MalachiteCoreConfig::validator_secret`] (a
 //! `gsigner::secp256k1::PrivateKey`). The 32 raw bytes drive two
 //! separate identities:
 //!

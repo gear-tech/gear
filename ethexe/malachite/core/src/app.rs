@@ -18,7 +18,7 @@
 //! [`crate::Externalities`] is enforced by
 //! [`Store::cascade_save`] / [`Store::cascade_finalize`]; fatal
 //! callback errors are surfaced through
-//! [`crate::MalachiteService`]'s error stream.
+//! [`crate::MalachiteCore`]'s error stream.
 //!
 //! Each [`AppMsg`] variant is paired with a `process_*` method on
 //! [`AppMsgHandler`] that performs the work and returns the value the

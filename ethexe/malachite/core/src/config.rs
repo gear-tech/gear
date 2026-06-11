@@ -9,7 +9,7 @@ pub use malachitebft_app_channel::app::net::Multiaddr;
 
 /// One entry of the validator set. The set is fixed for the lifetime
 /// of the deployment — to rotate validators every node must be
-/// re-bootstrapped from a fresh [`MalachiteConfig`].
+/// re-bootstrapped from a fresh [`MalachiteCoreConfig`].
 //
 // TODO: #5480 add `libp2p_peer_id: PeerId` so receivers can gate
 //       `ReceivedProposalPart` against a validator-peer-id allowlist
@@ -36,11 +36,11 @@ pub struct ValidatorEntry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeRole {
     /// Sign votes and proposals; broadcast a validator proof on
-    /// connect; the local address must appear in [`MalachiteConfig::validators`].
+    /// connect; the local address must appear in [`MalachiteCoreConfig::validators`].
     Validator,
     /// Read-only participant — joins gossip / sync, validates
     /// incoming blocks, but never signs anything. The local address
-    /// must NOT appear in [`MalachiteConfig::validators`].
+    /// must NOT appear in [`MalachiteCoreConfig::validators`].
     FullNode,
 }
 

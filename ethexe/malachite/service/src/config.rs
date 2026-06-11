@@ -37,7 +37,7 @@ pub struct MalachiteServiceConfig {
     /// Local libp2p listen address for the Malachite swarm.
     pub listen_addr: SocketAddr,
 
-    /// Directory where the wrapped [`ethexe_malachite_core::MalachiteService`] keeps
+    /// Directory where the wrapped [`ethexe_malachite_core::MalachiteCore`] keeps
     /// its WAL (`malachite/consensus.wal`) and RocksDB store
     /// (`malachite/store.db/`).
     pub home_dir: PathBuf,
@@ -51,7 +51,7 @@ pub struct MalachiteServiceConfig {
 
     /// The complete validator set. The local node's public key (the
     /// one whose secret comes from the [`gsigner::Signer`] passed to
-    /// [`crate::MalachiteService::new`]) must appear in this list, or
+    /// [`crate::MalachiteServiceStarter::new`]) must appear in this list, or
     /// service start-up fails.
     ///
     /// Voting power is taken at face value — Tendermint's quorum
@@ -78,7 +78,7 @@ impl MalachiteServiceConfig {
 
     /// Build a config with sane defaults from the node's home
     /// directory. The validator set is left empty — the caller MUST
-    /// fill it in before passing to [`crate::MalachiteService::new`]
+    /// fill it in before passing to [`crate::MalachiteServiceStarter::new`]
     /// (see [`Self::with_validators`]).
     pub fn from_home_dir(home_dir: PathBuf) -> Self {
         Self {
