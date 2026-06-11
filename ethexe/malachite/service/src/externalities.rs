@@ -61,9 +61,14 @@ use std::{collections::VecDeque, sync::Arc};
 use tokio::sync::{RwLock, mpsc::UnboundedSender};
 use tracing::{debug, error, trace, warn};
 
+/// Constant parameters for [`EthexeExternalities`];
+/// see [`crate::MalachiteServiceConfig`] for field semantics.
 pub struct ExternalitiesConfig {
+    /// Gas allowance per block.
     pub gas_allowance: u64,
+    /// Quarantine depth an EB must clear before it can be advanced to.
     pub canonical_quarantine: u8,
+    /// Extra producer-side anchor depth on top of `canonical_quarantine`.
     pub post_quarantine_delay: u32,
 }
 
@@ -262,8 +267,7 @@ impl Externalities for EthexeExternalities {
 
             let tx_size = tx.encoded_size();
             if size_counter + tx_size > MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB {
-                // Master's behaviour: skip oversized tx but keep
-                // trying smaller subsequent txs.
+                // Skip the oversized tx but keep trying smaller subsequent ones.
                 continue;
             }
 

@@ -21,7 +21,8 @@ use tokio::sync::{
     mpsc::{self, UnboundedReceiver},
 };
 
-/// Consensus service starter.
+/// Consensus service starter: prepares all [`MalachiteService`] components
+/// up front so [`Self::start`] only has to launch the consensus core.
 pub struct MalachiteServiceStarter {
     events_rx: UnboundedReceiver<Result<MalachiteEvent>>,
     chain_head: Arc<ChainHead>,
@@ -33,6 +34,9 @@ pub struct MalachiteServiceStarter {
 }
 
 impl MalachiteServiceStarter {
+    /// Prepare a service: resolve the node role (validator / full node),
+    /// build the externalities and the core config.
+    /// Fails if `config.validators` is empty or the validator key is absent in the signer.
     pub async fn new<M: Mempool>(
         config: MalachiteServiceConfig,
         validator_config: Option<ValidatorConfig<M>>,
@@ -123,6 +127,7 @@ impl MalachiteServiceStarter {
         })
     }
 
+    /// Launch the consensus core and assemble the running [`MalachiteService`].
     pub async fn start(self) -> Result<MalachiteService> {
         let MalachiteServiceStarter {
             events_rx,

@@ -634,22 +634,10 @@ where
         }
     }
 
-    /// Drive the strict-ordering save cascade against the application
-    /// for a freshly-assembled block. Inserts a `saved=false,
-    /// finalized=false, cert=None` [`BlockEntry`] and runs
-    /// [`Store::cascade_save`] from this hash — the cascade flushes
-    /// every ancestor that is now connected in chronological
-    /// (parent-first) order. If an ancestor is still missing the
-    /// cascade is a no-op; it will pick up when the gap closes via a
-    /// later assembled block at the missing height.
-    ///
-    /// Called from [`Self::process_get_value`] (we are proposer),
-    /// [`Self::process_received_proposal_part`] (peer proposal), and
-    /// [`Self::process_synced_value`] (sync path). Multiple callers
-    /// can race for the same `block_hash` — `Store::insert_block`
-    /// dedup is idempotent and `cascade_save` skips already-saved
-    /// entries, so the application's `process_mb_proposal` runs at
-    /// most once per `block_hash`.
+    /// Record a freshly-assembled block and run the parent-first save
+    /// cascade, so the application's `process_mb_proposal` fires for every
+    /// now-connected ancestor. Idempotent — racing callers are deduped and
+    /// the callback runs at most once per `block_hash`.
     async fn record_assembled_block(&self, block: Block) -> Result<()> {
         let block_hash = block.hash();
         self.state.store.insert_block(BlockEntry {
@@ -671,17 +659,10 @@ where
             .await
     }
 
-    /// Attach the engine's quorum certificate to the
-    /// already-processed [`BlockEntry`] and run the finalize cascade.
-    ///
-    /// Contract: the block (and every ancestor) must have already been
-    /// processed by [`Self::record_assembled_block`] earlier — the
-    /// strict-ordering guarantee documented on
-    /// [`crate::Externalities::process_mb_proposal`]. A debug-build
-    /// assertion catches a violation; in release builds
-    /// [`Store::cascade_finalize`] silently no-ops on an unsaved
-    /// ancestor (the `finalize_chain` walk returns `None`), and the
-    /// `errors_tx` channel surfaces the contract breach upstream.
+    /// Attach the engine's quorum certificate to the already-processed
+    /// [`BlockEntry`] and run the finalize cascade. The block and every
+    /// ancestor must have been saved via [`Self::record_assembled_block`]
+    /// first (debug assertion; release no-ops on an unsaved ancestor).
     async fn ingest_finalized(&self, cert: EngineCert, block_bytes: Vec<u8>) -> Result<()> {
         let block = Block::decode(&mut &block_bytes[..])
             .map_err(|e| anyhow!("decoding Block at finalize: {e}"))?;

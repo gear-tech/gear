@@ -18,17 +18,13 @@ pub struct MalachiteServiceConfig {
     /// Gas allowance per block.
     pub gas_allowance: u64,
 
-    /// Number of canonical descendants an Ethereum block must have
-    /// before it is considered out of quarantine and safe to anchor a
-    /// sequencer block to.
+    /// Number of canonical descendants an EB must have before it is
+    /// out of quarantine and safe to advance to.
     pub canonical_quarantine: u8,
 
-    /// Extra depth (in Hoodi blocks, on top of `canonical_quarantine`)
-    /// the proposer waits before choosing an EB to advance to. A
-    /// positive value gives lagging validators time to receive the EB
-    /// before the proposer references it, eliminating the need for
-    /// validators to wait on local sync inside `validate_block_above`.
-    /// Defaults to 1.
+    /// Extra depth on top of `canonical_quarantine` the proposer waits
+    /// before choosing an EB to advance to, giving lagging validators
+    /// time to sync it.
     // TODO: #5478 reject unreasonable values at config load — `u32::MAX`
     //       turns the producer's anchor walk into millions of RocksDB reads
     //       per `wait_for_proposable_content` invocation.
@@ -37,26 +33,15 @@ pub struct MalachiteServiceConfig {
     /// Local libp2p listen address for the Malachite swarm.
     pub listen_addr: SocketAddr,
 
-    /// Directory where the wrapped [`ethexe_malachite_core::MalachiteCore`] keeps
-    /// its WAL (`malachite/consensus.wal`) and RocksDB store
-    /// (`malachite/store.db/`).
+    /// Directory for the consensus core's WAL and RocksDB store.
     pub home_dir: PathBuf,
 
-    /// Multiaddrs the local node should keep persistent connections
-    /// to. Each entry must include the `/p2p/<peer_id>` suffix so the
-    /// swarm knows who to expect on the other side. Discovery is off,
-    /// so multi-validator deployments need every node listed (or at
-    /// least transitively reachable through the listed ones).
+    /// Multiaddrs of peers to keep persistent connections to; each entry
+    /// must include a `/p2p/<peer_id>` suffix (discovery is off).
     pub persistent_peers: Vec<Multiaddr>,
 
-    /// The complete validator set. The local node's public key (the
-    /// one whose secret comes from the [`gsigner::Signer`] passed to
-    /// [`crate::MalachiteServiceStarter::new`]) must appear in this list, or
-    /// service start-up fails.
-    ///
-    /// Voting power is taken at face value — Tendermint's quorum
-    /// threshold is `> 2/3` of the total voting power across the
-    /// list.
+    /// The complete validator set. Quorum is `> 2/3` of total voting power.
+    /// A validator node's own public key must appear in this list.
     pub validators: Vec<ValidatorEntry>,
 }
 
@@ -64,22 +49,16 @@ impl MalachiteServiceConfig {
     pub const DEFAULT_GAS_ALLOWANCE: u64 = ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
     /// Default matches [`ethexe_common::gear::CANONICAL_QUARANTINE`].
     pub const DEFAULT_CANONICAL_QUARANTINE: u8 = ethexe_common::gear::CANONICAL_QUARANTINE;
-    /// Default extra anchor-depth slack the proposer adds on top of
-    /// `canonical_quarantine`; one Hoodi block is enough to absorb the
-    /// typical observer-to-observer skew between validators.
+    /// One block is enough to absorb the typical observer skew between validators.
     pub const DEFAULT_POST_QUARANTINE_DELAY: u32 = 1;
-    /// Sits next to the typical ethexe-network 20333/udp QUIC port —
-    /// operators can open one contiguous range. Note the protocol
-    /// difference: Malachite binds a TCP listener.
+    /// TCP listener next to the typical ethexe-network 20333/udp QUIC port.
     pub const DEFAULT_LISTEN_ADDR: SocketAddr = SocketAddr::new(
         std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
         20334,
     );
 
-    /// Build a config with sane defaults from the node's home
-    /// directory. The validator set is left empty — the caller MUST
-    /// fill it in before passing to [`crate::MalachiteServiceStarter::new`]
-    /// (see [`Self::with_validators`]).
+    /// Build a config with defaults from the node's home directory.
+    /// The validator set is left empty — fill it in with [`Self::with_validators`].
     pub fn from_home_dir(home_dir: PathBuf) -> Self {
         Self {
             gas_allowance: Self::DEFAULT_GAS_ALLOWANCE,
@@ -129,9 +108,13 @@ impl MalachiteServiceConfig {
     }
 }
 
+/// Validator-only part of the service configuration.
 pub struct ValidatorConfig<M: Mempool> {
+    /// Validator's on-chain public key; its secret must be in `signer`.
     pub pub_key: PublicKey,
+    /// Mempool serving injected transactions to the producer.
     pub mempool: M,
+    /// Keystore holding the validator's signing key.
     pub signer: Signer,
 }
 

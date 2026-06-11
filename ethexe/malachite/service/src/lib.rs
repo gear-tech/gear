@@ -71,11 +71,14 @@ pub use ethexe_malachite_core::{
     Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
 };
 
-/// Ethexe-shaped commit certificate; `block_hash` is the Blake2b envelope hash.
+/// Ethexe-shaped commit certificate.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct CommitCertificate {
+    /// Committed MB height.
     pub height: u64,
+    /// Blake2b envelope hash of the committed MB.
     pub mb_hash: H256,
+    /// Validator signatures backing the commit.
     pub signatures: Vec<Vec<u8>>,
 }
 

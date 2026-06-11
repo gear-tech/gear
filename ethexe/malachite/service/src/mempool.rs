@@ -48,16 +48,9 @@ use std::{
 use tokio::sync::{Notify, RwLock};
 use tracing::{info, trace};
 
-/// Outcome of [`Mempool::insert`]. Splits into two groups:
-///
-/// - **Accept** — the tx is (now or already) tracked by this validator, so
-///   the caller's promise subscription remains valid.
-/// - **Reject** — the tx will never be processed by this validator and
-///   the caller should treat it as terminal.
-///
-/// Group membership is queried via [`Self::is_accepted`]; the
-/// `From<TxInsertionStatus> for InjectedTransactionAcceptance` impl uses
-/// that to project into the RPC-facing acceptance type.
+/// Outcome of [`Mempool::insert`]: accept variants mean the tx is (now or
+/// already) tracked by this validator; reject variants are terminal.
+/// See [`Self::is_accepted`].
 #[derive(Clone, Debug, PartialEq, Eq, derive_more::Display)]
 pub enum TxInsertionStatus {
     // ---- Accept ----
@@ -67,22 +60,17 @@ pub enum TxInsertionStatus {
     /// Same tx hash already lives in the pool — idempotent no-op.
     #[display("already in pool")]
     AlreadyInPool,
-    /// Same tx hash was committed within the validity window and is in
-    /// the seen-hash table — idempotent no-op.
+    /// Same tx hash was already committed within the validity window — idempotent no-op.
     #[display("already included within validity window")]
     AlreadyIncluded,
     // ---- Reject ----
-    /// `reference_block` is past the validity window relative to the
-    /// latest observed head.
+    /// `reference_block` is past the validity window relative to the latest head.
     #[display("reference_block past validity window")]
     ExpiredRefBlock,
     /// Pool is at capacity.
     #[display("mempool at capacity")]
     PoolFull,
-    /// Per #5083, non-zero-value injected transactions are not yet
-    /// supported. Reject at insert so the pool never holds one — the
-    /// proposer cannot accidentally select it and the runtime won't
-    /// charge a panicking program for an out-of-budget transfer.
+    /// Non-zero-value injected transactions are not yet supported (#5083).
     #[display("non-zero value injected txs are not yet supported (#5083)")]
     NonZeroValue,
 }
@@ -114,10 +102,11 @@ impl From<TxInsertionStatus> for InjectedTransactionAcceptance {
 /// `forget` runs after MB finalization and dedups within `VALIDITY_WINDOW`.
 #[async_trait]
 pub trait Mempool: Send + Sync + 'static {
-    /// Attempt to insert a new transaction into the pool. The tx's hash is
+    /// Attempt to insert a new transaction into the pool.
     async fn insert(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus;
 
-    /// Notify the pool of a new chain head. The pool uses this to evict expired
+    /// Notify the pool of a new chain head; evicts expired entries
+    /// and returns the purged transactions.
     async fn set_chain_head(&self, head: SimpleBlockData) -> Vec<PurgedTransaction>;
 
     /// Txs whose `reference_block` is an ancestor of `head`.
@@ -167,9 +156,10 @@ pub const DEFAULT_POOL_CAPACITY: usize = 10_000;
 // `VALIDITY_WINDOW` ages them out. Needs a per-sender quota keyed on the
 // recovered ECDSA address.
 
-/// Pool state behind a single mutex — operations are short, contention low.
+/// Pool state behind a single lock — operations are short, contention low.
 #[derive(Debug, Default)]
 struct Inner {
+    /// Pending transactions by hash.
     pool: HashMap<HashOf<InjectedTransaction>, SignedInjectedTransaction>,
     /// Recently committed txs (tx_hash → ref_block) for dedup. Aged out with the validity window.
     seen: HashMap<HashOf<InjectedTransaction>, H256>,
@@ -177,10 +167,14 @@ struct Inner {
     latest_head_height: Option<u32>,
 }
 
+/// In-memory injected-tx pool backed by the node DB for ref-block resolution.
 #[derive(Debug)]
 pub struct InjectedTxMempool {
+    /// Mutable pool state.
     inner: RwLock<Inner>,
+    /// DB for resolving `reference_block` heights and ancestor walks.
     db: Database,
+    /// Max number of pending transactions.
     capacity: usize,
     /// Notification about new transactions in `wait_for_new_tx`.
     new_tx_notify: Arc<Notify>,
@@ -302,10 +296,7 @@ impl Mempool for InjectedTxMempool {
         let tx_hash = tx_data.to_hash();
         let ref_block = tx_data.reference_block;
 
-        // Reject non-zero-value txs unconditionally (#5083 — value-bearing
-        // injected txs are not supported yet). Done first so a malicious
-        // sender can't burn pool capacity with txs that will never be
-        // selectable.
+        // Reject non-zero-value txs first (#5083) so they never burn pool capacity.
         if tx_data.value != 0 {
             info!(
                 %tx_hash,
@@ -327,10 +318,8 @@ impl Mempool for InjectedTxMempool {
             return TxInsertionStatus::AlreadyInPool;
         }
 
-        // ref_block resolution is best-effort: a recipient that hasn't yet
-        // observed the producer's reference Eth block accepts and filters
-        // at fetch time once the block lands locally. Only reject when
-        // the ref_block is known AND already past the validity window.
+        // Unknown ref_block is accepted (filtered at fetch time);
+        // reject only when it is known AND already past the validity window.
         let ref_height_opt = self.ref_block_height(ref_block);
         if let Some(ref_height) = ref_height_opt
             && let Some(head_height) = inner.latest_head_height
@@ -348,20 +337,12 @@ impl Mempool for InjectedTxMempool {
             return TxInsertionStatus::PoolFull;
         }
 
-        // Drop the lock around the DB write so concurrent inserts /
-        // fetches don't serialise behind disk I/O. After the write we
-        // re-acquire and re-run the duplicate / capacity gates: another
-        // concurrent insert could have landed the same tx hash, or
-        // filled the last capacity slot, while we were writing.
+        // Drop the lock around the DB write so concurrent operations don't
+        // serialise behind disk I/O; the gates are re-checked after re-acquire.
         drop(inner);
 
         // TODO: #5489 remove, set in db only after mb finalization
-        // Persist the tx so the local RPC's `injected_getTransactions`
-        // can serve it to clients that look it up by hash later.
-        // Done before inserting into the pool so a producer that
-        // immediately picks the tx is guaranteed to find it in the DB.
-        // The DB row is content-addressed by tx_hash, so two racing
-        // writes converge on the same byte content.
+        // Persist the tx so the local RPC can serve it by hash later.
         self.db.set_injected_transaction(tx.clone());
 
         let mut inner = self.inner.write().await;
@@ -387,8 +368,7 @@ impl Mempool for InjectedTxMempool {
             "mempool: insert accepted",
         );
 
-        // Drop the lock before signaling so a waiter resumed
-        // immediately doesn't have to bounce on the mutex.
+        // Drop the lock before signaling so a resumed waiter doesn't bounce on it.
         drop(inner);
         self.new_tx_notify.notify_one();
         TxInsertionStatus::Inserted
@@ -438,14 +418,8 @@ impl Mempool for InjectedTxMempool {
     }
 
     async fn wait_for_new_tx(&self) {
-        // The insert path uses `notify_one`, which preserves one
-        // pending permit when no waiter is parked. So a tx that
-        // lands between the producer's `fetch()` and its `.notified()`
-        // call still wakes the next `.notified()` immediately.
-        // The caller must still re-check `fetch()` after returning —
-        // a permit consumed here may correspond to a tx the next
-        // `fetch()` already covered, in which case we just loop and
-        // wait again.
+        // `notify_one` preserves a permit when no waiter is parked, so an
+        // insert racing this call still wakes it. Spurious wake-ups allowed.
         self.new_tx_notify.notified().await
     }
 }

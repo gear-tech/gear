@@ -1,20 +1,10 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! [`MalachiteService`] — public facade.
+//! [`MalachiteService`] — public facade over [`ethexe_malachite_core::MalachiteCore`].
 //!
-//! Wraps [`ethexe_malachite_core::MalachiteService`] with the ethexe-shaped API the
-//! rest of the workspace already consumes. Owns:
-//!
-//! - the chain-head register that [`Self::receive_new_chain_head`]
-//!   updates and [`crate::EthexeExternalities`] reads,
-//! - the [`Mempool`] handle that serves both injected-tx routing and
-//!   the producer's content selection,
-//! - the inner [`ethexe_malachite_core::MalachiteService`] itself, polled inline so
-//!   any `Err` item surfaces on this service's stream and so
-//!   [`Self::shutdown`] can `await` the engine actor's full teardown
-//!   (releasing the RocksDB advisory lock before
-//!   re-opening on the same home directory).
+//! Routes ethexe-side inputs (chain heads, injected txs) into the consensus
+//! engine and exposes its outputs as a `Stream` of [`MalachiteEvent`]s.
 
 use crate::{
     MalachiteEvent, Mempool, ValidatorEntry, externalities::EthexeExternalities,
@@ -40,12 +30,19 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 /// Public consensus service.
 pub struct MalachiteService {
+    /// Receiver of outbound events produced by the externalities.
     pub(crate) events_rx: UnboundedReceiver<Result<MalachiteEvent>>,
+    /// Latest chain head data, shared with the externalities.
     pub(crate) chain_head: Arc<ChainHead>,
+    /// Optional mempool for injected-tx routing; `None` when not a validator.
     pub(crate) mempool: Option<Arc<dyn Mempool>>,
+    /// Externalities shared with the inner consensus core.
     pub(crate) externalities: Arc<EthexeExternalities>,
+    /// Known validator public keys by on-chain address, for era rotation.
     pub(crate) validators: HashMap<Address, PublicKey>,
+    /// Era whose validator set is currently active in the engine.
     pub(crate) active_era: u64,
+    /// Inner consensus core; `None` after shutdown.
     pub(crate) inner: Option<MalachiteCore<EthexeExternalities>>,
 }
 
@@ -56,6 +53,8 @@ impl Drop for MalachiteService {
 }
 
 impl MalachiteService {
+    /// Route an injected transaction into the mempool.
+    /// Rejects with `PoolFull` when the node is not a validator.
     pub async fn receive_injected_transaction(
         &self,
         tx: SignedInjectedTransaction,
@@ -67,6 +66,7 @@ impl MalachiteService {
         }
     }
 
+    /// Register a newly observed Ethereum block as the chain head.
     pub async fn receive_new_eb(&mut self, eb: SimpleBlockData) {
         let mut current = self.chain_head.latest.write().await;
 
@@ -76,6 +76,8 @@ impl MalachiteService {
         }
     }
 
+    /// Handle a fully synced Ethereum block: publish it for the producer's
+    /// quarantine checks, rotate the validator set on era change and GC the mempool.
     pub async fn receive_eb_synced(&mut self, eb_hash: H256) {
         let chain_head = *self.chain_head.latest.read().await;
         if chain_head.hash != eb_hash {
@@ -115,10 +117,13 @@ impl MalachiteService {
         }
     }
 
+    /// Handle a prepared Ethereum block: release pending events whose
+    /// prerequisite is now satisfied.
     pub async fn receive_eb_prepared(&self, _eb_hash: H256) {
         self.externalities.drain_pending_events().await
     }
 
+    /// Tear down the inner consensus core, releasing its store and sockets.
     pub async fn shutdown(mut self) {
         if let Some(inner) = self.inner.take() {
             inner.shutdown().await;
