@@ -6,7 +6,7 @@
 use crate::{
     app,
     codec::ScaleCodec,
-    config::{MalachiteConfig, NodeRole},
+    config::{Environment, MalachiteConfig, NodeRole},
     context::{MalachiteCtx, Validator, ValidatorSet},
     externalities::Externalities,
     signing::{
@@ -14,7 +14,7 @@ use crate::{
     },
     state::{SharedValidatorSet, State},
     store::Store,
-    types::Address,
+    types::{Address, H256},
 };
 use advisory_lock::{AdvisoryFileLock, FileLockMode};
 use anyhow::{Context as _, Result};
@@ -40,7 +40,10 @@ use std::{
     task::{Context as TaskContext, Poll},
     time::Duration,
 };
-use tokio::{sync::mpsc, task::JoinHandle};
+use tokio::{
+    sync::{mpsc, oneshot},
+    task::JoinHandle,
+};
 
 /// Trait-object-friendly facade for the service. The stream carries
 /// only fatal app-task errors — successful events reach the
@@ -49,6 +52,7 @@ pub trait MService: Stream<Item = anyhow::Error> + Send + Unpin {}
 
 /// Application-agnostic Malachite BFT consensus service.
 pub struct MalachiteService<EXT: Externalities> {
+    start_tx: Option<oneshot::Sender<()>>,
     errors_rx: mpsc::UnboundedReceiver<anyhow::Error>,
     engine: EngineHandle,
     app_handle: JoinHandle<()>,
@@ -59,6 +63,10 @@ pub struct MalachiteService<EXT: Externalities> {
     /// Shared with the inner app loop; [`Self::update_validators`]
     /// writes here, the next `Finalized` / `ConsensusReady` reply reads.
     validator_set: SharedValidatorSet,
+    /// Persistent app store, shared with the app task. Kept here for
+    /// startup decisions that need to inspect replay state before the
+    /// app task is released.
+    store: Store,
     _externalities: Arc<EXT>,
 }
 
@@ -254,14 +262,17 @@ impl<EXT: Externalities> MalachiteService<EXT> {
             signer,
             validator_set.clone(),
             address,
-            store,
+            store.clone(),
             config.propose_timeout,
         )?;
 
         // ---- spawn app task ----
+        let (start_tx, start_rx) = oneshot::channel();
         let (errors_tx, errors_rx) = mpsc::unbounded_channel();
         let externalities_for_task = Arc::clone(&externalities);
         let app_handle = tokio::spawn(async move {
+            start_rx.await.expect("start sender has been dropped");
+
             if let Err(e) = app::run::<EXT>(state, channels, externalities_for_task).await {
                 tracing::error!(target: "ethexe-malachite-core", error = %e, "app task terminated");
                 let _ = errors_tx.send(e);
@@ -269,13 +280,28 @@ impl<EXT: Externalities> MalachiteService<EXT> {
         });
 
         Ok(Self {
+            start_tx: Some(start_tx),
             errors_rx,
             engine,
             app_handle,
             wal_path,
             validator_set,
+            store,
             _externalities: externalities,
         })
+    }
+
+    pub fn start_app_task(&mut self) {
+        self.start_tx
+            .take()
+            .expect("app task has been already started")
+            .send(())
+            .expect("start receiver has been dropped");
+    }
+
+    /// Whether `block_hash` is already finalized in the persistent app store.
+    pub fn is_finalized(&self, block_hash: H256) -> Result<bool> {
+        self.store.is_finalized(block_hash)
     }
 
     /// Swap the active validator set used at the next height start.
@@ -309,6 +335,7 @@ impl<EXT: Externalities> Stream for MalachiteService<EXT> {
     type Item = anyhow::Error;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
+        debug_assert!(self.start_tx.is_none(), "app task is not started");
         self.errors_rx.poll_recv(cx)
     }
 }
@@ -342,10 +369,23 @@ fn build_inner_config(cfg: &MalachiteConfig, moniker: &str) -> InnerNodeConfig {
             ..Default::default()
         },
     };
+    let value_sync = match cfg.env {
+        Environment::Production => ValueSyncConfig::default(),
+        Environment::Test => ValueSyncConfig {
+            // Service tests do not run Malachite's application task forever, so
+            // use short value-sync waits and small batches to make missing replay
+            // data fail fast instead of blocking the event queue.
+            status_update_interval: Duration::from_millis(500),
+            request_timeout: Duration::from_secs(3),
+            parallel_requests: 16,
+            batch_size: 32,
+            ..Default::default()
+        },
+    };
     InnerNodeConfig {
         moniker: moniker.to_string(),
         consensus,
-        value_sync: ValueSyncConfig::default(),
+        value_sync,
         logging: LoggingConfig::default(),
         metrics: MetricsConfig::default(),
         runtime: RuntimeConfig::default(),

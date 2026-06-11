@@ -3,10 +3,12 @@
 
 //! Application callbacks the service makes to the outside world.
 
+use crate::{
+    BlockPayload,
+    types::{Block, CommitCertificate, H256},
+};
 use anyhow::Result;
 use async_trait::async_trait;
-
-use crate::types::{Block, BlockPayload, CommitCertificate, H256};
 
 /// Application-side callbacks the consensus service requires.
 ///

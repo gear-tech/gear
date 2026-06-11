@@ -287,6 +287,7 @@ fn build_config_with_role(
     role: NodeRole,
 ) -> MalachiteConfig {
     MalachiteConfig {
+        env: Default::default(),
         listen_addr: setup.listen_addr,
         base: setup.home.path().to_path_buf(),
         persistent_peers: peers,
@@ -305,9 +306,11 @@ async fn start_service(
 ) -> MalachiteService<TestExt> {
     let peers = build_multiaddrs_excluding(setups, idx);
     let config = build_config(setup, setups, peers);
-    MalachiteService::<TestExt>::new(config, ext)
+    let mut service = MalachiteService::<TestExt>::new(config, ext)
         .await
-        .expect("service starts")
+        .expect("service starts");
+    service.start_app_task();
+    service
 }
 
 /// Wait until *every* validator has finalized at least `min_count`
@@ -494,9 +497,10 @@ async fn full_node_syncs_from_validators() {
         };
         let peers = build_multiaddrs_excluding(&setups, i);
         let cfg = build_config_with_role(setup, peers, validator_set.clone(), role);
-        let svc = MalachiteService::<TestExt>::new(cfg, Arc::clone(&exts[i]))
+        let mut svc = MalachiteService::<TestExt>::new(cfg, Arc::clone(&exts[i]))
             .await
             .expect("service starts");
+        svc.start_app_task();
         services.push(svc);
         sleep(Duration::from_millis(500)).await;
     }

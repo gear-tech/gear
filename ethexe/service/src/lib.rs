@@ -36,17 +36,16 @@ use crate::{
     pending_tx::PendingNetworkInjectedTx,
 };
 use alloy::{
+    eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::Metadata,
 };
 use anyhow::{Context, Result, bail};
-use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
-    gear::CodeState,
     injected::{CompactPromise, InjectedTransactionAcceptance, Receipt},
     network::VerifiedValidatorMessage,
 };
@@ -59,22 +58,17 @@ use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQ
 use ethexe_malachite::{
     InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService, ValidatorEntry,
 };
-use ethexe_network::{
-    NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
-};
-use ethexe_observer::{
-    ObserverConfig, ObserverEvent, ObserverService,
-    utils::{BlockId, BlockLoader},
-};
+use ethexe_network::{NetworkEvent, NetworkRuntimeConfig, NetworkService};
+use ethexe_observer::{ObserverConfig, ObserverEvent, ObserverService, utils::BlockLoader};
 use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeInfo};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{FutureExt, StreamExt};
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::CodeId;
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     num::NonZero,
     path::PathBuf,
     pin::Pin,
@@ -99,32 +93,6 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Rpc(RpcEvent),
     Prometheus(PrometheusEvent),
-}
-
-#[derive(Clone)]
-struct RouterDataProvider(RouterQuery);
-
-#[async_trait]
-impl ExternalDataProvider for RouterDataProvider {
-    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
-        Box::new(self.clone())
-    }
-
-    async fn programs_code_ids_at(
-        self: Box<Self>,
-        program_ids: BTreeSet<ActorId>,
-        block: H256,
-    ) -> Result<Vec<CodeId>> {
-        self.0.programs_code_ids_at(program_ids, block).await
-    }
-
-    async fn codes_states_at(
-        self: Box<Self>,
-        code_ids: BTreeSet<CodeId>,
-        block: H256,
-    ) -> Result<Vec<CodeState>> {
-        self.0.codes_states_at(code_ids, block).await
-    }
 }
 
 /// Build the Malachite validator set from the on-chain validator
@@ -360,7 +328,7 @@ impl Service {
 
         let latest_block = observer
             .block_loader()
-            .load_simple(BlockId::Latest)
+            .load_simple(BlockId::latest())
             .await
             .context("failed to get latest block")?;
 
@@ -456,7 +424,7 @@ impl Service {
 
             let latest_block_data = observer
                 .block_loader()
-                .load_simple(BlockId::Latest)
+                .load_simple(BlockId::latest())
                 .await
                 .context("failed to get latest block")?;
 
@@ -466,7 +434,6 @@ impl Service {
                 validator_key: validator_pub_key,
                 general_signer: signer.clone(),
                 network_signer,
-                external_data_provider: Box::new(RouterDataProvider(router_query)),
                 db: db.clone(),
             };
 
@@ -634,11 +601,12 @@ impl Service {
             rpc,
             fast_sync: _,
             validator_pub_key,
-            shutdown_rx,
+            mut shutdown_rx,
             #[cfg(test)]
             sender,
         } = self;
-        let mut shutdown_rx = shutdown_rx;
+
+        malachite.as_mut().expect("always Some").start_app_task();
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());

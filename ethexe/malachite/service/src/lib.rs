@@ -57,19 +57,22 @@ mod tx_validity;
 
 pub use crate::{
     config::{MalachiteConfig, ValidatorEntry},
+    externalities::FastSyncReplayTarget,
     mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
-use ethexe_common::injected::PurgedTransaction;
 pub use ethexe_common::{
     injected::SignedInjectedTransaction,
     malachite::{Operation, Operations},
 };
 pub use ethexe_malachite_core::{
-    Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
+    MalachiteConfigEnvironment, Multiaddr, PeerId, derive_libp2p_secret,
+    libp2p_peer_id as malachite_libp2p_peer_id,
 };
 pub use gprimitives::H256;
+
+use ethexe_common::injected::PurgedTransaction;
 
 /// Ethexe-shaped commit certificate; `block_hash` is the Blake2b envelope hash.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]

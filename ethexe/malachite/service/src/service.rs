@@ -36,7 +36,8 @@ use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 use tokio::sync::{Notify, mpsc};
 
 use crate::{
-    MalachiteConfig, MalachiteEvent, Mempool, ValidatorEntry, externalities::EthexeExternalities,
+    FastSyncReplayTarget, MalachiteConfig, MalachiteEvent, Mempool, ValidatorEntry,
+    externalities::EthexeExternalities,
 };
 
 /// Public consensus service.
@@ -140,6 +141,7 @@ impl MalachiteService {
         // and travel into the externalities; they never reach
         // ethexe-malachite-core.
         let svc_cfg = ethexe_malachite_core::MalachiteConfig {
+            env: config.env,
             listen_addr: config.listen_addr,
             base: config.home_dir.clone(),
             persistent_peers: config.persistent_peers.clone(),
@@ -164,6 +166,7 @@ impl MalachiteService {
             gas_allowance: config.gas_allowance,
             canonical_quarantine: config.canonical_quarantine,
             post_quarantine_delay: config.post_quarantine_delay,
+            fast_sync_replay_filter: std::sync::Mutex::new(None),
         });
 
         // On-chain addresses → pub keys, so era rotations resolve back without an out-of-band lookup.
@@ -188,6 +191,31 @@ impl MalachiteService {
             active_era: None,
             inner: Some(inner),
         })
+    }
+
+    pub fn start_app_task(&mut self) {
+        if let Some(inner) = &mut self.inner {
+            inner.start_app_task();
+        }
+    }
+
+    pub fn enable_fast_sync_replay_filter(&self, target: FastSyncReplayTarget) -> Result<bool> {
+        if self
+            .inner
+            .as_ref()
+            .context("Malachite inner service is shut down")?
+            .is_finalized(target.mb_hash)?
+        {
+            tracing::info!(
+                mb_hash = %target.mb_hash,
+                eb_hash = %target.eb_hash,
+                "not enabling fast-sync replay filter for already-finalized MB",
+            );
+            return Ok(false);
+        }
+
+        self.externalities.enable_fast_sync_replay_filter(target);
+        Ok(true)
     }
 
     /// Hand an injected transaction to the mempool. The local
