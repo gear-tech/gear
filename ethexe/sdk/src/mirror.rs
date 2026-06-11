@@ -1,11 +1,12 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::VaraEthApi;
+use crate::{InjectedMessageResult, VaraEthApi};
 use alloy::rpc::types::TransactionReceipt;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use ethexe_common::{
     Address, BlockHeader, SimpleBlockData,
+    gear::ValueClaim,
     gear_core::rpc::ReplyInfo,
     injected::{
         InjectedTransaction, InjectedTransactionAcceptance, Promise, Receipt,
@@ -15,7 +16,7 @@ use ethexe_common::{
 use ethexe_ethereum::{
     IntoBlockId,
     mirror::{
-        ClaimInfo, Mirror as EthereumMirror, MirrorEvents as EthereumMirrorEvents,
+        Mirror as EthereumMirror, MirrorEvents as EthereumMirrorEvents,
         MirrorQuery as EthereumMirrorQuery,
     },
 };
@@ -24,15 +25,6 @@ use ethexe_runtime_common::state::ProgramState;
 use futures::TryFutureExt;
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use gsigner::secp256k1::Secp256k1SignerExt;
-
-#[derive(Debug, Clone)]
-pub struct InjectedMessageResult {
-    pub message_id: MessageId,
-    pub tx_hash: H256,
-    pub reference_block_number: u64,
-    pub reference_block_hash: H256,
-    pub promise: Option<Promise>,
-}
 
 pub struct Mirror<'a> {
     pub(crate) api: &'a VaraEthApi,
@@ -364,8 +356,15 @@ impl<'a> Mirror<'a> {
             .await
     }
 
-    pub async fn wait_for_value_claim(&self, message_id: MessageId) -> Result<ClaimInfo> {
-        self.mirror_client.wait_for_value_claim(message_id).await
+    pub async fn wait_for_value_claim(&self, message_id: MessageId) -> Result<ValueClaim> {
+        self.mirror_client
+            .wait_for_value_claim(message_id)
+            .await
+            .map(|claim_info| ValueClaim {
+                message_id: claim_info.message_id,
+                destination: claim_info.actor_id,
+                value: claim_info.value,
+            })
     }
 
     pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {

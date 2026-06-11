@@ -23,7 +23,7 @@ use ethexe_common::{
     Address,
     gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo},
 };
-use ethexe_sdk::{ClaimInfo, CodeValidationResult, VaraEthApi};
+use ethexe_sdk::{CodeValidationResult, ValueClaim, VaraEthApi};
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use gsigner::secp256k1::Signer;
 use serde::Serialize;
@@ -161,7 +161,7 @@ struct SendReplyResult {
     payload_hex: String,
     raw_value: u128,
     formatted_value: String,
-    claim_info: Option<ClaimInfo>,
+    claim_info: Option<ValueClaim>,
 }
 
 /// JSON-serializable result returned by `tx claim-value`.
@@ -178,7 +178,7 @@ struct ClaimValueResult {
 
     actor_id: H160,
     claimed_id: MessageId,
-    claim_info: Option<ClaimInfo>,
+    claim_info: Option<ValueClaim>,
 }
 
 /// JSON-serializable result returned by `tx transfer-locked-value-to-inheritor`.
@@ -302,12 +302,9 @@ impl TxCommand {
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
         let vara_eth_rpc_url = match &self.command {
-            TxSubcommand::Query { rpc_url, .. }
-            | TxSubcommand::SendMessage {
-                rpc_url: Some(rpc_url),
-                injected: true,
-                ..
-            } => Some(rpc_url.clone()),
+            TxSubcommand::Query { rpc_url, .. } | TxSubcommand::SendMessage { rpc_url, .. } => {
+                Some(rpc_url.clone())
+            }
             _ => None,
         };
 
@@ -981,7 +978,7 @@ impl TxCommand {
                 mirror,
                 payload,
                 value,
-                rpc_url,
+                rpc_url: _,
                 injected,
                 watch,
                 json,
@@ -993,7 +990,7 @@ impl TxCommand {
                         .await
                         .with_context(|| "failed to check if mirror in known by router")?;
 
-                    if rpc_url.is_some() && injected && raw_value != 0 {
+                    if injected && raw_value != 0 {
                         // TODO: consider allowing this in future
                         bail!("Cannot send value along with injected message");
                     }
@@ -1007,7 +1004,7 @@ impl TxCommand {
                     // TODO: consider truncating long payloads in non-verbose mode and hexdump in verbose mode
                     let payload_hex = format!("0x{}", hex::encode(&payload.0));
                     let formatted_value = FormattedValue::<EthereumCurrency>::new(raw_value);
-                    if rpc_url.is_some() && injected {
+                    if injected {
                         eprintln!("Sending injected message to program:");
                     } else {
                         eprintln!("Sending message to program on Ethereum:");
@@ -1022,7 +1019,7 @@ impl TxCommand {
                     let raw_actor_id: ActorId = mirror.actor_id();
                     let actor_id = raw_actor_id.to_address_lossy();
 
-                    if rpc_url.is_some() && injected {
+                    if injected {
                         let injected_result = if watch {
                             mirror
                                 .send_message_injected_with_details_and_watch(
@@ -1285,13 +1282,13 @@ impl TxCommand {
                         eprintln!("Waiting for value to be claimed...");
 
                         let claim_info = mirror.wait_for_value_claim(replied_to).await?;
-                        let ClaimInfo {
+                        let ValueClaim {
                             message_id,
-                            actor_id,
+                            destination,
                             value,
                         } = &claim_info;
 
-                        let actor_id = actor_id.to_address_lossy();
+                        let actor_id = destination.to_address_lossy();
                         let raw_value = *value;
                         let formatted_value =
                             FormattedValue::<EthereumCurrency>::new(raw_value);
@@ -1404,13 +1401,13 @@ impl TxCommand {
                         eprintln!("Waiting for value to be claimed...");
 
                         let claim_info = mirror.wait_for_value_claim(claimed_id).await?;
-                        let ClaimInfo {
+                        let ValueClaim {
                             message_id,
-                            actor_id,
+                            destination,
                             value,
                         } = &claim_info;
 
-                        let actor_id = actor_id.to_address_lossy();
+                        let actor_id = destination.to_address_lossy();
                         let raw_value = *value;
                         let formatted_value =
                             FormattedValue::<EthereumCurrency>::new(raw_value);
@@ -1766,11 +1763,11 @@ pub enum TxSubcommand {
         /// ETH value to send with message.
         #[arg()]
         value: RawOrFormattedValue<EthereumCurrency>,
-        /// RPC URL of Vara.eth node. Example: ws://127.0.0.1:9944. Used only if `injected` is true.
-        #[arg(short, long, requires = "injected")]
-        rpc_url: Option<String>,
+        /// RPC URL of Vara.eth node. Example: ws://127.0.0.1:9944.
+        #[arg(short, long)]
+        rpc_url: String,
         /// Flag to send injected transaction. If false, normal transaction is sent.
-        #[arg(short, long, default_value = "false", requires = "rpc_url")]
+        #[arg(short, long, default_value = "false")]
         injected: bool,
         /// Flag to watch for reply from mirror. If false, command will do not wait for reply.
         #[arg(short, long, default_value = "false")]

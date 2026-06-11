@@ -64,16 +64,19 @@ pub use crate::{
         DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI, DEFAULT_ETHEREUM_RPC, VaraEthApi,
         VaraEthApiBuilder,
     },
-    mirror::{InjectedMessageResult, Mirror},
+    mirror::Mirror,
     router::Router,
+    types::InjectedMessageResult,
     wvara::WVara,
 };
 
 mod api;
 mod mirror;
 mod router;
+mod types;
 mod wvara;
 
 // Re-export node-wrapper helpers and SDK-visible data types.
-pub use ethexe_ethereum::{mirror::ClaimInfo, router::CodeValidationResult};
+pub use ethexe_common::gear::ValueClaim;
+pub use ethexe_ethereum::router::CodeValidationResult;
 pub use ethexe_node_wrapper::{Error, VaraEth, VaraEthInstance};
