@@ -23,7 +23,7 @@ use ethexe_common::{
     Address,
     gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo},
 };
-use ethexe_sdk::{CodeValidationResult, ValueClaim, VaraEthApi};
+use ethexe_sdk::{CodeValidationResult, Ethereum, ValueClaim, VaraEthApi};
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use gsigner::secp256k1::Signer;
 use serde::Serialize;
@@ -308,17 +308,21 @@ impl TxCommand {
             _ => None,
         };
 
-        let mut api_builder = VaraEthApi::builder()
-            .ethereum_rpc_url(rpc.clone())
+        let ethereum_client = Ethereum::builder()
+            .rpc_url(rpc.clone())
             .router_address(router_addr)
             .signer(signer.clone())
             .sender_address(sender)
-            .eip1559_fee_increase_percentage(self.eip1559_fee_increase_percentage)
-            .blob_gas_multiplier(self.blob_gas_multiplier);
-        if let Some(rpc_url) = &vara_eth_rpc_url {
-            api_builder = api_builder.vara_eth_rpc_url(rpc_url.clone());
-        }
-        let api = api_builder.build().await?;
+            .eip1559_fee_increase_percentage_opt(self.eip1559_fee_increase_percentage)
+            .blob_gas_multiplier_opt(self.blob_gas_multiplier)
+            .build()
+            .await
+            .with_context(|| "failed to create Ethereum client")?;
+
+        let api = match &vara_eth_rpc_url {
+            Some(rpc_url) => VaraEthApi::new(rpc_url, ethereum_client).await?,
+            None => VaraEthApi::from_ethereum(ethereum_client),
+        };
 
         eprintln!("RPC:      {rpc}");
         if let Some(rpc_url) = &vara_eth_rpc_url {
@@ -704,7 +708,7 @@ impl TxCommand {
                     let mirror = api.mirror(mirror.into());
 
                     let state_hash = mirror.state_hash().await?;
-                    let program_state = mirror.state().await?;
+                    let program_state = mirror.state_at_hash(state_hash).await?;
 
                     let balance = program_state.balance;
                     let executable_balance = program_state.executable_balance;

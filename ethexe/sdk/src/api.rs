@@ -87,6 +87,9 @@ impl VaraEthApiBuilder {
         let router_address = self.router_address.context("Router address is required")?;
         let signer = self.signer.context("signer is required")?;
         let sender_address = self.sender_address.context("sender address is required")?;
+        let vara_eth_rpc_url = self
+            .vara_eth_rpc_url
+            .context("Vara.ETH RPC URL is required")?;
 
         let ethereum_client = EthereumBuilder::default()
             .rpc_url(ethereum_rpc_url)
@@ -94,18 +97,12 @@ impl VaraEthApiBuilder {
             .signer(signer)
             .sender_address(sender_address)
             .eip1559_fee_increase_percentage_opt(self.eip1559_fee_increase_percentage)
-            .blob_gas_multiplier(
-                self.blob_gas_multiplier
-                    .unwrap_or(DEFAULT_BLOB_GAS_MULTIPLIER as u128),
-            )
+            .blob_gas_multiplier_opt(self.blob_gas_multiplier)
             .build()
             .await
             .with_context(|| "failed to create Ethereum client")?;
 
-        match self.vara_eth_rpc_url {
-            Some(vara_eth_rpc_url) => VaraEthApi::new(&vara_eth_rpc_url, ethereum_client).await,
-            None => Ok(VaraEthApi::from_ethereum(ethereum_client)),
-        }
+        VaraEthApi::new(&vara_eth_rpc_url, ethereum_client).await
     }
 }
 

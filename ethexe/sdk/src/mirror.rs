@@ -64,6 +64,10 @@ impl<'a> Mirror<'a> {
 
     pub async fn state(&self) -> Result<ProgramState> {
         let state_hash = self.state_hash().await?;
+        self.state_at_hash(state_hash).await
+    }
+
+    pub async fn state_at_hash(&self, state_hash: H256) -> Result<ProgramState> {
         self.api
             .vara_eth_client()?
             .read_state(state_hash)

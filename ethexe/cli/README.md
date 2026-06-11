@@ -168,7 +168,7 @@ Examples:
 ```bash
 ethexe tx --sender 0x... upload ./target/wasm32-unknown-unknown/release/demo_ping.opt.wasm --watch
 ethexe tx --sender 0x... create 0x... --salt 0x...
-ethexe tx --sender 0x... send-message 0xMirror 0x50494e47 0 --watch
+ethexe tx --sender 0x... send-message 0xMirror 0x50494e47 0 --rpc-url ws://127.0.0.1:9944 --watch
 ethexe tx --sender 0x... send-message 0xMirror 0x50494e47 0 --injected --rpc-url ws://127.0.0.1:9944 --watch
 ethexe tx --sender 0x... executable-balance-top-up 0xMirror "10 WVARA" --approve
 ```

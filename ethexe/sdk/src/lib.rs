@@ -78,5 +78,5 @@ mod wvara;
 
 // Re-export node-wrapper helpers and SDK-visible data types.
 pub use ethexe_common::gear::ValueClaim;
-pub use ethexe_ethereum::router::CodeValidationResult;
+pub use ethexe_ethereum::{Ethereum, EthereumBuilder, router::CodeValidationResult};
 pub use ethexe_node_wrapper::{Error, VaraEth, VaraEthInstance};
