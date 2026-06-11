@@ -187,7 +187,7 @@ dependencies = [
  "secp256k1 0.30.0",
  "serde",
  "serde_json",
- "serde_with 3.16.1",
+ "serde_with",
  "thiserror 2.0.17",
 ]
 
@@ -327,7 +327,7 @@ dependencies = [
  "derive_more 2.1.1",
  "either",
  "serde",
- "serde_with 3.16.1",
+ "serde_with",
  "sha2 0.10.9",
 ]
 
@@ -343,7 +343,7 @@ dependencies = [
  "alloy-trie",
  "borsh",
  "serde",
- "serde_with 3.16.1",
+ "serde_with",
 ]
 
 [[package]]
@@ -640,7 +640,7 @@ dependencies = [
  "derive_more 2.1.1",
  "serde",
  "serde_json",
- "serde_with 3.16.1",
+ "serde_with",
  "thiserror 2.0.17",
 ]
 
@@ -675,10 +675,10 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
- "serde_with 3.16.1",
+ "serde_with",
  "thiserror 2.0.17",
 ]
 
@@ -831,7 +831,7 @@ checksum = "a29980e69119444ed26b75e7ee5bed2043870f904a64318297e55800db686564"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "reqwest 0.13.2",
  "serde_json",
  "tower 0.5.2",
@@ -946,7 +946,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -957,7 +957,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3405,7 +3405,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4241,7 +4241,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d162beedaa69905488a8da94f5ac3edb4dd4788b732fadb7bd120b2625c1976"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -5591,7 +5591,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6271,9 +6271,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferveo-gear-common"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "049504d8d4e9c23ae2ff50e37f81cac1c191eb71baf79f20bf9361ee29546461"
+dependencies = [
+ "ark-ec 0.6.0",
+ "ark-serialize 0.6.0",
+ "ark-std 0.6.0",
+ "bincode",
+ "const-hex",
+ "generic-array 0.14.7",
+ "rand 0.8.5",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "ferveo-gear-tdec"
-version = "0.4.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=main#d27693badb55c29c1e337d628d0ef886ec7b5319"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "991a44fbe8ea0d5b1e3c49884c1cda791d0bd3612a2deacf652d027d0b759090"
 dependencies = [
  "ark-bls12-381 0.6.0",
  "ark-ec 0.6.0",
@@ -6284,31 +6302,15 @@ dependencies = [
  "bincode",
  "chacha20poly1305",
  "const-hex",
- "ferveo-nucypher-common",
+ "ferveo-gear-common",
  "itertools 0.10.5",
  "parity-scale-codec",
  "rand 0.8.5",
  "serde",
- "serde_bytes",
  "sha2 0.10.9",
- "subproductdomain-nucypher",
+ "subproductdomain-gear",
  "thiserror 1.0.69",
  "zeroize",
-]
-
-[[package]]
-name = "ferveo-nucypher-common"
-version = "0.4.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=main#d27693badb55c29c1e337d628d0ef886ec7b5319"
-dependencies = [
- "ark-ec 0.6.0",
- "ark-serialize 0.6.0",
- "ark-std 0.6.0",
- "bincode",
- "generic-array 0.14.7",
- "rand 0.8.5",
- "serde",
- "serde_with 2.3.3",
 ]
 
 [[package]]
@@ -9708,7 +9710,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi 0.5.2",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -12246,7 +12248,7 @@ version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9224be3459a0c1d6e9b0f42ab0e76e98b29aef5aba33c0487dfcf47ea08b5150"
 dependencies = [
- "proc-macro-crate 1.1.3",
+ "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -12258,7 +12260,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -14616,7 +14618,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
  "heck 0.5.0",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "log",
  "multimap 0.10.1",
  "once_cell",
@@ -14662,7 +14664,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -15668,7 +15670,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -15681,7 +15683,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -15784,7 +15786,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs 0.26.11",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -15805,7 +15807,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs 1.0.5",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -17495,22 +17497,6 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "2.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07ff71d2c147a7b57362cead5e22f772cd52f6ab31cfcd9edcd7f6aeb2a0afbe"
-dependencies = [
- "base64 0.13.1",
- "chrono",
- "hex",
- "indexmap 1.9.3",
- "serde",
- "serde_json",
- "serde_with_macros 2.3.3",
- "time",
-]
-
-[[package]]
-name = "serde_with"
 version = "3.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fa237f2807440d238e0364a218270b98f767a00d3dada77b1c53ae88940e2e7"
@@ -17524,20 +17510,8 @@ dependencies = [
  "schemars 1.2.0",
  "serde_core",
  "serde_json",
- "serde_with_macros 3.16.1",
+ "serde_with_macros",
  "time",
-]
-
-[[package]]
-name = "serde_with_macros"
-version = "2.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "881b6f881b17d13214e5d494c939ebab463d01264ce1811e9d4ac3a882e7695f"
-dependencies = [
- "darling 0.20.11",
- "proc-macro2",
- "quote",
- "syn 2.0.114",
 ]
 
 [[package]]
@@ -18942,9 +18916,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "subproductdomain-nucypher"
-version = "0.4.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=main#d27693badb55c29c1e337d628d0ef886ec7b5319"
+name = "subproductdomain-gear"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0e0585b62ebf2ec655a49e5f60033b0c240695e18ef3f28f4b81710ec15cbbd"
 dependencies = [
  "anyhow",
  "ark-ec 0.6.0",
@@ -19420,7 +19395,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.3",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -21402,7 +21377,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
