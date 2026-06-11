@@ -586,7 +586,7 @@ async fn latest_era_with_committed_validators(
         .context("failed to calculate era from validators timestamp")
 }
 
-pub(crate) async fn sync(service: &mut Service) -> Result<bool> {
+pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let Service {
         observer,
         compute,
@@ -599,7 +599,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<bool> {
     } = service;
     let Some(network) = network else {
         log::warn!("Network service is disabled. Skipping fast synchronization...");
-        return Ok(false);
+        return Ok(());
     };
 
     log::info!("Fast synchronization is in progress...");
@@ -637,7 +637,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<bool> {
                 EventData::collect(&block_loader, db, latest_block).await?
             else {
                 log::warn!("No committed MB found. Skipping fast synchronization...");
-                return Ok(false);
+                return Ok(());
             };
             log::warn!("No finalized committed MB found; trying latest block candidates");
             state_query_block = latest_block;
@@ -645,7 +645,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<bool> {
         }
         None => {
             log::warn!("No committed MB found. Skipping fast synchronization...");
-            return Ok(false);
+            return Ok(());
         }
     };
 
@@ -730,6 +730,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<bool> {
     });
 
     if let Some(malachite) = malachite.as_mut() {
+        malachite.enable_replay_boundary_from_execution_snapshot();
         malachite.receive_new_chain_head(block_data.to_simple());
     }
 
@@ -746,5 +747,5 @@ pub(crate) async fn sync(service: &mut Service) -> Result<bool> {
         })
         .await;
 
-    Ok(true)
+    Ok(())
 }
