@@ -21,6 +21,12 @@ impl Toolchain {
     /// This is a version of nightly toolchain, tested on our CI.
     const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2025-10-20";
 
+    /// Returns `Toolchain` representing the stable version.
+    #[cfg(target_os = "android")]
+    pub fn stable() -> Self {
+        Self("stable".into())
+    }
+
     /// Returns `Toolchain` representing the recommended nightly version.
     pub fn recommended_nightly() -> Self {
         Self(Self::PINNED_NIGHTLY_TOOLCHAIN.into())
