@@ -15,7 +15,6 @@ slow-timeout = { period = "1m", terminate-after = 5 }
 # every test process compiling the Vara runtime WASM independently.
 authorship = { max-threads = 1 }
 
-
 [[profile.default.overrides]]
 filter = 'package(gear-authorship)'
 retries = 5
