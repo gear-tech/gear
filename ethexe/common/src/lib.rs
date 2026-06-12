@@ -116,8 +116,14 @@ pub const MAX_TOUCHED_PROGRAMS_PER_MB: u32 = 128;
 /// due tasks stay in the schedule and run in subsequent blocks, keeping
 /// the per-announce commitment bounded (#5203). Protocol constant: every
 /// validator must apply the same cap.
+///
+/// Tasks run before queue processing and their state modifications count
+/// toward the same [`PROGRAM_MODIFICATIONS_SOFT_LIMIT`] budget, so the cap
+/// is half of it — a saturated task backlog slows queue processing but
+/// cannot starve it entirely.
 pub const MAX_SCHEDULE_TASKS_PER_MB: core::num::NonZero<usize> =
-    core::num::NonZero::new(64).expect("64 != 0");
+    core::num::NonZero::new(PROGRAM_MODIFICATIONS_SOFT_LIMIT as usize / 2)
+        .expect("soft limit must be non-zero");
 
 // Soft limits for one MB processing. Stops execution if any of them is exceeded.
 pub const OUTGOING_MESSAGES_SOFT_LIMIT: u32 = 128;
