@@ -45,7 +45,7 @@ use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
-    db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
+    db::{GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     gear::CodeState,
     injected::{CompactPromise, InjectedTransactionAcceptance, Receipt},
     network::VerifiedValidatorMessage,
@@ -325,6 +325,31 @@ impl Service {
             RawDatabase::from_one(&rocks_db),
         )
         .await?;
+
+        let mut count = 0;
+        let mut mb_hash = db.globals().latest_computed_mb_hash;
+        loop {
+            if mb_hash.is_zero() {
+                break;
+            }
+
+            let mb = db
+                .mb_compact_block(mb_hash)
+                .with_context(|| format!("failed to load compact MB {mb_hash:?} during startup"))?;
+            count += 1;
+
+            if count < 100 {
+                mb_hash = mb.parent;
+                continue;
+            }
+
+            if count % 1000 == 1 {
+                log::info!("Bypassed {} MBs, latest cleaned MB hash: {mb_hash:?}", count - 1);
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+
+            mb_hash = mb.parent;
+        }
 
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: config.ethereum.rpc.clone(),
