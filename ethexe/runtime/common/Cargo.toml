@@ -30,8 +30,16 @@ serde = { workspace = true, features = ["derive"], optional = true }
 gear-workspace-hack.workspace = true
 delegate.workspace = true
 proptest = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+sha3 = { workspace = true, optional = true }
+blake2 = { workspace = true, optional = true }
+ark-bls12-381 = { workspace = true, optional = true }
+ark-ec = { workspace = true, optional = true }
+ark-ff = { workspace = true, optional = true }
+ark-serialize = { workspace = true, optional = true }
 
 [dev-dependencies]
+ark-std = { workspace = true, features = ["std"] }
 ethexe-common = { workspace = true, features = ["mock"] }
 proptest.workspace = true
 
@@ -45,5 +53,20 @@ std = [
     "log/std",
     "serde/std",
     "ethexe-common/std",
+    "dep:sha2",
+    "sha2/std",
+    "dep:sha3",
+    "sha3/std",
+    "dep:blake2",
+    "blake2/std",
+    "dep:ark-bls12-381",
+    "ark-bls12-381/std",
+    "ark-bls12-381/curve",
+    "dep:ark-ec",
+    "ark-ec/std",
+    "dep:ark-ff",
+    "ark-ff/std",
+    "dep:ark-serialize",
+    "ark-serialize/std",
 ]
 mock = ["std", "dep:proptest", "ethexe-common/mock"]

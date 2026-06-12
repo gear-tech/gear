@@ -211,6 +211,7 @@ where
         add_function!(ReservationSend, reservation_send);
         add_function!(ReservationSendCommit, reservation_send_commit);
         add_function!(SystemBreak, system_break);
+        add_function!(Crypto, crypto);
 
         add_function!(Alloc, alloc);
         add_function!(Free, free);
@@ -286,7 +287,9 @@ where
         // This is intended to panic during any testing, when the
         // condition is not met.
         let expected_count = match syscall_kind {
-            SyscallKind::Vara => SyscallName::all().count(),
+            SyscallKind::Vara => SyscallName::all()
+                .filter(|syscall| syscall.is_vara_including_system_break())
+                .count(),
             SyscallKind::Eth => SyscallName::all()
                 .filter(|syscall| syscall.is_eth())
                 .count(),

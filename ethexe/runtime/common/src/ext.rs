@@ -4,7 +4,7 @@
 //! Externalities implementation for ethexe runtime.
 
 use crate::RuntimeInterface;
-use alloc::collections::btree_set::BTreeSet;
+use alloc::{collections::btree_set::BTreeSet, vec::Vec};
 use core_processor::{
     Ext as CoreExt, ExtInfo, FallibleExtError, ProcessorContext, ProcessorExternalities,
     configs::SyscallName,
@@ -115,6 +115,14 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
             fn forbidden_funcs(&self) -> &BTreeSet<SyscallName>;
             fn msg_ctx(&self) -> &MessageContext;
         }
+    }
+
+    fn crypto(&mut self, op: gsys::CryptoOp, input: &[u8]) -> Result<Vec<u8>, Self::FallibleError> {
+        // Gas is already charged in the backend via `CostToken::Crypto`;
+        // the operation itself runs natively on the host.
+        RI::crypto(op, input).ok_or(FallibleExtError::Core(ExtError::Execution(
+            gear_core_errors::ExecutionError::CryptoInputInvalid,
+        )))
     }
 
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::FallibleError> {

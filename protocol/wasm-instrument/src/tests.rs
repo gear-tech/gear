@@ -557,6 +557,28 @@ fn check_syscall_err_ptr_position() {
 }
 
 #[test]
+fn crypto_syscall_signature_shape() {
+    use crate::syscalls::{ErrPtr, ParamType, Ptr, RegularParamType};
+
+    // Pin the exact wire shape of `gr_crypto`: op id, sized input
+    // (len at param 2), sized mut output (len at param 4), error code.
+    let signature = SyscallName::Crypto.signature();
+    let expected: &[ParamType] = &[
+        ParamType::Regular(RegularParamType::CryptoOp),
+        ParamType::Regular(RegularParamType::Pointer(Ptr::SizedBufferStart {
+            length_param_idx: 2,
+        })),
+        ParamType::Regular(RegularParamType::Length),
+        ParamType::Regular(RegularParamType::Pointer(Ptr::MutSizedBufferStart {
+            length_param_idx: 4,
+        })),
+        ParamType::Regular(RegularParamType::Length),
+        ParamType::Error(ErrPtr::ErrorCode),
+    ];
+    assert_eq!(signature.params(), expected);
+}
+
+#[test]
 fn ethexe_syscall_availability_matches_gsys_cfg_gates() {
     let unavailable = [
         SyscallName::CreateProgramWGas,
@@ -596,14 +618,31 @@ fn ethexe_syscall_availability_matches_gsys_cfg_gates() {
         eth_syscalls,
         SyscallKind::Eth.instrumentable().collect::<Vec<_>>()
     );
+    // Ethexe-only syscalls: present in the Eth set, absent from Vara.
+    let eth_only = [SyscallName::Crypto];
+
     assert!(!eth_syscalls.is_empty());
-    assert!(eth_syscalls.iter().all(|syscall| syscall.is_vara()));
+    assert!(
+        eth_syscalls
+            .iter()
+            .all(|syscall| syscall.is_vara() || eth_only.contains(syscall))
+    );
     assert!(eth_syscalls.iter().all(|syscall| syscall.is_eth()));
     assert!(
         unavailable
             .iter()
             .all(|syscall| !eth_syscalls.contains(syscall))
     );
+    for syscall in eth_only {
+        assert!(!syscall.is_vara());
+        assert!(!syscall.is_vara_including_system_break());
+        assert!(eth_syscalls.contains(&syscall));
+        assert!(
+            !SyscallName::instrumentable(SyscallKind::Vara).any(|vara| vara == syscall),
+            "{} must not leak into the Vara syscall set",
+            syscall.to_str()
+        );
+    }
 
     let vara_map = SyscallName::instrumentable_map(SyscallKind::Vara);
     let eth_map = SyscallName::instrumentable_map(SyscallKind::Eth);

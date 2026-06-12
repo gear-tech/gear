@@ -249,6 +249,7 @@ where
             | SyscallName::Free
             | SyscallName::FreeRange => check_mem::<T>(),
             SyscallName::SystemBreak => {/* no need for tests because tested in other bench test */}
+            SyscallName::Crypto => {/* ethexe-only syscall, never linked into the Vara runtime */}
             SyscallName::Random => check_gr_random::<T>(),
             SyscallName::ReserveGas => check_gr_reserve_gas::<T>(),
             SyscallName::UnreserveGas => check_gr_unreserve_gas::<T>(),

@@ -91,6 +91,11 @@ pub enum SyscallName {
     ReserveGas,
     UnreserveGas,
     SystemReserveGas,
+
+    // Ethexe-only
+    // --
+    // Cryptographic host calls
+    Crypto,
 }
 
 /// Runtime syscall set.
@@ -121,6 +126,7 @@ impl SyscallName {
         match self {
             Self::Alloc => "alloc",
             Self::EnvVars => "gr_env_vars",
+            Self::Crypto => "gr_crypto",
             Self::BlockHeight => "gr_block_height",
             Self::BlockTimestamp => "gr_block_timestamp",
             Self::CreateProgram => "gr_create_program",
@@ -186,7 +192,7 @@ impl SyscallName {
     /// Returns iterator of all syscall names available for the given runtime.
     pub fn instrumentable(kind: SyscallKind) -> impl Iterator<Item = Self> {
         Self::instrumentable_all().filter(move |syscall| match kind {
-            SyscallKind::Vara => true,
+            SyscallKind::Vara => syscall.is_vara(),
             SyscallKind::Eth => syscall.is_eth(),
         })
     }
@@ -205,12 +211,12 @@ impl SyscallName {
 
     /// Checks whether the syscall is available in the Vara runtime.
     pub fn is_vara(self) -> bool {
-        self != Self::SystemBreak
+        !matches!(self, Self::SystemBreak | Self::Crypto)
     }
 
     /// Checks whether the syscall is available in the Vara runtime (including SystemBreak).
     pub const fn is_vara_including_system_break(self) -> bool {
-        true
+        !matches!(self, Self::Crypto)
     }
 
     /// Checks whether the syscall is available under the `ethexe` feature.
@@ -266,6 +272,22 @@ impl SyscallName {
                 Length,
             ]),
             Self::OomPanic => SyscallSignature::gr_infallible([]),
+            Self::Crypto => SyscallSignature::gr_fallible((
+                [
+                    CryptoOp,
+                    Ptr::SizedBufferStart {
+                        length_param_idx: 2,
+                    }
+                    .into(),
+                    Length,
+                    Ptr::MutSizedBufferStart {
+                        length_param_idx: 4,
+                    }
+                    .into(),
+                    Length,
+                ],
+                ErrPtr::ErrorCode,
+            )),
             Self::BlockHeight => SyscallSignature::gr_infallible([Ptr::MutBlockNumber.into()]),
             Self::BlockTimestamp => {
                 SyscallSignature::gr_infallible([Ptr::MutBlockTimestamp.into()])
@@ -579,6 +601,7 @@ pub enum RegularParamType {
     Free,                // i32 page number to free
     FreeUpperBound,      // i32 free upper bound for use with free_range
     Version,             // i32 version number of exec settings
+    CryptoOp,            // i32 crypto operation id for gr_crypto
 }
 
 /// Hash type.
@@ -601,7 +624,7 @@ impl From<ParamType> for ValType {
         match value {
             ParamType::Regular(regular_ptr) => match regular_ptr {
                 Length | Pointer(_) | Offset | DurationBlockNumber | DelayBlockNumber | Handler
-                | Alloc | Free | FreeUpperBound | Version => ValType::I32,
+                | Alloc | Free | FreeUpperBound | Version | CryptoOp => ValType::I32,
                 Gas => ValType::I64,
             },
             ParamType::Error(_) => ValType::I32,

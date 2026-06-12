@@ -321,6 +321,16 @@ fn syscall_weights_test() {
         gr_create_program_wgas: 3_200_000.into(),
         gr_create_program_wgas_payload_per_byte: 250.into(),
         gr_create_program_wgas_salt_per_byte: 1_200.into(),
+        gr_crypto_keccak256: 2_467_510.into(),
+        gr_crypto_keccak256_per_byte: 280.into(),
+        gr_crypto_sha256: 2_467_510.into(),
+        gr_crypto_sha256_per_byte: 280.into(),
+        gr_crypto_blake2b256: 2_467_510.into(),
+        gr_crypto_blake2b256_per_byte: 280.into(),
+        gr_crypto_bls12_381_verify: 1_500_000_000.into(),
+        gr_crypto_bls12_381_verify_per_byte: 280.into(),
+        gr_crypto_bls12_381_aggregate_g1: 24_675_100.into(),
+        gr_crypto_bls12_381_aggregate_g1_per_byte: 3_200_000.into(),
         _phantom: Default::default(),
     };
 

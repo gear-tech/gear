@@ -552,6 +552,36 @@ pub struct SyscallWeights<T: Config> {
     /// Weight per salt byte by `create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: Weight,
 
+    /// Weight of calling `gr_crypto` keccak256 (ethexe-only).
+    pub gr_crypto_keccak256: Weight,
+
+    /// Weight per input byte of `gr_crypto` keccak256 (ethexe-only).
+    pub gr_crypto_keccak256_per_byte: Weight,
+
+    /// Weight of calling `gr_crypto` sha256 (ethexe-only).
+    pub gr_crypto_sha256: Weight,
+
+    /// Weight per input byte of `gr_crypto` sha256 (ethexe-only).
+    pub gr_crypto_sha256_per_byte: Weight,
+
+    /// Weight of calling `gr_crypto` blake2b-256 (ethexe-only).
+    pub gr_crypto_blake2b256: Weight,
+
+    /// Weight per input byte of `gr_crypto` blake2b-256 (ethexe-only).
+    pub gr_crypto_blake2b256_per_byte: Weight,
+
+    /// Weight of calling `gr_crypto` BLS12-381 verify (ethexe-only).
+    pub gr_crypto_bls12_381_verify: Weight,
+
+    /// Weight per input byte of `gr_crypto` BLS12-381 verify (ethexe-only).
+    pub gr_crypto_bls12_381_verify_per_byte: Weight,
+
+    /// Weight of calling `gr_crypto` BLS12-381 G1 aggregation (ethexe-only).
+    pub gr_crypto_bls12_381_aggregate_g1: Weight,
+
+    /// Weight per input byte of `gr_crypto` BLS12-381 G1 aggregation (ethexe-only).
+    pub gr_crypto_bls12_381_aggregate_g1_per_byte: Weight,
+
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
     #[cfg_attr(feature = "std", serde(skip))]
@@ -1209,6 +1239,20 @@ impl<T: Config> Default for SyscallWeights<T> {
                 0,
                 1,
             ),
+            // `gr_crypto` is ethexe-only: it is never linked on Vara, so the
+            // weights are constants mirrored into the gas-metering schedule
+            // for ethexe rather than benchmarked here.
+            // TODO #5456: benchmark crypto ops and replace the placeholders.
+            gr_crypto_keccak256: Weight::from_parts(2_467_510, 0),
+            gr_crypto_keccak256_per_byte: Weight::from_parts(280, 0),
+            gr_crypto_sha256: Weight::from_parts(2_467_510, 0),
+            gr_crypto_sha256_per_byte: Weight::from_parts(280, 0),
+            gr_crypto_blake2b256: Weight::from_parts(2_467_510, 0),
+            gr_crypto_blake2b256_per_byte: Weight::from_parts(280, 0),
+            gr_crypto_bls12_381_verify: Weight::from_parts(1_500_000_000, 0),
+            gr_crypto_bls12_381_verify_per_byte: Weight::from_parts(280, 0),
+            gr_crypto_bls12_381_aggregate_g1: Weight::from_parts(24_675_100, 0),
+            gr_crypto_bls12_381_aggregate_g1_per_byte: Weight::from_parts(3_200_000, 0),
             _phantom: PhantomData,
         }
     }
@@ -1294,6 +1338,25 @@ impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
                 .into(),
             gr_create_program_wgas_salt_per_byte: val
                 .gr_create_program_wgas_salt_per_byte
+                .ref_time()
+                .into(),
+            gr_crypto_keccak256: val.gr_crypto_keccak256.ref_time().into(),
+            gr_crypto_keccak256_per_byte: val.gr_crypto_keccak256_per_byte.ref_time().into(),
+            gr_crypto_sha256: val.gr_crypto_sha256.ref_time().into(),
+            gr_crypto_sha256_per_byte: val.gr_crypto_sha256_per_byte.ref_time().into(),
+            gr_crypto_blake2b256: val.gr_crypto_blake2b256.ref_time().into(),
+            gr_crypto_blake2b256_per_byte: val.gr_crypto_blake2b256_per_byte.ref_time().into(),
+            gr_crypto_bls12_381_verify: val.gr_crypto_bls12_381_verify.ref_time().into(),
+            gr_crypto_bls12_381_verify_per_byte: val
+                .gr_crypto_bls12_381_verify_per_byte
+                .ref_time()
+                .into(),
+            gr_crypto_bls12_381_aggregate_g1: val
+                .gr_crypto_bls12_381_aggregate_g1
+                .ref_time()
+                .into(),
+            gr_crypto_bls12_381_aggregate_g1_per_byte: val
+                .gr_crypto_bls12_381_aggregate_g1_per_byte
                 .ref_time()
                 .into(),
         }

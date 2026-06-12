@@ -95,6 +95,7 @@ impl InstanceCreator {
         let mut linker = wasmtime::Linker::new(&engine);
 
         api::allocator::link(&mut linker)?;
+        api::crypto::link(&mut linker)?;
         api::database::link(&mut linker)?;
         api::lazy_pages::link(&mut linker)?;
         api::logging::link(&mut linker)?;
