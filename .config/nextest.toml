@@ -15,19 +15,11 @@ slow-timeout = { period = "1m", terminate-after = 5 }
 # every test process compiling the Vara runtime WASM independently.
 authorship = { max-threads = 1 }
 
-# cargo-gbuild smoke tests build the shared `test-program` workspace from two
-# concurrent test processes (in-process GBuild + a spawned `cargo +stable
-# test`), racing on the same directory and cargo locks; run them serially.
-gbuild-smoke = { max-threads = 1 }
 
 [[profile.default.overrides]]
 filter = 'package(gear-authorship)'
 retries = 5
 test-group = 'authorship'
-
-[[profile.default.overrides]]
-filter = 'package(cargo-gbuild)'
-test-group = 'gbuild-smoke'
 
 # ethexe-service tests spawn Anvil child processes plus a malachite
 # engine with libp2p sockets and a RocksDB WAL. Graceful tear-down of
