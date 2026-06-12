@@ -23,7 +23,10 @@ use ethexe_common::{
     Address,
     gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo},
 };
-use ethexe_sdk::{CodeValidationResult, ValueClaim, VaraEthApi};
+use ethexe_sdk::{
+    VaraEthApi,
+    types::{CodeValidationResult, ValueClaim},
+};
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use gsigner::secp256k1::Signer;
 use serde::Serialize;
@@ -315,7 +318,9 @@ impl TxCommand {
             .vara_eth_rpc
             .ok_or_else(|| anyhow!("missing `vara-eth-rpc`"))?;
 
-        let api = VaraEthApi::builder(vara_eth_rpc_url.clone(), rpc.clone())
+        let api = VaraEthApi::builder()
+            .vara_eth_rpc_url(vara_eth_rpc_url.clone())
+            .ethereum_rpc_url(rpc.clone())
             .router_address(router_addr)
             .signer(signer.clone())
             .sender_address(sender)
@@ -702,8 +707,7 @@ impl TxCommand {
 
                     let mirror = api.mirror(mirror.into());
 
-                    let state_hash = mirror.state_hash().await?;
-                    let program_state = mirror.state_at_hash(state_hash).await?;
+                    let (state_hash, program_state) = mirror.state().await?;
 
                     let balance = program_state.balance;
                     let executable_balance = program_state.executable_balance;
