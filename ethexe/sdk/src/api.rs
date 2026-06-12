@@ -37,6 +37,9 @@ pub struct VaraEthApiBuilder {
 }
 
 impl VaraEthApiBuilder {
+    /// Creates a builder with no configured endpoints, router address, signer, or sender address.
+    ///
+    /// Required fields must be set before calling [`Self::build`].
     pub fn new() -> Self {
         Self {
             vara_eth_rpc_url: String::new(),
