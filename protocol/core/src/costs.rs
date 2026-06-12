@@ -527,7 +527,10 @@ impl SyscallCosts {
                 Some(gsys::CryptoOp::Bls12381AggregateG1) => {
                     cost_with_per_byte!(gr_crypto_bls12_381_aggregate_g1, len)
                 }
-                None => self.gr_crypto_keccak256.cost_for_one(),
+                // Unknown op still pays for the declared input: the backend
+                // registers and copies the buffer before rejecting, so charge
+                // the most expensive per-byte coefficients.
+                None => cost_with_per_byte!(gr_crypto_bls12_381_verify, len),
             },
         }
     }

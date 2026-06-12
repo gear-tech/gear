@@ -58,6 +58,14 @@ impl WasmBuilder {
         self
     }
 
+    /// Validate the produced WASM against the ethexe syscall set.
+    /// Use from the program's `build.rs` when its own `ethexe` feature is
+    /// enabled (`CARGO_FEATURE_ETHEXE` env) — see [`build_ethexe`].
+    pub fn with_ethexe_syscalls(mut self) -> Self {
+        self.wasm_project.override_syscall_kind(SyscallKind::Eth);
+        self
+    }
+
     /// Add pre-processor for wasm file.
     pub fn with_pre_processor(mut self, pre_processor: Box<dyn PreProcessor>) -> Self {
         self.wasm_project.add_preprocessor(pre_processor);
@@ -210,6 +218,19 @@ pub fn build() -> Option<(PathBuf, PathBuf)> {
     WasmBuilder::new()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
         .build()
+}
+
+/// Shorthand for ethexe programs: validates the WASM against the ethexe
+/// syscall set when the program's own `ethexe` feature is enabled, and
+/// against the Vara set otherwise. To be used in `build.rs`.
+pub fn build_ethexe() -> Option<(PathBuf, PathBuf)> {
+    let builder = WasmBuilder::new().exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec());
+
+    if std::env::var("CARGO_FEATURE_ETHEXE").is_ok() {
+        builder.with_ethexe_syscalls().build()
+    } else {
+        builder.build()
+    }
 }
 
 /// Shorthand function to be used in `build.rs`.

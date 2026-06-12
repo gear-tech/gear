@@ -557,6 +557,28 @@ fn check_syscall_err_ptr_position() {
 }
 
 #[test]
+fn crypto_syscall_signature_shape() {
+    use crate::syscalls::{ErrPtr, ParamType, Ptr, RegularParamType};
+
+    // Pin the exact wire shape of `gr_crypto`: op id, sized input
+    // (len at param 2), sized mut output (len at param 4), error code.
+    let signature = SyscallName::Crypto.signature();
+    let expected: &[ParamType] = &[
+        ParamType::Regular(RegularParamType::CryptoOp),
+        ParamType::Regular(RegularParamType::Pointer(Ptr::SizedBufferStart {
+            length_param_idx: 2,
+        })),
+        ParamType::Regular(RegularParamType::Length),
+        ParamType::Regular(RegularParamType::Pointer(Ptr::MutSizedBufferStart {
+            length_param_idx: 4,
+        })),
+        ParamType::Regular(RegularParamType::Length),
+        ParamType::Error(ErrPtr::ErrorCode),
+    ];
+    assert_eq!(signature.params(), expected);
+}
+
+#[test]
 fn ethexe_syscall_availability_matches_gsys_cfg_gates() {
     let unavailable = [
         SyscallName::CreateProgramWGas,

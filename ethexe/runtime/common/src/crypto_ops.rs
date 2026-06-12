@@ -52,9 +52,10 @@ fn bls12_381_verify(input: &[u8]) -> Option<Vec<u8>> {
     let signature = G2Affine::deserialize_compressed(&input[G1_COMPRESSED_LEN..PREFIX_LEN]).ok()?;
     let message = &input[PREFIX_LEN..];
 
-    // The identity public key passes the pairing check trivially —
-    // reject it outright (mirrors the IETF BLS spec / eth2 behavior).
-    if pk.is_zero() {
+    // The identity public key passes the pairing check trivially, and the
+    // IETF BLS spec rejects identity signatures up front — refuse both
+    // (mirrors eth2 behavior).
+    if pk.is_zero() || signature.is_zero() {
         return None;
     }
 
@@ -263,6 +264,17 @@ mod tests {
         input.extend_from_slice(&sig_inf);
         input.extend_from_slice(b"msg");
         assert!(execute(CryptoOp::Bls12381Verify, &input).is_none());
+
+        // Identity signature under a valid public key is rejected up front.
+        let mut rng = StdRng::seed_from_u64(5);
+        let mut with_inf_sig = pk_bytes(&Fr::rand(&mut rng));
+        let mut sig_inf = Vec::new();
+        G2Affine::identity()
+            .serialize_compressed(&mut sig_inf)
+            .unwrap();
+        with_inf_sig.extend_from_slice(&sig_inf);
+        with_inf_sig.extend_from_slice(b"msg");
+        assert!(execute(CryptoOp::Bls12381Verify, &with_inf_sig).is_none());
     }
 
     #[test]

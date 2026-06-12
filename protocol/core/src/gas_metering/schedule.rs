@@ -831,7 +831,7 @@ impl Default for SyscallWeights {
                 proof_size: 0,
             },
             gr_crypto_bls12_381_verify: Weight {
-                ref_time: 246751000,
+                ref_time: 1500000000,
                 proof_size: 0,
             },
             gr_crypto_bls12_381_verify_per_byte: Weight {
@@ -843,7 +843,7 @@ impl Default for SyscallWeights {
                 proof_size: 0,
             },
             gr_crypto_bls12_381_aggregate_g1_per_byte: Weight {
-                ref_time: 280,
+                ref_time: 3200000,
                 proof_size: 0,
             },
         }

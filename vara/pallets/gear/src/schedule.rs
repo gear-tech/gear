@@ -1249,10 +1249,10 @@ impl<T: Config> Default for SyscallWeights<T> {
             gr_crypto_sha256_per_byte: Weight::from_parts(280, 0),
             gr_crypto_blake2b256: Weight::from_parts(2_467_510, 0),
             gr_crypto_blake2b256_per_byte: Weight::from_parts(280, 0),
-            gr_crypto_bls12_381_verify: Weight::from_parts(246_751_000, 0),
+            gr_crypto_bls12_381_verify: Weight::from_parts(1_500_000_000, 0),
             gr_crypto_bls12_381_verify_per_byte: Weight::from_parts(280, 0),
             gr_crypto_bls12_381_aggregate_g1: Weight::from_parts(24_675_100, 0),
-            gr_crypto_bls12_381_aggregate_g1_per_byte: Weight::from_parts(280, 0),
+            gr_crypto_bls12_381_aggregate_g1_per_byte: Weight::from_parts(3_200_000, 0),
             _phantom: PhantomData,
         }
     }
