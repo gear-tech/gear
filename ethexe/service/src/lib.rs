@@ -343,6 +343,8 @@ impl Service {
                 continue;
             }
 
+            unsafe { db.remove_mb_schedule(mb_hash) };
+
             if count % 1000 == 1 {
                 log::info!("Bypassed {} MBs, latest cleaned MB hash: {mb_hash:?}", count - 1);
                 tokio::time::sleep(Duration::from_millis(10)).await;
