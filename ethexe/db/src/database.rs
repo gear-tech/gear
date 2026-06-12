@@ -805,6 +805,68 @@ impl Database {
         }
     }
 
+    /// How many most recent MBs below the latest computed one keep their
+    /// schedules during [`Self::cleanup`].
+    pub const CLEANUP_SAFE_DEPTH: u64 = 100;
+
+    /// Prune MB schedules deeper than [`Self::CLEANUP_SAFE_DEPTH`] below the
+    /// latest computed MB. Walks the parent chain all the way to genesis with
+    /// blind deletes, so gaps left by an interrupted previous run are healed.
+    ///
+    /// Returns the number of MBs below the kept window the prune covered.
+    ///
+    /// # Safety
+    /// Temporary hot fix for the oversized MB schedule on test-net: deletes
+    /// consensus data by a depth heuristic, making historical replay of
+    /// pruned MBs impossible. Must not run concurrently with compute.
+    /// Goes away with the merklized schedule (#5585).
+    pub unsafe fn cleanup(&self) -> u64 {
+        let mut mb_hash = self.globals().latest_computed_mb_hash;
+        let mut depth: u64 = 0;
+        let mut pruned: u64 = 0;
+
+        while !mb_hash.is_zero() {
+            let Some(mb) = self.mb_compact_block(mb_hash) else {
+                // Best-effort: an incomplete compact chain must not
+                // prevent the node from starting.
+                log::warn!(
+                    "schedule cleanup: compact MB {mb_hash} not found, stopping at depth {depth}"
+                );
+                break;
+            };
+
+            if depth > Self::CLEANUP_SAFE_DEPTH {
+                unsafe {
+                    self.raw.kv.delete(&Key::MbSchedule(mb_hash).to_bytes());
+                }
+                pruned += 1;
+            }
+
+            mb_hash = mb.parent;
+            depth += 1;
+        }
+
+        if pruned > 0 {
+            // Deletes alone only write tombstones; force-compact the
+            // `MbSchedule` keyspace so the disk space actually comes back.
+            let start = Key::MbSchedule(H256::zero()).prefix();
+            let mut end = start;
+            // The prefix is the BE key discriminant in the low bytes;
+            // bumping it covers the whole `MbSchedule` range exclusively.
+            end[31] += 1;
+
+            log::info!("schedule cleanup: compacting the MB schedule keyspace...");
+            let started = std::time::Instant::now();
+            self.raw.kv.compact_range(&start, &end);
+            log::info!(
+                "schedule cleanup: compaction done in {:.1}s",
+                started.elapsed().as_secs_f64()
+            );
+        }
+
+        pruned
+    }
+
     pub fn cas(&self) -> &dyn CASDatabase {
         self.raw.cas.as_ref()
     }
@@ -1053,6 +1115,93 @@ mod tests {
         ))];
         db.set_block_events(block_hash, &events);
         assert_eq!(db.block_events(block_hash), Some(events));
+    }
+
+    /// Seeds a compact-MB chain (heights `1..=len`) with a schedule per MB
+    /// and points `latest_computed_mb_hash` at the head. Returns the MB
+    /// hashes oldest-first.
+    fn seed_computed_chain(db: &Database, len: u64) -> Vec<H256> {
+        let mut hashes = Vec::with_capacity(len as usize);
+        let mut parent = H256::zero();
+        for i in 1..=len {
+            let mb_hash = H256::from_low_u64_be(0xD000_0000 + i);
+            db.set_mb_compact_block(
+                mb_hash,
+                CompactMb {
+                    parent,
+                    height: i,
+                    operations_hash: H256::zero(),
+                },
+            );
+            db.set_mb_schedule(mb_hash, Default::default());
+            hashes.push(mb_hash);
+            parent = mb_hash;
+        }
+        db.globals_mutate(|g| g.latest_computed_mb_hash = parent);
+        hashes
+    }
+
+    /// Cleanup keeps the most recent `CLEANUP_SAFE_DEPTH + 1` schedules
+    /// (head included) and prunes everything deeper, down to genesis.
+    #[test]
+    fn test_cleanup_prunes_only_below_safe_depth() {
+        const EXTRA: u64 = 10;
+
+        let db = Database::memory();
+        let window = Database::CLEANUP_SAFE_DEPTH + 1;
+        let hashes = seed_computed_chain(&db, window + EXTRA);
+
+        let pruned = unsafe { db.cleanup() };
+        assert_eq!(pruned, EXTRA);
+
+        let (removed, kept) = hashes.split_at(EXTRA as usize);
+        for hash in removed {
+            assert!(db.mb_schedule(*hash).is_none(), "deep schedule must go");
+        }
+        for hash in kept {
+            assert!(db.mb_schedule(*hash).is_some(), "window must stay");
+        }
+    }
+
+    /// Blind deletes walk to genesis regardless of holes, so a gap left by
+    /// an interrupted previous cleanup gets healed.
+    #[test]
+    fn test_cleanup_heals_gap_from_interrupted_run() {
+        const EXTRA: u64 = 10;
+
+        let db = Database::memory();
+        let window = Database::CLEANUP_SAFE_DEPTH + 1;
+        let hashes = seed_computed_chain(&db, window + EXTRA);
+
+        // Simulate a crash mid-cleanup: a hole in the deep region with
+        // still-present schedules on both sides of it.
+        unsafe {
+            db.raw.kv.delete(&Key::MbSchedule(hashes[5]).to_bytes());
+        }
+
+        unsafe { db.cleanup() };
+
+        for hash in &hashes[..EXTRA as usize] {
+            assert!(
+                db.mb_schedule(*hash).is_none(),
+                "deep schedules must be pruned even past the gap"
+            );
+        }
+    }
+
+    /// A chain shorter than the window reaches genesis before any
+    /// pruning starts.
+    #[test]
+    fn test_cleanup_noop_for_short_chain() {
+        let db = Database::memory();
+        let hashes = seed_computed_chain(&db, 64);
+
+        let pruned = unsafe { db.cleanup() };
+        assert_eq!(pruned, 0);
+
+        for hash in &hashes {
+            assert!(db.mb_schedule(*hash).is_some());
+        }
     }
 
     #[test]

@@ -298,9 +298,9 @@ impl Checker {
             let expected_outcome = db
                 .mb_outcome(current_mb)
                 .ok_or_else(|| anyhow!("outcome missing for MB {current_mb}"))?;
-            let expected_schedule = db
-                .mb_schedule(current_mb)
-                .ok_or_else(|| anyhow!("schedule missing for MB {current_mb}"))?;
+            let expected_schedule = db.mb_schedule(current_mb).ok_or_else(|| {
+                anyhow!("schedule missing for MB {current_mb}, may be pruned by cleanup (#5585)")
+            })?;
 
             let executable = prepare_executable_for_mb(db, current_mb, current_compact_mb)
                 .with_context(|| {
