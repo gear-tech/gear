@@ -162,15 +162,12 @@ pub enum ComputeError {
     AdvanceBlockEventsMissing(H256),
     #[error("anchor Eth block header missing for {0}")]
     AnchorBlockHeaderMissing(H256),
-    #[error("AdvanceTillEthereumBlock walk hit a missing parent header at {hash}")]
-    AdvanceMissingHeader { hash: H256 },
-    #[error(
-        "AdvanceTillEthereumBlock walk from {target} to {last_advanced} exceeded the safety cap"
-    )]
-    AdvanceWalkTooDeep { target: H256, last_advanced: H256 },
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
+
+    #[error("other: {0}")]
+    Other(&'static str),
 }
 
 type Result<T> = std::result::Result<T, ComputeError>;
