@@ -666,6 +666,10 @@ impl Waitlist {
         debug_assert!(r.is_none())
     }
 
+    pub fn contains(&self, message_id: &MessageId) -> bool {
+        self.inner.contains_key(message_id)
+    }
+
     pub fn wake(&mut self, message_id: &MessageId) -> Option<Expiring<Dispatch>> {
         self.inner
             .remove(message_id)
@@ -719,6 +723,10 @@ impl DispatchStash {
             },
         );
         debug_assert!(r.is_none());
+    }
+
+    pub fn contains(&self, message_id: &MessageId) -> bool {
+        self.0.contains_key(message_id)
     }
 
     pub fn remove_to_program(&mut self, message_id: &MessageId) -> Dispatch {
@@ -862,6 +870,22 @@ impl Mailbox {
         let hash = storage.write_user_mailbox(mailbox);
 
         let _ = self.inner.insert(user_id, hash);
+    }
+
+    /// Read-only check that `message_id` sits in `user_id`'s mailbox.
+    pub fn contains<S: Storage + ?Sized>(
+        &self,
+        storage: &S,
+        user_id: &ActorId,
+        message_id: &MessageId,
+    ) -> bool {
+        let maybe_hash: MaybeHashOf<UserMailbox> = self.inner.get(user_id).cloned().into();
+
+        storage
+            .query(&maybe_hash)
+            .expect("failed to query user mailbox")
+            .0
+            .contains_key(message_id)
     }
 
     pub fn remove_and_store_user_mailbox<S: Storage + ?Sized>(

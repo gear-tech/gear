@@ -145,7 +145,7 @@ pub use promise::BoundPromiseSink;
 
 use core::num::NonZero;
 use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, Schedule,
+    CodeAndIdUnchecked, MAX_SCHEDULE_TASKS_PER_MB, ProgramStates, Schedule,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
     gear::Message,
@@ -388,8 +388,18 @@ impl Processor {
     }
 
     fn process_tasks(&mut self, mut transitions: InBlockTransitions) -> InBlockTransitions {
-        let tasks = transitions.take_actual_tasks();
+        let tasks = transitions.take_actual_tasks_capped(MAX_SCHEDULE_TASKS_PER_MB);
         let block_height = transitions.block_height();
+
+        let deferred = transitions.due_tasks_len();
+        if deferred != 0 {
+            // Excess stays scheduled and runs in following blocks, keeping
+            // the per-announce commitment bounded (#5204).
+            log::warn!(
+                "Schedule for #{block_height} is capped: {} tasks processed, {deferred} deferred",
+                tasks.len(),
+            );
+        }
 
         log::trace!("Running schedule for #{block_height}: tasks are {tasks:?}");
 
