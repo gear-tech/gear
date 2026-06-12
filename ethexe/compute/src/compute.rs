@@ -43,10 +43,6 @@ pub(crate) struct MbComputeRequest {
 
 type ComputationFuture = future_timing::Timed<BoxFuture<'static, Result<H256>>>;
 
-/// Schedules of MBs deeper than this below the computed head are pruned
-/// by [`ComputeSubService::cleanup_computed_mb`].
-const SAFE_DEPTH: usize = 100;
-
 /// Metrics for the [`ComputeSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe_compute_compute")]
@@ -177,9 +173,6 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             Self::compute_one(&db, &mut processor, mb_hash, compact_mb, promise_sink).await?;
         }
 
-        // TODO: #5585 db cleanup unsafe solution, should reconsider it for safer one
-        Self::cleanup_computed_mb(&db, head_mb_hash).await?;
-
         Ok(head_mb_hash)
     }
 
@@ -216,50 +209,6 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         });
 
         Ok(())
-    }
-
-    async fn cleanup_computed_mb(db: &Database, mb_hash: H256) -> Result<()> {
-        let mut cursor_hash = mb_hash;
-        let mut cursor = db
-            .mb_compact_block(cursor_hash)
-            .ok_or(ComputeError::MbCompactNotFound(cursor_hash))?;
-
-        // Skip SAFE_DEPTH most recent MBs below the head, keeping their schedules
-        for _ in 0..SAFE_DEPTH {
-            if cursor.parent.is_zero() {
-                // Reached genesis, stop cleanup.
-                return Ok(());
-            }
-
-            if !db.contains_mb_schedule(cursor_hash) {
-                // Window in unexpected state (schedule already removed) —
-                // back off instead of pruning deeper.
-                return Ok(());
-            }
-
-            cursor_hash = cursor.parent;
-            cursor = db
-                .mb_compact_block(cursor_hash)
-                .ok_or(ComputeError::MbCompactNotFound(cursor_hash))?;
-        }
-
-        loop {
-            if cursor.parent.is_zero() {
-                // Reached genesis, stop cleanup.
-                break Ok(());
-            }
-
-            // Safety: old MB schedules have no use once the head has advanced
-            // SAFE_DEPTH past them. An already-missing schedule marks the
-            // boundary a previous cleanup run stopped at — stop there too.
-            if !unsafe { db.remove_mb_schedule(cursor.parent) } {
-                break Ok(());
-            }
-
-            cursor = db
-                .mb_compact_block(cursor.parent)
-                .ok_or(ComputeError::MbCompactNotFound(cursor.parent))?;
-        }
     }
 }
 
@@ -695,169 +644,6 @@ mod tests {
             result.is_err(),
             "stream must stay pending — re-queue of computed MB is a no-op"
         );
-    }
-
-    // --- Schedule cleanup tests ---
-    //
-    // `cleanup_computed_mb` only reads `mb_compact_block` and the per-MB
-    // schedule rows, so the chain is seeded bare: compact MBs + an empty
-    // schedule each, no operations / execution involved.
-
-    fn seed_schedule_chain(db: &Database, len: u64) -> Vec<H256> {
-        let mut hashes = Vec::with_capacity(len as usize);
-        let mut parent = H256::zero();
-        for i in 1..=len {
-            let mb_hash = H256::from_low_u64_be(0xD000_0000 + i);
-            db.set_mb_compact_block(
-                mb_hash,
-                CompactMb {
-                    parent,
-                    height: i,
-                    operations_hash: H256::zero(),
-                },
-            );
-            db.set_mb_schedule(mb_hash, Default::default());
-            hashes.push(mb_hash);
-            parent = mb_hash;
-        }
-        hashes
-    }
-
-    async fn run_cleanup(db: &Database, head: H256) -> Result<()> {
-        ComputeSubService::<MockProcessor>::cleanup_computed_mb(db, head).await
-    }
-
-    /// Cleanup prunes only schedules strictly deeper than `SAFE_DEPTH`
-    /// below the head; everything inside the window must survive — in
-    /// particular the head's own schedule, which
-    /// `prepare_executable_for_mb` reads to compute the next MB.
-    #[tokio::test]
-    #[ntest::timeout(30000)]
-    async fn cleanup_removes_only_schedules_deeper_than_safe_depth() {
-        const EXTRA: u64 = 10;
-
-        let db = Database::memory();
-        let hashes = seed_schedule_chain(&db, SAFE_DEPTH as u64 + EXTRA);
-        let head = *hashes.last().unwrap();
-
-        run_cleanup(&db, head).await.unwrap();
-
-        // The SAFE_DEPTH walk from the head lands at height EXTRA;
-        // removal covers heights [1, EXTRA - 1] only.
-        let (removed, kept) = hashes.split_at(EXTRA as usize - 1);
-        for (i, hash) in removed.iter().enumerate() {
-            assert!(
-                db.mb_schedule(*hash).is_none(),
-                "schedule at height {} (deeper than SAFE_DEPTH) must be pruned",
-                i + 1,
-            );
-        }
-        for (i, hash) in kept.iter().enumerate() {
-            assert!(
-                db.mb_schedule(*hash).is_some(),
-                "schedule at height {} (within SAFE_DEPTH window) must be kept",
-                EXTRA as usize + i,
-            );
-        }
-    }
-
-    /// A chain shorter than `SAFE_DEPTH` reaches genesis inside the
-    /// depth walk — nothing may be pruned.
-    #[tokio::test]
-    #[ntest::timeout(5000)]
-    async fn cleanup_noop_when_chain_shorter_than_safe_depth() {
-        let db = Database::memory();
-        let hashes = seed_schedule_chain(&db, 64);
-        let head = *hashes.last().unwrap();
-
-        run_cleanup(&db, head).await.unwrap();
-
-        for hash in &hashes {
-            assert!(
-                db.mb_schedule(*hash).is_some(),
-                "short chain must keep every schedule"
-            );
-        }
-    }
-
-    /// Cleanup stops at the first already-pruned ancestor instead of
-    /// walking all the way to genesis — that boundary is what keeps the
-    /// per-block cleanup O(1) amortized.
-    #[tokio::test]
-    #[ntest::timeout(30000)]
-    async fn cleanup_stops_at_already_cleaned_boundary() {
-        const EXTRA: u64 = 10;
-        const BOUNDARY_HEIGHT: usize = 5;
-
-        let db = Database::memory();
-        let hashes = seed_schedule_chain(&db, SAFE_DEPTH as u64 + EXTRA);
-        let head = *hashes.last().unwrap();
-
-        // Simulate a previous cleanup run that stopped at BOUNDARY_HEIGHT.
-        unsafe {
-            db.remove_mb_schedule(hashes[BOUNDARY_HEIGHT - 1]);
-        }
-
-        run_cleanup(&db, head).await.unwrap();
-
-        // Heights below the boundary stay untouched: the walk must break
-        // on the missing schedule at BOUNDARY_HEIGHT.
-        for (i, hash) in hashes[..BOUNDARY_HEIGHT - 1].iter().enumerate() {
-            assert!(
-                db.mb_schedule(*hash).is_some(),
-                "schedule at height {} below the cleaned boundary must be kept",
-                i + 1,
-            );
-        }
-        // (BOUNDARY_HEIGHT, EXTRA - 1] pruned by this run.
-        for (i, hash) in hashes[BOUNDARY_HEIGHT..EXTRA as usize - 1]
-            .iter()
-            .enumerate()
-        {
-            assert!(
-                db.mb_schedule(*hash).is_none(),
-                "schedule at height {} must be pruned by this run",
-                BOUNDARY_HEIGHT + i + 1,
-            );
-        }
-        // The SAFE_DEPTH window is intact.
-        for hash in &hashes[EXTRA as usize - 1..] {
-            assert!(db.mb_schedule(*hash).is_some());
-        }
-    }
-
-    /// A missing schedule *inside* the SAFE_DEPTH window means the window
-    /// is in an unexpected state — cleanup must back off entirely instead
-    /// of pruning anything deeper.
-    #[tokio::test]
-    #[ntest::timeout(30000)]
-    async fn cleanup_backs_off_when_schedule_missing_inside_window() {
-        const EXTRA: u64 = 10;
-
-        let db = Database::memory();
-        let len = SAFE_DEPTH as u64 + EXTRA;
-        let hashes = seed_schedule_chain(&db, len);
-        let head = *hashes.last().unwrap();
-
-        // Knock out a schedule in the middle of the window (depth ~50).
-        let hole = hashes[len as usize - SAFE_DEPTH / 2];
-        unsafe {
-            db.remove_mb_schedule(hole);
-        }
-
-        run_cleanup(&db, head).await.unwrap();
-
-        // Nothing besides the hole may disappear — in particular the
-        // deep tail that a full run would have pruned.
-        for hash in &hashes {
-            if *hash == hole {
-                continue;
-            }
-            assert!(
-                db.contains_mb_schedule(*hash),
-                "cleanup must not prune anything when the window has a hole"
-            );
-        }
     }
 
     // --- Promise emission-mode tests (real Processor + demo-ping) ---

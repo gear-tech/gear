@@ -549,7 +549,7 @@ where
         // post-execution rows must exist.
         if computed {
             // TODO: #5585 temporary allow schedules undefined for computed mb —
-            // compute's cleanup prunes schedules deeper than SAFE_DEPTH.
+            // `Database::cleanup` prunes schedules deeper than the safe depth.
             if let Some(mb_schedule) = self.storage.mb_schedule(mb_hash) {
                 self.push_node(MbScheduleNode {
                     mb_hash,
