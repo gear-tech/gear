@@ -23,6 +23,12 @@ members = ["foo", "bar"]
 [workspace.metadata.gbuild]
 programs = ["foo", "bar"]
 
+# `time 0.3.48` breaks `tracing-subscriber` compilation with a false-positive
+# E0119 (time-rs/time#783); pin the upstream fix until it is released.
+# TODO: drop this patch once time > 0.3.48 ships time-rs/time#784.
+[patch.crates-io]
+time = { git = "https://github.com/xlfish233/time-fix.git", rev = "d4fc87383b403bfcce9d0a113118e873d7b9baa6" }
+
 [patch."https://github.com/paritytech/polkadot-sdk.git"]
 sp-runtime-interface-proc-macro = { path = "../../../substrate/sp-runtime-interface-proc-macro" }
 sp-wasm-interface = { path = "../../../substrate/sp-wasm-interface" }
