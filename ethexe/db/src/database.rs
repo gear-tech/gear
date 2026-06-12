@@ -805,6 +805,21 @@ impl Database {
         }
     }
 
+    /// Cheap existence check for the MB's schedule — no decode.
+    pub fn contains_mb_schedule(&self, mb_hash: H256) -> bool {
+        self.raw.kv.contains(&Key::MbSchedule(mb_hash).to_bytes())
+    }
+
+    /// Remove the MB's schedule from the database. Returns whether a
+    /// schedule was actually stored (and thus removed).
+    ///
+    /// # Safety
+    /// Temporary function to fix the issue with too big MB schedule size
+    /// on test-net; goes away with the merklized schedule (#5585).
+    pub unsafe fn remove_mb_schedule(&self, mb_hash: H256) -> bool {
+        unsafe { self.raw.kv.take(&Key::MbSchedule(mb_hash).to_bytes()) }.is_some()
+    }
+
     pub fn cas(&self) -> &dyn CASDatabase {
         self.raw.cas.as_ref()
     }
@@ -1053,6 +1068,23 @@ mod tests {
         ))];
         db.set_block_events(block_hash, &events);
         assert_eq!(db.block_events(block_hash), Some(events));
+    }
+
+    #[test]
+    fn test_remove_mb_schedule_removes_only_its_key() {
+        let db = Database::memory();
+
+        let kept_mb = H256::random();
+        let removed_mb = H256::random();
+        db.set_mb_schedule(kept_mb, Default::default());
+        db.set_mb_schedule(removed_mb, Default::default());
+
+        assert!(unsafe { db.remove_mb_schedule(removed_mb) });
+        assert!(db.mb_schedule(removed_mb).is_none());
+        assert!(db.mb_schedule(kept_mb).is_some());
+
+        // Second removal reports the schedule is already gone.
+        assert!(!unsafe { db.remove_mb_schedule(removed_mb) });
     }
 
     #[test]
