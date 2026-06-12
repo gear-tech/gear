@@ -118,6 +118,12 @@ impl VaraEthApiBuilder {
     }
 }
 
+impl Default for VaraEthApiBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VaraEthApi {
     /// Builds a new SDK client builder.
     pub fn builder() -> VaraEthApiBuilder {
