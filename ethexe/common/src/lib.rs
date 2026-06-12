@@ -121,6 +121,10 @@ pub const MAX_TOUCHED_PROGRAMS_PER_MB: u32 = 128;
 /// toward the same [`PROGRAM_MODIFICATIONS_SOFT_LIMIT`] budget, so the cap
 /// is half of it — a saturated task backlog slows queue processing but
 /// cannot starve it entirely.
+///
+/// Known consequence: while a backlog drains, deferred expiries (e.g.
+/// `RemoveFromMailbox`) fire late, so externally visible deadlines such
+/// as the mailbox TTL are lower bounds, not exact heights.
 pub const MAX_SCHEDULE_TASKS_PER_MB: core::num::NonZero<usize> =
     core::num::NonZero::new(PROGRAM_MODIFICATIONS_SOFT_LIMIT as usize / 2)
         .expect("soft limit must be non-zero");
