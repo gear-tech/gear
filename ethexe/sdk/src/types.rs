@@ -4,6 +4,9 @@
 use ethexe_common::injected::Promise;
 use gprimitives::{H256, MessageId};
 
+pub use ethexe_common::gear::ValueClaim;
+pub use ethexe_ethereum::router::CodeValidationResult;
+
 #[derive(Debug, Clone)]
 pub struct InjectedMessageResult {
     pub message_id: MessageId,

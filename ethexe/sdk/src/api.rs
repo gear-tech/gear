@@ -37,10 +37,10 @@ pub struct VaraEthApiBuilder {
 }
 
 impl VaraEthApiBuilder {
-    fn new(vara_eth_rpc_url: impl Into<String>, ethereum_rpc_url: impl Into<String>) -> Self {
+    pub fn new() -> Self {
         Self {
-            vara_eth_rpc_url: vara_eth_rpc_url.into(),
-            ethereum_rpc_url: ethereum_rpc_url.into(),
+            vara_eth_rpc_url: String::new(),
+            ethereum_rpc_url: String::new(),
             router_address: None,
             signer: None,
             sender_address: None,
@@ -93,12 +93,18 @@ impl VaraEthApiBuilder {
 
     /// Builds an SDK client.
     pub async fn build(self) -> Result<VaraEthApi> {
+        let vara_eth_rpc_url = (!self.vara_eth_rpc_url.is_empty())
+            .then_some(self.vara_eth_rpc_url)
+            .context("Vara.ETH RPC URL is required")?;
+        let ethereum_rpc_url = (!self.ethereum_rpc_url.is_empty())
+            .then_some(self.ethereum_rpc_url)
+            .context("Ethereum RPC URL is required")?;
         let router_address = self.router_address.context("Router address is required")?;
         let signer = self.signer.context("signer is required")?;
         let sender_address = self.sender_address.context("sender address is required")?;
 
         let ethereum_client = EthereumBuilder::default()
-            .rpc_url(self.ethereum_rpc_url)
+            .rpc_url(ethereum_rpc_url)
             .router_address(router_address)
             .signer(signer)
             .sender_address(sender_address)
@@ -108,17 +114,14 @@ impl VaraEthApiBuilder {
             .await
             .with_context(|| "failed to create Ethereum client")?;
 
-        VaraEthApi::new(&self.vara_eth_rpc_url, ethereum_client).await
+        VaraEthApi::new(&vara_eth_rpc_url, ethereum_client).await
     }
 }
 
 impl VaraEthApi {
     /// Builds a new SDK client builder.
-    pub fn builder(
-        vara_eth_rpc_url: impl Into<String>,
-        ethereum_rpc_url: impl Into<String>,
-    ) -> VaraEthApiBuilder {
-        VaraEthApiBuilder::new(vara_eth_rpc_url, ethereum_rpc_url)
+    pub fn builder() -> VaraEthApiBuilder {
+        VaraEthApiBuilder::new()
     }
 
     pub async fn new(vara_eth_rpc_url: &str, ethereum_client: Ethereum) -> Result<Self> {

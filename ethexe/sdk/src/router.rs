@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::VaraEthApi;
+use crate::{VaraEthApi, types::CodeValidationResult};
 use alloy::rpc::types::TransactionReceipt;
 use anyhow::Result;
 use ethexe_common::{
@@ -12,7 +12,7 @@ use ethexe_ethereum::{
     IntoBlockId,
     abi::IRouter::StorageView,
     router::{
-        CodeValidationResult, Router as EthereumRouter, RouterEvents as EthereumRouterEvents,
+        Router as EthereumRouter, RouterEvents as EthereumRouterEvents,
         RouterQuery as EthereumRouterQuery,
     },
 };

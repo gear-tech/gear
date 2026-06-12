@@ -19,15 +19,15 @@
 //!
 //! ## Public API
 //!
-//! - [`VaraEthApi`] — SDK root; built with `VaraEthApi::new`. Factory methods `mirror`, `router`, `wrapped_vara` return scoped
-//!   wrappers.
+//! - [`VaraEthApi`] — SDK root; built with `VaraEthApi::new` or [`VaraEthApi::builder`].
+//!   Factory methods `mirror`, `router`, `wrapped_vara` return scoped wrappers.
 //! - [`Mirror`] — Per-program operations: `send_message`, `send_reply`, `send_message_injected`, `wait_for_reply`, `claim_value`,
 //!   `state`, `calculate_reply_for_handle`, plus `*_with_receipt` variants.
 //! - [`Router`] — Router-contract and global queries: `request_code_validation`, `create_program`, validator queries,
 //!   `code_state`, `program_ids`, `storage_view`.
 //! - [`WVara`] — WrappedVara ERC20 queries and transfers, plus `mint` and `events`.
-//! - [`VaraEth`], [`VaraEthInstance`], [`Error`] — Re-exported from `ethexe-node-wrapper`; spawn and manage a local ethexe node
-//!   process and obtain its RPC endpoints.
+//! - [`types`] — SDK-visible result and value types.
+//! - [`node_bindings`] — Bindings for spawning and managing a local ethexe node process.
 //!
 //! ## Usage example
 //!
@@ -66,17 +66,14 @@ pub use crate::{
     },
     mirror::Mirror,
     router::Router,
-    types::InjectedMessageResult,
     wvara::WVara,
 };
 
 mod api;
 mod mirror;
+pub mod node_bindings;
 mod router;
-mod types;
+pub mod types;
 mod wvara;
 
-// Re-export node-wrapper helpers and SDK-visible data types.
-pub use ethexe_common::gear::ValueClaim;
-pub use ethexe_ethereum::{Ethereum, EthereumBuilder, router::CodeValidationResult};
-pub use ethexe_node_wrapper::{Error, VaraEth, VaraEthInstance};
+pub use ethexe_ethereum::{Ethereum, EthereumBuilder};

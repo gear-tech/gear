@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{InjectedMessageResult, VaraEthApi};
+use crate::{VaraEthApi, types::InjectedMessageResult};
 use alloy::rpc::types::TransactionReceipt;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use ethexe_common::{
@@ -62,17 +62,18 @@ impl<'a> Mirror<'a> {
         self.mirror_query_client.router().await
     }
 
-    pub async fn state(&self) -> Result<ProgramState> {
+    pub async fn state(&self) -> Result<(H256, ProgramState)> {
         let state_hash = self.state_hash().await?;
-        self.state_at_hash(state_hash).await
+        let state = self.state_at_hash(state_hash).await?;
+        Ok((state_hash, state))
     }
 
     pub async fn state_at_hash(&self, state_hash: H256) -> Result<ProgramState> {
         self.api
             .vara_eth_client()
             .read_state(state_hash)
-            .map_err(Into::into)
             .await
+            .map_err(anyhow::Error::from)
     }
 
     pub async fn full_state(&self) -> Result<FullProgramState> {
@@ -155,16 +156,6 @@ impl<'a> Mirror<'a> {
         self.mirror_client
             .send_message_with_receipt(payload, value)
             .await
-    }
-
-    async fn prepare_injected_transaction(
-        &self,
-        payload: impl AsRef<[u8]>,
-        value: u128,
-    ) -> Result<SignedInjectedTransaction> {
-        self.prepare_injected_transaction_with_reference(payload, value)
-            .await
-            .map(|(transaction, _, _)| transaction)
     }
 
     async fn prepare_injected_transaction_with_reference(
