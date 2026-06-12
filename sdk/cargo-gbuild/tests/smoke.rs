@@ -83,8 +83,12 @@ fn test_program_tests() {
 
     // Keep the spawned cargo away from the shared (and CI-symlinked)
     // `test-program/target` directory, and capture its output so CI
-    // failures are diagnosable.
-    let target_dir = env::temp_dir().join("cargo-gbuild-smoke-stable-target");
+    // failures are diagnosable. The dir lives under the crate (gitignored
+    // via `target/`) rather than the system tmp, avoiding permission
+    // clashes on shared runners and unbounded /tmp growth.
+    let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("target")
+        .join("smoke-stable-target");
     let output = Command::new("cargo")
         .current_dir("test-program")
         .env("CARGO_TARGET_DIR", &target_dir)
