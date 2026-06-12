@@ -998,12 +998,19 @@ async fn many_waits() {
 
     // Check all messages wake up and reply with "Hello, world!" in wake block.
     // Hack: change block height to wake up tasks.
-    let transitions = handler
+    let mut transitions = handler
         .transitions
         .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
-    let mut transitions = processor.process_tasks(transitions);
-    // Hack: nullify modifications to avoid modifications limit.
-    transitions.modifications_mut().clear();
+    // Task processing is capped per announce (MAX_SCHEDULE_TASKS_PER_MB);
+    // drain the whole backlog the way consecutive blocks would.
+    loop {
+        transitions = processor.process_tasks(transitions);
+        // Hack: nullify modifications to avoid modifications limit.
+        transitions.modifications_mut().clear();
+        if transitions.due_tasks_len() == 0 {
+            break;
+        }
+    }
     let transitions = processor
         .process_queues(
             transitions,
@@ -1151,11 +1158,17 @@ async fn cross_height_wake_drain() {
 
     // Jump past the scheduled wake height (block1 + blocks_to_wait + 5):
     // `process_tasks` must still drain the wakes despite the height gap.
-    let transitions = handler
+    let mut transitions = handler
         .transitions
         .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
-    let mut transitions = processor.process_tasks(transitions);
-    transitions.modifications_mut().clear();
+    // Drain the capped backlog the way consecutive blocks would.
+    loop {
+        transitions = processor.process_tasks(transitions);
+        transitions.modifications_mut().clear();
+        if transitions.due_tasks_len() == 0 {
+            break;
+        }
+    }
     let transitions = processor
         .process_queues(
             transitions,
