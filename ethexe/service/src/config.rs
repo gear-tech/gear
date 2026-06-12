@@ -21,7 +21,7 @@ pub struct Config {
     pub prometheus: Option<PrometheusConfig>,
 }
 
-/// User-facing subset of [`ethexe_malachite::MalachiteConfig`],
+/// User-facing subset of [`ethexe_malachite::MalachiteServiceConfig`],
 /// resolved at CLI/TOML parse time. The rest of the runtime fields
 /// (home directory, mempool) are filled in by the service itself.
 #[derive(Clone, Debug)]
@@ -48,7 +48,7 @@ pub struct MalachiteCliConfig {
 impl Default for MalachiteCliConfig {
     fn default() -> Self {
         Self {
-            listen_addr: ethexe_malachite::MalachiteConfig::DEFAULT_LISTEN_ADDR,
+            listen_addr: ethexe_malachite::MalachiteServiceConfig::DEFAULT_LISTEN_ADDR,
             persistent_peers: Vec::new(),
             validator_pub_keys: BTreeMap::new(),
         }
@@ -85,7 +85,7 @@ pub struct NodeConfig {
     pub canonical_quarantine: u8,
     /// Extra anchor-depth slack the proposer adds on top of
     /// `canonical_quarantine`. See
-    /// [`ethexe_malachite::MalachiteConfig::post_quarantine_delay`].
+    /// [`ethexe_malachite::MalachiteServiceConfig::post_quarantine_delay`].
     pub post_quarantine_delay: u32,
     pub dev: bool,
     pub pre_funded_accounts: u32,

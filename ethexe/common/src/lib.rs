@@ -87,6 +87,8 @@ pub use gsigner::{
 };
 pub use validators::{EmptyValidatorsError, ValidatorsVec};
 pub mod ecdsa {
+    #[cfg(feature = "std")]
+    pub use gsigner::secp256k1::Signer;
     pub use gsigner::secp256k1::{
         ContractSignature, PrivateKey, PublicKey, Signature, SignedData, SignedMessage,
         VerifiedData,
