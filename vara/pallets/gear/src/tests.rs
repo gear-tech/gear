@@ -4445,8 +4445,6 @@ fn mailbox_works() {
 fn init_message_logging_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let mut next_block = 2;
-
         let codes = [
             (ProgramCodeKind::Default, None),
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
@@ -4458,7 +4456,7 @@ fn init_message_logging_works() {
             ),
         ];
 
-        for (code_kind, trap) in codes {
+        for (next_block, (code_kind, trap)) in (2..).zip(codes.into_iter()) {
             System::reset_events();
 
             assert_ok!(upload_program_default(USER_1, code_kind));
@@ -4486,8 +4484,6 @@ fn init_message_logging_works() {
             } else {
                 assert_succeed(msg_id);
             }
-
-            next_block += 1;
         }
     })
 }
@@ -4773,15 +4769,15 @@ fn send_reply_value_claiming_works() {
             frame_support::traits::ExistenceRequirement::AllowDeath
         ));
 
-        let mut next_block = 2;
-
         let user_messages_data = [
             // gas limit, value
             (35_000_000, 4000),
             (45_000_000, 5000),
         ];
 
-        for (gas_limit_to_reply, value_to_reply) in user_messages_data {
+        for (next_block, (gas_limit_to_reply, value_to_reply)) in
+            (2..).zip(user_messages_data.into_iter())
+        {
             // user 2 triggers program to send message to user 1
             // user 2 after this contains += OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS
             // reserved as MB holding fee
@@ -4790,7 +4786,6 @@ fn send_reply_value_claiming_works() {
             // first reply got processed and funds freed
             let reply_to_id =
                 populate_mailbox_from_program(prog_id, USER_2, next_block, 2_000_000_000, 0);
-            next_block += 1;
 
             let user_balance = Balances::free_balance(USER_1);
             assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
@@ -13541,7 +13536,7 @@ fn check_random_works() {
 
         let mut sorted_mailbox: Vec<(UserStoredMessage, Interval<BlockNumber>)> =
             MailboxOf::<Test>::iter_key(USER_1).collect();
-        sorted_mailbox.sort_by(|a, b| a.1.finish.cmp(&b.1.finish));
+        sorted_mailbox.sort_by_key(|a| a.1.finish);
 
         sorted_mailbox
             .iter()
@@ -17755,14 +17750,11 @@ pub(crate) mod utils {
                     message,
                     expiration: Some(expiration),
                     ..
-                }) => {
-                    if message.id() == message_id {
-                        exp = Some(*expiration);
-                        true
-                    } else {
-                        false
-                    }
+                }) if message.id() == message_id => {
+                    exp = Some(*expiration);
+                    true
                 }
+
                 _ => false,
             })
             .expect("Failed to find appropriate UserMessageSent event");

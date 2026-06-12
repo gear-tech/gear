@@ -13,5 +13,13 @@ runs:
 
     - uses: dsherret/rust-toolchain-file@v1
 
-    - run: rustup default stable
+    - name: "Install: Rust stable toolchain"
+      run: rustup toolchain install stable --profile minimal
+      shell: bash
+
+    - name: "Select: Rust toolchain"
+      run: |
+        toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
+        test -n "$toolchain"
+        rustup default "$toolchain"
       shell: bash

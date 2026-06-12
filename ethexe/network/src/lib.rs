@@ -817,7 +817,6 @@ mod tests {
         db_sync::{ExternalDataProvider, tests::fill_data_provider},
         utils::tests::{arb_value, init_logger},
     };
-    use assert_matches::assert_matches;
     use async_trait::async_trait;
     use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState};
     use ethexe_db::Database;
@@ -825,6 +824,7 @@ mod tests {
     use gsigner::secp256k1::Signer;
     use nonempty::nonempty;
     use std::{
+        assert_matches,
         collections::{BTreeSet, HashMap},
         future,
         num::NonZeroU64,

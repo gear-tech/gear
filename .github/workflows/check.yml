@@ -7,6 +7,7 @@ env:
   TERM: xterm-256color
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
+  RUSTFMT_TOOLCHAIN: nightly-2025-10-20
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_DEV_DEBUG: 0
   CARGO_PROFILE_TEST_DEBUG: 0
@@ -30,6 +31,9 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
+
+      - name: "Install: Rustfmt toolchain"
+        run: rustup toolchain install "$RUSTFMT_TOOLCHAIN" --profile minimal --component rustfmt
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check

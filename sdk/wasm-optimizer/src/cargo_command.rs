@@ -17,6 +17,7 @@ pub struct CargoCommand {
     toolchain: Toolchain,
     check_recommended_toolchain: bool,
     force_recommended_toolchain: bool,
+    force_nightly_toolchain: bool,
 }
 
 impl CargoCommand {
@@ -63,6 +64,7 @@ impl CargoCommand {
             toolchain,
             check_recommended_toolchain: false,
             force_recommended_toolchain: false,
+            force_nightly_toolchain: false,
         }
     }
 }
@@ -106,6 +108,11 @@ impl CargoCommand {
         self.force_recommended_toolchain = force_recommended_toolchain;
     }
 
+    /// Sets whether to force the nightly toolchain.
+    pub fn set_force_nightly_toolchain(&mut self, force_nightly_toolchain: bool) {
+        self.force_nightly_toolchain = force_nightly_toolchain;
+    }
+
     /// Execute the `cargo` command with invoking supplied arguments.
     pub fn run(&self) -> Result<()> {
         if self.check_recommended_toolchain {
@@ -113,8 +120,10 @@ impl CargoCommand {
         }
 
         #[cfg(not(target_os = "android"))]
-        let toolchain = if self.force_recommended_toolchain {
-            Toolchain::recommended_nightly()
+        let toolchain = if self.force_nightly_toolchain {
+            Toolchain::pinned_nightly()
+        } else if self.force_recommended_toolchain {
+            Toolchain::recommended_stable()
         } else {
             self.toolchain.clone()
         };
@@ -130,7 +139,7 @@ impl CargoCommand {
         #[cfg(target_os = "android")]
         let mut cargo = Command::new("cargo");
 
-        if self.force_recommended_toolchain {
+        if self.force_recommended_toolchain || self.force_nightly_toolchain {
             self.clean_up_environment(&mut cargo);
         }
 

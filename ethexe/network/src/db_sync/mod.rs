@@ -601,7 +601,6 @@ impl NetworkBehaviour for Behaviour {
 pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
-    use assert_matches::assert_matches;
     use ethexe_db::Database;
     use libp2p::{
         Swarm, Transport,
@@ -612,7 +611,7 @@ pub(crate) mod tests {
         swarm::SwarmEvent,
     };
     use libp2p_swarm_test::SwarmExt;
-    use std::mem;
+    use std::{assert_matches, mem};
     use tokio::time;
 
     // exactly like `Swarm::new_ephemeral_tokio` but we can pass our own config

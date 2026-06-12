@@ -28,6 +28,7 @@ env:
   TERM: xterm-256color
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
+  RUST_NIGHTLY_TOOLCHAIN: nightly-2026-06-10
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
   CARGO_PROFILE_TEST_DEBUG: line-tables-only
@@ -276,6 +277,9 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
+
+      - name: "Install: Rust nightly toolchain"
+        run: ./scripts/pin-rust-nightly.sh "${RUST_NIGHTLY_TOOLCHAIN#nightly-}"
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache

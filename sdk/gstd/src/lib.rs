@@ -117,7 +117,7 @@
 
 #![no_std]
 #![cfg_attr(
-    all(target_arch = "wasm32", feature = "oom-handler"),
+    all(target_arch = "wasm32", feature = "oom-handler", gstd_nightly),
     feature(alloc_error_handler)
 )]
 #![allow(ambiguous_glob_reexports)]

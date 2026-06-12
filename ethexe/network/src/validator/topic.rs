@@ -312,7 +312,6 @@ impl ValidatorTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use assert_matches::assert_matches;
     use ethexe_common::{
         consensus::BatchCommitmentValidationRequest,
         ecdsa::PublicKey,
@@ -322,6 +321,7 @@ mod tests {
     };
     use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use nonempty::{NonEmpty, nonempty};
+    use std::assert_matches;
 
     const CHAIN_HEAD_ERA: u64 = 10;
 

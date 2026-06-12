@@ -10,8 +10,7 @@
 //! debug and non-debug mode, for programs built in `wasm32` architecture.
 //! For `debug` mode it provides more extensive logging.
 
-#[cfg(target_arch = "wasm32")]
-#[cfg(feature = "oom-handler")]
+#[cfg(all(target_arch = "wasm32", feature = "oom-handler", gstd_nightly))]
 #[alloc_error_handler]
 pub fn oom(_: core::alloc::Layout) -> ! {
     crate::ext::oom_panic()

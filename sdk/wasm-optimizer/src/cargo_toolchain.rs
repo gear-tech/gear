@@ -18,17 +18,18 @@ static TOOLCHAIN_CHANNELS: &[&str] = &[
 pub(crate) struct Toolchain(String);
 
 impl Toolchain {
-    /// This is a version of nightly toolchain, tested on our CI.
-    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2025-10-20";
+    /// This is a toolchain version tested on our CI.
+    const RECOMMENDED_STABLE_TOOLCHAIN: &'static str = "1.96";
+    /// This is a nightly toolchain used for unstable Rust features.
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2026-06-10";
 
-    /// Returns `Toolchain` representing the stable version.
-    #[cfg(target_os = "android")]
-    pub fn stable() -> Self {
-        Self("stable".into())
+    /// Returns `Toolchain` representing the recommended stable version.
+    pub fn recommended_stable() -> Self {
+        Self(Self::RECOMMENDED_STABLE_TOOLCHAIN.into())
     }
 
-    /// Returns `Toolchain` representing the recommended nightly version.
-    pub fn recommended_nightly() -> Self {
+    /// Returns `Toolchain` representing a nightly version.
+    pub fn pinned_nightly() -> Self {
         Self(Self::PINNED_NIGHTLY_TOOLCHAIN.into())
     }
 
@@ -80,7 +81,7 @@ impl Toolchain {
 
     /// Checks whether the toolchain is recommended.
     pub fn check_recommended_toolchain(&self) -> Result<()> {
-        let toolchain = Self::PINNED_NIGHTLY_TOOLCHAIN;
+        let toolchain = Self::RECOMMENDED_STABLE_TOOLCHAIN;
         ensure!(
             self.raw_toolchain_str() == toolchain,
             "recommended toolchain `{toolchain}` not found, install it using the command:\n\

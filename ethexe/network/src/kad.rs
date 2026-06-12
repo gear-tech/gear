@@ -798,7 +798,6 @@ mod tests {
         utils::tests::init_logger,
         validator::discovery::{ValidatorAddresses, ValidatorIdentity},
     };
-    use assert_matches::assert_matches;
     use futures::StreamExt;
     use gsigner::secp256k1::Signer;
     use libp2p::{
@@ -809,7 +808,7 @@ mod tests {
         swarm::{ConnectionId, SwarmEvent},
     };
     use libp2p_swarm_test::SwarmExt;
-    use std::{collections::BTreeMap, num::NonZeroUsize};
+    use std::{assert_matches, collections::BTreeMap, num::NonZeroUsize};
     use tokio::time;
 
     fn new_metrics() -> Arc<libp2p::metrics::Metrics> {

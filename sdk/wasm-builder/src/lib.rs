@@ -82,6 +82,15 @@ impl WasmBuilder {
         self
     }
 
+    /// Force the nightly toolchain to be used.
+    ///
+    /// NOTE: For internal use only, not recommended for production programs.
+    #[doc(hidden)]
+    pub fn with_forced_nightly_toolchain(mut self) -> Self {
+        self.cargo.set_force_nightly_toolchain(true);
+        self
+    }
+
     /// Build the program and produce an output WASM binary.
     ///
     /// Returns `None` if `__GEAR_WASM_BUILDER_NO_BUILD` flag is set.
@@ -215,7 +224,7 @@ pub fn build() -> Option<(PathBuf, PathBuf)> {
 /// Shorthand function to be used in `build.rs`.
 ///
 /// See [WasmBuilder::build()].
-pub fn recommended_nightly() -> Option<(PathBuf, PathBuf)> {
+pub fn recommended_stable() -> Option<(PathBuf, PathBuf)> {
     WasmBuilder::new()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
         .with_recommended_toolchain()

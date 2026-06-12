@@ -11,6 +11,7 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+build = "build.rs"
 
 [dependencies]
 arrayvec = { workspace = true, optional = true }
@@ -29,6 +30,9 @@ futures = { workspace = true, features = ["alloc"] }
 waker-fn = "1.2.0"
 thiserror.workspace = true
 gear-workspace-hack.workspace = true
+
+[build-dependencies]
+rustc_version.workspace = true
 
 [features]
 #! ## Default features:
