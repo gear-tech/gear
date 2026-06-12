@@ -441,6 +441,10 @@ impl ShieldedTransaction {
         let unshielded_fields =
             gear_tdec::decrypt(&self.ciphertext, self.aad.as_ref(), shared_secret)?;
 
+        if unshielded_fields.to_digest() != self.aad {
+            return Err(gear_tdec::Error::CiphertextVerificationFailed);
+        }
+
         Ok(InjectedTransaction {
             destination: unshielded_fields.destination,
             payload: unshielded_fields.payload,
