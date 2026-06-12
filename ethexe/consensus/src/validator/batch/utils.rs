@@ -222,6 +222,7 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     // are charged once (#5356).
     let mut squasher = TransitionsSquasher::default();
     let mut last_included = last_committed_mb;
+    let mut last_advanced_eth_block = H256::zero();
     for mb_hash in &pending {
         let Some(mb_transitions) = db.mb_outcome(*mb_hash) else {
             anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
@@ -243,6 +244,9 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
 
         squasher = trial;
         last_included = *mb_hash;
+        // Keep the exact bytes the probe accepted — don't re-read the DB
+        // for the final commitment.
+        last_advanced_eth_block = trial_commitment.last_advanced_eth_block;
     }
 
     let mut transitions = squasher.finish();
@@ -262,7 +266,7 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     let commitment = ChainCommitment {
         head: last_included,
         transitions,
-        last_advanced_eth_block: db.mb_meta(last_included).last_advanced_eb,
+        last_advanced_eth_block,
     };
 
     if let Err(err) = batch_filler.include_chain_commitment(commitment) {
