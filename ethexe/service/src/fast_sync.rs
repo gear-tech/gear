@@ -49,7 +49,7 @@ use std::{
 
 struct EventData {
     latest_committed_batch: Digest,
-    latest_committed_chain: FastSyncReplayTarget,
+    replay_target: FastSyncReplayTarget,
 }
 
 impl EventData {
@@ -59,10 +59,10 @@ impl EventData {
         highest_block: H256,
     ) -> Result<Option<Self>> {
         let mut latest_committed_batch = None;
-        let mut latest_committed_chain = None;
+        let mut replay_target = None;
 
         let mut block = highest_block;
-        while !db.block_meta(block).prepared {
+        'blocks: while !db.block_meta(block).prepared {
             let block_data = block_loader.load(block, None).await?;
 
             let mut pending_eb = None;
@@ -77,17 +77,16 @@ impl EventData {
                         pending_eb = Some(*eb_hash);
                     }
                     BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(mb_hash))) => {
-                        latest_committed_chain.get_or_insert(FastSyncReplayTarget {
-                            mb_hash: *mb_hash,
-                            eb_hash: pending_eb.take().unwrap_or_default(),
-                        });
+                        if let Some(eb_hash) = pending_eb.take() {
+                            replay_target = Some(FastSyncReplayTarget {
+                                mb_hash: *mb_hash,
+                                eb_hash,
+                            });
+                            break 'blocks;
+                        }
                     }
                     _ => {}
                 }
-            }
-
-            if latest_committed_chain.is_some() {
-                break;
             }
 
             block = block_data.header.parent_hash;
@@ -96,13 +95,13 @@ impl EventData {
             }
         }
 
-        let Some(latest_committed_chain) = latest_committed_chain else {
+        let Some(replay_target) = replay_target else {
             return Ok(None);
         };
 
         Ok(Some(Self {
             latest_committed_batch: latest_committed_batch.unwrap_or_default(),
-            latest_committed_chain,
+            replay_target,
         }))
     }
 }
@@ -638,15 +637,13 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let EventData {
         latest_committed_batch,
-        latest_committed_chain,
+        replay_target,
     } = event_data;
 
-    let latest_committed_mb = latest_committed_chain.mb_hash;
-    let latest_committed_eb = if latest_committed_chain.eb_hash.is_zero() {
-        genesis_block_hash
-    } else {
-        latest_committed_chain.eb_hash
-    };
+    let FastSyncReplayTarget {
+        mb_hash: latest_committed_mb,
+        eb_hash: latest_committed_eb,
+    } = replay_target;
     let block_data = block_loader.load(latest_committed_eb, None).await?;
 
     let code_ids = collect_code_ids(
@@ -723,7 +720,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     if let Some(malachite) = malachite.as_mut() {
         // `Service::run` performs fast sync before `run_inner().start_app_task()`,
         // so live Malachite callbacks cannot race this startup replay gate.
-        let _ = malachite.enable_fast_sync_replay_filter(latest_committed_chain)?;
+        let _ = malachite.enable_fast_sync_replay_filter(replay_target)?;
         malachite.receive_new_chain_head(block_data.to_simple());
     }
 
@@ -735,10 +732,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     #[cfg(test)]
     sender
         .send(crate::tests::utils::TestingEvent::FastSyncDone(
-            crate::tests::utils::LatestFastSyncedBlocks {
-                eb_hash: latest_committed_eb,
-                mb_hash: latest_committed_mb,
-            },
+            replay_target,
         ))
         .await;
 
@@ -842,12 +836,12 @@ mod tests {
             .unwrap()
             .expect("committed chain found");
 
-        assert_eq!(event_data.latest_committed_chain.mb_hash, newer_mb);
-        assert_eq!(event_data.latest_committed_chain.eb_hash, newer_eb);
+        assert_eq!(event_data.replay_target.mb_hash, newer_mb);
+        assert_eq!(event_data.replay_target.eb_hash, newer_eb);
     }
 
     #[tokio::test]
-    async fn event_data_does_not_mix_newer_mb_with_older_eb() {
+    async fn event_data_skips_newer_mb_without_eb_anchor() {
         let db = Database::memory();
         let older_block = H256::from_low_u64_be(1);
         let newer_block = H256::from_low_u64_be(2);
@@ -883,7 +877,33 @@ mod tests {
             .unwrap()
             .expect("committed chain found");
 
-        assert_eq!(event_data.latest_committed_chain.mb_hash, newer_mb);
-        assert_eq!(event_data.latest_committed_chain.eb_hash, H256::zero());
+        assert_eq!(event_data.replay_target.mb_hash, older_mb);
+        assert_eq!(event_data.replay_target.eb_hash, older_eb);
+    }
+
+    #[tokio::test]
+    async fn event_data_ignores_committed_mb_without_eb_anchor() {
+        let db = Database::memory();
+        let block = H256::from_low_u64_be(1);
+        let mb = H256::repeat_byte(0x11);
+
+        let mut loader = TestBlockLoader::default();
+        loader.blocks.insert(
+            block,
+            test_block(
+                block,
+                H256::zero(),
+                vec![BlockEvent::Router(RouterEvent::MBCommitted(
+                    MBCommittedEvent(mb),
+                ))],
+            ),
+        );
+
+        assert!(
+            EventData::collect(&loader, &db, block)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }

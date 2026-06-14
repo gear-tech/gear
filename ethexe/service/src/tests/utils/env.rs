@@ -6,10 +6,7 @@ use crate::{
     config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
-        events::{
-            self, LatestFastSyncedBlocks, ObserverEventReceiver, ObserverEventSender,
-            TestingEventReceiver,
-        },
+        events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
 use alloy::{
@@ -42,9 +39,9 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteConfig, MalachiteConfigEnvironment, MalachiteService,
-    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
-    malachite_libp2p_peer_id,
+    FastSyncReplayTarget, InjectedTxMempool, MalachiteConfig, MalachiteConfigEnvironment,
+    MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry,
+    derive_libp2p_secret, malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
@@ -1011,7 +1008,7 @@ pub struct Node {
     pub name: Option<String>,
     pub db: Database,
     pub multiaddr: Option<String>,
-    pub latest_fast_synced_blocks: Option<LatestFastSyncedBlocks>,
+    pub latest_fast_synced_blocks: Option<FastSyncReplayTarget>,
     pub custom_committer: Option<Box<dyn BatchCommitter>>,
 
     router_query: RouterQuery,

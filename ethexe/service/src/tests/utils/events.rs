@@ -20,7 +20,7 @@ use ethexe_common::{
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_malachite::MalachiteEvent;
+use ethexe_malachite::{FastSyncReplayTarget, MalachiteEvent};
 use ethexe_network::{NetworkEvent, NetworkInjectedEvent, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_rpc::RpcEvent;
@@ -41,12 +41,6 @@ pub type TestingEventSender = EventSender<TestingEvent>;
 pub type TestingEventReceiver = KickingStream<EventReceiver<TestingEvent>>;
 pub type ObserverEventSender = EventSender<ObserverEvent>;
 pub type ObserverEventReceiver = KickingStream<EventReceiver<ObserverEvent>>;
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct LatestFastSyncedBlocks {
-    pub eb_hash: H256,
-    pub mb_hash: H256,
-}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkInjectedEvent {
@@ -130,7 +124,7 @@ impl TestingRpcEvent {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingEvent {
     // Fast sync done. Sent just once.
-    FastSyncDone(LatestFastSyncedBlocks),
+    FastSyncDone(FastSyncReplayTarget),
     // Basic event to notify that service has started. Sent just once.
     ServiceStarted,
     // Services events.

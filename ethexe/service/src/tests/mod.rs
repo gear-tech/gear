@@ -6,9 +6,9 @@
 pub(crate) mod utils;
 
 use crate::tests::utils::{
-    EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, LatestFastSyncedBlocks, Node,
-    NodeConfig, TestEnv, TestEnvConfig, TestingEvent, TestingEventReceiver, TestingNetworkEvent,
-    TestingRpcEvent, ValidatorsConfig, init_logger, stop_nodes, test_info,
+    EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, Node, NodeConfig, TestEnv,
+    TestEnvConfig, TestingEvent, TestingEventReceiver, TestingNetworkEvent, TestingRpcEvent,
+    ValidatorsConfig, init_logger, stop_nodes, test_info,
 };
 use alloy::{
     primitives::U256,
@@ -33,6 +33,7 @@ use ethexe_common::{
 use ethexe_consensus::BatchCommitter;
 use ethexe_db::{Database, dump::StateDump, verifier::IntegrityVerifier};
 use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
+use ethexe_malachite::FastSyncReplayTarget;
 use ethexe_processor::Processor;
 use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::{RUNTIME_ID, state::Storage};
@@ -3148,11 +3149,11 @@ async fn reply_callback() {
 async fn fast_sync() {
     init_logger();
 
-    let assert_chain = |latest_block, fast_synced_blocks, alice: &Node, bob: &Node| {
-        let LatestFastSyncedBlocks {
+    let assert_chain = |latest_block, replay_target, alice: &Node, bob: &Node| {
+        let FastSyncReplayTarget {
             eb_hash: fast_synced_eb,
             mb_hash: fast_synced_mb,
-        } = fast_synced_blocks;
+        } = replay_target;
 
         log::info!("Assert chain in range {latest_block}..{fast_synced_eb}");
 
