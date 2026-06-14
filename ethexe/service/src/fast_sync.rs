@@ -723,6 +723,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         // `Service::run` performs fast sync before `run_inner().start_app_task()`,
         // so live Malachite callbacks cannot race this startup replay gate.
         let _ = malachite.enable_fast_sync_replay_filter(replay_target)?;
+        // Fast sync restores DB globals directly, but Malachite keeps its
+        // own in-memory chain head for proposal/validation. Seed it now; the
+        // observer will only deliver later EBs after the app task starts.
         malachite.receive_new_chain_head(block_data.to_simple());
     }
 
