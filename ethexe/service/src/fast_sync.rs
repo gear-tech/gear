@@ -516,6 +516,9 @@ async fn instrument_codes(
     db: &Database,
     mut code_ids: BTreeSet<CodeId>,
 ) -> Result<()> {
+    // `code_valid` is compute's processed marker; valid codes must have instrumented bytes.
+    code_ids.retain(|&code_id| db.code_valid(code_id).is_none());
+
     if code_ids.is_empty() {
         log::info!("No codes to instrument. Skipping...");
         return Ok(());
@@ -769,8 +772,9 @@ mod tests {
     use super::*;
     use ethexe_common::{BlockHeader, SimpleBlockData};
     use ethexe_ethereum::IntoBlockId;
+    use ethexe_processor::Processor;
     use std::{
-        collections::{BTreeMap, HashMap},
+        collections::{BTreeMap, BTreeSet, HashMap},
         ops::RangeInclusive,
     };
 
@@ -794,6 +798,19 @@ mod tests {
         async fn load_many(&self, _range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>> {
             anyhow::bail!("load_many is not used by EventData::collect tests")
         }
+    }
+
+    #[tokio::test]
+    async fn instrument_codes_skips_already_processed_codes() {
+        let db = Database::memory();
+        let code_id = CodeId::from([1; 32]);
+        db.set_code_valid(code_id, true);
+        let processor = Processor::new(db.clone()).unwrap();
+        let mut compute = ComputeService::new(db.clone(), processor);
+
+        instrument_codes(&mut compute, &db, BTreeSet::from([code_id]))
+            .await
+            .unwrap();
     }
 
     fn test_block(hash: H256, parent_hash: H256, events: Vec<BlockEvent>) -> BlockData {
