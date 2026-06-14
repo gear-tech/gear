@@ -100,7 +100,9 @@ impl EventData {
         };
 
         Ok(Some(Self {
-            latest_committed_batch: latest_committed_batch.unwrap_or_default(),
+            // Router.commitBatch emits BatchCommitted before MB/EBCommitted; otherwise we'd seed a bogus previous batch.
+            latest_committed_batch: latest_committed_batch
+                .context("committed MB replay target without BatchCommitted event")?,
             replay_target,
         }))
     }
@@ -742,7 +744,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{BlockHeader, SimpleBlockData};
+    use ethexe_common::{BlockHeader, Digest, SimpleBlockData};
     use ethexe_ethereum::IntoBlockId;
     use ethexe_processor::Processor;
     use std::{
@@ -806,6 +808,7 @@ mod tests {
         let older_eb = H256::repeat_byte(0x22);
         let newer_mb = H256::repeat_byte(0x33);
         let newer_eb = H256::repeat_byte(0x44);
+        let newer_batch = Digest::random();
 
         let mut loader = TestBlockLoader::default();
         loader.blocks.insert(
@@ -816,6 +819,9 @@ mod tests {
                 vec![
                     BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(newer_mb))),
                     BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(newer_eb))),
+                    BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
+                        digest: newer_batch,
+                    })),
                 ],
             ),
         );
@@ -838,6 +844,7 @@ mod tests {
 
         assert_eq!(event_data.replay_target.mb_hash, newer_mb);
         assert_eq!(event_data.replay_target.eb_hash, newer_eb);
+        assert_eq!(event_data.latest_committed_batch, newer_batch);
     }
 
     #[tokio::test]
@@ -848,6 +855,7 @@ mod tests {
         let older_mb = H256::repeat_byte(0x11);
         let older_eb = H256::repeat_byte(0x22);
         let newer_mb = H256::repeat_byte(0x33);
+        let older_batch = Digest::random();
 
         let mut loader = TestBlockLoader::default();
         loader.blocks.insert(
@@ -868,6 +876,9 @@ mod tests {
                 vec![
                     BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(older_mb))),
                     BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(older_eb))),
+                    BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
+                        digest: older_batch,
+                    })),
                 ],
             ),
         );
@@ -879,6 +890,37 @@ mod tests {
 
         assert_eq!(event_data.replay_target.mb_hash, older_mb);
         assert_eq!(event_data.replay_target.eb_hash, older_eb);
+        assert_eq!(event_data.latest_committed_batch, older_batch);
+    }
+
+    #[tokio::test]
+    async fn event_data_rejects_committed_chain_without_batch_digest() {
+        let db = Database::memory();
+        let block = H256::from_low_u64_be(1);
+        let mb = H256::repeat_byte(0x11);
+        let eb = H256::repeat_byte(0x22);
+
+        let mut loader = TestBlockLoader::default();
+        loader.blocks.insert(
+            block,
+            test_block(
+                block,
+                H256::zero(),
+                vec![
+                    BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(mb))),
+                    BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(eb))),
+                ],
+            ),
+        );
+
+        let Err(err) = EventData::collect(&loader, &db, block).await else {
+            panic!("expected missing batch digest error");
+        };
+
+        assert!(
+            err.to_string()
+                .contains("committed MB replay target without BatchCommitted event")
+        );
     }
 
     #[tokio::test]
