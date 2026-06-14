@@ -631,31 +631,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         .context("failed to get genesis block")?;
 
     let block_loader = observer.block_loader();
-    let latest_block = observer
-        .block_loader()
-        .load_simple(BlockId::latest())
-        .await
-        .context("failed to get latest block")?
-        .hash;
-
-    let mut state_query_block = finalized_block;
-    let event_data = match EventData::collect(&block_loader, db, finalized_block).await? {
-        Some(event_data) => event_data,
-        None if latest_block != finalized_block => {
-            let Some(latest_event_data) =
-                EventData::collect(&block_loader, db, latest_block).await?
-            else {
-                log::warn!("No committed MB found. Skipping fast synchronization...");
-                return Ok(());
-            };
-            log::warn!("No finalized committed MB found; trying latest block candidates");
-            state_query_block = latest_block;
-            latest_event_data
-        }
-        None => {
-            log::warn!("No committed MB found. Skipping fast synchronization...");
-            return Ok(());
-        }
+    let Some(event_data) = EventData::collect(&block_loader, db, finalized_block).await? else {
+        log::warn!("No finalized committed MB found. Skipping fast synchronization...");
+        return Ok(());
     };
 
     let EventData {
@@ -684,7 +662,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     )
     .await?;
     let program_state_hashes =
-        collect_program_state_hashes(observer, state_query_block, &program_code_ids).await?;
+        collect_program_state_hashes(observer, finalized_block, &program_code_ids).await?;
 
     let program_states = sync_from_network(network, db, &code_ids, program_state_hashes).await;
 
