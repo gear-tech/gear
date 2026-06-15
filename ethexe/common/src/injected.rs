@@ -5,11 +5,17 @@ use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
+#[cfg(feature = "shielded")]
+use gear_tdec::{
+    Result as TdecResult,
+    bls12_381::{Ciphertext, DkgPublicKey, SharedSecret},
+    rand_utils::Rng,
+};
 use gprimitives::{ActorId, H256, MessageId};
 use gsigner::Signature;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use sha3::{Digest, Keccak256};
+use sha3::{Digest as _, Keccak256};
 
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
@@ -58,7 +64,7 @@ pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
-    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    #[cfg_attr(feature = "std", serde(with = "limited_vec_hex"))]
     pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
@@ -68,7 +74,7 @@ pub struct InjectedTransaction {
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
-    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    #[cfg_attr(feature = "std", serde(with = "limited_vec_hex"))]
     pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
 }
 
@@ -118,6 +124,29 @@ impl InjectedTransaction {
     /// Creates [`MessageId`] from [`InjectedTransaction`].
     pub fn to_message_id(&self) -> MessageId {
         MessageId::new(self.to_hash().inner().0)
+    }
+
+    #[cfg(feature = "shielded")]
+    pub fn shield(
+        self,
+        public_key: &DkgPublicKey,
+        rng: &mut impl Rng,
+    ) -> TdecResult<ShieldedTransaction> {
+        let shielded_fields = ShieldedFields {
+            destination: self.destination,
+            payload: self.payload,
+            value: self.value,
+        };
+        // AAD is a keccak256 hash over shielded fields
+        let aad = shielded_fields.to_digest();
+        let ciphertext = gear_tdec::encrypt(&shielded_fields, aad.as_ref(), public_key, rng)?;
+
+        Ok(ShieldedTransaction {
+            ciphertext,
+            aad,
+            reference_block: self.reference_block,
+            salt: self.salt,
+        })
     }
 }
 
@@ -362,9 +391,73 @@ impl TransactionPurgedReason {
     }
 }
 
+#[cfg(feature = "shielded")]
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
+pub struct ShieldedFields {
+    pub(crate) destination: ActorId,
+    pub(crate) value: u128,
+    pub(crate) payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
+}
+
+#[cfg(feature = "shielded")]
+impl ToDigest for ShieldedFields {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            destination,
+            value,
+            payload,
+        } = &self;
+        hasher.update(destination);
+        hasher.update(value.to_be_bytes());
+        hasher.update(payload);
+    }
+}
+
+#[cfg(feature = "shielded")]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct ShieldedTransaction {
+    /// Encrypted fields of initial [InjectedTransaction].
+    pub ciphertext: Ciphertext<ShieldedFields>,
+    /// Keccak256 hash over [ShieldedFields].
+    #[cfg_attr(feature = "std", serde(with = "digest_hex"))]
+    pub aad: gsigner::Digest,
+    /// Reference block number.
+    pub reference_block: H256,
+    /// Arbitrary bytes to allow multiple synonymous
+    /// transactions to be sent simultaneously.
+    /// NOTE: this is also a salt for MessageId generation.
+    #[cfg_attr(feature = "std", serde(with = "limited_vec_hex"))]
+    pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
+}
+
+#[cfg(feature = "shielded")]
+impl ShieldedTransaction {
+    /// Decrypts [Ciphertext] with provided [SharedSecret].
+    /// Returns initial [InjectedTransaction].
+    pub fn unshield(self, shared_secret: &SharedSecret) -> TdecResult<InjectedTransaction> {
+        let unshielded_fields =
+            gear_tdec::decrypt(&self.ciphertext, self.aad.as_ref(), shared_secret)?;
+
+        if unshielded_fields.to_digest() != self.aad {
+            return Err(gear_tdec::Error::CiphertextVerificationFailed);
+        }
+
+        Ok(InjectedTransaction {
+            destination: unshielded_fields.destination,
+            payload: unshielded_fields.payload,
+            value: unshielded_fields.value,
+            reference_block: self.reference_block,
+            salt: self.salt,
+        })
+    }
+}
+
 /// Encoding and decoding of [LimitedVec<u8, N>] as hex string.
 #[cfg(feature = "std")]
-mod serde_hex {
+mod limited_vec_hex {
     pub fn serialize<S, const N: usize>(
         data: &super::LimitedVec<u8, N>,
         serializer: S,
@@ -384,6 +477,25 @@ mod serde_hex {
         let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
         super::LimitedVec::<u8, N>::try_from(vec)
             .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
+    }
+}
+
+#[cfg(feature = "std")]
+mod digest_hex {
+    use gsigner::Digest;
+
+    pub fn serialize<S>(digest: &Digest, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        alloy_primitives::hex::serialize(digest.0, serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Digest, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        alloy_primitives::hex::deserialize::<D, [u8; 32]>(deserializer).map(Digest)
     }
 }
 
@@ -541,5 +653,20 @@ mod tests {
         let receipt2 = Receipt::<CompactPromise>::Purged(purged);
 
         assert_eq!(receipt1.to_digest(), receipt2.to_digest());
+    }
+
+    #[test]
+    fn shielded_tx_serde() {
+        let injected_tx = InjectedTransaction::mock(());
+        let mut rng = gear_tdec::rand_utils::test_rng();
+        let dealer_out = gear_tdec::deal::<gear_tdec::bls12_381::E>(3, 2, &mut rng);
+
+        let shielded_tx = injected_tx
+            .shield(&dealer_out.public_key, &mut rng)
+            .unwrap();
+
+        let serialized = serde_json::to_string_pretty(&shielded_tx).unwrap();
+        let deserialized: ShieldedTransaction = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(shielded_tx, deserialized);
     }
 }
