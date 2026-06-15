@@ -47,25 +47,26 @@
 //! ## `process_programs` contract
 //!
 //! Given an [`ExecutableData`] (block header, program states, schedule,
-//! injected transactions, block request events, and optional gas
-//! allowance), [`Processor::process_programs`] runs three sequential
-//! stages and returns a [`FinalizedBlockTransitions`]:
+//! and an ordered list of [`ProcessorTransaction`]s),
+//! [`Processor::process_programs`] applies each transaction in the order
+//! the malachite block sequenced it and returns a
+//! [`FinalizedBlockTransitions`]. Transaction kinds:
 //!
-//! 1. Handle injected transactions and block events: injected transactions
-//!    are appended to program injected queues; router and mirror events
-//!    drive the corresponding state mutations (program creation, balance
-//!    top-up, message queueing, value claims, etc.).
-//! 2. Run scheduled tasks that are due at the current block height
-//!    (mailbox expiry cleanup, reservation removal, etc.).
-//! 3. Drain program message queues: the injected queue first, then the
-//!    canonical queue — unless a soft limit kicks in before that.
-//!    This stage is skipped entirely when `gas_allowance` is `None`.
-//!    Promises are collected only during the injected pass; the
-//!    canonical pass runs with the promise sender dropped, so any code
-//!    that introduces new promise emission points must make sure they
-//!    are reached from the injected queue.
+//! - `EthereumEvents` — router and mirror events drive the corresponding
+//!   state mutations (program creation, balance top-up, message
+//!   queueing, value claims, etc.).
+//! - `Injected` — a verified user transaction appended to a program's
+//!   injected queue.
+//! - `ProgressTasks` — run scheduled tasks that are due at the current
+//!   block height (mailbox expiry cleanup, reservation removal, etc.).
+//! - `ProcessQueues` — drain program message queues: the injected queue
+//!   first, then the canonical queue, until a soft limit kicks in.
+//!   Promises are collected only during the injected pass; the
+//!   canonical pass runs with the promise sender dropped, so any code
+//!   that introduces new promise emission points must make sure they
+//!   are reached from the injected queue.
 //!
-//! The third stage uses a chunked parallel executor: non-empty program
+//! `ProcessQueues` uses a chunked parallel executor: non-empty program
 //! queues are partitioned by queue size into chunks of up to
 //! `ProcessorConfig::chunk_size` programs, and the programs inside a
 //! chunk run in parallel, each with its own wasmtime `Store`.
@@ -304,7 +305,7 @@ impl Processor {
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_sink: Option<BoundPromiseSink>,
+        mut promise_sink: Option<BoundPromiseSink>,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!("{executable}");
 
@@ -313,43 +314,45 @@ impl Processor {
             timestamp,
             program_states,
             schedule,
-            injected_transactions,
-            gas_allowance,
-            events,
+            transactions,
         } = executable;
 
         let mut transitions = InBlockTransitions::new(height, program_states, schedule);
 
-        // First step: push injected to queues and handle block events.
-        transitions =
-            self.handle_injected_and_events(transitions, injected_transactions, events)?;
-
-        // Second step: process scheduled tasks.
-        transitions = self.process_tasks(transitions);
-
-        // Third step: process queues until limits are exhausted or all queues are empty.
-        if let Some(gas_allowance) = gas_allowance {
-            transitions = self
-                .process_queues(transitions, height, timestamp, gas_allowance, promise_sink)
-                .await?;
+        // Apply each transaction in the order the malachite block
+        // sequenced it: events/injected mutate program queues, then the
+        // scheduled-task and queue-draining bookends run.
+        for tx in transactions {
+            transitions = match tx {
+                ProcessorTransaction::EthereumEvents { events } => {
+                    self.handle_events(transitions, events)?
+                }
+                ProcessorTransaction::Injected(tx) => self.handle_injected(transitions, tx)?,
+                ProcessorTransaction::ProgressTasks => self.process_tasks(transitions),
+                ProcessorTransaction::ProcessQueues { gas_allowance } => {
+                    // `take` hands the sink to this single (by MB shape)
+                    // `ProcessQueues`, leaving `None` for any other.
+                    self.process_queues(
+                        transitions,
+                        height,
+                        timestamp,
+                        gas_allowance,
+                        promise_sink.take(),
+                    )
+                    .await?
+                }
+            };
         }
 
         Ok(transitions.finalize())
     }
 
-    fn handle_injected_and_events(
+    fn handle_events(
         &mut self,
         transitions: InBlockTransitions,
-        injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
         events: Vec<BlockRequestEvent>,
     ) -> Result<InBlockTransitions> {
         let mut handler = ProcessingHandler::new(self.db.clone(), transitions);
-
-        for tx in injected_transactions {
-            let source = tx.address().into();
-            let tx = tx.into_parts().0;
-            handler.handle_injected_transaction(source, tx)?;
-        }
 
         for event in events {
             match event {
@@ -361,6 +364,20 @@ impl Processor {
                 }
             }
         }
+
+        Ok(handler.into_transitions())
+    }
+
+    fn handle_injected(
+        &mut self,
+        transitions: InBlockTransitions,
+        tx: VerifiedData<InjectedTransaction>,
+    ) -> Result<InBlockTransitions> {
+        let mut handler = ProcessingHandler::new(self.db.clone(), transitions);
+
+        let source = tx.address().into();
+        let tx = tx.into_parts().0;
+        handler.handle_injected_transaction(source, tx)?;
 
         Ok(handler.into_transitions())
     }
@@ -421,35 +438,40 @@ pub struct ValidCodeInfo {
     pub code_metadata: CodeMetadata,
 }
 
+/// One processor-side transaction inside an [`ExecutableData`] block.
+///
+/// The processor-facing counterpart of `ethexe_common::malachite::Transaction`:
+/// `AdvanceTillEthereumBlock` is resolved by `ethexe-compute` into the concrete
+/// Ethereum events it pins, and each injected transaction arrives already
+/// signature-verified. Keeping these in one ordered list lets the processor
+/// apply them exactly as the malachite block sequenced them.
+#[derive(Debug, Clone)]
+pub enum ProcessorTransaction {
+    /// Ethereum events collected by walking the advance chain of an
+    /// `AdvanceTillEthereumBlock` transaction.
+    EthereumEvents { events: Vec<BlockRequestEvent> },
+    /// A signature-verified user transaction from the mempool.
+    Injected(VerifiedData<InjectedTransaction>),
+    /// Progress scheduled tasks due at the block height.
+    ProgressTasks,
+    /// Drain message queues within the carried gas allowance.
+    ProcessQueues { gas_allowance: u64 },
+}
+
 #[derive(Debug, derive_more::Display)]
+#[cfg_attr(test, derive(Default))]
 #[display(
     "ExecutableData(height: {height}, timestamp: {timestamp}, programs: {}, \
-    schedule len: {}, gas_allowance: {gas_allowance:?}, injected: {}, events: {})",
-    program_states.len(), schedule.len(), injected_transactions.len(), events.len(),
+    schedule len: {}, transactions: {})",
+    program_states.len(), schedule.len(), transactions.len(),
 )]
 pub struct ExecutableData {
     pub height: u32,
     pub timestamp: u64,
     pub program_states: ProgramStates,
     pub schedule: Schedule,
-    pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
-    pub gas_allowance: Option<u64>,
-    pub events: Vec<BlockRequestEvent>,
-}
-
-#[cfg(test)]
-impl Default for ExecutableData {
-    fn default() -> Self {
-        Self {
-            height: 0,
-            timestamp: 0,
-            program_states: ProgramStates::default(),
-            schedule: Schedule::default(),
-            injected_transactions: vec![],
-            gas_allowance: Some(ethexe_common::DEFAULT_BLOCK_GAS_LIMIT),
-            events: vec![],
-        }
-    }
+    /// MB transactions in their original sequenced order.
+    pub transactions: Vec<ProcessorTransaction>,
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -515,9 +537,8 @@ impl OverlaidProcessor {
 
         let transitions = InBlockTransitions::new(height, program_states, Schedule::default());
 
-        let transitions = self.0.handle_injected_and_events(
+        let transitions = self.0.handle_events(
             transitions,
-            vec![],
             vec![BlockRequestEvent::Mirror {
                 actor_id: program_id,
                 event: MirrorRequestEvent::MessageQueueingRequested(
