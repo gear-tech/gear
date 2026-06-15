@@ -9,6 +9,8 @@ use cargo_metadata::Package;
 
 /// The working version of sp-wasm-interface.
 pub const GP_RUNTIME_INTERFACE_VERSION: &str = "18.0.0";
+const SANDBOX_INTERFACE_RUNTIME_INTERFACE_VERSION: &str = "34.0.0";
+const SANDBOX_INTERFACE_WASM_INTERFACE_VERSION: &str = "24.0.0";
 
 /// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
@@ -228,7 +230,9 @@ mod sandbox {
 
 /// sandbox interface handler
 mod sandbox_interface {
-    use super::GP_RUNTIME_INTERFACE_VERSION;
+    use super::{
+        SANDBOX_INTERFACE_RUNTIME_INTERFACE_VERSION, SANDBOX_INTERFACE_WASM_INTERFACE_VERSION,
+    };
     use toml_edit::DocumentMut;
 
     /// Patch the manifest of runtime-interface.
@@ -260,18 +264,21 @@ mod sandbox_interface {
         let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_like_mut() else {
             return;
         };
-        wi.insert("version", toml_edit::value(GP_RUNTIME_INTERFACE_VERSION));
-        wi.insert("package", toml_edit::value("gp-runtime-interface"));
+        wi.insert(
+            "version",
+            toml_edit::value(SANDBOX_INTERFACE_RUNTIME_INTERFACE_VERSION),
+        );
+        wi.remove("package");
         wi.remove("workspace");
 
         let Some(wi) = manifest["dependencies"]["sp-wasm-interface"].as_table_like_mut() else {
             return;
         };
-        // The copied stable2409 executor crates use upstream `sp-wasm-interface`
-        // 21.0.1, but `gear-sandbox-interface` still pairs with the old
-        // Gear-published runtime-interface stack.
-        wi.insert("version", toml_edit::value("15.0.0"));
-        wi.insert("package", toml_edit::value("gp-wasm-interface"));
+        wi.insert(
+            "version",
+            toml_edit::value(SANDBOX_INTERFACE_WASM_INTERFACE_VERSION),
+        );
+        wi.remove("package");
         wi.remove("workspace");
     }
 }
