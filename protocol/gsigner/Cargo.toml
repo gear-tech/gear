@@ -32,6 +32,10 @@ k256 = { version = "0.13.4", default-features = false, features = [
 ], optional = true }
 nacl = { workspace = true, optional = true }
 dirs = { workspace = true, optional = true }
+ferveo-common = { package = "ferveo-gear-common", git = "https://github.com/gear-tech/ferveo-nucypher.git", branch = "more-codec", features = [
+    "ark-serde-hex",
+], optional = true }
+gear-tdec = { workspace = true, optional = true }
 parity-scale-codec = { workspace = true, default-features = false, features = [
     "derive",
 ], optional = true }
@@ -106,6 +110,7 @@ codec = ["dep:parity-scale-codec", "dep:scale-info"]
 keyring = ["std", "serde", "dep:nacl"]
 serde = ["dep:serde"]
 peer-id = ["dep:libp2p-identity"]
+tdec = ["std", "keyring", "serde", "dep:ferveo-common", "dep:gear-tdec"]
 
 [package.metadata.cargo-shear]
 # we need it for applying full_crypto feature
