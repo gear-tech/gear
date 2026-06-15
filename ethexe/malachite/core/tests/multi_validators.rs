@@ -35,9 +35,10 @@ fn init_tracing() {
 
 use anyhow::Result;
 use async_trait::async_trait;
+use bytes::Bytes;
 use ethexe_malachite_core::{
-    Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteConfig, MalachiteService,
-    Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
+    Address, Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteConfig,
+    MalachiteService, Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
 };
 use proptest::prelude::*;
 use tempfile::TempDir;
@@ -124,7 +125,12 @@ impl Externalities for TestExt {
         Ok(())
     }
 
-    async fn process_mb_finalized(&self, hash: H256, cert: CommitCertificate) -> Result<()> {
+    async fn process_mb_finalized(
+        &self,
+        hash: H256,
+        cert: CommitCertificate,
+        _: Vec<(Address, Bytes)>,
+    ) -> Result<()> {
         let mut s = self.state.lock().unwrap();
         if cert.block_hash != hash {
             s.violations

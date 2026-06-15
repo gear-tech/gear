@@ -12,6 +12,7 @@ repository.workspace = true
 alloy = { workspace = true, features = ["eips"] }
 anyhow.workspace = true
 async-trait.workspace = true
+bytes.workspace = true
 derive_more.workspace = true
 futures.workspace = true
 parity-scale-codec.workspace = true

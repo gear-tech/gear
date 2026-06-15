@@ -44,14 +44,17 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
+use bytes::Bytes;
 use ethexe_common::{
     MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
     injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, Transaction},
-    malachite::{Operation, Operations},
+    malachite::{Operation, Operations, VotingExtension},
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
+use ethexe_malachite_core::{
+    Address as MalachiteAddress, Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES,
+};
 use gprimitives::H256;
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{
@@ -73,6 +76,19 @@ fn transaction_to_operation(transaction: Transaction) -> Operation {
         Transaction::Injected(tx) => Operation::Injected(tx),
         Transaction::Shielded(_) => todo!("Shielded transaction block inclusion"),
     }
+}
+
+fn decode_voting_extensions(
+    extensions: Vec<(MalachiteAddress, Bytes)>,
+) -> Result<Vec<(MalachiteAddress, VotingExtension)>> {
+    extensions
+        .into_iter()
+        .map(|(address, bytes)| {
+            VotingExtension::decode_all(&mut bytes.as_ref())
+                .map(|extension| (address, extension))
+                .map_err(|e| anyhow!("decoding voting extension from {address}: {e}"))
+        })
+        .collect()
 }
 
 /// Inputs the externalities need to satisfy the [`ethexe_malachite_core::Externalities`]
@@ -190,6 +206,7 @@ impl Externalities for EthexeExternalities {
         &self,
         mb_hash: H256,
         cert: ethexe_malachite_core::CommitCertificate,
+        extensions: Vec<(MalachiteAddress, Bytes)>,
     ) -> Result<()> {
         let compact = self.db.mb_compact_block(mb_hash).ok_or_else(|| {
             anyhow!(
@@ -226,6 +243,13 @@ impl Externalities for EthexeExternalities {
             mb_hash,
             signatures: cert.signatures,
         };
+        let voting_extensions = decode_voting_extensions(extensions)?;
+        if !voting_extensions.is_empty() {
+            info!(
+                validators = voting_extensions.len(),
+                "process_mb_finalized: received voting extensions",
+            );
+        }
         // Same prerequisite as the matching BlockProposal — by the
         // time `process_mb_finalized` runs, `process_mb_proposal` has
         // already populated `mb_meta(block_hash).last_advanced_eb`.
@@ -239,6 +263,35 @@ impl Externalities for EthexeExternalities {
             last_advanced,
         );
         Ok(())
+    }
+
+    async fn extend_vote(&self, _mb_hash: H256, mb: Block) -> Result<Option<Bytes>> {
+        let payload = Operations::decode_all(&mut mb.payload.as_ref())
+            .map_err(|e| anyhow!("decoding Operations for voting extension: {e}"))?;
+
+        let has_shielded = payload
+            .iter()
+            .any(|op| matches!(op, Operation::Shielded(_)));
+        if !has_shielded {
+            return Ok(None);
+        }
+
+        Ok(Some(Bytes::from(VotingExtension::default().encode())))
+    }
+
+    async fn verify_vote_extension(
+        &self,
+        _mb_hash: H256,
+        _mb: Block,
+        extension: Bytes,
+    ) -> Result<bool> {
+        match VotingExtension::decode_all(&mut extension.as_ref()) {
+            Ok(_) => Ok(true),
+            Err(e) => {
+                warn!(error = %e, "verify_vote_extension: undecodable extension");
+                Ok(false)
+            }
+        }
     }
 
     async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload> {
@@ -896,7 +949,7 @@ mod tests {
         let mb_hash = block.hash();
         ext.process_mb_proposal(mb_hash, block).await.unwrap();
         let _ = rx.recv().await; // BlockProposal
-        ext.process_mb_finalized(mb_hash, fake_cert(1))
+        ext.process_mb_finalized(mb_hash, fake_cert(1), Vec::new())
             .await
             .unwrap();
         assert_eq!(db.globals().latest_finalized_mb_hash, mb_hash);
@@ -934,7 +987,7 @@ mod tests {
             let mb_hash = block.hash();
             ext_a.process_mb_proposal(mb_hash, block).await.unwrap();
             ext_a
-                .process_mb_finalized(mb_hash, fake_cert(i))
+                .process_mb_finalized(mb_hash, fake_cert(i), Vec::new())
                 .await
                 .unwrap();
             chain.push((mb_hash, p));
@@ -966,7 +1019,10 @@ mod tests {
         let mb4 = block4.hash();
         ext_b.process_mb_proposal(mb4, block4).await.unwrap();
         let _ = rx_b.recv().await; // proposal
-        ext_b.process_mb_finalized(mb4, fake_cert(4)).await.unwrap();
+        ext_b
+            .process_mb_finalized(mb4, fake_cert(4), Vec::new())
+            .await
+            .unwrap();
         assert_eq!(db.mb_compact_block(mb4).unwrap().parent, last_pre);
         assert_eq!(db.globals().latest_finalized_mb_hash, mb4);
     }
@@ -992,7 +1048,7 @@ mod tests {
             let block = wrap(p.clone(), height, parent);
             let mb_hash = block.hash();
             ext.process_mb_proposal(mb_hash, block).await.unwrap();
-            ext.process_mb_finalized(mb_hash, fake_cert(height))
+            ext.process_mb_finalized(mb_hash, fake_cert(height), Vec::new())
                 .await
                 .unwrap();
             chain.push(mb_hash);
@@ -1241,6 +1297,7 @@ mod tests {
                 block_hash: mb_hash,
                 signatures: vec![],
             },
+            Vec::new(),
         )
         .await
         .unwrap();

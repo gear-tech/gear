@@ -52,7 +52,7 @@ use malachitebft_app_channel::{
         },
     },
 };
-use malachitebft_core_types::Height as _;
+use malachitebft_core_types::{Height as _, VoteExtensions};
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::RangeInclusive, sync::Arc};
 use tracing::{error, info};
@@ -170,14 +170,35 @@ where
                 }
             }
 
-            // Vote extensions (unused — return defaults).
-            AppMsg::ExtendVote { reply, .. } => {
-                if reply.send(self.process_extend_vote()).is_err() {
+            // Vote extensions.
+            AppMsg::ExtendVote {
+                value_id, reply, ..
+            } => {
+                let extension = self
+                    .process_extend_vote(value_id)
+                    .await
+                    .unwrap_or_else(|e| {
+                        error!(?e, %value_id, "ExtendVote: process failed");
+                        None
+                    });
+                if reply.send(extension).is_err() {
                     error!("ExtendVote: failed to send reply");
                 }
             }
-            AppMsg::VerifyVoteExtension { reply, .. } => {
-                if reply.send(self.process_verify_vote_extension()).is_err() {
+            AppMsg::VerifyVoteExtension {
+                value_id,
+                reply,
+                extension,
+                ..
+            } => {
+                let result = self
+                    .process_verify_vote_extension(value_id, extension)
+                    .await
+                    .unwrap_or_else(|e| {
+                        error!(?e, %value_id, "VerifyVoteExtension: process failed");
+                        Err(VoteExtensionError::InvalidVoteExtension)
+                    });
+                if reply.send(result).is_err() {
                     error!("VerifyVoteExtension: failed to send reply");
                 }
             }
@@ -209,7 +230,7 @@ where
             // Finalized (commit + cascade).
             AppMsg::Finalized {
                 certificate,
-                extensions: _,
+                extensions,
                 evidence,
                 reply,
             } => {
@@ -221,7 +242,7 @@ where
                     evidence = ?evidence,
                     "Finalized"
                 );
-                let next = match self.process_finalized(certificate).await {
+                let next = match self.process_finalized(certificate, extensions).await {
                     Ok(()) => {
                         let h = self.state.current_height;
                         Next::Start(
@@ -405,12 +426,47 @@ where
         Ok(locally)
     }
 
-    fn process_extend_vote(&self) -> Option<Bytes> {
-        None
+    async fn process_extend_vote(&self, value_id: ValueId) -> Result<Option<Bytes>> {
+        let Some(block) = self.block_by_value_id(value_id)? else {
+            return Ok(None);
+        };
+        self.externalities
+            .extend_vote(block.hash(), block)
+            .await
+            .context("extend vote")
     }
 
-    fn process_verify_vote_extension(&self) -> Result<(), VoteExtensionError> {
-        Ok(())
+    async fn process_verify_vote_extension(
+        &self,
+        value_id: ValueId,
+        extension: Bytes,
+    ) -> Result<Result<(), VoteExtensionError>> {
+        let Some(block) = self.block_by_value_id(value_id)? else {
+            return Ok(Err(VoteExtensionError::InvalidVoteExtension));
+        };
+        let is_valid = self
+            .externalities
+            .verify_vote_extension(block.hash(), block, extension)
+            .await
+            .context("verify vote extension")?;
+        Ok(if is_valid {
+            Ok(())
+        } else {
+            Err(VoteExtensionError::InvalidVoteExtension)
+        })
+    }
+
+    fn block_by_value_id(&self, value_id: ValueId) -> Result<Option<Block>> {
+        let Some(proposal) = self
+            .state
+            .store
+            .get_undecided_proposal_by_value_id(&value_id)?
+        else {
+            return Ok(None);
+        };
+        let block = Block::decode(&mut &proposal.value.block_bytes[..])
+            .map_err(|e| anyhow!("decoding Block for vote extension: {e}"))?;
+        Ok(Some(block))
     }
 
     // TODO: #5475 add per-peer token-bucket rate limit before `ingest_proposal_part`
@@ -467,12 +523,13 @@ where
     async fn process_finalized(
         &mut self,
         certificate: EngineCert,
+        extensions: VoteExtensions<MalachiteCtx>,
     ) -> Result<(), FinalizationError> {
         let (block_bytes, _cert) = self
             .state
             .commit(certificate.clone())
             .map_err(FinalizationError::NonFatal)?;
-        self.ingest_finalized(certificate, block_bytes)
+        self.ingest_finalized(certificate, block_bytes, extensions)
             .await
             .context("ingest finalized")
             .map_err(FinalizationError::Fatal)
@@ -668,11 +725,21 @@ where
     /// [`Store::cascade_finalize`] silently no-ops on an unsaved
     /// ancestor (the `finalize_chain` walk returns `None`), and the
     /// `errors_tx` channel surfaces the contract breach upstream.
-    async fn ingest_finalized(&self, cert: EngineCert, block_bytes: Vec<u8>) -> Result<()> {
+    async fn ingest_finalized(
+        &self,
+        cert: EngineCert,
+        block_bytes: Vec<u8>,
+        extensions: VoteExtensions<MalachiteCtx>,
+    ) -> Result<()> {
         let block = Block::decode(&mut &block_bytes[..])
             .map_err(|e| anyhow!("decoding Block at finalize: {e}"))?;
         let block_hash = block.hash();
         let height = cert.height.as_u64();
+        let finalized_extensions: Vec<_> = extensions
+            .extensions
+            .into_iter()
+            .map(|(address, extension)| (address, extension.message))
+            .collect();
 
         let app_cert = CommitCertificate {
             height,
@@ -716,7 +783,12 @@ where
             .store
             .cascade_finalize(vec![block_hash], |hash, cert| {
                 let ext = Arc::clone(&self.externalities);
-                async move { ext.process_mb_finalized(hash, cert).await }
+                let extensions = if hash == block_hash {
+                    finalized_extensions.clone()
+                } else {
+                    Vec::new()
+                };
+                async move { ext.process_mb_finalized(hash, cert, extensions).await }
             })
             .await?;
         Ok(())
@@ -788,7 +860,12 @@ mod tests {
         async fn process_mb_proposal(&self, _: H256, _: Block) -> Result<()> {
             Ok(())
         }
-        async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
+        async fn process_mb_finalized(
+            &self,
+            _: H256,
+            _: CommitCertificate,
+            _: Vec<(Address, Bytes)>,
+        ) -> Result<()> {
             Ok(())
         }
         async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
@@ -971,7 +1048,12 @@ mod tests {
         async fn process_mb_proposal(&self, _: H256, _: Block) -> Result<()> {
             Ok(())
         }
-        async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
+        async fn process_mb_finalized(
+            &self,
+            _: H256,
+            _: CommitCertificate,
+            _: Vec<(Address, Bytes)>,
+        ) -> Result<()> {
             Err(anyhow!("application: finalize-side store write failed"))
         }
         async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
@@ -1078,7 +1160,10 @@ mod tests {
             commit_signatures: Vec::new(),
         };
 
-        match handler.process_finalized(cert).await {
+        match handler
+            .process_finalized(cert, VoteExtensions::default())
+            .await
+        {
             Err(FinalizationError::Fatal(_)) => {
                 // Expected: app::run propagates the error and the
                 // service tears down rather than silently moving on.
@@ -1160,7 +1245,10 @@ mod tests {
             value_id,
             commit_signatures: Vec::new(),
         };
-        match handler.process_finalized(cert).await {
+        match handler
+            .process_finalized(cert, VoteExtensions::default())
+            .await
+        {
             Ok(()) => {}
             Err(FinalizationError::Fatal(e)) => panic!("Fatal: {e:?}"),
             Err(FinalizationError::NonFatal(e)) => panic!("NonFatal: {e:?}"),

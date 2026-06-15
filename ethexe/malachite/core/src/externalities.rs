@@ -5,8 +5,9 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
+use bytes::Bytes;
 
-use crate::types::{Block, BlockPayload, CommitCertificate, H256};
+use crate::types::{Address, Block, BlockPayload, CommitCertificate, H256};
 
 /// Application-side callbacks the consensus service requires.
 ///
@@ -53,7 +54,28 @@ pub trait Externalities: Send + Sync + 'static {
     /// `cert` is the BFT commit certificate for the height of
     /// `mb_hash`. The application typically forwards `cert` to
     /// downstream layers (on-chain commits, light clients, etc.).
-    async fn process_mb_finalized(&self, mb_hash: H256, cert: CommitCertificate) -> Result<()>;
+    async fn process_mb_finalized(
+        &self,
+        mb_hash: H256,
+        cert: CommitCertificate,
+        extensions: Vec<(Address, Bytes)>,
+    ) -> Result<()>;
+
+    /// Build an optional opaque vote extension for the block this node is about
+    /// to precommit.
+    async fn extend_vote(&self, _mb_hash: H256, _block: Block) -> Result<Option<Bytes>> {
+        Ok(None)
+    }
+
+    /// Application-side validation for an opaque vote extension.
+    async fn verify_vote_extension(
+        &self,
+        _mb_hash: H256,
+        _block: Block,
+        _extension: Bytes,
+    ) -> Result<bool> {
+        Ok(false)
+    }
 
     /// Build a fresh block payload whose parent has hash
     /// `parent_mb_hash`. Called only when this node has been elected

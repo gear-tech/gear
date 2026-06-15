@@ -28,13 +28,12 @@
 //! depending on the consensus layer.
 
 use crate::injected::SignedInjectedTransaction;
-#[cfg(feature = "shielded")]
-use crate::injected::SignedShieldedTransaction;
 use alloc::vec::Vec;
 use derive_more::{Deref, DerefMut, IntoIterator};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-// use scale_info::TypeInfo;
+#[cfg(feature = "shielded")]
+use {crate::injected::SignedShieldedTransaction, gear_tdec::bls12_381::DecryptionShareSimple};
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -142,6 +141,29 @@ impl Operations {
     }
 }
 
+/// Opaque application data attached to a Malachite precommit vote.
+///
+/// The consensus layer transports this as bytes. Ethexe decodes the bytes into
+/// this type at the application boundary, so the generic Malachite service does
+/// not need to know about shielded transactions or threshold-decryption types.
+#[cfg(feature = "shielded")]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub struct VotingExtension {
+    pub decryption_shares: Vec<VotingDecryptionShare>,
+}
+
+/// One validator's decryption-share payload for one shielded transaction.
+/// Holds [DecryptionShareSimple] over [ShieldedTransaction].
+///
+/// [ShieldedTransaction]: crate::injected::ShieldedTransaction
+#[cfg(feature = "shielded")]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub struct VotingDecryptionShare {
+    pub tx_hash: H256,
+    pub share: DecryptionShareSimple,
+}
 #[cfg(test)]
 mod tests {
     use super::*;
