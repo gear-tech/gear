@@ -1065,6 +1065,41 @@ mod tests {
     ::proptest::proptest! {
         #![proptest_config(proptest_config())]
 
+        /// Capping only slices the drain into chunks: iterating
+        /// `take_actual_tasks_capped` yields exactly the uncapped due-task
+        /// sequence, each chunk within the cap, nothing lost or reordered.
+        #[test]
+        fn capped_drain_equals_uncapped_sequence(
+            schedule in common_schedule_strategy(),
+            block_height in any::<u32>(),
+            cap in 1usize..6,
+        ) {
+            let mut capped = InBlockTransitions::new(
+                block_height,
+                ProgramStates::default(),
+                schedule.clone(),
+            );
+            let mut uncapped = InBlockTransitions::new(
+                block_height,
+                ProgramStates::default(),
+                schedule,
+            );
+
+            let limit = core::num::NonZero::new(cap).expect("cap > 0");
+            let mut collected = Vec::new();
+            loop {
+                let chunk = capped.take_actual_tasks_capped(limit);
+                if chunk.is_empty() {
+                    break;
+                }
+                prop_assert!(chunk.len() <= cap);
+                collected.extend(chunk);
+            }
+
+            prop_assert_eq!(collected, uncapped.take_actual_tasks());
+            prop_assert_eq!(capped.due_tasks_len(), 0);
+        }
+
         #[test]
         fn finalize_matches_model((transitions, model) in in_block_transitions_with_model_strategy()) {
             let finalized = transitions.finalize();

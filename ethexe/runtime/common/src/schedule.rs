@@ -19,12 +19,41 @@ pub struct Handler<'a, S: Storage> {
     pub controller: TransitionController<'a, S>,
 }
 
+impl<S: Storage> Handler<'_, S> {
+    /// Read-only snapshot of the program state; `None` for unknown programs.
+    fn peek_state(&self, program_id: ActorId) -> Option<ProgramState> {
+        let hash = self.controller.transitions.state_of(&program_id)?.hash;
+        let state = self
+            .controller
+            .storage
+            .program_state(hash)
+            .expect("failed to read state from storage");
+        Some(state)
+    }
+}
+
 impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn remove_from_mailbox(
         &mut self,
         (program_id, user_id): (ActorId, ActorId),
         message_id: MessageId,
     ) -> u64 {
+        // Outdated task (entity already gone, e.g. after restore edge
+        // cases): drop instead of panicking the announce (#5204).
+        let target_exists = self.peek_state(program_id).is_some_and(|state| {
+            let storage = self.controller.storage;
+            storage
+                .query(&state.mailbox_hash)
+                .expect("failed to query mailbox")
+                .contains(storage, &user_id, &message_id)
+        });
+        if !target_exists {
+            log::warn!(
+                "skipping outdated RemoveFromMailbox(({program_id}, {user_id}), {message_id}): target not found"
+            );
+            return 0;
+        }
+
         self.controller
             .update_state(program_id, |state, storage, transitions| {
                 let Expiring {
@@ -67,6 +96,20 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     }
 
     fn send_dispatch(&mut self, (program_id, message_id): (ActorId, MessageId)) -> u64 {
+        let target_exists = self.peek_state(program_id).is_some_and(|state| {
+            self.controller
+                .storage
+                .query(&state.stash_hash)
+                .expect("failed to query dispatch stash")
+                .contains(&message_id)
+        });
+        if !target_exists {
+            log::warn!(
+                "skipping outdated SendDispatch(({program_id}, {message_id})): target not found"
+            );
+            return 0;
+        }
+
         self.controller
             .update_state(program_id, |state, storage, _| {
                 let dispatch = storage.modify(&mut state.stash_hash, |stash| {
@@ -83,6 +126,20 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     }
 
     fn send_user_message(&mut self, stashed_message_id: MessageId, program_id: ActorId) -> u64 {
+        let target_exists = self.peek_state(program_id).is_some_and(|state| {
+            self.controller
+                .storage
+                .query(&state.stash_hash)
+                .expect("failed to query dispatch stash")
+                .contains(&stashed_message_id)
+        });
+        if !target_exists {
+            log::warn!(
+                "skipping outdated SendUserMessage({stashed_message_id}, {program_id}): target not found"
+            );
+            return 0;
+        }
+
         self.controller
             .update_state(program_id, |state, storage, transitions| {
                 let (dispatch, user_id) = storage.modify(&mut state.stash_hash, |stash| {
@@ -118,6 +175,22 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn wake_message(&mut self, program_id: ActorId, message_id: MessageId) -> u64 {
         log::trace!("Running scheduled task wake message {message_id} to {program_id}");
 
+        // Missing waitlist entry plausibly means the message was already
+        // woken or replied to — the task is outdated, drop it (#5204).
+        let target_exists = self.peek_state(program_id).is_some_and(|state| {
+            self.controller
+                .storage
+                .query(&state.waitlist_hash)
+                .expect("failed to query waitlist")
+                .contains(&message_id)
+        });
+        if !target_exists {
+            log::warn!(
+                "skipping outdated WakeMessage({program_id}, {message_id}): target not found"
+            );
+            return 0;
+        }
+
         self.controller
             .update_state(program_id, |state, storage, _| {
                 let Expiring {
@@ -151,10 +224,10 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
 /// Used primary for fast sync and tests.
 ///
 /// No expiry filtering is applied: every scheduled task found in the dumped
-/// states is restored. Committed states never hold a task already expired at
-/// the dumped block, and the executor drains the full backlog with no lower
-/// bound, so any restored task fires at the first computed block regardless of
-/// its expiry.
+/// states is restored. A committed schedule may hold overdue tasks (capped
+/// processing defers the excess — see `MAX_SCHEDULE_TASKS_PER_MB`), and the
+/// executor drains the backlog with no lower bound, so any restored task
+/// fires starting from the first computed block, subject to the same cap.
 #[derive(Default)]
 pub struct Restorer {
     schedule: Schedule,
@@ -293,6 +366,56 @@ mod tests {
     use ethexe_common::gear::MessageType;
     use gear_core::buffer::Payload;
     use std::collections::{BTreeMap, BTreeSet};
+
+    /// Outdated tasks (target entity gone, or even the whole program
+    /// unknown) are dropped with a warning — and crucially produce NO
+    /// state modification, so they add nothing to the commitment.
+    #[test]
+    fn outdated_tasks_are_skipped() {
+        use crate::{InBlockTransitions, TransitionController, state::ProgramState};
+        use ethexe_common::{ProgramStates, StateHashWithQueueSize};
+
+        let storage = MemStorage::default();
+        let unknown_pid = ActorId::from(0xDEAD);
+        let empty_pid = ActorId::from(0xBEEF);
+        let user_id = ActorId::from(0x10);
+        let message_id = MessageId::from(0x42);
+
+        // `empty_pid` is known but its state holds no mailbox / waitlist /
+        // stash entries; `unknown_pid` is absent from the states map.
+        let state_hash = storage.write_program_state(ProgramState::zero());
+        let states: ProgramStates = [(
+            empty_pid,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
+            },
+        )]
+        .into_iter()
+        .collect();
+
+        let mut transitions = InBlockTransitions::new(10, states, Schedule::default());
+        let mut handler = Handler {
+            controller: TransitionController {
+                storage: &storage,
+                transitions: &mut transitions,
+            },
+        };
+
+        for pid in [unknown_pid, empty_pid] {
+            assert_eq!(handler.remove_from_mailbox((pid, user_id), message_id), 0);
+            assert_eq!(handler.send_dispatch((pid, message_id)), 0);
+            assert_eq!(handler.send_user_message(message_id, pid), 0);
+            assert_eq!(handler.wake_message(pid, message_id), 0);
+        }
+
+        assert_eq!(
+            handler.controller.transitions.modifications_len(),
+            0,
+            "skipped tasks must not register state modifications"
+        );
+    }
 
     #[test]
     fn restorer_waitlist() {

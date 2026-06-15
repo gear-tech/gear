@@ -998,12 +998,19 @@ async fn many_waits() {
 
     // Check all messages wake up and reply with "Hello, world!" in wake block.
     // Hack: change block height to wake up tasks.
-    let transitions = handler
+    let mut transitions = handler
         .transitions
         .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
-    let mut transitions = processor.process_tasks(transitions);
-    // Hack: nullify modifications to avoid modifications limit.
-    transitions.modifications_mut().clear();
+    // Task processing is capped per announce (MAX_SCHEDULE_TASKS_PER_MB);
+    // drain the whole backlog the way consecutive blocks would.
+    loop {
+        transitions = processor.process_tasks(transitions);
+        // Hack: nullify modifications to avoid modifications limit.
+        transitions.modifications_mut().clear();
+        if transitions.due_tasks_len() == 0 {
+            break;
+        }
+    }
     let transitions = processor
         .process_queues(
             transitions,
@@ -1151,11 +1158,17 @@ async fn cross_height_wake_drain() {
 
     // Jump past the scheduled wake height (block1 + blocks_to_wait + 5):
     // `process_tasks` must still drain the wakes despite the height gap.
-    let transitions = handler
+    let mut transitions = handler
         .transitions
         .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
-    let mut transitions = processor.process_tasks(transitions);
-    transitions.modifications_mut().clear();
+    // Drain the capped backlog the way consecutive blocks would.
+    loop {
+        transitions = processor.process_tasks(transitions);
+        transitions.modifications_mut().clear();
+        if transitions.due_tasks_len() == 0 {
+            break;
+        }
+    }
     let transitions = processor
         .process_queues(
             transitions,
@@ -2422,4 +2435,163 @@ async fn call_wait_up_to_with_huge_duration() {
     );
     let task = tasks.into_iter().next().unwrap();
     assert!(matches!(task, ScheduledTask::WakeMessage(_, _)));
+}
+
+/// Capped task processing: only `MAX_SCHEDULE_TASKS_PER_MB` due tasks run
+/// per announce; the excess stays scheduled at its original height and
+/// drains on the next block.
+#[tokio::test]
+async fn schedule_tasks_capped_per_announce() {
+    init_logger();
+
+    let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
+    let chain = BlockChain::mock(3).setup(&processor.db);
+
+    let cap = MAX_SCHEDULE_TASKS_PER_MB.get();
+    let extra = 7usize;
+    let block1 = chain.blocks[1].to_simple();
+
+    // Dangling wakes for unknown programs: each is skipped by the tolerant
+    // handler, but still counts against the per-announce cap.
+    let height = block1.header.height;
+    let mut schedule = Schedule::default();
+    for i in 0..(cap + extra) as u64 {
+        schedule
+            .entry(height)
+            .or_default()
+            .insert(ethexe_common::ScheduledTask::WakeMessage(
+                ActorId::from(0xA000 + i),
+                MessageId::from(i),
+            ));
+    }
+
+    let executable = ExecutableData {
+        height,
+        timestamp: block1.header.timestamp,
+        schedule,
+        ..Default::default()
+    };
+    let FinalizedBlockTransitions { schedule, .. } = processor
+        .process_programs(executable, None)
+        .await
+        .expect("first block must not fail");
+
+    let leftover: usize = schedule.values().map(|tasks| tasks.len()).sum();
+    assert_eq!(
+        leftover, extra,
+        "exactly the over-cap tail must be deferred"
+    );
+    assert!(
+        schedule.keys().all(|&h| h == height),
+        "deferred tasks keep their original height"
+    );
+
+    // Next block drains the remainder.
+    let block2 = chain.blocks[2].to_simple();
+    let executable = ExecutableData {
+        height: block2.header.height,
+        timestamp: block2.header.timestamp,
+        schedule,
+        ..Default::default()
+    };
+    let FinalizedBlockTransitions { schedule, .. } = processor
+        .process_programs(executable, None)
+        .await
+        .expect("second block must not fail");
+    assert!(
+        schedule.is_empty(),
+        "backlog must fully drain under the cap"
+    );
+}
+
+/// A dangling (outdated) task must be skipped without aborting the rest
+/// of the announce: sibling program execution still proceeds.
+#[tokio::test]
+async fn outdated_task_does_not_abort_announce() {
+    init_logger();
+
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
+    let block1 = chain.blocks[1].to_simple();
+
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    let create_program_events = vec![
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        })),
+        BlockRequestEvent::Mirror {
+            actor_id,
+            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 1_500_000_000_000,
+                },
+            ),
+        },
+        // First queued message becomes the Init dispatch — spend it.
+        BlockRequestEvent::Mirror {
+            actor_id,
+            event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(100),
+                source: user_id,
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        },
+        BlockRequestEvent::Mirror {
+            actor_id,
+            event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            }),
+        },
+    ];
+
+    // Dangling siblings at the same and a past height.
+    let height = block1.header.height;
+    let mut schedule = Schedule::default();
+    schedule
+        .entry(height)
+        .or_default()
+        .insert(ethexe_common::ScheduledTask::WakeMessage(
+            ActorId::from(0xDEAD),
+            MessageId::from(0xD1),
+        ));
+    schedule
+        .entry(height.saturating_sub(1))
+        .or_default()
+        .insert(ethexe_common::ScheduledTask::SendUserMessage {
+            message_id: MessageId::from(0xD2),
+            to_mailbox: ActorId::from(0xDEAD),
+        });
+
+    let executable = ExecutableData {
+        height,
+        timestamp: block1.header.timestamp,
+        schedule,
+        events: create_program_events,
+        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+        ..Default::default()
+    };
+    let finalized = processor
+        .process_programs(executable, None)
+        .await
+        .expect("dangling tasks must not abort the announce");
+
+    assert!(finalized.schedule.is_empty(), "dangling tasks consumed");
+    let payloads: Vec<_> = finalized
+        .transitions
+        .iter()
+        .flat_map(|t| t.messages.iter().map(|m| m.payload.clone()))
+        .collect();
+    assert!(
+        payloads.contains(&b"PONG".to_vec()),
+        "sibling PING execution must still produce PONG, got {payloads:?}"
+    );
 }

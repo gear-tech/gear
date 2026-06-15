@@ -112,6 +112,23 @@ pub const DEFAULT_COMMITMENT_DELAY_LIMIT: core::num::NonZero<u8> =
 /// Maximum number of touched programs per MB.
 pub const MAX_TOUCHED_PROGRAMS_PER_MB: u32 = 128;
 
+/// Maximum number of scheduled tasks processed per MB (announce). Excess
+/// due tasks stay in the schedule and run in subsequent blocks, keeping
+/// the per-announce commitment bounded (#5203). Protocol constant: every
+/// validator must apply the same cap.
+///
+/// Tasks run before queue processing and their state modifications count
+/// toward the same [`PROGRAM_MODIFICATIONS_SOFT_LIMIT`] budget, so the cap
+/// is half of it — a saturated task backlog slows queue processing but
+/// cannot starve it entirely.
+///
+/// Known consequence: while a backlog drains, deferred expiries (e.g.
+/// `RemoveFromMailbox`) fire late, so externally visible deadlines such
+/// as the mailbox TTL are lower bounds, not exact heights.
+pub const MAX_SCHEDULE_TASKS_PER_MB: core::num::NonZero<usize> =
+    core::num::NonZero::new(PROGRAM_MODIFICATIONS_SOFT_LIMIT as usize / 2)
+        .expect("soft limit must be non-zero");
+
 // Soft limits for one MB processing. Stops execution if any of them is exceeded.
 pub const OUTGOING_MESSAGES_SOFT_LIMIT: u32 = 128;
 pub const OUTGOING_MESSAGES_BYTES_SOFT_LIMIT: u32 = 32 * 1024;
