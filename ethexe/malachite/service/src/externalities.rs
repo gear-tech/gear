@@ -49,7 +49,7 @@ use ethexe_common::{
     MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
     injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, Transaction},
-    malachite::{Operation, Operations, VotingExtension},
+    malachite::{Operation, Operations, VotingDecryptionShare, VotingExtension},
 };
 use ethexe_db::Database;
 use ethexe_malachite_core::{
@@ -269,6 +269,12 @@ impl Externalities for EthexeExternalities {
         let payload = Operations::decode_all(&mut mb.payload.as_ref())
             .map_err(|e| anyhow!("decoding Operations for voting extension: {e}"))?;
 
+        let shares = payload
+            .iter()
+            .filter_map(|op| op.as_shielded())
+            .map(|shielded_tx| {
+                let share = VotingDecryptionShare::from_shielded_tx(shielded_tx.data());
+            });
         let has_shielded = payload
             .iter()
             .any(|op| matches!(op, Operation::Shielded(_)));

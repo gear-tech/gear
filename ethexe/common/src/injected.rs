@@ -116,7 +116,7 @@ impl InjectedTransaction {
     }
 
     /// Returns the hash of [`InjectedTransaction`].
-    pub fn to_hash(&self) -> HashOf<InjectedTransaction> {
+    pub fn to_hash(&self) -> HashOf<Self> {
         let hashable_bytes = self.to_hashable_bytes();
         unsafe { HashOf::new(gear_core::utils::hash(hashable_bytes.as_ref()).into()) }
     }
@@ -431,6 +431,14 @@ pub struct ShieldedTransaction {
     /// NOTE: this is also a salt for MessageId generation.
     #[cfg_attr(feature = "std", serde(with = "limited_vec_hex"))]
     pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
+}
+
+#[cfg(feature = "shielded")]
+impl ShieldedTransaction {
+    /// Constructs blake2b hash over [ShieldedTransaction].
+    pub fn to_hash(&self) -> HashOf<Self> {
+        todo!()
+    }
 }
 
 #[cfg(feature = "shielded")]

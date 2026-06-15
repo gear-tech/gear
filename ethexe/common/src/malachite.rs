@@ -27,7 +27,7 @@
 //! `ethexe-malachite`) so `ethexe-processor` can accept them without
 //! depending on the consensus layer.
 
-use crate::injected::SignedInjectedTransaction;
+use crate::injected::{ShieldedTransaction, SignedInjectedTransaction};
 use alloc::vec::Vec;
 use derive_more::{Deref, DerefMut, IntoIterator};
 use gprimitives::H256;
@@ -78,6 +78,14 @@ impl Operation {
             Self::Injected(_) => 3,
             #[cfg(feature = "shielded")]
             Self::Shielded(_) => 4,
+        }
+    }
+
+    /// Returns `Some` if `Self` contains shielded transaction.
+    pub fn as_shielded(&self) -> Option<&SignedShieldedTransaction> {
+        match self {
+            Self::Shielded(tx) => Some(tx),
+            _ => None,
         }
     }
 }
@@ -161,9 +169,25 @@ pub struct VotingExtension {
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct VotingDecryptionShare {
-    pub tx_hash: H256,
+    pub tx_hash: HashOf<ShieldedTransaction>,
     pub share: DecryptionShareSimple,
 }
+
+#[cfg(feature = "shielded")]
+impl VotingDecryptionShare {
+    pub fn from_shielded_tx(shielded_tx: &ShieldedTransaction) -> gear_tdec::Result<Self> {
+        let ciphertext_header = shielded_tx.ciphertext.header()?;
+        let share = DecryptionShareSimple::create(
+            validator_decryption_key,
+            private_key_share,
+            &ciphertext_header,
+            shielded_tx.aad.as_ref(),
+        )?;
+        let tx_hash = shielded_tx.to_hash();
+        Ok(Self { tx_hash, share })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
