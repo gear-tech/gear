@@ -47,7 +47,7 @@ use async_trait::async_trait;
 use ethexe_common::{
     MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
-    injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, SignedInjectedTransaction},
+    injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, Transaction},
     malachite::{Operation, Operations},
 };
 use ethexe_db::Database;
@@ -60,6 +60,20 @@ use std::{
 };
 use tokio::sync::{Notify, mpsc};
 use tracing::{error, info, warn};
+
+fn operation_to_transaction(operation: &Operation) -> Option<Transaction> {
+    match operation {
+        Operation::Injected(tx) => Some(Transaction::Injected(tx.clone())),
+        _ => None,
+    }
+}
+
+fn transaction_to_operation(transaction: Transaction) -> Operation {
+    match transaction {
+        Transaction::Injected(tx) => Operation::Injected(tx),
+        Transaction::Shielded(_) => todo!("Shielded transaction block inclusion"),
+    }
+}
 
 /// Inputs the externalities need to satisfy the [`ethexe_malachite_core::Externalities`]
 /// contract. Constructed by [`crate::MalachiteService::new`] and
@@ -193,12 +207,9 @@ impl Externalities for EthexeExternalities {
         // Flush the committed injected txs from the mempool and add
         // their hashes to the seen-set so a re-gossip can't slip them
         // back in before they age out.
-        let injected: Vec<SignedInjectedTransaction> = payload
+        let injected: Vec<Transaction> = payload
             .iter()
-            .filter_map(|tx| match tx {
-                Operation::Injected(t) => Some(t.clone()),
-                _ => None,
-            })
+            .filter_map(operation_to_transaction)
             .collect();
         if !injected.is_empty() {
             self.mempool.forget(&injected).await;
@@ -254,7 +265,7 @@ impl Externalities for EthexeExternalities {
         // run through TxValidityChecker so we don't waste an MB
         // round-trip on a tx the participant would reject.
         let chain_head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
-        let valid: Vec<SignedInjectedTransaction> = match chain_head_snapshot {
+        let valid: Vec<Transaction> = match chain_head_snapshot {
             Some(head) => {
                 let checker = TxValidityChecker::new_for_mb(self.db.clone(), head, parent_mb_hash)?;
                 let mut accepted = Vec::with_capacity(injected.len());
@@ -263,7 +274,7 @@ impl Externalities for EthexeExternalities {
                         TxValidity::Valid => accepted.push(tx),
                         reason => {
                             warn!(
-                                tx_hash = %tx.data().to_hash(),
+                                tx_hash = %tx.hash(),
                                 ?reason,
                                 "build_block_above: dropping injected tx — fails TxValidity",
                             );
@@ -317,7 +328,7 @@ impl Externalities for EthexeExternalities {
         }
 
         let mut size_counter: usize = 0;
-        let mut capped: Vec<SignedInjectedTransaction> = Vec::with_capacity(valid.len());
+        let mut capped: Vec<Transaction> = Vec::with_capacity(valid.len());
         for tx in valid {
             // Skip the whole loop body once initial touched > limit —
             // any injected tx would only push it further over.
@@ -332,7 +343,10 @@ impl Externalities for EthexeExternalities {
                 continue;
             }
 
-            let destination = tx.data().destination;
+            let destination = match &tx {
+                Transaction::Injected(tx) => tx.data().destination,
+                Transaction::Shielded(_) => todo!("Shielded transaction touched-program cap"),
+            };
             if !touched.contains(&destination)
                 && touched.len() >= MAX_TOUCHED_PROGRAMS_PER_MB as usize
             {
@@ -356,7 +370,7 @@ impl Externalities for EthexeExternalities {
             operations.push(Operation::AdvanceTillEthereumBlock { block_hash });
         }
         for tx in capped {
-            operations.push(Operation::Injected(tx));
+            operations.push(transaction_to_operation(tx));
         }
         operations.push(Operation::ProgressTasks);
         operations.push(Operation::ProcessQueues {
@@ -404,7 +418,7 @@ impl Externalities for EthexeExternalities {
                 None
             };
 
-        while let Some(Operation::Injected(_)) = next {
+        while matches!(next, Some(Operation::Injected(_))) {
             next = iter.next();
         }
 
@@ -523,7 +537,7 @@ impl Externalities for EthexeExternalities {
             // since the checker has no anchor to walk from.
             let has_injected = payload
                 .iter()
-                .any(|tx| matches!(tx, Operation::Injected(_)));
+                .any(|tx| operation_to_transaction(tx).is_some());
             if has_injected {
                 warn!("validate: MB carries injected txs but no local chain head — abstaining");
                 return Ok(false);
@@ -540,7 +554,7 @@ impl Externalities for EthexeExternalities {
         // local DB corruption, not a peer-side issue.
         let checker = TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_hash)?;
         for tx in payload.iter() {
-            let Operation::Injected(signed) = tx else {
+            let Some(transaction) = operation_to_transaction(tx) else {
                 continue;
             };
             // `?` inside `check_tx_validity` only fires on local DB
@@ -548,11 +562,11 @@ impl Externalities for EthexeExternalities {
             // is absent from CAS). Every malicious-tx-data path returns
             // `Ok(TxValidity::<reason>)` instead of `Err`, so this `?`
             // can't be triggered by what the proposer placed in the MB.
-            match checker.check_tx_validity(signed)? {
+            match checker.check_tx_validity(&transaction)? {
                 TxValidity::Valid => {}
                 reason => {
                     warn!(
-                        tx_hash = %signed.data().to_hash(),
+                        tx_hash = %transaction.hash(),
                         ?reason,
                         "validate: injected tx fails TxValidity — rejecting MB",
                     );
@@ -595,8 +609,12 @@ impl Externalities for EthexeExternalities {
         };
         let limit = touched.len().max(MAX_TOUCHED_PROGRAMS_PER_MB as usize);
         for tx in payload.iter() {
-            if let Operation::Injected(signed) = tx {
-                touched.insert(signed.data().destination);
+            match tx {
+                Operation::Injected(signed) => {
+                    touched.insert(signed.data().destination);
+                }
+                Operation::Shielded(_shielded) => todo!("implement me"),
+                _ => {}
             }
         }
         if touched.len() > limit {
@@ -671,7 +689,7 @@ impl EthexeExternalities {
     async fn wait_for_proposable_content(
         &self,
         prev_advanced_eb_hash: H256,
-    ) -> (Option<H256>, Vec<SignedInjectedTransaction>) {
+    ) -> (Option<H256>, Vec<Transaction>) {
         loop {
             let chain_head_notified = self.chain_head_notify.notified();
             tokio::pin!(chain_head_notified);
@@ -742,7 +760,7 @@ mod tests {
     use ethexe_common::{
         BlockHeader,
         db::{BlockMetaStorageRW, OnChainStorageRW},
-        injected::PurgedTransaction,
+        injected::{PurgedTransaction, SignedInjectedTransaction},
     };
 
     fn to_payload(bytes: Vec<u8>) -> BlockPayload {
@@ -1122,12 +1140,12 @@ mod tests {
     /// can assert which txs reached the mempool eviction path.
     #[derive(Default)]
     struct ForgetTracker {
-        seen: tokio::sync::Mutex<Vec<SignedInjectedTransaction>>,
+        seen: tokio::sync::Mutex<Vec<Transaction>>,
     }
 
     #[async_trait::async_trait]
     impl Mempool for ForgetTracker {
-        fn insert(&self, _tx: SignedInjectedTransaction) -> crate::mempool::TxInsertionStatus {
+        fn insert(&self, _tx: Transaction) -> crate::mempool::TxInsertionStatus {
             crate::mempool::TxInsertionStatus::Inserted
         }
 
@@ -1135,10 +1153,10 @@ mod tests {
             Vec::new()
         }
 
-        async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+        async fn fetch(&self, _head: SimpleBlockData) -> Vec<Transaction> {
             Vec::new()
         }
-        async fn forget(&self, committed: &[SignedInjectedTransaction]) {
+        async fn forget(&self, committed: &[Transaction]) {
             self.seen.lock().await.extend_from_slice(committed);
         }
         async fn wait_for_new_tx(&self) {
@@ -1228,7 +1246,7 @@ mod tests {
         .unwrap();
 
         let seen = tracker.seen.lock().await.clone();
-        let seen_hashes: Vec<_> = seen.iter().map(|t| t.data().to_hash()).collect();
+        let seen_hashes: Vec<_> = seen.iter().map(Transaction::hash).collect();
         assert_eq!(
             seen.len(),
             2,

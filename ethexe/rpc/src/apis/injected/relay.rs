@@ -7,7 +7,7 @@
 //! validator in the current era and returns the first acceptance.
 
 use crate::{RpcEvent, errors};
-use ethexe_common::injected::{InjectedTransactionAcceptance, SignedInjectedTransaction};
+use ethexe_common::injected::{InjectedTransactionAcceptance, Transaction};
 use jsonrpsee::core::RpcResult;
 use tokio::sync::{mpsc, oneshot};
 
@@ -25,20 +25,24 @@ impl TransactionsRelayer {
     /// returning the first `Accept` observed by the service.
     pub async fn relay(
         &self,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        let tx_hash = transaction.data().to_hash();
+        let tx_hash = transaction.hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
 
-        if transaction.data().value != 0 {
-            tracing::warn!(
-                tx_hash = %tx_hash,
-                value = transaction.data().value,
-                "Injected transaction with non-zero value is not supported"
-            );
-            return Err(errors::bad_request(
-                "Injected transactions with non-zero value are not supported",
-            ));
+        match &transaction {
+            Transaction::Injected(transaction) if transaction.data().value != 0 => {
+                tracing::warn!(
+                    tx_hash = %tx_hash,
+                    value = transaction.data().value,
+                    "Injected transaction with non-zero value is not supported"
+                );
+                return Err(errors::bad_request(
+                    "Injected transactions with non-zero value are not supported",
+                ));
+            }
+            Transaction::Injected(_) => {}
+            Transaction::Shielded(_) => todo!("Shielded transaction relay validation"),
         }
 
         let (response_sender, response_receiver) = oneshot::channel();

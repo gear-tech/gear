@@ -287,6 +287,9 @@ fn build_executable_data(
                 let verified = signed.into_verified();
                 injected_transactions.push(verified);
             }
+            Operation::Shielded(shielded) => {
+                let _verified = shielded.into_verified();
+            },
             Operation::ProgressTasks => {}
             Operation::ProcessQueues {
                 gas_allowance: op_gas_allowance,

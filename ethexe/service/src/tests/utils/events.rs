@@ -12,8 +12,7 @@ use ethexe_common::{
     db::*,
     events::BlockEvent,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, SignedCompactTxReceipt,
-        SignedInjectedTransaction,
+        InjectedTransaction, InjectedTransactionAcceptance, SignedCompactTxReceipt, Transaction,
     },
     network::VerifiedValidatorMessage,
 };
@@ -45,7 +44,7 @@ pub type ObserverEventReceiver = KickingStream<EventReceiver<ObserverEvent>>;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkInjectedEvent {
     InboundTransaction {
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     },
     OutboundAcceptance {
         transaction_hash: HashOf<InjectedTransaction>,
@@ -61,7 +60,7 @@ impl TestingNetworkInjectedEvent {
                 transaction,
                 channel: _,
             } => Self::InboundTransaction {
-                transaction: SignedInjectedTransaction::clone(transaction),
+                transaction: transaction.as_ref().clone(),
             },
             NetworkInjectedEvent::OutboundAcceptance {
                 transaction_hash,
@@ -103,9 +102,7 @@ impl TestingNetworkEvent {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
-    InjectedTransaction {
-        transaction: SignedInjectedTransaction,
-    },
+    InjectedTransaction { transaction: Transaction },
 }
 
 impl TestingRpcEvent {

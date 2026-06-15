@@ -40,8 +40,8 @@ use ethexe_common::{
     HashOf, SimpleBlockData,
     db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO},
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, PurgedTransaction,
-        SignedInjectedTransaction, TransactionPurgedReason, VALIDITY_WINDOW,
+        InjectedTransaction, InjectedTransactionAcceptance, PurgedTransaction, Transaction,
+        TransactionPurgedReason, VALIDITY_WINDOW,
     },
 };
 use ethexe_db::Database;
@@ -119,7 +119,7 @@ pub trait Mempool: Send + Sync + 'static {
     /// [`TxInsertionStatus`] value. The method is infallible: invariant
     /// violations inside the implementation panic (e.g. a poisoned mutex)
     /// rather than surface as an error variant.
-    fn insert(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus;
+    fn insert(&self, tx: Transaction) -> TxInsertionStatus;
 
     /// Drives validity-window GC.
     /// Returns the purged injected transactions.
@@ -127,10 +127,10 @@ pub trait Mempool: Send + Sync + 'static {
     fn set_chain_head(&self, head: SimpleBlockData) -> Vec<PurgedTransaction>;
 
     /// Txs whose `reference_block` is an ancestor of `head`.
-    async fn fetch(&self, head: SimpleBlockData) -> Vec<SignedInjectedTransaction>;
+    async fn fetch(&self, head: SimpleBlockData) -> Vec<Transaction>;
 
     /// Drop committed txs and remember their hashes for dedup.
-    async fn forget(&self, committed: &[SignedInjectedTransaction]);
+    async fn forget(&self, committed: &[Transaction]);
 
     /// Best-effort wake-up on new tx; spurious wake-ups allowed.
     async fn wait_for_new_tx(&self);
@@ -146,7 +146,7 @@ pub(crate) struct EmptyMempool;
 #[cfg(test)]
 #[async_trait]
 impl Mempool for EmptyMempool {
-    fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
+    fn insert(&self, _tx: Transaction) -> TxInsertionStatus {
         TxInsertionStatus::Inserted
     }
 
@@ -154,11 +154,11 @@ impl Mempool for EmptyMempool {
         Vec::new()
     }
 
-    async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+    async fn fetch(&self, _head: SimpleBlockData) -> Vec<Transaction> {
         Vec::new()
     }
 
-    async fn forget(&self, _committed: &[SignedInjectedTransaction]) {}
+    async fn forget(&self, _committed: &[Transaction]) {}
 
     async fn wait_for_new_tx(&self) {
         std::future::pending().await
@@ -176,7 +176,7 @@ pub const DEFAULT_POOL_CAPACITY: usize = 10_000;
 /// Pool state behind a single mutex — operations are short, contention low.
 #[derive(Debug, Default)]
 struct Inner {
-    pool: HashMap<HashOf<InjectedTransaction>, SignedInjectedTransaction>,
+    pool: HashMap<HashOf<InjectedTransaction>, Transaction>,
     /// Recently committed txs (tx_hash → ref_block) for dedup. Aged out with the validity window.
     seen: HashMap<HashOf<InjectedTransaction>, H256>,
     /// Latest chain head height — drives age-out of pool/seen entries.
@@ -212,6 +212,22 @@ impl InjectedTxMempool {
 
     pub fn is_empty(&self) -> bool {
         self.inner.lock().expect("poisoned mempool").pool.is_empty()
+    }
+
+    pub fn insert(&self, tx: impl Into<Transaction>) -> TxInsertionStatus {
+        <Self as Mempool>::insert(self, tx.into())
+    }
+
+    pub async fn forget<T>(&self, committed: &[T])
+    where
+        T: Clone + Into<Transaction>,
+    {
+        let committed = committed
+            .iter()
+            .cloned()
+            .map(Into::into)
+            .collect::<Vec<_>>();
+        <Self as Mempool>::forget(self, &committed).await
     }
 
     /// Resolve `reference_block` to its canonical height via the DB.
@@ -270,7 +286,7 @@ impl InjectedTxMempool {
         });
         let mut purged_txs = Vec::new();
         inner.pool.retain(|tx_hash, tx| {
-            let ref_block = tx.data().reference_block;
+            let ref_block = tx.reference_block();
             match db.block_header(ref_block).map(|h| h.height) {
                 Some(h) if !Self::is_expired(head_height, h) => true,
                 Some(h) => {
@@ -303,19 +319,20 @@ impl InjectedTxMempool {
 
 #[async_trait]
 impl Mempool for InjectedTxMempool {
-    fn insert(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus {
-        let tx_data = tx.data();
-        let tx_hash = tx_data.to_hash();
-        let ref_block = tx_data.reference_block;
+    fn insert(&self, tx: Transaction) -> TxInsertionStatus {
+        let tx_hash = tx.hash();
+        let ref_block = tx.reference_block();
 
         // Reject non-zero-value txs unconditionally (#5083 — value-bearing
         // injected txs are not supported yet). Done first so a malicious
         // sender can't burn pool capacity with txs that will never be
         // selectable.
-        if tx_data.value != 0 {
+        if let Transaction::Injected(tx_data) = &tx
+            && tx_data.data().value != 0
+        {
             info!(
                 %tx_hash,
-                value = tx_data.value,
+                value = tx_data.data().value,
                 "mempool: rejecting tx — non-zero value (#5083 not supported)",
             );
             return TxInsertionStatus::NonZeroValue;
@@ -368,7 +385,10 @@ impl Mempool for InjectedTxMempool {
         // immediately picks the tx is guaranteed to find it in the DB.
         // The DB row is content-addressed by tx_hash, so two racing
         // writes converge on the same byte content.
-        self.db.set_injected_transaction(tx.clone());
+        match &tx {
+            Transaction::Injected(tx) => self.db.set_injected_transaction(tx.clone()),
+            Transaction::Shielded(_) => todo!("Shielded transaction storage"),
+        }
 
         let mut inner = self.inner.lock().expect("poisoned mempool");
 
@@ -412,7 +432,7 @@ impl Mempool for InjectedTxMempool {
         Self::purge_expired(&mut inner, h, &self.db)
     }
 
-    async fn fetch(&self, head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+    async fn fetch(&self, head: SimpleBlockData) -> Vec<Transaction> {
         let ancestors = self.recent_ancestors(&head);
 
         let inner = self.inner.lock().expect("poisoned mempool");
@@ -420,7 +440,7 @@ impl Mempool for InjectedTxMempool {
         let result: Vec<_> = inner
             .pool
             .values()
-            .filter(|tx| ancestors.contains(&tx.data().reference_block))
+            .filter(|tx| ancestors.contains(&tx.reference_block()))
             .cloned()
             .collect();
         info!(
@@ -434,12 +454,12 @@ impl Mempool for InjectedTxMempool {
         result
     }
 
-    async fn forget(&self, committed: &[SignedInjectedTransaction]) {
+    async fn forget(&self, committed: &[Transaction]) {
         let mut inner = self.inner.lock().expect("poisoned mempool");
         for tx in committed {
-            let tx_hash = tx.data().to_hash();
+            let tx_hash = tx.hash();
             inner.pool.remove(&tx_hash);
-            inner.seen.insert(tx_hash, tx.data().reference_block);
+            inner.seen.insert(tx_hash, tx.reference_block());
         }
     }
 
@@ -462,7 +482,7 @@ mod tests {
     use ethexe_common::{
         BlockHeader, PrivateKey, SignedMessage, SimpleBlockData,
         db::{BlockMetaStorageRW, GlobalsStorageRW, OnChainStorageRW},
-        injected::{InjectedTransaction, InjectedTransactionAcceptance},
+        injected::{InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction},
     };
     use gprimitives::ActorId;
     use std::time::Duration;
@@ -666,7 +686,14 @@ mod tests {
         let head = chain[2];
         let fetched = futures::executor::block_on(pool.fetch(head));
         assert_eq!(fetched.len(), 1);
-        assert_eq!(fetched[0].data().to_hash(), tx_hash);
+        assert_eq!(
+            fetched[0]
+                .as_injected()
+                .expect("injected transaction")
+                .data()
+                .to_hash(),
+            tx_hash
+        );
     }
 
     #[test]
@@ -1016,7 +1043,11 @@ mod tests {
             let fetched = futures::executor::block_on(pool.fetch(head));
             for tx in &fetched {
                 prop_assert_ne!(
-                    tx.data().reference_block, alt_hash,
+                    tx.as_injected()
+                        .expect("injected transaction")
+                        .data()
+                        .reference_block,
+                    alt_hash,
                     "alt-branch tx surfaced on canonical fetch"
                 );
             }

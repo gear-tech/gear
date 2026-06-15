@@ -27,7 +27,7 @@ use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
     Address, SimpleBlockData,
     db::{ConfigStorageRO, OnChainStorageRO},
-    injected::SignedInjectedTransaction,
+    injected::Transaction,
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -198,7 +198,7 @@ impl MalachiteService {
     /// queried via [`crate::mempool::TxInsertionStatus::is_accepted`].
     pub fn receive_injected_transaction(
         &self,
-        tx: SignedInjectedTransaction,
+        tx: Transaction,
     ) -> crate::mempool::TxInsertionStatus {
         self.mempool.insert(tx)
     }

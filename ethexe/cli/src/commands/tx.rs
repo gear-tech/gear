@@ -1081,7 +1081,7 @@ impl TxCommand {
 
                         if !watch {
                             ws_client
-                                .send_transaction(transaction.clone())
+                                .send_transaction(transaction.clone().into())
                                 .await
                                 .with_context(|| "failed to send injected transaction")?;
                         }
@@ -1102,7 +1102,7 @@ impl TxCommand {
                             eprintln!("Waiting for reply (promise for injected transaction)...");
 
                             let mut subscription = ws_client
-                                .send_transaction_and_watch(transaction)
+                                .send_transaction_and_watch(transaction.into())
                                 .await
                                 .with_context(
                                     || "failed to send injected transaction to Vara.eth RPC",

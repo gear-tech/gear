@@ -8,7 +8,7 @@ use crate::{
 };
 use ethexe_common::{
     Address, HashOf,
-    injected::{InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction},
+    injected::{InjectedTransaction, InjectedTransactionAcceptance, Transaction},
 };
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use libp2p::{
@@ -66,7 +66,7 @@ impl Metrics {
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Encode, Decode)]
-pub(crate) struct InnerRequest(SignedInjectedTransaction);
+pub(crate) struct InnerRequest(Transaction);
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Encode, Decode)]
@@ -77,7 +77,7 @@ pub enum Event {
     /// Peer sent a new transaction to us
     InboundTransaction {
         peer: PeerId,
-        transaction: Box<SignedInjectedTransaction>,
+        transaction: Box<Transaction>,
         channel: oneshot::Sender<InjectedTransactionAcceptance>,
     },
     /// We got a response from a validator we sent transaction to
@@ -93,7 +93,7 @@ impl Event {
         self,
     ) -> (
         PeerId,
-        SignedInjectedTransaction,
+        Transaction,
         oneshot::Sender<InjectedTransactionAcceptance>,
     ) {
         match self {
@@ -155,14 +155,14 @@ impl Behaviour {
         }
     }
 
-    /// Broadcasts [SignedInjectedTransaction] to all known validators.
+    /// Broadcasts [Transaction] to all known validators.
     /// Returns the number of sent requests.
     pub fn broadcast_transaction(
         &mut self,
         identities: &ValidatorIdentities,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> Result<NonZeroUsize, SendTransactionError> {
-        let tx_hash = transaction.data().to_hash();
+        let tx_hash = transaction.hash();
 
         if identities.is_empty() {
             return Err(SendTransactionError::NoValidatorsFound);
@@ -400,7 +400,7 @@ mod tests {
         utils::tests::{arb_value, init_logger},
         validator::discovery::{SignedValidatorIdentity, ValidatorAddresses, ValidatorIdentity},
     };
-    use ethexe_common::injected::InjectedTransaction;
+    use ethexe_common::injected::{InjectedTransaction, Transaction};
     use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use libp2p::{
         Swarm, Transport,
@@ -410,12 +410,12 @@ mod tests {
     use libp2p_swarm_test::SwarmExt;
     use std::time::Duration;
 
-    fn signed_injected_tx() -> SignedInjectedTransaction {
+    fn signed_injected_tx() -> Transaction {
         let signer = Signer::memory();
         let pub_key = signer.generate().unwrap();
 
         let tx = arb_value::<InjectedTransaction>(());
-        signer.signed_message(pub_key, tx, None).unwrap()
+        Transaction::Injected(signer.signed_message(pub_key, tx, None).unwrap())
     }
 
     async fn new_swarm() -> (Swarm<Behaviour>, SignedValidatorIdentity) {

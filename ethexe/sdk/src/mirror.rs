@@ -213,7 +213,7 @@ impl<'a> Mirror<'a> {
         let result: InjectedTransactionAcceptance = self
             .api
             .vara_eth_client
-            .send_transaction(transaction)
+            .send_transaction(transaction.into())
             .await
             .with_context(|| "failed to send injected transaction")?;
 
@@ -238,7 +238,7 @@ impl<'a> Mirror<'a> {
         let mut subscription = self
             .api
             .vara_eth_client
-            .send_transaction_and_watch(transaction)
+            .send_transaction_and_watch(transaction.into())
             .await
             .with_context(|| "failed to send injected transaction and subscribe to it's promise")?;
 

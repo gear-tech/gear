@@ -30,7 +30,7 @@ use ethexe_common::{
     db::{GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
     events::{BlockRequestEvent, RouterRequestEvent, router::ProgramCreatedEvent},
     gear::INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
-    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{InjectedTransaction, Transaction, VALIDITY_WINDOW},
     malachite::Operation,
 };
 use ethexe_db::Database;
@@ -130,7 +130,11 @@ impl TxValidityChecker {
     }
 
     /// Determine [`TxValidity`] for one injected transaction.
-    pub fn check_tx_validity(&self, tx: &SignedInjectedTransaction) -> Result<TxValidity> {
+    pub fn check_tx_validity(&self, tx: &Transaction) -> Result<TxValidity> {
+        // let tx = tx.into();
+        let Transaction::Injected(tx) = tx else {
+            todo!("Shielded transaction validity");
+        };
         let reference_block = tx.data().reference_block;
 
         if tx.data().value != 0 {
@@ -363,7 +367,7 @@ mod tests {
         MaybeHashOf, PrivateKey, SignedMessage, StateHashWithQueueSize,
         db::{CompactMb, MbStorageRW, OnChainStorageRW},
         gear_core::program::MemoryInfix,
-        injected::InjectedTransaction,
+        injected::{InjectedTransaction, SignedInjectedTransaction},
         malachite::Operations,
         mock::{BlockChain, Mock, Tap},
     };
@@ -393,12 +397,16 @@ mod tests {
         }
     }
 
-    fn signed_tx(tx: InjectedTransaction) -> SignedInjectedTransaction {
+    fn sign_injected_tx(tx: InjectedTransaction) -> SignedInjectedTransaction {
         SignedMessage::create(PrivateKey::random(), tx).unwrap()
     }
 
-    fn mock_tx(reference_block: H256) -> SignedInjectedTransaction {
-        signed_tx(test_injected_transaction(reference_block, ActorId::zero()))
+    fn mock_injected_tx() -> SignedInjectedTransaction {
+        sign_injected_tx(InjectedTransaction::mock(()))
+    }
+
+    fn mock_tx(reference_block: H256) -> Transaction {
+        sign_injected_tx(test_injected_transaction(reference_block, ActorId::zero())).into()
     }
 
     fn program_state(initialized: bool, executable_balance: u128) -> ProgramState {
@@ -524,8 +532,10 @@ mod tests {
         let chain = test_block_chain(100).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
-        let tx = mock_tx(chain.blocks[5].hash);
-        let parent_mb = setup_mb(&db, vec![tx.clone()], true, chain.mb_hash_at(8));
+        let injected_tx =
+            sign_injected_tx(test_injected_transaction(chain_head.hash, ActorId::zero()));
+        let tx = injected_tx.clone().into();
+        let parent_mb = setup_mb(&db, vec![injected_tx], true, chain.mb_hash_at(8));
         let tx_checker = TxValidityChecker::new_for_mb(db.clone(), chain_head, parent_mb).unwrap();
 
         assert_eq!(
@@ -622,13 +632,14 @@ mod tests {
         let chain_head = chain.blocks[9].to_simple();
         let tx = test_injected_transaction(chain.blocks[5].hash, ActorId::zero())
             .tap_mut(|tx| tx.value = 100);
+        let tx = sign_injected_tx(tx).into();
 
         let parent_mb = setup_mb(&db, vec![], true, chain.mb_hash_at(8));
         let tx_checker = TxValidityChecker::new_for_mb(db.clone(), chain_head, parent_mb).unwrap();
 
         assert_eq!(
             TxValidity::NonZeroValue,
-            tx_checker.check_tx_validity(&signed_tx(tx)).unwrap()
+            tx_checker.check_tx_validity(&tx).unwrap()
         );
     }
 
@@ -639,14 +650,14 @@ mod tests {
         let chain = test_block_chain(10).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
-        let tx = test_injected_transaction(H256::zero(), ActorId::zero());
+        let tx = mock_injected_tx().into();
 
         let parent_mb = setup_mb(&db, vec![], true, chain.mb_hash_at(8));
         let tx_checker = TxValidityChecker::new_for_mb(db.clone(), chain_head, parent_mb).unwrap();
 
         assert_eq!(
             TxValidity::Outdated,
-            tx_checker.check_tx_validity(&signed_tx(tx)).unwrap()
+            tx_checker.check_tx_validity(&tx).unwrap()
         );
     }
 
@@ -668,14 +679,14 @@ mod tests {
             .setup(&db);
 
         let chain_head = chain.blocks[3].to_simple();
-        let tx = test_injected_transaction(chain.blocks[0].hash, ActorId::zero());
+        let tx = mock_tx(chain.blocks[0].hash);
 
         let parent_mb = setup_mb(&db, vec![], true, chain.mb_hash_at(3));
         let tx_checker = TxValidityChecker::new_for_mb(db.clone(), chain_head, parent_mb).unwrap();
 
         assert_eq!(
             TxValidity::NotOnCurrentBranch,
-            tx_checker.check_tx_validity(&signed_tx(tx)).unwrap()
+            tx_checker.check_tx_validity(&tx).unwrap()
         );
     }
 
@@ -761,10 +772,9 @@ mod tests {
                 .unwrap();
 
         // value != 0 AND ref_block not in DB. NonZeroValue wins.
-        let tx =
-            test_injected_transaction(H256::random(), ActorId::zero()).tap_mut(|tx| tx.value = 1);
+        let tx = sign_injected_tx(InjectedTransaction::mock(()).tap_mut(|tx| tx.value = 1)).into();
         assert_eq!(
-            checker.check_tx_validity(&signed_tx(tx)).unwrap(),
+            checker.check_tx_validity(&tx).unwrap(),
             TxValidity::NonZeroValue,
         );
     }

@@ -28,17 +28,19 @@
 //! depending on the consensus layer.
 
 use crate::injected::SignedInjectedTransaction;
+#[cfg(feature = "shielded")]
+use crate::injected::SignedShieldedTransaction;
 use alloc::vec::Vec;
 use derive_more::{Deref, DerefMut, IntoIterator};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use scale_info::TypeInfo;
+// use scale_info::TypeInfo;
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 /// A single operation in the malachite block.
-#[derive(Clone, Debug, PartialEq, Eq, TypeInfo, derive_more::IsVariant)]
+#[derive(Clone, Debug, PartialEq, Eq, derive_more::IsVariant)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[repr(u32)]
 pub enum Operation {
@@ -53,6 +55,10 @@ pub enum Operation {
 
     /// User-submitted transaction from the mempool.
     Injected(SignedInjectedTransaction) = 3,
+
+    /// User-submitted shielded transaction from mempool.
+    #[cfg(feature = "shielded")]
+    Shielded(SignedShieldedTransaction) = 4,
 }
 
 impl Operation {
@@ -71,6 +77,8 @@ impl Operation {
             Self::ProgressTasks => 1,
             Self::ProcessQueues { .. } => 2,
             Self::Injected(_) => 3,
+            #[cfg(feature = "shielded")]
+            Self::Shielded(_) => 4,
         }
     }
 }
@@ -95,6 +103,10 @@ impl Decode for Operation {
             3 => Ok(Operation::Injected(SignedInjectedTransaction::decode(
                 input,
             )?)),
+            #[cfg(feature = "shielded")]
+            4 => Ok(Operation::Shielded(SignedShieldedTransaction::decode(
+                input,
+            )?)),
             _ => Err(parity_scale_codec::Error::from("invalid operation tag")),
         }
     }
@@ -108,14 +120,14 @@ impl Encode for Operation {
             Operation::ProgressTasks => {}
             Operation::ProcessQueues { gas_allowance } => gas_allowance.encode_to(dest),
             Operation::Injected(signed_tx) => signed_tx.encode_to(dest),
+            #[cfg(feature = "shielded")]
+            Operation::Shielded(shielded_tx) => shielded_tx.encode_to(dest),
         }
     }
 }
 
 /// Ordered list of [`Operation`]s; CAS key = Blake2b-256 of the SCALE-encoded list.
-#[derive(
-    Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo, Deref, DerefMut, IntoIterator,
-)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, Deref, DerefMut, IntoIterator)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct Operations(pub Vec<Operation>);
 

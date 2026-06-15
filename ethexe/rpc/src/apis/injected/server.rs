@@ -12,7 +12,7 @@ use ethexe_common::{
     db::InjectedStorageRO,
     injected::{
         InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
-        SignedTxReceipt,
+        SignedTxReceipt, Transaction,
     },
 };
 use ethexe_db::Database;
@@ -39,7 +39,7 @@ pub struct InjectedApi {
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         self.send_transaction(transaction).await
     }
@@ -47,7 +47,7 @@ impl InjectedServer for InjectedApi {
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> SubscriptionResult {
         self.send_transaction_and_watch(pending, transaction).await
     }
@@ -90,7 +90,7 @@ impl InjectedApi {
 impl InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         self.relayer.relay(transaction).await
     }
@@ -99,9 +99,9 @@ impl InjectedApi {
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> SubscriptionResult {
-        let tx_hash = transaction.data().to_hash();
+        let tx_hash = transaction.hash();
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
             Ok(subscriber) => subscriber,

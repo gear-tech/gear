@@ -908,7 +908,7 @@ impl Service {
                                     }
                                     _ => {
                                         // no local malachite or malachite reject transaction, wait for other acceptances
-                                        let tx_hash = transaction.data().to_hash();
+                                        let tx_hash = transaction.hash();
                                         if let Some(pending) =
                                             network_injected_txs.get_mut(&tx_hash)
                                         {

@@ -434,6 +434,55 @@ pub struct ShieldedTransaction {
 }
 
 #[cfg(feature = "shielded")]
+pub type SignedShieldedTransaction = SignedMessage<ShieldedTransaction>;
+
+#[cfg(feature = "shielded")]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::From)]
+pub enum Transaction {
+    Injected(SignedInjectedTransaction),
+    Shielded(SignedShieldedTransaction),
+}
+
+#[cfg(feature = "shielded")]
+impl Transaction {
+    pub fn hash(&self) -> HashOf<InjectedTransaction> {
+        match self {
+            Self::Injected(tx) => tx.data().to_hash(),
+            Self::Shielded(_) => todo!("Shielded transaction hash"),
+        }
+    }
+
+    pub fn reference_block(&self) -> H256 {
+        match self {
+            Self::Injected(tx) => tx.data().reference_block,
+            Self::Shielded(tx) => tx.data().reference_block,
+        }
+    }
+
+    pub fn as_injected(&self) -> Option<&SignedInjectedTransaction> {
+        match self {
+            Self::Injected(tx) => Some(tx),
+            Self::Shielded(_) => None,
+        }
+    }
+
+    pub fn into_injected(self) -> Option<SignedInjectedTransaction> {
+        match self {
+            Self::Injected(tx) => Some(tx),
+            Self::Shielded(_) => None,
+        }
+    }
+}
+
+#[cfg(feature = "shielded")]
+impl ToDigest for ShieldedTransaction {
+    fn update_hasher(&self, _hasher: &mut sha3::Keccak256) {
+        todo!("Shielded transaction digest")
+    }
+}
+
+#[cfg(feature = "shielded")]
 impl ShieldedTransaction {
     /// Decrypts [Ciphertext] with provided [SharedSecret].
     /// Returns initial [InjectedTransaction].

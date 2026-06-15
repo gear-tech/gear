@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
     db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
-    injected::{PurgedTransaction, SignedInjectedTransaction},
+    injected::{PurgedTransaction, Transaction},
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
@@ -40,7 +40,7 @@ struct EmptyMempool;
 
 #[async_trait]
 impl Mempool for EmptyMempool {
-    fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
+    fn insert(&self, _tx: Transaction) -> TxInsertionStatus {
         TxInsertionStatus::Inserted
     }
 
@@ -48,11 +48,11 @@ impl Mempool for EmptyMempool {
         Vec::new()
     }
 
-    async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+    async fn fetch(&self, _head: SimpleBlockData) -> Vec<Transaction> {
         Vec::new()
     }
 
-    async fn forget(&self, _committed: &[SignedInjectedTransaction]) {}
+    async fn forget(&self, _committed: &[Transaction]) {}
 
     async fn wait_for_new_tx(&self) {
         std::future::pending().await

@@ -63,7 +63,7 @@ pub use crate::{
 };
 use ethexe_common::injected::PurgedTransaction;
 pub use ethexe_common::{
-    injected::SignedInjectedTransaction,
+    injected::Transaction,
     malachite::{Operation, Operations},
 };
 pub use ethexe_malachite_core::{
@@ -138,6 +138,6 @@ fn _api_shape(
     _ops: Operations,
     _cert: CommitCertificate,
     _cfg: MalachiteConfig,
-    _tx: ethexe_common::injected::SignedInjectedTransaction,
+    _tx: ethexe_common::injected::Transaction,
 ) {
 }
