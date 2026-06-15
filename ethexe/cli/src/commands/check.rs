@@ -298,9 +298,16 @@ impl Checker {
             let expected_outcome = db
                 .mb_outcome(current_mb)
                 .ok_or_else(|| anyhow!("outcome missing for MB {current_mb}"))?;
-            let expected_schedule = db.mb_schedule(current_mb).ok_or_else(|| {
-                anyhow!("schedule missing for MB {current_mb}, may be pruned by cleanup (#5585)")
-            })?;
+            // Schedules below `CLEANUP_SAFE_DEPTH` may be pruned by
+            // `Database::cleanup` (#5585). We walk head → genesis, so the
+            // first missing schedule means every deeper MB is pruned too —
+            // stop here rather than failing the whole check.
+            let Some(expected_schedule) = db.mb_schedule(current_mb) else {
+                println!(
+                    "schedule for MB {current_mb} (height {height}) pruned by cleanup (#5585), stopping check"
+                );
+                break;
+            };
 
             let executable = prepare_executable_for_mb(db, current_mb, current_compact_mb)
                 .with_context(|| {

@@ -827,15 +827,18 @@ impl Database {
 
         while !mb_hash.is_zero() {
             let Some(mb) = self.mb_compact_block(mb_hash) else {
-                // Best-effort: an incomplete compact chain must not
-                // prevent the node from starting.
-                log::warn!(
+                // an incomplete compact chain - stop cleanup
+                log::error!(
                     "schedule cleanup: compact MB {mb_hash} not found, stopping at depth {depth}"
                 );
                 break;
             };
 
             if depth > Self::CLEANUP_SAFE_DEPTH {
+                // Blind delete: cheaper than a `contains` probe per MB, at the
+                // cost of re-running compaction on every startup with the flag
+                // set even when the DB is already pruned. Acceptable for a
+                // temporary hot fix — for now we just always compact.
                 unsafe {
                     self.raw.kv.delete(&Key::MbSchedule(mb_hash).to_bytes());
                 }
