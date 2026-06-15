@@ -4,8 +4,8 @@
 use crate::{
     TransitionController,
     state::{
-        Dispatch, DispatchStash, Expiring, MAILBOX_VALIDITY, MailboxMessage, ModifiableStorage,
-        PayloadLookup, ProgramState, QueryableStorage, Storage, UserMailbox, Waitlist,
+        Dispatch, DispatchStash, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
+        ProgramState, QueryableStorage, Storage, UserMailbox, Waitlist,
     },
 };
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -83,6 +83,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     }
 
     fn send_user_message(&mut self, stashed_message_id: MessageId, program_id: ActorId) -> u64 {
+        let mailbox_validity = self.controller.transitions.cfg().mailbox_validity;
+
         self.controller
             .update_state(program_id, |state, storage, transitions| {
                 let (dispatch, user_id) = storage.modify(&mut state.stash_hash, |stash| {
@@ -90,7 +92,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 });
 
                 let expiry = transitions.schedule_task(
-                    MAILBOX_VALIDITY.try_into().expect("infallible"),
+                    mailbox_validity,
                     ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
                 );
 

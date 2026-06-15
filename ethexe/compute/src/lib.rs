@@ -71,7 +71,7 @@
 //! chain via [`ethexe_common::db::CompactMb::parent`] until it reaches
 //! a computed ancestor (or genesis), then runs the executor over the
 //! [`ethexe_common::malachite::Operations`] payload of each. Per-step gas
-//! budget is carried inside each `Operation::ProcessQueues` payload
+//! budget is carried inside each `Operation::ProcessQueuesV2` payload
 //! (its `gas_allowance` field).
 //!
 //! ## Canonical event quarantine
