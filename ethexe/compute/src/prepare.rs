@@ -3,7 +3,7 @@
 
 use crate::{ComputeError, ComputeEvent, Result, service::SubService};
 use ethexe_common::{
-    BlockData,
+    BlockData, EB, HashOf,
     db::{
         BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, GlobalsStorageRW, OnChainStorageRO,
         OnChainStorageRW,
@@ -15,9 +15,10 @@ use ethexe_common::{
             EBCommittedEvent, MBCommittedEvent, ValidatorsCommittedForEraEvent,
         },
     },
+    malachite::MB,
 };
 use ethexe_db::Database;
-use gprimitives::{CodeId, H256};
+use gprimitives::CodeId;
 use metrics::Gauge;
 use std::{
     collections::{HashSet, VecDeque},
@@ -26,7 +27,7 @@ use std::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
-    BlockPrepared(H256),
+    BlockPrepared(HashOf<EB>),
     RequestCodes(HashSet<CodeId>),
 }
 
@@ -61,7 +62,7 @@ struct Metrics {
 pub struct PrepareSubService {
     db: Database,
     state: State,
-    input: VecDeque<H256>,
+    input: VecDeque<HashOf<EB>>,
     metrics: Metrics,
 }
 
@@ -75,7 +76,7 @@ impl PrepareSubService {
         }
     }
 
-    pub fn receive_block_to_prepare(&mut self, block: H256) {
+    pub fn receive_block_to_prepare(&mut self, block: HashOf<EB>) {
         self.input.push_back(block);
         self.metrics.blocks_queue_len.set(self.input.len() as f64);
     }
@@ -169,7 +170,7 @@ impl SubService for PrepareSubService {
 /// Returns the collected blocks in a `VecDeque`, ordered from oldest to newest.
 fn collect_not_prepared_blocks_chain(
     db: &Database,
-    mut block_hash: H256,
+    mut block_hash: HashOf<EB>,
 ) -> Result<VecDeque<BlockData>> {
     let mut chain = VecDeque::new();
 
@@ -284,7 +285,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
         .ok_or(ComputeError::CommittedEraNotFound(parent))?;
 
     let mut last_committed_mb_hash = None;
-    let mut last_committed_eb: Option<H256> = None;
+    let mut last_committed_eb: Option<HashOf<EB>> = None;
 
     for event in block.events {
         match event {
@@ -306,7 +307,8 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
                 last_committed_mb_hash = Some(head);
             }
             BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(eth_block_hash))) => {
-                last_committed_eb = Some(eth_block_hash);
+                // SAFETY: real on-chain EB hash from Router event.
+                last_committed_eb = Some(unsafe { HashOf::<EB>::new(eth_block_hash) });
             }
 
             BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(
@@ -330,7 +332,8 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
     codes_queue.extend(requested_codes);
 
     let last_committed_mb_hash = if let Some(MBCommittedEvent(hash)) = last_committed_mb_hash {
-        Some(hash)
+        // SAFETY: real on-chain MB hash from Router event.
+        Some(unsafe { HashOf::<MB>::new(hash) })
     } else {
         parent_meta.last_committed_mb
     };
@@ -446,8 +449,10 @@ mod tests {
             prop_assert!(meta.prepared);
             prop_assert_eq!(meta.codes_queue, Some(vec![code2_id].into()));
             prop_assert_eq!(meta.last_committed_batch, Some(batch_committed));
-            prop_assert_eq!(meta.last_committed_mb, Some(block1_mb_hash));
-            prop_assert_eq!(meta.last_committed_eb, Some(block1_eb_hash));
+            // SAFETY: on-chain MB hash mirror — same invariant as the chain event payload.
+            prop_assert_eq!(meta.last_committed_mb, Some(unsafe { HashOf::<MB>::new(block1_mb_hash) }));
+            // SAFETY: on-chain EB hash mirror — same invariant as the chain event payload.
+            prop_assert_eq!(meta.last_committed_eb, Some(unsafe { HashOf::<EB>::new(block1_eb_hash) }));
             prop_assert_eq!(meta.latest_era_validators_committed, Some(expected_era));
         }
     }

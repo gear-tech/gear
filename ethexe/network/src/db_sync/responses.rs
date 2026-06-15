@@ -78,7 +78,11 @@ impl OngoingResponses {
                 InnerHashesResponse(response).into()
             }
             InnerRequest::ProgramIds(request) => {
-                let actor_ids = match db.mb_program_states(request.at) {
+                // SAFETY: `request.at` is the MB envelope hash sent over the wire.
+                let mb_hash = unsafe {
+                    ethexe_common::HashOf::<ethexe_common::malachite::MB>::new(request.at)
+                };
+                let actor_ids = match db.mb_program_states(mb_hash) {
                     Some(states) => states.into_keys().collect(),
                     None => {
                         log::warn!(

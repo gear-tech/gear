@@ -63,7 +63,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result};
 use ethexe_common::{
-    Address, BlockHeader, ProtocolTimelines, SimpleBlockData, db::ConfigStorageRO,
+    Address, BlockHeader, EB, HashOf, ProtocolTimelines, SimpleBlockData, db::ConfigStorageRO,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -87,12 +87,12 @@ type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription
 
 /// The wrapper on top of [`ChainSync::sync`] future.
 /// It is needed to measure time taken for syncing a block.
-type SyncFuture = future_timing::Timed<BoxFuture<'static, SyncResult<H256>>>;
+type SyncFuture = future_timing::Timed<BoxFuture<'static, SyncResult<HashOf<EB>>>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
-    BlockSynced(H256),
+    BlockSynced(HashOf<EB>),
 }
 
 pub struct ObserverConfig<'a> {
@@ -193,11 +193,13 @@ impl Stream for ObserverService {
             self.metrics.last_block_number.set(header.number as f64);
 
             let data = SimpleBlockData {
-                hash: H256(header.hash.0),
+                // SAFETY: real Ethereum block hash from the chain — carried verbatim.
+                hash: unsafe { HashOf::<EB>::new(H256(header.hash.0)) },
                 header: BlockHeader {
                     height: header.number as u32,
                     timestamp: header.timestamp,
-                    parent_hash: H256(header.parent_hash.0),
+                    // SAFETY: real Ethereum parent block hash from the chain — carried verbatim.
+                    parent_hash: unsafe { HashOf::<EB>::new(H256(header.parent_hash.0)) },
                 },
             };
 

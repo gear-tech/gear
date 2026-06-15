@@ -14,7 +14,7 @@ use alloy::{
 };
 use anyhow::{Context as _, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
+    self, BlockData, BlockHeader, CodeBlobInfo, EB, HashOf, SimpleBlockData,
     db::{GlobalsStorageRO, GlobalsStorageRW, OnChainStorageRO, OnChainStorageRW},
     events::{BlockEvent, RouterEvent, router::CodeValidationRequestedEvent},
 };
@@ -85,13 +85,15 @@ impl ChainSync {
         }
     }
 
-    pub async fn sync(self, chain_head: Header) -> SyncResult<H256> {
+    pub async fn sync(self, chain_head: Header) -> SyncResult<HashOf<EB>> {
         let block = SimpleBlockData {
-            hash: H256(chain_head.hash.0),
+            // SAFETY: real Ethereum block hash from the chain — carried verbatim.
+            hash: unsafe { HashOf::<EB>::new(H256(chain_head.hash.0)) },
             header: BlockHeader {
                 height: chain_head.number as u32,
                 timestamp: chain_head.timestamp,
-                parent_hash: H256(chain_head.parent_hash.0),
+                // SAFETY: real Ethereum parent block hash from the chain — carried verbatim.
+                parent_hash: unsafe { HashOf::<EB>::new(H256(chain_head.parent_hash.0)) },
             },
         };
 
@@ -106,7 +108,7 @@ impl ChainSync {
     async fn load_chain(
         &self,
         block: &SimpleBlockData,
-        mut blocks_data: HashMap<H256, BlockData>,
+        mut blocks_data: HashMap<HashOf<EB>, BlockData>,
     ) -> Result<Vec<SimpleBlockData>> {
         let mut chain = Vec::new();
 
@@ -162,7 +164,7 @@ impl ChainSync {
     }
 
     /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
-    async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
+    async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<HashOf<EB>, BlockData>> {
         let latest_synced_eb_height = self.db.globals().latest_synced_eb.header.height;
 
         if header.height <= latest_synced_eb_height {

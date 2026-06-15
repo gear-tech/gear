@@ -16,7 +16,9 @@ use alloy::{
     },
 };
 use anyhow::{Context, Result};
-use ethexe_common::{Address, BlockData, BlockHeader, SimpleBlockData, events::BlockEvent};
+use ethexe_common::{
+    Address, BlockData, BlockHeader, EB, HashOf, SimpleBlockData, events::BlockEvent,
+};
 use ethexe_ethereum::{abi::IRouter, mirror, router};
 use futures::{TryFutureExt, future};
 use gprimitives::H256;
@@ -32,7 +34,7 @@ const LOGS_MAX_CONCURRENCY: usize = 8;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::From)]
 pub enum BlockId {
-    Hash(H256),
+    Hash(HashOf<EB>),
     Latest,
     Finalized,
 }
@@ -40,7 +42,7 @@ pub enum BlockId {
 impl BlockId {
     fn as_alloy(self) -> alloy::eips::BlockId {
         match self {
-            BlockId::Hash(hash) => alloy::eips::BlockId::hash(hash.0.into()),
+            BlockId::Hash(hash) => alloy::eips::BlockId::hash(hash.inner().0.into()),
             BlockId::Latest => alloy::eips::BlockId::latest(),
             BlockId::Finalized => alloy::eips::BlockId::finalized(),
         }
@@ -51,9 +53,10 @@ impl BlockId {
 pub trait BlockLoader {
     async fn load_simple(&self, block: BlockId) -> Result<SimpleBlockData>;
 
-    async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData>;
+    async fn load(&self, block: HashOf<EB>, header: Option<BlockHeader>) -> Result<BlockData>;
 
-    async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>>;
+    async fn load_many(&self, range: RangeInclusive<u64>)
+    -> Result<HashMap<HashOf<EB>, BlockData>>;
 }
 
 #[derive(Debug, Clone)]
@@ -98,10 +101,13 @@ impl EthereumBlockLoader {
         Filter::new().event_signature(topic)
     }
 
-    fn logs_to_events(&self, logs: Vec<Log>) -> Result<HashMap<H256, Vec<BlockEvent>>> {
-        let block_hash_of = |log: &Log| -> Result<H256> {
+    fn logs_to_events(&self, logs: Vec<Log>) -> Result<HashMap<HashOf<EB>, Vec<BlockEvent>>> {
+        let block_hash_of = |log: &Log| -> Result<HashOf<EB>> {
             log.block_hash
-                .map(|v| v.0.into())
+                .map(|v| {
+                    // SAFETY: real Ethereum block hash from the chain — carried verbatim.
+                    unsafe { HashOf::<EB>::new(v.0.into()) }
+                })
                 .context("block hash is missing")
         };
 
@@ -129,13 +135,15 @@ impl EthereumBlockLoader {
         Ok(res)
     }
 
-    fn block_response_to_data(block: Block) -> (H256, BlockHeader) {
-        let block_hash = H256(block.header.hash.0);
+    fn block_response_to_data(block: Block) -> (HashOf<EB>, BlockHeader) {
+        // SAFETY: real Ethereum block hash from the chain — carried verbatim.
+        let block_hash = unsafe { HashOf::<EB>::new(H256(block.header.hash.0)) };
 
         let header = BlockHeader {
             height: block.header.number as u32,
             timestamp: block.header.timestamp,
-            parent_hash: H256(block.header.parent_hash.0),
+            // SAFETY: real Ethereum parent block hash from the chain — carried verbatim.
+            parent_hash: unsafe { HashOf::<EB>::new(H256(block.header.parent_hash.0)) },
         };
 
         (block_hash, header)
@@ -207,8 +215,8 @@ impl BlockLoader for EthereumBlockLoader {
         Ok(SimpleBlockData { hash, header })
     }
 
-    async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
-        let filter = Self::log_filter().at_block_hash(block.0);
+    async fn load(&self, block: HashOf<EB>, header: Option<BlockHeader>) -> Result<BlockData> {
+        let filter = Self::log_filter().at_block_hash(block.inner().0);
         // Preserve concrete error type so SyncError's classifier can downcast.
         let logs_request = self.provider.get_logs(&filter).map_err(anyhow::Error::from);
 
@@ -248,7 +256,10 @@ impl BlockLoader for EthereumBlockLoader {
         })
     }
 
-    async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>> {
+    async fn load_many(
+        &self,
+        range: RangeInclusive<u64>,
+    ) -> Result<HashMap<HashOf<EB>, BlockData>> {
         if range.is_empty() {
             return Ok(HashMap::new());
         }
@@ -266,7 +277,7 @@ impl BlockLoader for EthereumBlockLoader {
         .await?;
 
         let mut events = self.logs_to_events(logs)?;
-        let mut blocks_data: HashMap<H256, BlockData> = HashMap::new();
+        let mut blocks_data: HashMap<HashOf<EB>, BlockData> = HashMap::new();
         for block in headers_batches.into_iter().flatten() {
             let (hash, header) = Self::block_response_to_data(block);
             let events = events.remove(&hash).unwrap_or_default();

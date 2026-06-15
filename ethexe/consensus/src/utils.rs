@@ -8,13 +8,12 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Digest, ToDigest,
+    Address, Digest, EB, HashOf, ToDigest,
     consensus::BatchCommitmentValidationReply,
     db::OnChainStorageRO,
     ecdsa::{ContractSignature, PublicKey},
     gear::BatchCommitment,
 };
-use gprimitives::H256;
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, HashSet};
@@ -112,11 +111,11 @@ pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
 
 /// `target` lies on the canonical eth chain ending at `head` — i.e., `head`
 /// is `target` itself or one of its descendants reachable via parent links.
-/// `target == H256::zero()` is the genesis sentinel and returns `Ok(true)`.
+/// Zero `target` is the genesis sentinel and returns `Ok(true)`.
 pub fn is_eth_block_canonical_to<DB: OnChainStorageRO>(
     db: &DB,
-    target: H256,
-    head: H256,
+    target: HashOf<EB>,
+    head: HashOf<EB>,
 ) -> Result<bool> {
     if target.is_zero() {
         return Ok(true);

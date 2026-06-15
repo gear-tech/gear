@@ -3,8 +3,9 @@
 
 use crate::errors;
 use ethexe_common::{
-    SimpleBlockData,
+    EB, HashOf, SimpleBlockData,
     db::{GlobalsStorageRO, OnChainStorageRO},
+    malachite::MB,
 };
 use ethexe_db::Database;
 use jsonrpsee::core::RpcResult;
@@ -14,11 +15,13 @@ pub fn block_at_or_latest_synced(
     db: &Database,
     at: impl Into<Option<H256>>,
 ) -> RpcResult<SimpleBlockData> {
-    let hash = if let Some(hash) = at.into() {
-        if !db.block_synced(hash) {
+    let hash: HashOf<EB> = if let Some(hash) = at.into() {
+        // SAFETY: RPC caller supplied an EB hash; treat it verbatim.
+        let typed = unsafe { HashOf::<EB>::new(hash) };
+        if !db.block_synced(typed) {
             return Err(errors::db("Requested block is not synced"));
         }
-        hash
+        typed
     } else {
         db.globals().latest_synced_eb.hash
     };
@@ -33,6 +36,6 @@ pub fn block_at_or_latest_synced(
 /// At genesis this is the zero MB, which `initialize_empty_db` seeds with the
 /// genesis / re-genesis program states — so zero is a valid source for RPC
 /// reads (it carries the dump state under re-genesis) rather than "no state".
-pub fn latest_computed_mb(db: &Database) -> RpcResult<H256> {
+pub fn latest_computed_mb(db: &Database) -> RpcResult<HashOf<MB>> {
     Ok(db.globals().latest_computed_mb_hash)
 }

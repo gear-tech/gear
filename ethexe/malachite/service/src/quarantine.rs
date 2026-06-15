@@ -24,9 +24,8 @@
 //!   canonical descendants on top.
 
 use anyhow::{Result, anyhow};
-use ethexe_common::{SimpleBlockData, db::OnChainStorageRO};
+use ethexe_common::{EB, HashOf, SimpleBlockData, db::OnChainStorageRO};
 use ethexe_db::Database;
-use gprimitives::H256;
 
 /// Cap on parent walks when verifying a peer's `AdvanceTillEthereumBlock`.
 const VERIFY_LOOKBACK_SLACK: u32 = 100_000;
@@ -43,8 +42,8 @@ pub fn anchor(
     db: &Database,
     head: SimpleBlockData,
     depth: u32,
-    start_block_hash: H256,
-) -> Result<Option<H256>> {
+    start_block_hash: HashOf<EB>,
+) -> Result<Option<HashOf<EB>>> {
     let mut current = head.hash;
     let mut header = head.header;
 
@@ -67,9 +66,9 @@ pub fn anchor(
 pub fn verify_passed(
     db: &Database,
     head: SimpleBlockData,
-    candidate: H256,
+    candidate: HashOf<EB>,
     canonical_quarantine: u8,
-    start_block_hash: H256,
+    start_block_hash: HashOf<EB>,
 ) -> Result<()> {
     let canonical_quarantine = canonical_quarantine as u32;
     let max_steps = canonical_quarantine.saturating_add(VERIFY_LOOKBACK_SLACK);
@@ -108,13 +107,13 @@ pub fn verify_passed(
     ))
 }
 
-/// `candidate` strictly descends from `ancestor` (depth ≥ 1). `H256::zero()` =
+/// `candidate` strictly descends from `ancestor` (depth ≥ 1). Zero =
 /// pre-genesis sentinel; equal hashes return `Ok(false)`.
 pub fn is_strict_descendant_of(
     db: &Database,
-    candidate: H256,
-    ancestor: H256,
-    start_block_hash: H256,
+    candidate: HashOf<EB>,
+    ancestor: HashOf<EB>,
+    start_block_hash: HashOf<EB>,
 ) -> Result<bool> {
     if ancestor.is_zero() {
         return Ok(true);
@@ -134,7 +133,7 @@ pub fn is_strict_descendant_of(
         if parent == ancestor {
             return Ok(true);
         }
-        if parent == H256::zero() {
+        if parent.is_zero() {
             return Err(anyhow!(
                 "descendant check: ancestor {ancestor} not in canonical ancestry of \
                  candidate {candidate} — walk reached genesis"
@@ -165,18 +164,20 @@ mod tests {
         BlockHeader,
         db::{BlockMetaStorageRW, OnChainStorageRW},
     };
+    use gprimitives::H256;
 
     /// Synthetic linear chain, oldest-first; parent[0] == zero.
-    fn linear_chain(db: &Database, len: usize) -> Vec<H256> {
+    fn linear_chain(db: &Database, len: usize) -> Vec<HashOf<EB>> {
         let mut hashes = Vec::with_capacity(len);
-        let mut parent = H256::zero();
+        let mut parent = HashOf::<EB>::zero();
         for i in 0..len {
             let mut hash_bytes = [0u8; 32];
             // bias high bytes so each hash is distinct and non-zero.
             hash_bytes[0] = 0xA0 + (i as u8 % 0x60);
             hash_bytes[1] = (i >> 8) as u8;
             hash_bytes[2] = i as u8;
-            let hash = H256::from(hash_bytes);
+            // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+            let hash = unsafe { HashOf::<EB>::new(H256::from(hash_bytes)) };
             db.set_block_header(
                 hash,
                 BlockHeader {
@@ -197,7 +198,10 @@ mod tests {
         let db = Database::memory();
         let hashes = linear_chain(&db, 3);
         // arbitrary candidate; ancestor = zero (pre-genesis sentinel)
-        assert!(is_strict_descendant_of(&db, hashes[2], H256::zero(), H256::zero()).unwrap());
+        assert!(
+            is_strict_descendant_of(&db, hashes[2], HashOf::<EB>::zero(), HashOf::<EB>::zero())
+                .unwrap()
+        );
     }
 
     #[test]
@@ -223,7 +227,8 @@ mod tests {
         // ancestor = a hash that's not in the chain at all
         let mut orphan_bytes = [0xFFu8; 32];
         orphan_bytes[0] = 0x42;
-        let orphan = H256::from(orphan_bytes);
+        // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+        let orphan = unsafe { HashOf::<EB>::new(H256::from(orphan_bytes)) };
         let res = is_strict_descendant_of(&db, hashes[4], orphan, hashes[0]);
         assert!(res.is_err(), "expected Err for orphan ancestor: {res:?}");
     }
@@ -255,7 +260,7 @@ mod tests {
                 header: ethexe_common::BlockHeader {
                     height: (chain_len - 1) as u32,
                     timestamp: (chain_len - 1) as u64,
-                    parent_hash: if chain_len >= 2 { hashes[chain_len - 2] } else { H256::zero() },
+                    parent_hash: if chain_len >= 2 { hashes[chain_len - 2] } else { HashOf::<EB>::zero() },
                 },
             };
             // start_block = genesis (so the fence never trips).
@@ -306,7 +311,7 @@ mod tests {
             let hashes = linear_chain(&db, chain_len);
             let head_hash = hashes[head_idx];
             let head_height = head_idx as u32;
-            let head_parent = if head_idx > 0 { hashes[head_idx - 1] } else { H256::zero() };
+            let head_parent = if head_idx > 0 { hashes[head_idx - 1] } else { HashOf::<EB>::zero() };
             let head = SimpleBlockData {
                 hash: head_hash,
                 header: ethexe_common::BlockHeader {

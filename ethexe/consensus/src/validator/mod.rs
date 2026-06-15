@@ -33,8 +33,8 @@ use anyhow::Result;
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, SimpleBlockData, consensus::VerifiedValidationRequest, db::ConfigStorageRO,
-    ecdsa::PublicKey,
+    Address, EB, HashOf, SimpleBlockData, consensus::VerifiedValidationRequest,
+    db::ConfigStorageRO, ecdsa::PublicKey,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
@@ -43,7 +43,6 @@ use futures::{
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
 };
-use gprimitives::H256;
 use gsigner::secp256k1::Signer;
 use std::{
     collections::VecDeque,
@@ -170,11 +169,11 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_new_head(block))
     }
 
-    fn receive_synced_block(&mut self, block: H256) -> Result<()> {
+    fn receive_synced_block(&mut self, block: HashOf<EB>) -> Result<()> {
         self.update_inner(|inner| inner.process_synced_block(block))
     }
 
-    fn receive_prepared_block(&mut self, block: H256) -> Result<()> {
+    fn receive_prepared_block(&mut self, block: HashOf<EB>) -> Result<()> {
         self.update_inner(|inner| inner.process_prepared_block(block))
     }
 
@@ -256,11 +255,11 @@ where
         DefaultProcessing::new_head(self.into(), block)
     }
 
-    fn process_synced_block(self, block: H256) -> Result<ValidatorState> {
+    fn process_synced_block(self, block: HashOf<EB>) -> Result<ValidatorState> {
         DefaultProcessing::synced_block(self.into(), block)
     }
 
-    fn process_prepared_block(self, block: H256) -> Result<ValidatorState> {
+    fn process_prepared_block(self, block: HashOf<EB>) -> Result<ValidatorState> {
         DefaultProcessing::prepared_block(self.into(), block)
     }
 
@@ -326,11 +325,11 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_new_head(block))
     }
 
-    fn process_synced_block(self, block: H256) -> Result<ValidatorState> {
+    fn process_synced_block(self, block: HashOf<EB>) -> Result<ValidatorState> {
         delegate_call!(self => process_synced_block(block))
     }
 
-    fn process_prepared_block(self, block: H256) -> Result<ValidatorState> {
+    fn process_prepared_block(self, block: HashOf<EB>) -> Result<ValidatorState> {
         delegate_call!(self => process_prepared_block(block))
     }
 
@@ -360,13 +359,13 @@ impl DefaultProcessing {
         Idle::create_with_chain_head(s.into().into_context(), block)
     }
 
-    fn synced_block(s: impl Into<ValidatorState>, block: H256) -> Result<ValidatorState> {
+    fn synced_block(s: impl Into<ValidatorState>, block: HashOf<EB>) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!("unexpected synced block: {block}"));
         Ok(s)
     }
 
-    fn prepared_block(s: impl Into<ValidatorState>, block: H256) -> Result<ValidatorState> {
+    fn prepared_block(s: impl Into<ValidatorState>, block: HashOf<EB>) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!("unexpected processed block: {block}"));
         Ok(s)

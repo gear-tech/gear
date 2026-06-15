@@ -7,8 +7,9 @@ use crate::{
     visitor::{DatabaseVisitor, walk},
 };
 use ethexe_common::{
-    BlockHeader, HashOf, ScheduledTask,
+    BlockHeader, EB, HashOf, ScheduledTask,
     db::{BlockMeta, MbStorageRO},
+    malachite::MB,
 };
 use ethexe_runtime_common::state::{MessageQueue, MessageQueueHashWithSize};
 use gear_core::code::CodeMetadata;
@@ -24,15 +25,15 @@ pub enum IntegrityVerifierError {
     DatabaseIterator(DatabaseIteratorError),
 
     /* block */
-    BlockIsNotSynced(H256),
-    BlockIsNotPrepared(H256),
-    NoBlockLastCommittedBatch(H256),
-    NoBlockLastCommittedMb(H256),
-    NoBlockLatestEraValidatorsCommitted(H256),
-    NoBlockHeader(H256),
+    BlockIsNotSynced(HashOf<EB>),
+    BlockIsNotPrepared(HashOf<EB>),
+    NoBlockLastCommittedBatch(HashOf<EB>),
+    NoBlockLastCommittedMb(HashOf<EB>),
+    NoBlockLatestEraValidatorsCommitted(HashOf<EB>),
+    NoBlockHeader(HashOf<EB>),
 
     /* block header */
-    NoParentBlockHeader(H256),
+    NoParentBlockHeader(HashOf<EB>),
     InvalidBlockParentHeight {
         parent_height: u32,
         height: u32,
@@ -51,9 +52,9 @@ pub enum IntegrityVerifierError {
     },
 
     /* rest */
-    MbNotFound(H256),
+    MbNotFound(HashOf<MB>),
     MbScheduleHasExpiredTasks {
-        mb_hash: H256,
+        mb_hash: HashOf<MB>,
         expiry: u32,
         tasks: usize,
     },
@@ -69,7 +70,7 @@ pub struct IntegrityVerifier {
     errors: Vec<IntegrityVerifierError>,
     cached_queue_sizes: HashMap<H256, u8>,
     original_code: Option<Vec<u8>>,
-    bottom: Option<H256>,
+    bottom: Option<HashOf<EB>>,
 }
 
 impl IntegrityVerifier {
@@ -85,8 +86,8 @@ impl IntegrityVerifier {
 
     pub fn verify_chain(
         mut self,
-        head: H256,
-        bottom: H256,
+        head: HashOf<EB>,
+        bottom: HashOf<EB>,
     ) -> Result<(), Vec<IntegrityVerifierError>> {
         self.bottom = Some(bottom);
         walk(&mut self, ChainNode { head, bottom });
@@ -131,7 +132,7 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    fn visit_block_meta(&mut self, block: H256, meta: BlockMeta) {
+    fn visit_block_meta(&mut self, block: HashOf<EB>, meta: BlockMeta) {
         if !meta.prepared {
             self.errors
                 .push(IntegrityVerifierError::BlockIsNotPrepared(block));
@@ -153,7 +154,7 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    fn visit_block_synced(&mut self, block: H256, block_synced: bool) {
+    fn visit_block_synced(&mut self, block: HashOf<EB>, block_synced: bool) {
         if !block_synced {
             self.errors
                 .push(IntegrityVerifierError::BlockIsNotSynced(block));
@@ -161,7 +162,7 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    fn visit_block_header(&mut self, block: H256, header: BlockHeader) {
+    fn visit_block_header(&mut self, block: HashOf<EB>, header: BlockHeader) {
         let Some(parent_header) = self.db().block_header(header.parent_hash) else {
             if self.bottom == Some(block) {
                 // it's not guaranteed bottom parent block has header
@@ -222,7 +223,7 @@ impl DatabaseVisitor for IntegrityVerifier {
     #[tracing::instrument(level = "trace", skip(self))]
     fn visit_mb_schedule_tasks(
         &mut self,
-        mb_hash: H256,
+        mb_hash: HashOf<MB>,
         height: u32,
         tasks: BTreeSet<ScheduledTask>,
     ) {
@@ -292,7 +293,7 @@ mod tests {
     #[test]
     fn test_block_meta_not_synced_error() {
         let db = setup_db();
-        let block = H256::random();
+        let block = unsafe { HashOf::<EB>::new(H256::random()) };
 
         // Insert block with not synced meta
         db.mutate_block_meta(block, |meta| {
@@ -311,7 +312,7 @@ mod tests {
     #[test]
     fn test_block_meta_not_prepared_error() {
         let db = setup_db();
-        let block = H256::random();
+        let block = unsafe { HashOf::<EB>::new(H256::random()) };
 
         // Insert block with not prepared meta
         db.mutate_block_meta(block, |meta| {
@@ -330,8 +331,8 @@ mod tests {
     #[test]
     fn test_no_parent_block_header_error() {
         let db = setup_db();
-        let block = H256::random();
-        let parent_hash = H256::random();
+        let block = unsafe { HashOf::<EB>::new(H256::random()) };
+        let parent_hash = unsafe { HashOf::<EB>::new(H256::random()) };
 
         // Insert valid meta but header with non-existent parent
         db.mutate_block_meta(block, |meta| {
@@ -357,15 +358,15 @@ mod tests {
     #[test]
     fn test_invalid_block_parent_height_error() {
         let db = setup_db();
-        let block = H256::random();
-        let parent_hash = H256::random();
+        let block = unsafe { HashOf::<EB>::new(H256::random()) };
+        let parent_hash = unsafe { HashOf::<EB>::new(H256::random()) };
 
         // Setup parent block
         db.mutate_block_meta(parent_hash, |meta| {
             meta.prepared = true;
         });
 
-        let parent_hash1 = H256::zero();
+        let parent_hash1 = HashOf::<EB>::zero();
         let parent_header = BlockHeader {
             height: 5,
             parent_hash: parent_hash1,
@@ -400,15 +401,15 @@ mod tests {
     #[test]
     fn test_invalid_parent_timestamp_error() {
         let db = setup_db();
-        let block = H256::random();
-        let parent_hash = H256::random();
+        let block = unsafe { HashOf::<EB>::new(H256::random()) };
+        let parent_hash = unsafe { HashOf::<EB>::new(H256::random()) };
 
         // Setup parent block
         db.mutate_block_meta(parent_hash, |meta| {
             meta.prepared = true;
         });
 
-        let parent_hash1 = H256::zero();
+        let parent_hash1 = HashOf::<EB>::zero();
         let parent_header = BlockHeader {
             height: 5,
             parent_hash: parent_hash1,
@@ -503,15 +504,16 @@ mod tests {
         use ethexe_common::db::{CompactMb, MbStorageRW};
 
         let db = setup_db();
-        let mb_hash = H256::random();
+        let mb_hash = unsafe { HashOf::<MB>::new(H256::random()) };
 
         // MB at height 100; a task scheduled for height 50 is expired.
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
-                parent: H256::zero(),
+                parent: HashOf::<MB>::zero(),
                 height: 100,
                 operations_hash: H256::zero(),
+                reserved: [0u8; 64],
             },
         );
 
@@ -612,7 +614,7 @@ mod tests {
     #[test]
     fn test_multiple_errors_collected() {
         let db = setup_db();
-        let block_hash = H256::random();
+        let block_hash = unsafe { HashOf::<EB>::new(H256::random()) };
 
         // Insert block with multiple issues
         db.mutate_block_meta(block_hash, |meta| {
@@ -629,8 +631,8 @@ mod tests {
     #[test]
     fn test_successful_verification_with_valid_data() {
         let db = setup_db();
-        let block_hash = H256::random();
-        let parent_hash = H256::zero();
+        let block_hash = unsafe { HashOf::<EB>::new(H256::random()) };
+        let parent_hash = HashOf::<EB>::zero();
         let block_header = BlockHeader {
             height: 100,
             parent_hash,
@@ -642,7 +644,7 @@ mod tests {
         db.mutate_block_meta(block_hash, |meta| {
             meta.prepared = true;
             meta.last_committed_batch = Some(Digest::random());
-            meta.last_committed_mb = Some(H256::zero());
+            meta.last_committed_mb = Some(HashOf::<MB>::zero());
             meta.codes_queue = Some(Default::default());
             meta.latest_era_validators_committed = Some(10);
         });
@@ -658,7 +660,7 @@ mod tests {
         let verifier = IntegrityVerifier::new(db);
 
         // This should trigger DatabaseVisitorError due to missing block
-        let non_existent_block = H256::random();
+        let non_existent_block = unsafe { HashOf::<EB>::new(H256::random()) };
         let errors = verifier
             .verify_chain(non_existent_block, non_existent_block)
             .unwrap_err();

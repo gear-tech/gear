@@ -19,7 +19,6 @@ use ethexe_db::{
 };
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_runtime_common::FinalizedBlockTransitions;
-use gprimitives::H256;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{collections::HashSet, path::PathBuf};
 
@@ -337,7 +336,7 @@ impl Checker {
                 pb.inc(1);
             };
 
-            if current_compact_mb.parent == H256::zero() {
+            if current_compact_mb.parent.is_zero() {
                 break;
             }
             current_mb = current_compact_mb.parent;

@@ -3,10 +3,11 @@
 
 use crate::iterator::{DatabaseIterator, DatabaseIteratorError, DatabaseIteratorStorage, Node};
 use ethexe_common::{
-    BlockHeader, ProgramStates, Schedule, ScheduledTask,
+    BlockHeader, EB, HashOf, ProgramStates, Schedule, ScheduledTask,
     db::{BlockMeta, CompactMb, MbMeta},
     events::BlockEvent,
     gear::StateTransition,
+    malachite::MB,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -17,7 +18,7 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     memory::PageBuf,
 };
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, CodeId};
 use std::collections::BTreeSet;
 
 macro_rules! define_visitor {

@@ -51,7 +51,7 @@ impl BlockServer for BlockApi {
         hash: Option<H256>,
     ) -> jsonrpsee::core::RpcResult<(H256, BlockHeader)> {
         let SimpleBlockData { hash, header } = utils::block_at_or_latest_synced(&self.db, hash)?;
-        Ok((hash, header))
+        Ok((hash.inner(), header))
     }
 
     async fn block_events(

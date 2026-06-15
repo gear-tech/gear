@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    Address, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    Address, BlockData, BlockHeader, CodeBlobInfo, Digest, EB, HashOf, ProgramStates,
     ProtocolTimelines, Rfm, Schedule, ScheduledTask, Sd, SimpleBlockData, StateHashWithQueueSize,
     Sum, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
@@ -12,7 +12,7 @@ use crate::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
     },
     injected::{InjectedTransaction, Promise},
-    malachite::Operations,
+    malachite::{MB, Operations},
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
@@ -61,7 +61,7 @@ where
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BlockHeaderParams {
-    parent_hash: Option<H256>,
+    parent_hash: Option<HashOf<EB>>,
 }
 
 impl From<()> for BlockHeaderParams {
@@ -72,6 +72,15 @@ impl From<()> for BlockHeaderParams {
 
 impl From<H256> for BlockHeaderParams {
     fn from(parent_hash: H256) -> Self {
+        Self {
+            // SAFETY: synthetic chain hash for mocks — same invariant as a real EB hash.
+            parent_hash: Some(unsafe { HashOf::<EB>::new(parent_hash) }),
+        }
+    }
+}
+
+impl From<HashOf<EB>> for BlockHeaderParams {
+    fn from(parent_hash: HashOf<EB>) -> Self {
         Self {
             parent_hash: Some(parent_hash),
         }
@@ -206,7 +215,11 @@ impl Arbitrary for SimpleBlockData {
 
     fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
         (h256_strategy(), BlockHeader::arbitrary_with(args))
-            .prop_map(|(hash, header)| Self { hash, header })
+            .prop_map(|(hash, header)| Self {
+                // SAFETY: HashOf<EB> wraps the raw chain hash verbatim.
+                hash: unsafe { HashOf::<EB>::new(hash) },
+                header,
+            })
             .boxed()
     }
 }
@@ -218,7 +231,10 @@ impl Arbitrary for BlockHeader {
     fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
         let parent_hash = match args.parent_hash {
             Some(parent_hash) => Just(parent_hash).boxed(),
-            None => h256_strategy(),
+            // SAFETY: synthetic chain hash for mocks — same invariant as a real EB hash.
+            None => h256_strategy()
+                .prop_map(|h| unsafe { HashOf::<EB>::new(h) })
+                .boxed(),
         };
 
         parent_hash
@@ -299,7 +315,7 @@ impl Arbitrary for ChainCommitment {
             .prop_map(|(first, second, head)| Self {
                 transitions: vec![first, second],
                 head,
-                last_advanced_eth_block: H256::zero(),
+                last_advanced_eth_block: HashOf::<EB>::zero(),
             })
             .boxed()
     }
@@ -325,7 +341,8 @@ impl Arbitrary for BatchCommitment {
                     code_commitment_1,
                     code_commitment_2,
                 )| Self {
-                    block_hash,
+                    // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+                    block_hash: unsafe { HashOf::<EB>::new(block_hash) },
                     timestamp: 42,
                     previous_batch,
                     expiry: 10,
@@ -442,12 +459,12 @@ pub struct SyncedBlockData {
 pub struct PreparedBlockData {
     pub codes_queue: VecDeque<CodeId>,
     pub last_committed_batch: Digest,
-    pub last_committed_mb: H256,
+    pub last_committed_mb: HashOf<MB>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockFullData {
-    pub hash: H256,
+    pub hash: HashOf<EB>,
     pub synced: Option<SyncedBlockData>,
     pub prepared: Option<PreparedBlockData>,
 }
@@ -520,9 +537,9 @@ pub struct MockComputedMbData {
 /// written to the DB.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MbFullData {
-    pub hash: H256,
-    /// Parent MB hash. `H256::zero()` for the very first real MB.
-    pub parent: H256,
+    pub hash: HashOf<MB>,
+    /// Parent MB hash. Zero for the very first real MB.
+    pub parent: HashOf<MB>,
     /// MB height. Set to the block index `i` so it monotonically
     /// matches [`BlockChain::blocks`].
     pub height: u64,
@@ -577,7 +594,7 @@ impl BlockChain {
 
     /// Convenience for the common `mbs[idx].hash` pattern.
     #[track_caller]
-    pub fn mb_hash_at(&self, idx: usize) -> H256 {
+    pub fn mb_hash_at(&self, idx: usize) -> HashOf<MB> {
         self.mbs[idx].hash
     }
 }
@@ -593,20 +610,22 @@ where
     DB: MbStorageRW,
 {
     let operations_hash = db.set_operations(Operations::new(vec![]));
+    let zero_mb = HashOf::<MB>::zero();
     db.set_mb_compact_block(
-        H256::zero(),
+        zero_mb,
         CompactMb {
-            parent: H256::zero(),
+            parent: HashOf::<MB>::zero(),
             height: 0,
             operations_hash,
+            reserved: [0u8; 64],
         },
     );
-    db.set_mb_program_states(H256::zero(), Default::default());
-    db.set_mb_schedule(H256::zero(), Default::default());
-    db.set_mb_outcome(H256::zero(), Vec::new());
-    db.mutate_mb_meta(H256::zero(), |m| {
+    db.set_mb_program_states(zero_mb, Default::default());
+    db.set_mb_schedule(zero_mb, Default::default());
+    db.set_mb_outcome(zero_mb, Vec::new());
+    db.mutate_mb_meta(zero_mb, |m| {
         m.computed = true;
-        m.last_advanced_eb = H256::zero();
+        m.last_advanced_eb = HashOf::<EB>::zero();
     });
 }
 
@@ -641,7 +660,7 @@ impl BlockChain {
         // sentinel (zero hash). Empty-operations MBs share one CAS
         // entry naturally — `set_operations` is content-addressed.
         for mb in &mbs {
-            if mb.hash == H256::zero() {
+            if mb.hash.is_zero() {
                 continue;
             }
             let operations_hash = db.set_operations(mb.operations.clone());
@@ -651,6 +670,7 @@ impl BlockChain {
                     parent: mb.parent,
                     height: mb.height,
                     operations_hash,
+                    reserved: [0u8; 64],
                 },
             );
             if let Some(computed) = &mb.computed {
@@ -662,19 +682,19 @@ impl BlockChain {
         }
 
         for BlockFullData {
-            hash,
+            hash: block_hash,
             synced,
             prepared,
         } in blocks
         {
             if let Some(SyncedBlockData { header, events }) = synced {
-                db.set_block_header(hash, header);
-                db.set_block_events(hash, &events);
-                db.set_block_synced(hash);
+                db.set_block_header(block_hash, header);
+                db.set_block_events(block_hash, &events);
+                db.set_block_synced(block_hash);
 
                 let block_era = config.timelines.era_from_ts(header.timestamp).unwrap();
                 db.set_validators(block_era, validators.clone());
-                db.mutate_block_meta(hash, |meta| {
+                db.mutate_block_meta(block_hash, |meta| {
                     meta.latest_era_validators_committed = Some(block_era)
                 });
             }
@@ -685,7 +705,7 @@ impl BlockChain {
                 last_committed_mb,
             }) = prepared
             {
-                db.mutate_block_meta(hash, |meta| {
+                db.mutate_block_meta(block_hash, |meta| {
                     *meta = BlockMeta {
                         prepared: true,
                         codes_queue: Some(codes_queue),
@@ -746,19 +766,21 @@ impl BlockChain {
             .map(
                 |((parent_hash, _, _), (block_hash, block_height, block_timestamp))| {
                     BlockFullData {
-                        hash: block_hash,
+                        // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+                        hash: unsafe { HashOf::<EB>::new(block_hash) },
                         synced: Some(SyncedBlockData {
                             header: BlockHeader {
                                 height: block_height,
                                 timestamp: block_timestamp as u64,
-                                parent_hash,
+                                // SAFETY: synthetic chain hash for tests — same invariant as a real EB hash.
+                                parent_hash: unsafe { HashOf::<EB>::new(parent_hash) },
                             },
                             events: Default::default(),
                         }),
                         prepared: Some(PreparedBlockData {
                             codes_queue: Default::default(),
                             last_committed_batch: Digest::zero(),
-                            last_committed_mb: H256::zero(),
+                            last_committed_mb: HashOf::zero(),
                         }),
                     }
                 },
@@ -783,12 +805,12 @@ impl BlockChain {
         // the `blocks[0]` genesis-parent placeholder; subsequent MBs
         // link parent-to-parent in chronological order.
         let mut mbs: VecDeque<MbFullData> = VecDeque::with_capacity(blocks.len());
-        let mut prev_mb_hash = H256::zero();
+        let mut prev_mb_hash = HashOf::<MB>::zero();
         for i in 0..blocks.len() {
             if i == 0 {
                 mbs.push_back(MbFullData {
-                    hash: H256::zero(),
-                    parent: H256::zero(),
+                    hash: HashOf::<MB>::zero(),
+                    parent: HashOf::<MB>::zero(),
                     height: 0,
                     computed: None,
                     operations: Operations::new(vec![]),
@@ -799,7 +821,8 @@ impl BlockChain {
             let mut hb = [0u8; 32];
             hb[0] = 0xCD;
             hb[1..9].copy_from_slice(&(i as u64).to_be_bytes());
-            let hash = H256::from(hb);
+            // SAFETY: synthetic MB hash for tests — same invariant as a real MB envelope hash.
+            let hash = unsafe { HashOf::<MB>::new(H256::from(hb)) };
             mbs.push_back(MbFullData {
                 hash,
                 parent: prev_mb_hash,
@@ -819,8 +842,8 @@ impl BlockChain {
             start_block_hash: blocks[0].hash,
             latest_synced_eb: blocks.back().unwrap().to_simple(),
             latest_prepared_eb_hash: blocks.back().unwrap().hash,
-            latest_finalized_mb_hash: H256::zero(),
-            latest_computed_mb_hash: H256::zero(),
+            latest_finalized_mb_hash: HashOf::zero(),
+            latest_computed_mb_hash: HashOf::zero(),
         };
 
         Self {
@@ -857,8 +880,11 @@ impl SimpleBlockData {
     }
 
     pub fn next_block(self) -> Self {
+        let raw_hash = H256::from_low_u64_be(self.hash.inner().to_low_u64_be() + 1);
         Self {
-            hash: H256::from_low_u64_be(self.hash.to_low_u64_be() + 1),
+            // SAFETY: synthetic chain hash for tests — same invariant as the
+            // real Ethereum block hash. `HashOf<EB>` carries it verbatim.
+            hash: unsafe { HashOf::<EB>::new(raw_hash) },
             header: BlockHeader {
                 height: self.header.height + 1,
                 parent_hash: self.hash,
@@ -891,7 +917,8 @@ impl Arbitrary for DBConfig {
                 chain_id: 0,
                 router_address: Address::default(),
                 timelines,
-                genesis_block_hash,
+                // SAFETY: synthetic chain hash for mocks — same invariant as a real EB hash.
+                genesis_block_hash: unsafe { HashOf::<EB>::new(genesis_block_hash) },
                 max_validators: 0,
             })
             .boxed()
@@ -918,11 +945,17 @@ impl Arbitrary for DBGlobals {
                     latest_finalized_mb_hash,
                     latest_computed_mb_hash,
                 )| Self {
-                    start_block_hash,
+                    // SAFETY: synthetic chain hash for mocks — same invariant as a real EB hash.
+                    start_block_hash: unsafe { HashOf::<EB>::new(start_block_hash) },
                     latest_synced_eb,
-                    latest_prepared_eb_hash,
-                    latest_finalized_mb_hash,
-                    latest_computed_mb_hash,
+                    // SAFETY: synthetic chain hash for mocks — same invariant as a real EB hash.
+                    latest_prepared_eb_hash: unsafe { HashOf::<EB>::new(latest_prepared_eb_hash) },
+                    // SAFETY: synthetic MB envelope hash for mocks.
+                    latest_finalized_mb_hash: unsafe {
+                        HashOf::<MB>::new(latest_finalized_mb_hash)
+                    },
+                    // SAFETY: synthetic MB envelope hash for mocks.
+                    latest_computed_mb_hash: unsafe { HashOf::<MB>::new(latest_computed_mb_hash) },
                 },
             )
             .boxed()
