@@ -99,7 +99,7 @@ pub use storage::{FilesystemBackend, MemoryBackend, StorageBackend, StorageError
 ))]
 pub use tdec::{
     TdecBlindedKeyShare, TdecCiphertextHeader, TdecDecryptionKey, TdecDecryptionShare,
-    TdecKeyStore, TdecKeypair, TdecKeystore, TdecPublicDecryptionContext, TdecPublicKey,
+    TdecKeyEntry, TdecKeyStore, TdecKeypair, TdecPublicDecryptionContext, TdecPublicKey,
 };
 
 #[cfg(feature = "secp256k1")]

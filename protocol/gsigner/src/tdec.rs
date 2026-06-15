@@ -35,15 +35,15 @@ pub type TdecPublicDecryptionContext = PublicDecryptionContextSimple<E>;
 
 const NAMESPACE_TDEC: &str = "tdec";
 
-/// JSON keystore entry for one validator threshold-decryption key.
+/// JSON keyring entry for one validator threshold-decryption key.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TdecKeystore {
+pub struct TdecKeyEntry {
     pub name: String,
     pub public_key: String,
     pub validator_decryption_key: String,
 }
 
-impl TdecKeystore {
+impl TdecKeyEntry {
     fn from_keypair(name: &str, keypair: &TdecKeypair) -> Result<Self> {
         Ok(Self {
             name: name.to_string(),
@@ -63,7 +63,7 @@ impl TdecKeystore {
     }
 }
 
-impl KeystoreEntry for TdecKeystore {
+impl KeystoreEntry for TdecKeyEntry {
     fn name(&self) -> &str {
         &self.name
     }
@@ -74,9 +74,24 @@ impl KeystoreEntry for TdecKeystore {
 }
 
 /// Store for validator threshold-decryption keys.
+///
+/// `TdecKeyStore` keeps only the validator's private decryption scalar and the
+/// corresponding public key. It does not store
+/// [`gear_tdec::PrivateDecryptionContextSimple`]; callers should keep or obtain
+/// [`TdecPublicDecryptionContext`] separately and pass it to [`Self::create_share`].
+///
+/// Typical usage:
+///
+/// 1. Import the local validator's `validator_decryption_key` with
+///    [`Self::import_decryption_key`].
+/// 2. Receive or load a [`TdecPublicDecryptionContext`] containing
+///    `validator_public_key` and `blinded_key_share`.
+/// 3. Call [`Self::create_share`] with the public context, ciphertext header,
+///    and AAD. The store finds the matching local private scalar by public key
+///    and creates a [`TdecDecryptionShare`].
 #[derive(Clone)]
 pub struct TdecKeyStore {
-    keyring: Arc<RwLock<keyring::Keyring<TdecKeystore>>>,
+    keyring: Arc<RwLock<keyring::Keyring<TdecKeyEntry>>>,
     _tmp_dir: Option<Arc<TempDir>>,
 }
 
@@ -89,63 +104,55 @@ impl fmt::Debug for TdecKeyStore {
 }
 
 impl TdecKeyStore {
-    pub fn new(keyring: keyring::Keyring<TdecKeystore>) -> Self {
+    /// Create a store from an existing keyring backend.
+    pub fn new(keyring: keyring::Keyring<TdecKeyEntry>) -> Self {
         Self {
             keyring: Arc::new(RwLock::new(keyring)),
             _tmp_dir: None,
         }
     }
 
-    fn with_tempdir(keyring: keyring::Keyring<TdecKeystore>, tmp_dir: Option<TempDir>) -> Self {
+    fn with_tempdir(keyring: keyring::Keyring<TdecKeyEntry>, tmp_dir: Option<TempDir>) -> Self {
         Self {
             keyring: Arc::new(RwLock::new(keyring)),
             _tmp_dir: tmp_dir.map(Arc::new),
         }
     }
 
+    /// Create an in-memory store.
+    ///
+    /// This is useful for tests and short-lived processes. Keys are not
+    /// persisted.
     pub fn memory() -> Self {
         let keyring = keyring::Keyring::try_memory().expect("memory keyring should not fail");
         Self::new(keyring)
     }
 
+    /// Load or create a filesystem-backed store under the `tdec` namespace.
     pub fn fs(path: PathBuf) -> Result<Self> {
         let keyring = keyring::Keyring::load(Self::namespaced_path(path))?;
         Ok(Self::new(keyring))
     }
 
+    /// Create a temporary filesystem-backed store.
+    ///
+    /// The temporary directory is held for the lifetime of the returned store.
     pub fn fs_temporary() -> Result<Self> {
         let temp_dir = tempfile::tempdir()?;
         let keyring = keyring::Keyring::load(Self::namespaced_path(temp_dir.path().to_path_buf()))?;
         Ok(Self::with_tempdir(keyring, Some(temp_dir)))
     }
 
+    /// Return the path used by the TDEC keyring namespace.
     pub fn namespaced_path(path: PathBuf) -> PathBuf {
-        keyring::Keyring::<TdecKeystore>::namespaced_path(path, NAMESPACE_TDEC)
+        keyring::Keyring::<TdecKeyEntry>::namespaced_path(path, NAMESPACE_TDEC)
     }
 
-    fn keyring(&self) -> Result<RwLockReadGuard<'_, keyring::Keyring<TdecKeystore>>> {
-        self.keyring
-            .read()
-            .map_err(|err| SignerError::Other(format!("Failed to acquire read lock: {err}")))
-    }
-
-    fn keyring_mut(&self) -> Result<RwLockWriteGuard<'_, keyring::Keyring<TdecKeystore>>> {
-        self.keyring
-            .write()
-            .map_err(|err| SignerError::Other(format!("Failed to acquire write lock: {err}")))
-    }
-
-    fn key_name(public_key: &TdecPublicKey) -> Result<String> {
-        Ok(format!(
-            "key-{}",
-            public_key
-                .to_bytes()
-                .map_err(|err| SignerError::Serialization(err.to_string()))?
-                .encode_hex::<String>()
-        ))
-    }
-
-    /// Store a validator decryption scalar and return its public key.
+    /// Store a validator decryption scalar and return its derived public key.
+    ///
+    /// This is the preferred import path when the caller already has the
+    /// validator private TDEC scalar but does not want to keep a full private
+    /// decryption context in memory.
     pub fn import_decryption_key(
         &self,
         validator_decryption_key: TdecDecryptionKey,
@@ -156,11 +163,13 @@ impl TdecKeyStore {
         self.import_keypair(keypair)
     }
 
-    /// Store a full tdec keypair and return its public key.
+    /// Store a full TDEC keypair and return its public key.
+    ///
+    /// Only the decryption scalar and public key are persisted.
     pub fn import_keypair(&self, keypair: TdecKeypair) -> Result<TdecPublicKey> {
         let public_key = keypair.public_key();
         let name = Self::key_name(&public_key)?;
-        let keystore = TdecKeystore::from_keypair(&name, &keypair)?;
+        let keystore = TdecKeyEntry::from_keypair(&name, &keypair)?;
         self.keyring_mut()?.store(&name, keystore)?;
         Ok(public_key)
     }
@@ -173,7 +182,11 @@ impl TdecKeyStore {
         Ok(self.keypair(public_key)?.decryption_key)
     }
 
-    /// Get the full tdec keypair by public key.
+    /// Reconstruct the TDEC keypair for the given public key.
+    ///
+    /// The keypair is reconstructed from the stored private scalar. This method
+    /// returns [`SignerError::KeyNotFound`] when the store has no matching
+    /// public key.
     pub fn keypair(&self, public_key: &TdecPublicKey) -> Result<TdecKeypair> {
         let storage = self.keyring()?;
         for keystore in storage.list() {
@@ -184,8 +197,12 @@ impl TdecKeyStore {
         Err(SignerError::KeyNotFound(format!("{public_key}")))
     }
 
-    /// Create a decryption share using the local private key matching
-    /// `public_context.validator_public_key`.
+    /// Create a decryption share for a public decryption context.
+    ///
+    /// The store uses `public_context.validator_public_key` to find the local
+    /// validator private scalar, combines it with
+    /// `public_context.blinded_key_share`, and delegates share creation to
+    /// `gear-tdec`.
     pub fn create_share(
         &self,
         public_context: &TdecPublicDecryptionContext,
@@ -200,7 +217,10 @@ impl TdecKeyStore {
         )
     }
 
-    /// Create a decryption share from explicit public key + blinded key share.
+    /// Create a decryption share from an explicit public key and blinded share.
+    ///
+    /// Use this when the caller already split the fields out of a public
+    /// decryption context.
     pub fn create_share_with_blinded_key(
         &self,
         public_key: &TdecPublicKey,
@@ -214,6 +234,7 @@ impl TdecKeyStore {
             .map_err(|err| SignerError::Crypto(err.to_string()))
     }
 
+    /// Return whether the store contains a key for the given public key.
     pub fn has_key(&self, public_key: &TdecPublicKey) -> Result<bool> {
         let storage = self.keyring()?;
         for keystore in storage.list() {
@@ -224,14 +245,16 @@ impl TdecKeyStore {
         Ok(false)
     }
 
+    /// List all public TDEC keys known by the store.
     pub fn list_public_keys(&self) -> Result<Vec<TdecPublicKey>> {
         self.keyring()?
             .list()
             .iter()
-            .map(TdecKeystore::public_key)
+            .map(TdecKeyEntry::public_key)
             .collect()
     }
 
+    /// Remove all TDEC keys from the store.
     pub fn clear_keys(&self) -> Result<()> {
         let mut storage = self.keyring_mut()?;
         let names: Vec<String> = storage
@@ -243,6 +266,25 @@ impl TdecKeyStore {
             storage.remove(&name)?;
         }
         Ok(())
+    }
+
+    fn keyring(&self) -> Result<RwLockReadGuard<'_, keyring::Keyring<TdecKeyEntry>>> {
+        self.keyring
+            .read()
+            .map_err(|err| SignerError::Other(format!("Failed to acquire read lock: {err}")))
+    }
+
+    fn keyring_mut(&self) -> Result<RwLockWriteGuard<'_, keyring::Keyring<TdecKeyEntry>>> {
+        self.keyring
+            .write()
+            .map_err(|err| SignerError::Other(format!("Failed to acquire write lock: {err}")))
+    }
+
+    fn key_name(public_key: &TdecPublicKey) -> Result<String> {
+        let key_bytes = public_key
+            .to_bytes()
+            .map_err(|err| SignerError::Serialization(err.to_string()))?;
+        Ok(format!("key-{}", key_bytes.encode_hex::<String>()))
     }
 }
 

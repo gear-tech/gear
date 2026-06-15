@@ -289,7 +289,7 @@ fn build_executable_data(
             }
             Operation::Shielded(shielded) => {
                 let _verified = shielded.into_verified();
-            },
+            }
             Operation::ProgressTasks => {}
             Operation::ProcessQueues {
                 gas_allowance: op_gas_allowance,
