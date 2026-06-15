@@ -46,6 +46,10 @@ impl KVDatabase for MemDb {
         self.inner.remove(&key.to_vec()).map(|(_, value)| value)
     }
 
+    unsafe fn delete(&self, key: &[u8]) {
+        self.inner.remove(&key.to_vec());
+    }
+
     fn contains(&self, key: &[u8]) -> bool {
         self.inner.contains_key(key)
     }
