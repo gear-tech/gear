@@ -104,6 +104,9 @@ pub struct NodeConfig {
     /// by more than this many Eth blocks.
     pub uncommitted_chain_len_threshold: std::num::NonZero<u32>,
     pub genesis_state_dump: Option<PathBuf>,
+    /// Prune old MB schedules on startup, right after the database is
+    /// opened. Temporary hot fix knob (#5585).
+    pub db_cleanup: bool,
 }
 
 impl NodeConfig {

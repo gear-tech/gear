@@ -119,3 +119,11 @@ pub const OUTGOING_MESSAGES_SOFT_LIMIT: u32 = 128;
 pub const OUTGOING_MESSAGES_BYTES_SOFT_LIMIT: u32 = 32 * 1024;
 pub const CALL_REPLY_SOFT_LIMIT: u32 = 4;
 pub const PROGRAM_MODIFICATIONS_SOFT_LIMIT: u32 = MAX_TOUCHED_PROGRAMS_PER_MB / 2;
+
+/// Old mailbox validity version (in Ethereum blocks).
+pub const MAILBOX_VALIDITY_VERSION_1: core::num::NonZero<u32> =
+    core::num::NonZero::new(54_000).expect("54_000 != 0");
+
+/// New mailbox validity version (in Ethereum blocks). 15 minutes at 12s block time.
+pub const MAILBOX_VALIDITY_VERSION_2: core::num::NonZero<u32> =
+    core::num::NonZero::new(15 * 60 / 12).expect("75 != 0");

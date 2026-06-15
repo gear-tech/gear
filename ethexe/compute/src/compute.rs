@@ -273,8 +273,9 @@ fn build_executable_data(
                 .ok_or(ComputeError::AnchorBlockHeaderMissing(advanced_block))?,
         )
     };
+    let mut mailbox_validity = ethexe_common::MAILBOX_VALIDITY_VERSION_2;
 
-    for op in operations.0 {
+    for op in operations {
         match op {
             Operation::AdvanceTillEthereumBlock { block_hash } => {
                 let block = db
@@ -299,6 +300,16 @@ fn build_executable_data(
             Operation::ProcessQueues {
                 gas_allowance: op_gas_allowance,
             } => {
+                // Old block - change mailbox validity to the previous default one
+                mailbox_validity = ethexe_common::MAILBOX_VALIDITY_VERSION_1;
+
+                gas_allowance = Some(op_gas_allowance);
+            }
+            Operation::ProcessQueuesV2 {
+                gas_allowance: op_gas_allowance,
+            } => {
+                // Keep the new mailbox validity for this operation, as it is the default one
+
                 gas_allowance = Some(op_gas_allowance);
             }
         }
@@ -325,6 +336,7 @@ fn build_executable_data(
         injected_transactions,
         gas_allowance,
         events,
+        mailbox_validity,
     })
 }
 
@@ -555,7 +567,7 @@ mod tests {
                 block_hash: eth_block_hash,
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueues {
+            Operation::ProcessQueuesV2 {
                 gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ])
@@ -786,7 +798,7 @@ mod tests {
     fn mb_bookend() -> [Operation; 2] {
         [
             Operation::ProgressTasks,
-            Operation::ProcessQueues {
+            Operation::ProcessQueuesV2 {
                 gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]

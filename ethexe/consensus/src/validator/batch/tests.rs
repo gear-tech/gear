@@ -63,7 +63,7 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
         Operation::AdvanceTillEthereumBlock {
             block_hash: H256::from_low_u64_be(0xEB00 + height),
         },
-        Operation::ProcessQueues { gas_allowance: 0 },
+        Operation::ProcessQueuesV2 { gas_allowance: 0 },
     ]);
     let operations_hash = db.set_operations(ops);
     // Synthetic mb_hash — uniqueness is what matters here.

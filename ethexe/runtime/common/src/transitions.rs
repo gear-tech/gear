@@ -8,10 +8,25 @@ use alloc::{
 use anyhow::{Result, anyhow};
 use core::num::NonZero;
 use ethexe_common::{
-    ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
+    MAILBOX_VALIDITY_VERSION_2, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
 };
 use gprimitives::{ActorId, CodeId, H256};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TransitionsConfig {
+    pub block_height: u32,
+    pub mailbox_validity: NonZero<u32>,
+}
+
+impl Default for TransitionsConfig {
+    fn default() -> Self {
+        Self {
+            block_height: 0,
+            mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+        }
+    }
+}
 
 /// In-memory store for the state transitions
 /// that are going to be applied in the current block.
@@ -24,7 +39,7 @@ use gprimitives::{ActorId, CodeId, H256};
 /// applied in the current block.
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
-    block_height: u32,
+    cfg: TransitionsConfig,
     states: ProgramStates,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
@@ -40,9 +55,9 @@ pub struct FinalizedBlockTransitions {
 }
 
 impl InBlockTransitions {
-    pub fn new(block_height: u32, states: ProgramStates, schedule: Schedule) -> Self {
+    pub fn new(cfg: TransitionsConfig, states: ProgramStates, schedule: Schedule) -> Self {
         Self {
-            block_height,
+            cfg,
             states,
             schedule,
             ..Default::default()
@@ -84,14 +99,14 @@ impl InBlockTransitions {
     /// `block_height` and return them in chronological order
     /// (oldest height first; within a height, BTreeSet `Ord`).
     pub fn take_actual_tasks(&mut self) -> Vec<ScheduledTask> {
-        let cutoff = self.block_height.saturating_add(1);
+        let cutoff = self.cfg.block_height.saturating_add(1);
         let kept = self.schedule.split_off(&cutoff);
         let due = core::mem::replace(&mut self.schedule, kept);
         due.into_values().flatten().collect()
     }
 
     pub fn schedule_task(&mut self, in_blocks: NonZero<u32>, task: ScheduledTask) -> u32 {
-        let scheduled_block = self.block_height + u32::from(in_blocks);
+        let scheduled_block = self.cfg.block_height + u32::from(in_blocks);
 
         self.schedule
             .entry(scheduled_block)
@@ -224,20 +239,20 @@ impl InBlockTransitions {
         }
     }
 
-    pub fn block_height(&self) -> u32 {
-        self.block_height
+    pub fn cfg(&self) -> &TransitionsConfig {
+        &self.cfg
     }
 
     #[cfg(any(test, feature = "mock"))]
     pub fn from_parts(
-        block_height: u32,
+        cfg: TransitionsConfig,
         states: ProgramStates,
         schedule: Schedule,
         modifications: BTreeMap<ActorId, NonFinalTransition>,
         program_creations: BTreeMap<ActorId, CodeId>,
     ) -> Self {
         Self {
-            block_height,
+            cfg,
             states,
             schedule,
             modifications,
@@ -251,8 +266,8 @@ impl InBlockTransitions {
     }
 
     #[cfg(any(test, feature = "mock"))]
-    pub fn block_height_mut(&mut self) -> &mut u32 {
-        &mut self.block_height
+    pub fn cfg_mut(&mut self) -> &mut TransitionsConfig {
+        &mut self.cfg
     }
 }
 
@@ -310,7 +325,11 @@ mod tests {
     }
 
     fn transitions_with_schedule(block_height: u32, schedule: Schedule) -> InBlockTransitions {
-        InBlockTransitions::new(block_height, ProgramStates::default(), schedule)
+        let cfg = TransitionsConfig {
+            block_height,
+            ..Default::default()
+        };
+        InBlockTransitions::new(cfg, ProgramStates::default(), schedule)
     }
 
     #[test]
