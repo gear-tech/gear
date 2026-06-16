@@ -3336,16 +3336,6 @@ async fn fast_sync() {
     test_info!("📗 Starting Bob again to check how it handles partially empty database");
     bob.start_service().await;
 
-    // Mine some blocks so Bob can produce the event we will wait for.
-    // We mine several blocks here to ensure that Bob and Alice would converge to the same chain of announces.
-    // Why do we need that? Because Bob was disabled he missed some announces that Alice produced,
-    // this announces was not committed, so Bob would not see them during fast-sync
-    // and would not have them in his database. This is normal situation, after a few blocks Bob and Alice should
-    // converge to the same chain of announces.
-    for _ in 0..env.commitment_delay_limit.get() {
-        env.skip_blocks(1).await;
-    }
-
     let latest_block = env.latest_block().await.hash;
     let alice_latest_advanced_mb = alice.events().find_advanced_mb(latest_block).await;
     let bob_latest_advanced_mb = bob.events().find_advanced_mb(latest_block).await;
