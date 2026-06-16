@@ -1890,7 +1890,7 @@ async fn send_injected_tx() {
     node1
         .events()
         .find(|event| {
-            if let TestingEvent::Rpc(TestingRpcEvent::InjectedTransaction { transaction }) = event
+            if let TestingEvent::Rpc(TestingRpcEvent::Transaction { transaction }) = event
                 && transaction.as_injected() == Some(&signed_tx)
             {
                 true

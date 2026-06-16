@@ -46,14 +46,14 @@ impl TransactionsRelayer {
         }
 
         let (response_sender, response_receiver) = oneshot::channel();
-        let event = RpcEvent::InjectedTransaction {
+        let event = RpcEvent::Transaction {
             transaction,
             response_sender,
         };
 
         if let Err(err) = self.rpc_sender.send(event) {
             tracing::error!(
-                "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
+                "Failed to send `RpcEvent::Transaction` event task: {err}. \
                 The receiving end in the main service might have been dropped."
             );
             return Err(errors::internal());

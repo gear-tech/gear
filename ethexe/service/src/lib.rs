@@ -883,7 +883,7 @@ impl Service {
                     log::trace!("Received RPC event: {event:?}");
 
                     match event {
-                        RpcEvent::InjectedTransaction {
+                        RpcEvent::Transaction {
                             transaction,
                             response_sender,
                         } => {

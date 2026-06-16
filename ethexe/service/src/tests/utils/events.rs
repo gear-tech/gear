@@ -102,16 +102,16 @@ impl TestingNetworkEvent {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
-    InjectedTransaction { transaction: Transaction },
+    Transaction { transaction: Transaction },
 }
 
 impl TestingRpcEvent {
     fn new(event: &RpcEvent) -> Self {
         match event {
-            RpcEvent::InjectedTransaction {
+            RpcEvent::Transaction {
                 transaction,
                 response_sender: _,
-            } => Self::InjectedTransaction {
+            } => Self::Transaction {
                 transaction: transaction.clone(),
             },
         }

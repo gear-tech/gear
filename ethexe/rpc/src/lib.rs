@@ -95,7 +95,7 @@ pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
 #[cfg(feature = "server")]
 #[derive(Debug)]
 pub enum RpcEvent {
-    InjectedTransaction {
+    Transaction {
         transaction: Transaction,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },

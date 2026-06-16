@@ -77,7 +77,7 @@ impl MockService {
                         unreachable!("RPC server should not be stopped during the test")
                     },
                     event = self.rpc.next() => {
-                        let RpcEvent::InjectedTransaction {transaction, response_sender} = event.expect("RPC event will be valid");
+                        let RpcEvent::Transaction {transaction, response_sender} = event.expect("RPC event will be valid");
 
                         response_sender.send(InjectedTransactionAcceptance::Accept).expect("Response sender will be valid");
                         match transaction {
