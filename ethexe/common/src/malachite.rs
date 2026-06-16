@@ -49,15 +49,19 @@ pub enum Operation {
     /// Progress scheduled tasks (mailbox/waitlist/reservation cleanup).
     ProgressTasks = 1,
 
-    /// Drain message queues within `gas_allowance`; producer emits last.
+    /// Execute queued message within `gas_allowance`.
     ProcessQueues { gas_allowance: u64 } = 2,
 
     /// User-submitted transaction from the mempool.
     Injected(SignedInjectedTransaction) = 3,
 
+    /// Execute queued messages within `gas_allowance`.
+    /// V2 - changes mailbox validity, from one week to 15 minutes
+    ProcessQueuesV2 { gas_allowance: u64 } = 4,
+
     /// User-submitted shielded transaction from mempool.
     #[cfg(feature = "shielded")]
-    Shielded(SignedShieldedTransaction) = 4,
+    Shielded(SignedShieldedTransaction) = 5,
 }
 
 impl Operation {
@@ -76,8 +80,9 @@ impl Operation {
             Self::ProgressTasks => 1,
             Self::ProcessQueues { .. } => 2,
             Self::Injected(_) => 3,
+            Self::ProcessQueuesV2 { .. } => 4,
             #[cfg(feature = "shielded")]
-            Self::Shielded(_) => 4,
+            Self::Shielded(_) => 5,
         }
     }
 
@@ -111,8 +116,11 @@ impl Decode for Operation {
             3 => Ok(Operation::Injected(SignedInjectedTransaction::decode(
                 input,
             )?)),
+            4 => Ok(Operation::ProcessQueuesV2 {
+                gas_allowance: u64::decode(input)?,
+            }),
             #[cfg(feature = "shielded")]
-            4 => Ok(Operation::Shielded(SignedShieldedTransaction::decode(
+            5 => Ok(Operation::Shielded(SignedShieldedTransaction::decode(
                 input,
             )?)),
             _ => Err(parity_scale_codec::Error::from("invalid operation tag")),
@@ -128,6 +136,7 @@ impl Encode for Operation {
             Operation::ProgressTasks => {}
             Operation::ProcessQueues { gas_allowance } => gas_allowance.encode_to(dest),
             Operation::Injected(signed_tx) => signed_tx.encode_to(dest),
+            Operation::ProcessQueuesV2 { gas_allowance } => gas_allowance.encode_to(dest),
             #[cfg(feature = "shielded")]
             Operation::Shielded(shielded_tx) => shielded_tx.encode_to(dest),
         }
@@ -196,7 +205,7 @@ mod tests {
     fn empty_txs() -> Operations {
         Operations::new(alloc::vec![
             Operation::ProgressTasks,
-            Operation::ProcessQueues {
+            Operation::ProcessQueuesV2 {
                 gas_allowance: 1234,
             },
         ])
@@ -225,12 +234,12 @@ mod tests {
             block_hash: H256::zero(),
         };
         let progress = Operation::ProgressTasks;
-        let queues = Operation::ProcessQueues {
+        let queues = Operation::ProcessQueuesV2 {
             gas_allowance: 1234,
         };
         assert!(advance.is_advance_till_ethereum_block());
         assert!(progress.is_progress_tasks());
-        assert!(queues.is_process_queues());
+        assert!(queues.is_process_queues_v_2());
     }
 
     #[test]
@@ -249,6 +258,7 @@ mod tests {
         );
         assert_eq!(Operation::ProgressTasks.tag(), 1);
         assert_eq!(Operation::ProcessQueues { gas_allowance: 0 }.tag(), 2);
+        assert_eq!(Operation::ProcessQueuesV2 { gas_allowance: 0 }.tag(), 4);
 
         assert_eq!(
             &Operation::AdvanceTillEthereumBlock {
@@ -262,10 +272,14 @@ mod tests {
             &Operation::ProcessQueues { gas_allowance: 0 }.encode()[..4],
             &[2, 0, 0, 0],
         );
+        assert_eq!(
+            &Operation::ProcessQueuesV2 { gas_allowance: 0 }.encode()[..4],
+            &[4, 0, 0, 0],
+        );
 
         // Unknown tag must be rejected by `Decode`, not interpreted.
         use parity_scale_codec::DecodeAll;
-        assert!(Operation::decode_all(&mut [4u8, 0, 0, 0].as_slice()).is_err());
+        assert!(Operation::decode_all(&mut [5u8, 0, 0, 0].as_slice()).is_err());
     }
 
     #[test]

@@ -62,7 +62,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 use tokio::sync::{Notify, mpsc};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 fn operation_to_transaction(operation: &Operation) -> Option<Transaction> {
     match operation {
@@ -417,7 +417,7 @@ impl Externalities for EthexeExternalities {
         //      quarantine-passed EB exists),
         //   2. then injected user txs,
         //   3. finally the service-level ProgressTasks +
-        //      ProcessQueues bookend.
+        //      ProcessQueuesV2 bookend.
         let mut operations = Vec::with_capacity(capped.len() + 3);
         if let Some(block_hash) = advance {
             operations.push(Operation::AdvanceTillEthereumBlock { block_hash });
@@ -426,7 +426,7 @@ impl Externalities for EthexeExternalities {
             operations.push(transaction_to_operation(tx));
         }
         operations.push(Operation::ProgressTasks);
-        operations.push(Operation::ProcessQueues {
+        operations.push(Operation::ProcessQueuesV2 {
             gas_allowance: self.gas_allowance,
         });
 
@@ -442,7 +442,7 @@ impl Externalities for EthexeExternalities {
         // path), so it enforces the operations *this* build accepts. Decode
         // rejects any operation whose discriminant this build doesn't know —
         // such a proposal is voted nil rather than crashing the node.
-        let payload = match Operations::decode_all(&mut payload.as_ref()) {
+        let operations = match Operations::decode_all(&mut payload.as_ref()) {
             Ok(payload) => payload,
             Err(e) => {
                 warn!(error = %e, "validate: undecodable block payload — rejecting");
@@ -450,16 +450,32 @@ impl Externalities for EthexeExternalities {
             }
         };
 
+        // Check operations are allowed at this protocol version.
+        for op in operations.iter() {
+            match op {
+                Operation::AdvanceTillEthereumBlock { .. }
+                | Operation::ProgressTasks
+                | Operation::ProcessQueuesV2 { .. }
+                | Operation::Injected(_) => {
+                    // Known and allowed.
+                }
+                op => {
+                    debug!("Found deprecated operation in proposed MB: {op:?}");
+                    return Ok(false);
+                }
+            }
+        }
+
         // (1) Shape + ordering. Every honest MB has exactly the form:
         //
-        //   [AdvanceTillEthereumBlock]?  Injected*  ProgressTasks  ProcessQueues
+        //   [AdvanceTillEthereumBlock]?  Injected*  ProgressTasks  ProcessQueuesV2
         //
         // This single walk catches: missing bookend, extra bookend,
         // out-of-order op, more than one Advance, and the
         // `gas_allowance` cap. Everything else (TxValidity per injected
         // tx, EB quarantine, touched-programs cap) runs below assuming
         // the shape is sound.
-        let mut iter = payload.iter();
+        let mut iter = operations.iter();
         let mut next = iter.next();
 
         let advance: Option<H256> =
@@ -483,8 +499,8 @@ impl Externalities for EthexeExternalities {
             return Ok(false);
         };
 
-        let Some(Operation::ProcessQueues { gas_allowance }) = iter.next() else {
-            warn!("validate: MB shape violation — expected `ProcessQueues` bookend");
+        let Some(Operation::ProcessQueuesV2 { gas_allowance }) = iter.next() else {
+            warn!("validate: MB shape violation — expected `ProcessQueuesV2` bookend");
             return Ok(false);
         };
 
@@ -492,13 +508,13 @@ impl Externalities for EthexeExternalities {
             warn!(
                 allowance = *gas_allowance,
                 cap = crate::MalachiteConfig::DEFAULT_GAS_ALLOWANCE,
-                "validate: ProcessQueues.gas_allowance exceeds protocol cap"
+                "validate: ProcessQueuesV2.gas_allowance exceeds protocol cap"
             );
             return Ok(false);
         }
 
         if iter.next().is_some() {
-            warn!("validate: MB has extra operations after the `ProcessQueues` bookend");
+            warn!("validate: MB has extra operations after the `ProcessQueuesV2` bookend");
             return Ok(false);
         }
 
@@ -588,7 +604,7 @@ impl Externalities for EthexeExternalities {
             // No local chain head yet. If the MB carries no injected
             // txs we can still accept it; otherwise we must abstain
             // since the checker has no anchor to walk from.
-            let has_injected = payload
+            let has_injected = operations
                 .iter()
                 .any(|tx| operation_to_transaction(tx).is_some());
             if has_injected {
@@ -606,8 +622,8 @@ impl Externalities for EthexeExternalities {
         // Propagating the error upward is the right call: it indicates
         // local DB corruption, not a peer-side issue.
         let checker = TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_hash)?;
-        for tx in payload.iter() {
-            let Some(transaction) = operation_to_transaction(tx) else {
+        for op in operations.iter() {
+            let Some(transaction) = operation_to_transaction(op) else {
                 continue;
             };
             // `?` inside `check_tx_validity` only fires on local DB
@@ -661,8 +677,8 @@ impl Externalities for EthexeExternalities {
             None => std::collections::HashSet::new(),
         };
         let limit = touched.len().max(MAX_TOUCHED_PROGRAMS_PER_MB as usize);
-        for tx in payload.iter() {
-            match tx {
+        for op in operations.iter() {
+            match op {
                 Operation::Injected(signed) => {
                     touched.insert(signed.data().destination);
                 }
@@ -882,7 +898,7 @@ mod tests {
         for _ in 0..(salt.max(1)) {
             txs.push(Operation::ProgressTasks);
         }
-        txs.push(Operation::ProcessQueues { gas_allowance: 0 });
+        txs.push(Operation::ProcessQueuesV2 { gas_allowance: 0 });
         Operations::new(txs)
     }
 
@@ -1084,7 +1100,7 @@ mod tests {
                 block_hash: H256::repeat_byte(0xBB),
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueues { gas_allowance: 0 },
+            Operation::ProcessQueuesV2 { gas_allowance: 0 },
         ]);
         assert!(
             !ext.validate_operations(H256::zero(), payload)
@@ -1131,7 +1147,7 @@ mod tests {
                 block_hash: H256::repeat_byte(0xCC),
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueues { gas_allowance: 0 },
+            Operation::ProcessQueuesV2 { gas_allowance: 0 },
         ]);
         assert!(
             !ext.validate_operations(H256::zero(), payload)
@@ -1183,7 +1199,7 @@ mod tests {
                 block_hash: chain_hashes[1].0,
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueues { gas_allowance: 0 },
+            Operation::ProcessQueuesV2 { gas_allowance: 0 },
         ]);
         assert!(
             ext.validate_operations(H256::zero(), payload)
@@ -1223,7 +1239,7 @@ mod tests {
     /// `process_mb_finalized` must hand exactly the
     /// [`Operation::Injected`] subset of the committed block to
     /// [`Mempool::forget`] (and nothing else — service txs like
-    /// `ProcessQueues` stay out of the mempool round trip).
+    /// `ProcessQueuesV2` stay out of the mempool round trip).
     #[tokio::test]
     async fn finalize_forgets_injected_txs() {
         use ethexe_common::{
@@ -1281,7 +1297,7 @@ mod tests {
             // user tx #1 — must show up
             Operation::Injected(tx_a.clone()),
             // service tx — must NOT
-            Operation::ProcessQueues { gas_allowance: 0 },
+            Operation::ProcessQueuesV2 { gas_allowance: 0 },
             // user tx #2 — must show up
             Operation::Injected(tx_b.clone()),
         ]);
@@ -1634,7 +1650,7 @@ mod tests {
         }
         // Full shape — the shape walk must not be the reason for rejection.
         operations.push(Operation::ProgressTasks);
-        operations.push(Operation::ProcessQueues { gas_allowance: 0 });
+        operations.push(Operation::ProcessQueuesV2 { gas_allowance: 0 });
         let payload = Operations::new(operations);
         assert!(
             !ext.validate_operations(parent_mb, payload).await.unwrap(),
@@ -1720,8 +1736,8 @@ mod tests {
     // Shape & ordering checks on `validate_block_above`.
     //
     // Every MB the producer emits has the strict shape
-    //   [AdvanceTillEthereumBlock]?  Injected*  ProgressTasks  ProcessQueues
-    // with `ProcessQueues.gas_allowance <= DEFAULT_GAS_ALLOWANCE`.
+    //   [AdvanceTillEthereumBlock]?  Injected*  ProgressTasks  ProcessQueuesV2
+    // with `ProcessQueuesV2.gas_allowance <= DEFAULT_GAS_ALLOWANCE`.
     // A malicious proposer must not be able to slip in a malformed MB
     // (oversized gas, missing bookend, out-of-order tx).
     // ------------------------------------------------------------------
@@ -1764,7 +1780,7 @@ mod tests {
     }
 
     /// REPRODUCES: a malicious proposer can set `gas_allowance = u64::MAX`
-    /// in `ProcessQueues.gas_allowance` and force every participant to attempt
+    /// in `ProcessQueuesV2.gas_allowance` and force every participant to attempt
     /// an unbounded queue drain. Validator must reject MBs whose
     /// `gas_allowance` exceeds the protocol cap
     /// (`MalachiteConfig::DEFAULT_GAS_ALLOWANCE`).
@@ -1777,7 +1793,7 @@ mod tests {
                 block_hash: advance,
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueues {
+            Operation::ProcessQueuesV2 {
                 gas_allowance: u64::MAX,
             },
         ]);
@@ -1790,7 +1806,7 @@ mod tests {
     }
 
     /// REPRODUCES: MB without a `ProgressTasks` tx between injected txs
-    /// and `ProcessQueues` violates the protocol shape — scheduled
+    /// and `ProcessQueuesV2` violates the protocol shape — scheduled
     /// tasks would never be advanced.
     #[tokio::test]
     async fn validate_rejects_mb_missing_progress_tasks() {
@@ -1800,8 +1816,8 @@ mod tests {
             Operation::AdvanceTillEthereumBlock {
                 block_hash: advance,
             },
-            // No ProgressTasks here — straight to ProcessQueues.
-            Operation::ProcessQueues { gas_allowance: 0 },
+            // No ProgressTasks here — straight to ProcessQueuesV2.
+            Operation::ProcessQueuesV2 { gas_allowance: 0 },
         ]);
         assert!(
             !ext.validate_operations(H256::zero(), payload)
@@ -1811,7 +1827,7 @@ mod tests {
         );
     }
 
-    /// REPRODUCES: MB without a final `ProcessQueues` tx never drains
+    /// REPRODUCES: MB without a final `ProcessQueuesV2` tx never drains
     /// the message queues for this MB — compute pipeline would stall
     /// on the next MB.
     #[tokio::test]
@@ -1823,13 +1839,13 @@ mod tests {
                 block_hash: advance,
             },
             Operation::ProgressTasks,
-            // No ProcessQueues here.
+            // No ProcessQueuesV2 here.
         ]);
         assert!(
             !ext.validate_operations(H256::zero(), payload)
                 .await
                 .unwrap(),
-            "MB missing `ProcessQueues` bookend must be rejected"
+            "MB missing `ProcessQueuesV2` bookend must be rejected"
         );
     }
 
@@ -1873,7 +1889,7 @@ mod tests {
                 block_hash: chain.blocks[2].hash,
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueues { gas_allowance: 0 },
+            Operation::ProcessQueuesV2 { gas_allowance: 0 },
         ]);
         assert!(
             !ext.validate_operations(parent_mb, payload).await.unwrap(),
@@ -1881,7 +1897,7 @@ mod tests {
         );
     }
 
-    /// REPRODUCES: `ProcessQueues` must be the very last tx in the MB.
+    /// REPRODUCES: `ProcessQueuesV2` must be the very last tx in the MB.
     /// Otherwise later txs run *after* queues drain and the gas budget
     /// is wrong.
     #[tokio::test]
@@ -1892,15 +1908,15 @@ mod tests {
             Operation::AdvanceTillEthereumBlock {
                 block_hash: advance,
             },
-            // Order swapped: ProcessQueues before ProgressTasks.
-            Operation::ProcessQueues { gas_allowance: 0 },
+            // Order swapped: ProcessQueuesV2 before ProgressTasks.
+            Operation::ProcessQueuesV2 { gas_allowance: 0 },
             Operation::ProgressTasks,
         ]);
         assert!(
             !ext.validate_operations(H256::zero(), payload)
                 .await
                 .unwrap(),
-            "MB where `ProcessQueues` is not the last tx must be rejected"
+            "MB where `ProcessQueuesV2` is not the last tx must be rejected"
         );
     }
 
@@ -1965,7 +1981,7 @@ mod tests {
                 block_hash: chain[1].0,
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueues { gas_allowance: 0 },
+            Operation::ProcessQueuesV2 { gas_allowance: 0 },
         ]);
 
         assert!(
@@ -2024,7 +2040,7 @@ mod tests {
                 block_hash: stranger_advance,
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueues { gas_allowance: 0 },
+            Operation::ProcessQueuesV2 { gas_allowance: 0 },
         ]);
 
         let result = tokio::time::timeout(
