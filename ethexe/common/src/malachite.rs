@@ -59,7 +59,8 @@ pub enum Operation {
     ProcessQueuesV2 { gas_allowance: u64 } = 4,
 
     /// Execute queued messages within `gas_allowance`.
-    /// V3 - auto-replies to Sails and Ethereum event destinations without mailboxing.
+    /// V3 - auto-replies to Sails event destinations without mailboxing and
+    /// emits Ethereum event destinations via transition messages.
     ProcessQueuesV3 { gas_allowance: u64 } = 5,
 }
 

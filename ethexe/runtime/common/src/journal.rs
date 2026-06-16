@@ -7,6 +7,7 @@ use crate::{
         ActiveProgram, Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
         Program, ProgramState, Storage,
     },
+    transitions::is_event_destination,
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -33,16 +34,6 @@ use gsys::GasMultiplier;
 /// Maximum duration for gr_wait_up_to in blocks,
 /// when not enough gas was provided for the requested duration.
 pub const WAIT_UP_TO_SAFE_DURATION: u32 = 64;
-
-const SAILS_EVENT_DESTINATION: ActorId = ActorId::new([0; 32]);
-const ETHEREUM_EVENT_DESTINATION: ActorId = ActorId::new([u8::MAX; 32]);
-
-fn is_event_destination(destination: ActorId) -> bool {
-    matches!(
-        destination,
-        SAILS_EVENT_DESTINATION | ETHEREUM_EVENT_DESTINATION
-    )
-}
 
 // Handles unprocessed journal notes during chunk processing.
 pub struct NativeJournalHandler<'a, S: Storage + ?Sized> {
@@ -143,18 +134,19 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
 
         let message_type = self.message_type;
         let mailbox_validity = self.controller.transitions.cfg().mailbox_validity;
-        let event_destinations_autoreply = self
+        let event_destinations = self
             .controller
             .transitions
             .cfg()
-            .event_destinations_autoreply
-            && is_event_destination(dispatch.destination());
+            .event_destinations_autoreply;
+        let destination = dispatch.destination();
 
         self.controller
             .update_state(dispatch.source(), |state, storage, transitions| {
                 let value = dispatch.value();
-                let destination = dispatch.destination();
 
+                // Charge value before branching: event destinations still settle via
+                // transition claims and must not touch mailbox or scheduled tasks.
                 if !value.is_zero() {
                     state.balance = state.balance.checked_sub(value).expect(
                         "Insufficient balance: underflow in state.balance -= dispatch.value()",
@@ -166,31 +158,6 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                             .checked_sub(i128::try_from(value).expect("value fits into i128"))
                             .expect("Insufficient balance: underflow in transition.value_to_receive -= dispatch.value()");
                     });
-                }
-
-                if event_destinations_autoreply {
-                    transitions.modify_transition(dispatch.source(), |transition| {
-                        transition.claims.push(ethexe_common::gear::ValueClaim {
-                            message_id: dispatch.id(),
-                            destination,
-                            value,
-                        });
-                    });
-
-                    let reply = Dispatch::reply(
-                        dispatch.id(),
-                        destination,
-                        PayloadLookup::empty(),
-                        0,
-                        SuccessReplyReason::Auto,
-                        message_type,
-                        false,
-                    );
-
-                    let queue = state.queue_from_msg_type(message_type);
-                    queue.modify_queue(storage, |queue| queue.queue(reply));
-
-                    return;
                 }
 
                 if let Ok(non_zero_delay) = delay.try_into() {
@@ -209,6 +176,34 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                     storage.modify(&mut state.stash_hash, |stash| {
                         stash.add_to_user(dispatch, expiry, user_id);
                     });
+                } else if event_destinations && is_event_destination(destination) {
+                    let message_id = dispatch.id();
+
+                    transitions.modify_transition(dispatch.source(), |transition| {
+                        let stored = dispatch.into_parts().1;
+
+                        transition
+                            .messages
+                            .push(Message::from_stored(stored, false));
+                        transition.claims.push(ethexe_common::gear::ValueClaim {
+                            message_id,
+                            destination,
+                            value,
+                        });
+                    });
+
+                    let reply = Dispatch::reply(
+                        message_id,
+                        destination,
+                        PayloadLookup::empty(),
+                        0,
+                        SuccessReplyReason::Auto,
+                        message_type,
+                        false,
+                    );
+
+                    let queue = state.queue_from_msg_type(message_type);
+                    queue.modify_queue(storage, |queue| queue.queue(reply));
                 } else {
                     let expiry = transitions.schedule_task(
                         mailbox_validity,
@@ -911,6 +906,7 @@ mod tests {
     use super::*;
 
     use crate::{InBlockTransitions, TransitionsConfig, state::MemStorage};
+    use crate::transitions::{ETHEREUM_EVENT_DESTINATION, SAILS_EVENT_DESTINATION};
 
     fn init_setup(
         exec_balance: u128,
@@ -1015,7 +1011,10 @@ mod tests {
         let state = storage.program_state(state_hash).unwrap();
 
         if event_destinations_autoreply {
-            assert!(transition.messages.is_empty());
+            assert_eq!(transition.messages.len(), 1);
+            assert_eq!(transition.messages[0].id, MessageId::from(10));
+            assert_eq!(transition.messages[0].destination, destination);
+            assert_eq!(transition.messages[0].value, 11);
             assert_eq!(transition.claims.len(), 1);
             assert_eq!(transition.claims[0].message_id, MessageId::from(10));
             assert_eq!(transition.claims[0].destination, destination);
@@ -1029,7 +1028,7 @@ mod tests {
     }
 
     #[test]
-    fn event_destination_messages_are_auto_replied_without_mailbox() {
+    fn event_destination_messages_skip_mailbox_and_expire_immediately() {
         for destination in [SAILS_EVENT_DESTINATION, ETHEREUM_EVENT_DESTINATION] {
             let (storage, state) = handle_user_dispatch(destination, true);
 
@@ -1061,6 +1060,110 @@ mod tests {
 
         assert!(!state.mailbox_hash.is_empty());
         assert!(state.canonical_queue.is_empty());
+    }
+
+    #[test]
+    fn delayed_event_destination_stashes_then_matches_immediate_send() {
+        use crate::schedule::Handler;
+        use gear_core::tasks::TaskHandler;
+
+        const DELAY: u32 = 5;
+        let destination = ETHEREUM_EVENT_DESTINATION;
+        let storage = MemStorage::default();
+        let source = ActorId::from(7);
+        let message_id = MessageId::from(10);
+        let mut state = ProgramState::zero();
+        state.balance = 100;
+        let state_hash = storage.write_program_state(state);
+        let states = ProgramStates::from_iter([(
+            source,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
+            },
+        )]);
+        let cfg = TransitionsConfig {
+            event_destinations_autoreply: true,
+            ..Default::default()
+        };
+        let mut transitions = InBlockTransitions::new(cfg, states, Default::default());
+        let gas_allowance_counter = GasAllowanceCounter::new(1_000_000);
+        let mut out_of_gas = false;
+        let mut outgoing_messages_limiter = 10;
+        let mut outgoing_messages_bytes_limiter = 1024;
+        let mut call_reply_limiter = 10;
+
+        {
+            let mut handler = NativeJournalHandler {
+                program_id: source,
+                message_type: MessageType::Canonical,
+                call_reply: false,
+                controller: TransitionController {
+                    storage: &storage,
+                    transitions: &mut transitions,
+                },
+                gas_allowance_counter: &gas_allowance_counter,
+                chunk_gas_limit: 1_000_000,
+                out_of_gas: &mut out_of_gas,
+                outgoing_messages_limiter: &mut outgoing_messages_limiter,
+                outgoing_messages_bytes_limiter: &mut outgoing_messages_bytes_limiter,
+                call_reply_limiter: &mut call_reply_limiter,
+            };
+
+            handler.send_dispatch(
+                MessageId::from(9),
+                dispatch_to(destination, 11),
+                DELAY,
+                None,
+            );
+        }
+
+        let transition = transitions.modifications_mut().get(&source).unwrap();
+        assert!(transition.messages.is_empty());
+        assert!(transition.claims.is_empty());
+
+        let state_hash = transitions.state_of(&source).unwrap().hash;
+        let state = storage.program_state(state_hash).unwrap();
+        assert!(state.mailbox_hash.is_empty());
+        assert!(!state.stash_hash.is_empty());
+        assert_eq!(state.balance, 89);
+        assert!(state.canonical_queue.is_empty());
+
+        {
+            let mut handler = Handler {
+                controller: TransitionController {
+                    storage: &storage,
+                    transitions: &mut transitions,
+                },
+            };
+            handler.send_user_message(message_id, source);
+        }
+
+        let transition = transitions.modifications_mut().get(&source).unwrap();
+        assert_eq!(transition.messages.len(), 1);
+        assert_eq!(transition.messages[0].id, message_id);
+        assert_eq!(transition.messages[0].destination, destination);
+        assert_eq!(transition.messages[0].value, 11);
+        assert_eq!(transition.claims.len(), 1);
+        assert_eq!(transition.claims[0].message_id, message_id);
+        assert_eq!(transition.claims[0].destination, destination);
+        assert_eq!(transition.claims[0].value, 11);
+
+        let state_hash = transitions.state_of(&source).unwrap().hash;
+        let state = storage.program_state(state_hash).unwrap();
+        assert!(state.mailbox_hash.is_empty());
+        assert!(state.stash_hash.is_empty());
+
+        let mut queue = state.canonical_queue.query(&storage).unwrap();
+        let reply = queue.dequeue().expect("auto reply must be queued");
+        assert_eq!(reply.id, MessageId::generate_reply(message_id));
+        assert_eq!(reply.source, destination);
+        assert_eq!(
+            reply.details.unwrap().to_reply_details().unwrap().to_reply_code(),
+            ReplyCode::Success(SuccessReplyReason::Auto)
+        );
+        assert!(queue.is_empty());
     }
 
     #[test]

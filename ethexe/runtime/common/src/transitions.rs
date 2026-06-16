@@ -13,6 +13,16 @@ use ethexe_common::{
 };
 use gprimitives::{ActorId, CodeId, H256};
 
+pub(crate) const SAILS_EVENT_DESTINATION: ActorId = ActorId::new([0; 32]);
+pub(crate) const ETHEREUM_EVENT_DESTINATION: ActorId = ActorId::new([u8::MAX; 32]);
+
+pub(crate) fn is_event_destination(destination: ActorId) -> bool {
+    matches!(
+        destination,
+        SAILS_EVENT_DESTINATION | ETHEREUM_EVENT_DESTINATION
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TransitionsConfig {
     pub block_height: u32,

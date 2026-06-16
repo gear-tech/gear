@@ -310,7 +310,7 @@ fn build_executable_data(
             Operation::ProcessQueuesV3 {
                 gas_allowance: op_gas_allowance,
             } => {
-                // Keep V2 mailbox validity and enable V3 event-destination auto-replies.
+                // Keep V2 mailbox validity and enable V3 event-destination handling.
                 event_destinations_autoreply = true;
 
                 gas_allowance = Some(op_gas_allowance);
