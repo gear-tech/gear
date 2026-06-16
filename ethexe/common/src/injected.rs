@@ -2,19 +2,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
-use alloc::string::{String, ToString};
-use ark_ec::AffineRepr;
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 #[cfg(feature = "shielded")]
-use ark_ec::pairing::Pairing;
-#[cfg(feature = "shielded")]
-use ark_ff::Fp;
-use ark_ff::{BigInteger, PrimeField};
+use ark_serialize::CanonicalSerialize;
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 #[cfg(feature = "shielded")]
 use gear_tdec::{
     Result as TdecResult,
-    bls12_381::{Ciphertext, DkgPublicKey, E as Bls12_381, SharedSecret},
+    bls12_381::{Ciphertext, DkgPublicKey, SharedSecret},
     rand_utils::Rng,
 };
 use gprimitives::{ActorId, H256, MessageId};
@@ -441,36 +440,36 @@ pub struct ShieldedTransaction {
 
 #[cfg(feature = "shielded")]
 impl ShieldedTransaction {
+    fn append_compressed_point<P: CanonicalSerialize>(buffer: &mut Vec<u8>, point: &P) {
+        point
+            .serialize_compressed(buffer)
+            .expect("serializing to Vec should not fail");
+    }
+
     pub(crate) fn to_hashable_bytes(&self) -> Vec<u8> {
-        let mut buffer = Vec::new();
+        let mut buffer = Vec::with_capacity(
+            self.ciphertext.commitment.compressed_size()
+                + self.ciphertext.auth_tag.compressed_size()
+                + size_of::<H256>()
+                + size_of::<gsigner::Digest>()
+                + size_of::<H256>()
+                + size_of::<H256>(),
+        );
 
-        // /// Helper macro to extend G1Affine or G2Affine point coordinate.
-        // macro_rules! extend_affine_coordinate {
-        //     ($coord:expr) => {{
-        //         let bytes = $coord.into_bigint().to_bytes_be();
-        //         buffer.extend_from_slice(&bytes);
-        //     }};
-        // }
-
-        // extend_affine_coordinate!(self.ciphertext.commitment.x);
-        // extend_affine_coordinate!(self.ciphertext.commitment.y);
-
-        // extend_affine_coordinate!(self.ciphertext.auth_tag.x);
-        // extend_affine_coordinate!(self.ciphertext.auth_tag.y);
-
-        // let v = self.ciphertext.auth_tag.x;
-
-        // buffer.extend(self.ciphertext.ciphertext.as_slice());
-
-        // buffer.extend_from_slice(self.aad.as_ref());
-        // buffer.extend_from_slice(self.reference_block.as_bytes());
+        Self::append_compressed_point(&mut buffer, &self.ciphertext.commitment);
+        Self::append_compressed_point(&mut buffer, &self.ciphertext.auth_tag);
+        buffer.extend_from_slice(gear_core::utils::hash(&self.ciphertext.ciphertext).as_ref());
+        buffer.extend_from_slice(self.aad.as_ref());
+        buffer.extend_from_slice(self.reference_block.0.as_ref());
+        buffer.extend_from_slice(gear_core::utils::hash(&self.salt).as_ref());
 
         buffer
     }
 
     /// Constructs blake2b hash over [ShieldedTransaction].
     pub fn to_hash(&self) -> HashOf<Self> {
-        todo!()
+        let hashable_bytes = self.to_hashable_bytes();
+        unsafe { HashOf::new(gear_core::utils::hash(hashable_bytes.as_ref()).into()) }
     }
 }
 
@@ -479,8 +478,8 @@ pub type SignedShieldedTransaction = SignedMessage<ShieldedTransaction>;
 
 #[cfg(feature = "shielded")]
 impl ToDigest for ShieldedTransaction {
-    fn update_hasher(&self, _hasher: &mut sha3::Keccak256) {
-        todo!("Shielded transaction digest")
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self.to_hashable_bytes());
     }
 }
 
@@ -617,14 +616,15 @@ mod digest_hex {
 mod tests {
     use std::ops::Mul;
 
-    use gear_tdec::bls12_381::Fr;
+    use ark_ec::{AffineRepr, pairing::Pairing};
+    use gear_tdec::bls12_381::{E as Bls12_381, Fr};
     use gsigner::PrivateKey;
 
     use super::*;
     use crate::mock::Mock;
 
-    /// You can use this javascript code to reproduce serialize/deserialize paths.
-    /// ```rust,no_run,ignore
+    /// You can use this JavaScript code to reproduce serialize/deserialize paths.
+    /// ```no_run,ignore
     /// import { bls12_381 } from '@noble/curves/bls12-381.js';
     /// const { G1, G2 } = bls12_381;
     ///
@@ -639,11 +639,12 @@ mod tests {
     ///
     /// dumpPoint('G1 * 123', G1.Point.BASE.multiply(123n));
     /// dumpPoint('G2 * 123', G2.Point.BASE.multiply(123n));
-    // ```
+    /// ```
     #[test]
     fn ark_noble_js_compatible_serialization() {
         const NOBLE_JS_G1_123_COMPRESSED_SERIALIZED: &'static str = r#""0xa0ec3e71a719a25208adc97106b122809210faf45a17db24f10ffb1ac014fac1ab95a4a1967e55b185d4df622685b9e8""#;
         const NOBLE_JS_G2_123_COMPRESSED_SERIALIZED: &'static str = r#""0x95e18bbdb8b7bd39ea677ee923d7e87af449c45209e635907a4a8a2e4c65fff97c46d038cff53a994da273310ac85866096a5e13fd3ebf4e140e26f6ddfac66651e04e530e6045572acab753bb1bcef990fe14b4426caee41016af69d313750d""#;
+
         #[derive(serde::Serialize, serde::Deserialize)]
         #[serde(transparent)]
         struct G1Wrapper {
@@ -835,5 +836,27 @@ mod tests {
         let serialized = serde_json::to_string_pretty(&shielded_tx).unwrap();
         let deserialized: ShieldedTransaction = serde_json::from_str(&serialized).unwrap();
         assert_eq!(shielded_tx, deserialized);
+    }
+
+    #[test]
+    fn signed_message_and_shielded_transactions() {
+        let injected_tx = InjectedTransaction::mock(());
+        let mut rng = gear_tdec::rand_utils::test_rng();
+        let dealer_out = gear_tdec::deal::<gear_tdec::bls12_381::E>(3, 2, &mut rng);
+        let shielded_tx = injected_tx
+            .shield(&dealer_out.public_key, &mut rng)
+            .unwrap();
+
+        let signed_tx =
+            SignedShieldedTransaction::create(PrivateKey::random(), shielded_tx).unwrap();
+
+        assert_eq!(
+            signed_tx
+                .signature()
+                .recover_message(signed_tx.data())
+                .expect("failed to recover message")
+                .to_address(),
+            signed_tx.address()
+        );
     }
 }

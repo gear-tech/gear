@@ -34,6 +34,7 @@ gear-tdec = { workspace = true, optional = true, features = ["serde-hex"]}
 
 ark-ec.workspace = true
 ark-ff.workspace = true
+ark-serialize = { workspace = true, optional = true }
 
 # mock deps
 itertools = { workspace = true, optional = true }
@@ -62,5 +63,5 @@ std = [
     "gsigner/keyring",
     "shielded"
 ]
-shielded = ["dep:gear-tdec"]
+shielded = ["dep:gear-tdec", "dep:ark-serialize"]
 mock = ["std", "itertools/use_std", "tap", "proptest"]
