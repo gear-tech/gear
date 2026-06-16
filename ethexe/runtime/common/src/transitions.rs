@@ -18,16 +18,12 @@ pub(crate) const GEAR_SAILS_EVENT: ActorId = ActorId::new([0; 32]);
 /// Must match `gstd`/`gcore` `ETH_EVENT_ADDR`
 /// (`0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF` on Ethereum).
 pub(crate) const ETH_SAILS_EVENT: ActorId = ActorId::new([
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 ]);
 
 pub(crate) fn is_event_destination(destination: ActorId) -> bool {
-    matches!(
-        destination,
-        GEAR_SAILS_EVENT | ETH_SAILS_EVENT
-    )
+    matches!(destination, GEAR_SAILS_EVENT | ETH_SAILS_EVENT)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -434,10 +430,7 @@ mod tests {
         use gprimitives::H160;
 
         let eth_event_addr = H160::repeat_byte(0xff);
-        assert_eq!(
-            ETH_SAILS_EVENT,
-            ActorId::from(eth_event_addr)
-        );
+        assert_eq!(ETH_SAILS_EVENT, ActorId::from(eth_event_addr));
         assert_ne!(ETH_SAILS_EVENT, ActorId::new([u8::MAX; 32]));
         assert!(is_event_destination(ETH_SAILS_EVENT));
     }
