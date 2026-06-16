@@ -908,7 +908,7 @@ mod tests {
     use crate::{
         InBlockTransitions, TransitionsConfig,
         state::MemStorage,
-        transitions::{ETHEREUM_EVENT_DESTINATION, SAILS_EVENT_DESTINATION},
+        transitions::{ETH_SAILS_EVENT, GEAR_SAILS_EVENT},
     };
 
     fn init_setup(
@@ -1032,7 +1032,7 @@ mod tests {
 
     #[test]
     fn event_destination_messages_skip_mailbox_and_expire_immediately() {
-        for destination in [SAILS_EVENT_DESTINATION, ETHEREUM_EVENT_DESTINATION] {
+        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
             let (storage, state) = handle_user_dispatch(destination, true);
 
             assert!(state.mailbox_hash.is_empty());
@@ -1059,7 +1059,7 @@ mod tests {
 
     #[test]
     fn event_destination_messages_keep_legacy_mailbox_when_disabled() {
-        let (_storage, state) = handle_user_dispatch(SAILS_EVENT_DESTINATION, false);
+        let (_storage, state) = handle_user_dispatch(GEAR_SAILS_EVENT, false);
 
         assert!(!state.mailbox_hash.is_empty());
         assert!(state.canonical_queue.is_empty());
@@ -1071,7 +1071,7 @@ mod tests {
         use gear_core::tasks::TaskHandler;
 
         const DELAY: u32 = 5;
-        let destination = ETHEREUM_EVENT_DESTINATION;
+        let destination = ETH_SAILS_EVENT;
         let storage = MemStorage::default();
         let source = ActorId::from(7);
         let message_id = MessageId::from(10);

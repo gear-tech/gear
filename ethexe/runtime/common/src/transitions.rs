@@ -13,13 +13,20 @@ use ethexe_common::{
 };
 use gprimitives::{ActorId, CodeId, H256};
 
-pub(crate) const SAILS_EVENT_DESTINATION: ActorId = ActorId::new([0; 32]);
-pub(crate) const ETHEREUM_EVENT_DESTINATION: ActorId = ActorId::new([u8::MAX; 32]);
+pub(crate) const GEAR_SAILS_EVENT: ActorId = ActorId::new([0; 32]);
+
+/// Must match `gstd`/`gcore` `ETH_EVENT_ADDR`
+/// (`0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF` on Ethereum).
+pub(crate) const ETH_SAILS_EVENT: ActorId = ActorId::new([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff,
+]);
 
 pub(crate) fn is_event_destination(destination: ActorId) -> bool {
     matches!(
         destination,
-        SAILS_EVENT_DESTINATION | ETHEREUM_EVENT_DESTINATION
+        GEAR_SAILS_EVENT | ETH_SAILS_EVENT
     )
 }
 
@@ -420,5 +427,18 @@ mod tests {
 
         assert_eq!(t.take_actual_tasks(), vec![wake(1, 1)]);
         assert!(t.schedule.contains_key(&1));
+    }
+
+    #[test]
+    fn ethereum_event_destination_matches_eth_event_addr() {
+        use gprimitives::H160;
+
+        let eth_event_addr = H160::repeat_byte(0xff);
+        assert_eq!(
+            ETH_SAILS_EVENT,
+            ActorId::from(eth_event_addr)
+        );
+        assert_ne!(ETH_SAILS_EVENT, ActorId::new([u8::MAX; 32]));
+        assert!(is_event_destination(ETH_SAILS_EVENT));
     }
 }
