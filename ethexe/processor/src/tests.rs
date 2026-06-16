@@ -2294,6 +2294,7 @@ async fn injected_and_events_then_tasks_then_queues() {
         events: canonical_event,
         gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
         mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+        event_destinations_autoreply: false,
     };
     let FinalizedBlockTransitions { transitions, .. } = processor
         .process_programs(executable, Some(promise_sink))
