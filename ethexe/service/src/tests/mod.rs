@@ -3298,14 +3298,13 @@ async fn fast_sync() {
     );
 
     test_info!("📗 Stopping Bob");
+    let replay_target = bob.latest_fast_synced_blocks.unwrap();
+    bob_events
+        .wait_referenced_mbs_computed(latest_block, replay_target)
+        .await;
     bob.stop_service().await;
 
-    assert_chain(
-        latest_block,
-        bob.latest_fast_synced_blocks.unwrap(),
-        &alice,
-        &bob,
-    );
+    assert_chain(latest_block, replay_target, &alice, &bob);
 
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let i = (i * 3) as u64;
@@ -3338,12 +3337,11 @@ async fn fast_sync() {
         bob_events.find_mb_computed_eb(latest_block)
     );
 
-    assert_chain(
-        latest_block,
-        bob.latest_fast_synced_blocks.unwrap(),
-        &alice,
-        &bob,
-    );
+    let replay_target = bob.latest_fast_synced_blocks.unwrap();
+    bob_events
+        .wait_referenced_mbs_computed(latest_block, replay_target)
+        .await;
+    assert_chain(latest_block, replay_target, &alice, &bob);
 }
 
 #[tokio::test]
