@@ -7980,6 +7980,7 @@ dependencies = [
 name = "gear-workspace-hack"
 version = "0.1.0"
 dependencies = [
+ "aead",
  "ahash",
  "alloy",
  "alloy-chains",
@@ -8024,10 +8025,12 @@ dependencies = [
  "byteorder",
  "bytes",
  "cc",
+ "cipher 0.4.4",
  "clap 4.5.54",
  "clap_builder",
  "concurrent-queue",
  "const-hex",
+ "core2",
  "cranelift-bitset",
  "cranelift-codegen",
  "cranelift-codegen-meta",
