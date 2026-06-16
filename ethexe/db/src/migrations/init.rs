@@ -278,9 +278,7 @@ async fn genesis_data_initialization(
         );
     }
 
-    let schedule =
-        ScheduleRestorer::from_storage(&db.cas, &program_states, genesis_eb.header.height)?
-            .restore();
+    let schedule = ScheduleRestorer::from_storage(&db.cas, &program_states)?.restore();
     log::info!(
         "Genesis schedule restored, tasks amount {}",
         schedule.iter().flat_map(|(_, tasks)| tasks.iter()).count()

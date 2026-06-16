@@ -74,6 +74,10 @@ impl KVDatabase for RocksDatabase {
         data
     }
 
+    unsafe fn delete(&self, key: &[u8]) {
+        self.inner.delete(key).expect("Failed to delete data");
+    }
+
     fn contains(&self, key: &[u8]) -> bool {
         self.inner.key_may_exist(key)
             && self
@@ -98,6 +102,10 @@ impl KVDatabase for RocksDatabase {
             prefix_iter: self.inner.prefix_iterator(prefix),
             done: false,
         })
+    }
+
+    fn compact_range(&self, start: &[u8], end: &[u8]) {
+        self.inner.compact_range(Some(start), Some(end));
     }
 
     fn is_empty(&self) -> bool {
@@ -210,6 +218,24 @@ mod tests {
     fn kv_multi_thread() {
         with_database(|db| {
             tests::kv_multi_thread(db);
+        });
+    }
+
+    /// Delete + compact over the range must drop the entries and leave
+    /// neighbouring keys intact.
+    #[test]
+    fn kv_compact_range() {
+        with_database(|db| {
+            db.put(b"a-key", b"a".to_vec());
+            db.put(b"b-key", b"b".to_vec());
+            db.put(b"c-key", b"c".to_vec());
+
+            unsafe { db.delete(b"b-key") };
+            db.compact_range(b"b", b"c");
+
+            assert_eq!(db.get(b"a-key"), Some(b"a".to_vec()));
+            assert_eq!(db.get(b"b-key"), None);
+            assert_eq!(db.get(b"c-key"), Some(b"c".to_vec()));
         });
     }
 }

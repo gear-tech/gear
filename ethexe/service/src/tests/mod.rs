@@ -555,7 +555,7 @@ async fn mailbox() {
     // adds one block of distance). Schedule expiries are computed against
     // that synthetic height.
     let wake_expiry = block.header.height - 2 + 100;
-    let expiry = block.header.height - 2 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
+    let expiry = block.header.height - 2 + ethexe_common::MAILBOX_VALIDITY_VERSION_2.get();
 
     let expected_schedule = std::collections::BTreeMap::from_iter([
         (

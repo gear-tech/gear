@@ -4,8 +4,8 @@
 use crate::{
     TransitionController,
     state::{
-        ActiveProgram, Dispatch, Expiring, MAILBOX_VALIDITY, MailboxMessage, ModifiableStorage,
-        Program, ProgramState, Storage,
+        ActiveProgram, Dispatch, Expiring, MailboxMessage, ModifiableStorage, Program,
+        ProgramState, Storage,
     },
 };
 use alloc::{
@@ -132,6 +132,7 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
         }
 
         let message_type = self.message_type;
+        let mailbox_validity = self.controller.transitions.cfg().mailbox_validity;
 
         self.controller
             .update_state(dispatch.source(), |state, storage, transitions| {
@@ -168,7 +169,7 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                     });
                 } else {
                     let expiry = transitions.schedule_task(
-                        MAILBOX_VALIDITY.try_into().expect("infallible"),
+                        mailbox_validity,
                         ScheduledTask::RemoveFromMailbox(
                             (dispatch.source(), dispatch.destination()),
                             dispatch.id(),
