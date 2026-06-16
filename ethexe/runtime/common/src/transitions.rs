@@ -17,6 +17,7 @@ use gprimitives::{ActorId, CodeId, H256};
 pub struct TransitionsConfig {
     pub block_height: u32,
     pub mailbox_validity: NonZero<u32>,
+    pub event_destinations_autoreply: bool,
 }
 
 impl Default for TransitionsConfig {
@@ -24,6 +25,7 @@ impl Default for TransitionsConfig {
         Self {
             block_height: 0,
             mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+            event_destinations_autoreply: false,
         }
     }
 }

@@ -4,8 +4,8 @@
 use crate::{
     TransitionController,
     state::{
-        ActiveProgram, Dispatch, Expiring, MailboxMessage, ModifiableStorage, Program,
-        ProgramState, Storage,
+        ActiveProgram, Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
+        Program, ProgramState, Storage,
     },
 };
 use alloc::{
@@ -26,13 +26,23 @@ use gear_core::{
     pages::{GearPage, WasmPage, num_traits::Zero as _, numerated::tree::IntervalsTree},
     reservation::GasReserver,
 };
-use gear_core_errors::SignalCode;
+use gear_core_errors::{SignalCode, SuccessReplyReason};
 use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
 use gsys::GasMultiplier;
 
 /// Maximum duration for gr_wait_up_to in blocks,
 /// when not enough gas was provided for the requested duration.
 pub const WAIT_UP_TO_SAFE_DURATION: u32 = 64;
+
+const SAILS_EVENT_DESTINATION: ActorId = ActorId::new([0; 32]);
+const ETHEREUM_EVENT_DESTINATION: ActorId = ActorId::new([u8::MAX; 32]);
+
+fn is_event_destination(destination: ActorId) -> bool {
+    matches!(
+        destination,
+        SAILS_EVENT_DESTINATION | ETHEREUM_EVENT_DESTINATION
+    )
+}
 
 // Handles unprocessed journal notes during chunk processing.
 pub struct NativeJournalHandler<'a, S: Storage + ?Sized> {
@@ -133,10 +143,17 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
 
         let message_type = self.message_type;
         let mailbox_validity = self.controller.transitions.cfg().mailbox_validity;
+        let event_destinations_autoreply = self
+            .controller
+            .transitions
+            .cfg()
+            .event_destinations_autoreply
+            && is_event_destination(dispatch.destination());
 
         self.controller
             .update_state(dispatch.source(), |state, storage, transitions| {
                 let value = dispatch.value();
+                let destination = dispatch.destination();
 
                 if !value.is_zero() {
                     state.balance = state.balance.checked_sub(value).expect(
@@ -149,6 +166,31 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                             .checked_sub(i128::try_from(value).expect("value fits into i128"))
                             .expect("Insufficient balance: underflow in transition.value_to_receive -= dispatch.value()");
                     });
+                }
+
+                if event_destinations_autoreply {
+                    transitions.modify_transition(dispatch.source(), |transition| {
+                        transition.claims.push(ethexe_common::gear::ValueClaim {
+                            message_id: dispatch.id(),
+                            destination,
+                            value,
+                        });
+                    });
+
+                    let reply = Dispatch::reply(
+                        dispatch.id(),
+                        destination,
+                        PayloadLookup::empty(),
+                        0,
+                        SuccessReplyReason::Auto,
+                        message_type,
+                        false,
+                    );
+
+                    let queue = state.queue_from_msg_type(message_type);
+                    queue.modify_queue(storage, |queue| queue.queue(reply));
+
+                    return;
                 }
 
                 if let Ok(non_zero_delay) = delay.try_into() {
@@ -860,11 +902,15 @@ impl Limiter {
 
 #[cfg(test)]
 mod tests {
-    use gear_core::message::{DispatchKind, Message as CoreMessage, StoredMessage};
+    use ethexe_common::{ProgramStates, StateHashWithQueueSize};
+    use gear_core::{
+        ids::prelude::MessageIdExt,
+        message::{DispatchKind, Message as CoreMessage, ReplyCode, StoredMessage},
+    };
 
     use super::*;
 
-    use crate::state::MemStorage;
+    use crate::{InBlockTransitions, TransitionsConfig, state::MemStorage};
 
     fn init_setup(
         exec_balance: u128,
@@ -899,6 +945,122 @@ mod tests {
             call_reply: false,
             limiter,
         }
+    }
+
+    fn dispatch_to(destination: ActorId, value: u128) -> CoreDispatch {
+        CoreDispatch::new(
+            DispatchKind::Handle,
+            CoreMessage::new(
+                MessageId::from(10),
+                ActorId::from(7),
+                destination,
+                Default::default(),
+                None,
+                value,
+                None,
+            ),
+        )
+    }
+
+    fn handle_user_dispatch(
+        destination: ActorId,
+        event_destinations_autoreply: bool,
+    ) -> (MemStorage, ProgramState) {
+        let storage = MemStorage::default();
+        let source = ActorId::from(7);
+        let mut state = ProgramState::zero();
+        state.balance = 100;
+        let state_hash = storage.write_program_state(state);
+        let states = ProgramStates::from_iter([(
+            source,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
+            },
+        )]);
+        let cfg = TransitionsConfig {
+            event_destinations_autoreply,
+            ..Default::default()
+        };
+        let mut transitions = InBlockTransitions::new(cfg, states, Default::default());
+        let gas_allowance_counter = GasAllowanceCounter::new(1_000_000);
+        let mut out_of_gas = false;
+        let mut outgoing_messages_limiter = 10;
+        let mut outgoing_messages_bytes_limiter = 1024;
+        let mut call_reply_limiter = 10;
+
+        {
+            let mut handler = NativeJournalHandler {
+                program_id: source,
+                message_type: MessageType::Canonical,
+                call_reply: false,
+                controller: TransitionController {
+                    storage: &storage,
+                    transitions: &mut transitions,
+                },
+                gas_allowance_counter: &gas_allowance_counter,
+                chunk_gas_limit: 1_000_000,
+                out_of_gas: &mut out_of_gas,
+                outgoing_messages_limiter: &mut outgoing_messages_limiter,
+                outgoing_messages_bytes_limiter: &mut outgoing_messages_bytes_limiter,
+                call_reply_limiter: &mut call_reply_limiter,
+            };
+
+            handler.send_dispatch(MessageId::from(9), dispatch_to(destination, 11), 0, None);
+        }
+
+        let transition = transitions.modifications_mut().remove(&source).unwrap();
+        let state_hash = transitions.state_of(&source).unwrap().hash;
+        let state = storage.program_state(state_hash).unwrap();
+
+        if event_destinations_autoreply {
+            assert!(transition.messages.is_empty());
+            assert_eq!(transition.claims.len(), 1);
+            assert_eq!(transition.claims[0].message_id, MessageId::from(10));
+            assert_eq!(transition.claims[0].destination, destination);
+            assert_eq!(transition.claims[0].value, 11);
+        } else {
+            assert_eq!(transition.messages.len(), 1);
+            assert!(transition.claims.is_empty());
+        }
+
+        (storage, state)
+    }
+
+    #[test]
+    fn event_destination_messages_are_auto_replied_without_mailbox() {
+        for destination in [SAILS_EVENT_DESTINATION, ETHEREUM_EVENT_DESTINATION] {
+            let (storage, state) = handle_user_dispatch(destination, true);
+
+            assert!(state.mailbox_hash.is_empty());
+            assert_eq!(state.balance, 89);
+
+            let mut queue = state.canonical_queue.query(&storage).unwrap();
+            let reply = queue.dequeue().expect("auto reply must be queued");
+            assert_eq!(reply.id, MessageId::generate_reply(MessageId::from(10)));
+            assert_eq!(reply.kind, DispatchKind::Reply);
+            assert_eq!(reply.source, destination);
+            assert_eq!(reply.value, 0);
+            assert_eq!(reply.message_type, MessageType::Canonical);
+            assert!(!reply.call);
+
+            let details = reply.details.unwrap().to_reply_details().unwrap();
+            assert_eq!(details.to_message_id(), MessageId::from(10));
+            assert_eq!(
+                details.to_reply_code(),
+                ReplyCode::Success(SuccessReplyReason::Auto)
+            );
+            assert!(queue.is_empty());
+        }
+    }
+
+    #[test]
+    fn event_destination_messages_keep_legacy_mailbox_when_disabled() {
+        let (_storage, state) = handle_user_dispatch(SAILS_EVENT_DESTINATION, false);
+
+        assert!(!state.mailbox_hash.is_empty());
+        assert!(state.canonical_queue.is_empty());
     }
 
     #[test]
