@@ -145,7 +145,7 @@ pub use promise::BoundPromiseSink;
 
 use core::num::NonZero;
 use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, Schedule,
+    CodeAndIdUnchecked, MAILBOX_VALIDITY_VERSION_2, ProgramStates, Schedule,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
     gear::Message,
@@ -154,7 +154,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_runtime_common::{
     FinalizedBlockTransitions, InBlockTransitions, ScheduleHandler, TransitionController,
-    state::Storage,
+    TransitionsConfig, state::Storage,
 };
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
@@ -316,9 +316,17 @@ impl Processor {
             injected_transactions,
             gas_allowance,
             events,
+            mailbox_validity,
+            event_destinations_autoreply,
         } = executable;
 
-        let mut transitions = InBlockTransitions::new(height, program_states, schedule);
+        let cfg = TransitionsConfig {
+            block_height: height,
+            mailbox_validity,
+            event_destinations_autoreply,
+        };
+
+        let mut transitions = InBlockTransitions::new(cfg, program_states, schedule);
 
         // First step: push injected to queues and handle block events.
         transitions =
@@ -389,7 +397,7 @@ impl Processor {
 
     fn process_tasks(&mut self, mut transitions: InBlockTransitions) -> InBlockTransitions {
         let tasks = transitions.take_actual_tasks();
-        let block_height = transitions.block_height();
+        let block_height = transitions.cfg().block_height;
 
         log::trace!("Running schedule for #{block_height}: tasks are {tasks:?}");
 
@@ -435,6 +443,8 @@ pub struct ExecutableData {
     pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
     pub gas_allowance: Option<u64>,
     pub events: Vec<BlockRequestEvent>,
+    pub mailbox_validity: NonZero<u32>,
+    pub event_destinations_autoreply: bool,
 }
 
 #[cfg(test)]
@@ -448,6 +458,8 @@ impl Default for ExecutableData {
             injected_transactions: vec![],
             gas_allowance: Some(ethexe_common::DEFAULT_BLOCK_GAS_LIMIT),
             events: vec![],
+            mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+            event_destinations_autoreply: false,
         }
     }
 }
@@ -513,7 +525,13 @@ impl OverlaidProcessor {
             return Err(ExecuteForReplyError::ProgramNotInitialized(program_id));
         }
 
-        let transitions = InBlockTransitions::new(height, program_states, Schedule::default());
+        let cfg = TransitionsConfig {
+            block_height: height,
+            mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+            event_destinations_autoreply: false,
+        };
+
+        let transitions = InBlockTransitions::new(cfg, program_states, Schedule::default());
 
         let transitions = self.0.handle_injected_and_events(
             transitions,

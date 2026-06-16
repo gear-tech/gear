@@ -318,7 +318,7 @@ impl-codec = { version = "0.6", default-features = false, features = ["std"] }
 impl-serde = { version = "0.4" }
 indexmap = { version = "2", features = ["serde"] }
 ipnet = { version = "2" }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
+itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
@@ -600,7 +600,7 @@ impl-codec = { version = "0.6", default-features = false, features = ["std"] }
 impl-serde = { version = "0.4" }
 indexmap = { version = "2", features = ["serde"] }
 ipnet = { version = "2" }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
+itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
@@ -775,6 +775,7 @@ errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
@@ -798,6 +799,7 @@ errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
@@ -821,6 +823,7 @@ errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
@@ -844,6 +847,7 @@ errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 linux-raw-sys = { version = "0.11", default-features = false, features = ["auxvec", "elf", "errno", "general", "ioctl", "no_std", "prctl"] }
@@ -867,6 +871,7 @@ errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
@@ -888,6 +893,7 @@ errno = { version = "0.3" }
 hickory-proto = { version = "0.25", default-features = false, features = ["mdns", "tokio"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 librocksdb-sys = { version = "0.11", features = ["jemalloc", "snappy"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }

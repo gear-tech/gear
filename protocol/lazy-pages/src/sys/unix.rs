@@ -32,7 +32,27 @@ cfg_if! {
         }
     } else if #[cfg(all(target_os = "linux", target_arch = "aarch64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
-            let esr = linux_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
+            let esr = unix_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
+            // Use the WNR bit to determine if it was a write access.
+            // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-?lang=en#fieldset_0-24_0_15-6_6
+            let is_wnr = (esr & 0b100_0000) != 0;
+            Some(is_wnr)
+        }
+    } else if #[cfg(all(target_os = "android", target_arch = "aarch64"))] {
+        unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
+            /// `libc::ucontext_t` is bit different on Android, it has padding.
+            /// See https://android.googlesource.com/platform/bionic/+/refs/tags/ndk-r29/libc/include/sys/ucontext.h#386
+            #[repr(C)]
+            pub struct android_ucontext_t {
+                pub uc_flags: nix::libc::c_ulong,
+                pub uc_link: *mut nix::libc::ucontext_t,
+                pub uc_stack: nix::libc::stack_t,
+                pub uc_sigmask: nix::libc::sigset_t,
+                pub __padding: [u8; 128 - size_of::<nix::libc::sigset_t>()],
+                pub uc_mcontext: nix::libc::mcontext_t,
+            }
+            let ucontext = ucontext as *mut android_ucontext_t;
+            let esr = unix_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
             // Use the WNR bit to determine if it was a write access.
             // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-?lang=en#fieldset_0-24_0_15-6_6
             let is_wnr = (esr & 0b100_0000) != 0;
@@ -254,8 +274,11 @@ unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void)
     }
 }
 
-#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-mod linux_aarch64 {
+#[cfg(all(
+    any(target_os = "linux", target_os = "android"),
+    target_arch = "aarch64"
+))]
+mod unix_aarch64 {
     use std::{ptr, slice};
 
     const ESR_MAGIC: u32 = u32::from_be_bytes(*b"ESR\x01");
@@ -269,7 +292,7 @@ mod linux_aarch64 {
 
     /// Scan through the 4 KiB __reserved buffer looking for an `esr_context` record.
     /// Returns `Some(esr)` if we find a record whose magic == ESR_MAGIC, else `None`.
-    /// See: https://github.com/torvalds/linux/blob/7f9039c524a351c684149ecf1b3c5145a0dff2fe/arch/arm64/include/uapi/asm/sigcontext.h#L40
+    /// See: https://github.com/torvalds/linux/blob/v7.0/arch/arm64/include/uapi/asm/sigcontext.h#L40
     pub fn get_esr(mcontext: &nix::libc::mcontext_t) -> Option<usize> {
         // SAFETY: See `mcontext_t` definition:
         // ```C

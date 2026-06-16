@@ -48,6 +48,7 @@ async fn constructor() {
         commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
         batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
         genesis_state_dump: None,
+        db_cleanup: false,
     };
 
     let eth_cfg = EthereumConfig {

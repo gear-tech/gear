@@ -99,6 +99,11 @@ impl KVDatabase for KVOverlay {
         }
     }
 
+    unsafe fn delete(&self, key: &[u8]) {
+        unsafe { self.mem.delete(key) };
+        self.erase(key.to_vec());
+    }
+
     fn contains(&self, key: &[u8]) -> bool {
         KVDatabase::contains(&self.mem, key)
             || (!self.is_erased(key) && KVDatabase::contains(&*self.db, key))

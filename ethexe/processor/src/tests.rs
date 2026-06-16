@@ -4,8 +4,8 @@
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
-    PrivateKey, ScheduledTask, SignedMessage,
+    DEFAULT_BLOCK_GAS_LIMIT, MAILBOX_VALIDITY_VERSION_2, OUTGOING_MESSAGES_SOFT_LIMIT,
+    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PrivateKey, ScheduledTask, SignedMessage,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
@@ -16,7 +16,8 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_runtime_common::{
-    CODES_INSTRUMENTATION_VERSION, RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue,
+    CODES_INSTRUMENTATION_VERSION, RUNTIME_ID, TransitionsConfig, WAIT_UP_TO_SAFE_DURATION,
+    state::MessageQueue,
 };
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
@@ -104,7 +105,11 @@ mod utils {
     }
 
     pub fn setup_handler(db: Database, height: u32) -> ProcessingHandler {
-        let transitions = InBlockTransitions::new(height, Default::default(), Default::default());
+        let cfg = TransitionsConfig {
+            block_height: height,
+            ..Default::default()
+        };
+        let transitions = InBlockTransitions::new(cfg, Default::default(), Default::default());
 
         ProcessingHandler::new(db, transitions)
     }
@@ -1000,7 +1005,7 @@ async fn many_waits() {
     // Hack: change block height to wake up tasks.
     let transitions = handler
         .transitions
-        .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
+        .tap_mut(|ts| ts.cfg_mut().block_height = wake_block.header.height);
     let mut transitions = processor.process_tasks(transitions);
     // Hack: nullify modifications to avoid modifications limit.
     transitions.modifications_mut().clear();
@@ -1153,7 +1158,7 @@ async fn cross_height_wake_drain() {
     // `process_tasks` must still drain the wakes despite the height gap.
     let transitions = handler
         .transitions
-        .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
+        .tap_mut(|ts| ts.cfg_mut().block_height = wake_block.header.height);
     let mut transitions = processor.process_tasks(transitions);
     transitions.modifications_mut().clear();
     let transitions = processor
@@ -1298,9 +1303,13 @@ async fn overlay_execution() {
     // programs already have some state.
 
     let block2 = chain.blocks[2].to_simple();
+    let cfg = TransitionsConfig {
+        block_height: block2.header.height,
+        ..Default::default()
+    };
     let mut handler = ProcessingHandler::new(
         processor.db.clone(),
-        InBlockTransitions::new(block2.header.height, states, schedule),
+        InBlockTransitions::new(cfg, states, schedule),
     );
 
     // Manually add messages to programs queues
@@ -2284,6 +2293,8 @@ async fn injected_and_events_then_tasks_then_queues() {
         injected_transactions: vec![verified_injected],
         events: canonical_event,
         gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+        mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+        event_destinations_autoreply: false,
     };
     let FinalizedBlockTransitions { transitions, .. } = processor
         .process_programs(executable, Some(promise_sink))
@@ -2397,7 +2408,7 @@ async fn call_wait_up_to_with_huge_duration() {
     // Huge duration
     let wat = get_wat(0xFFFFFFFF);
     let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
-    let block_height = transitions.block_height();
+    let block_height = transitions.cfg().block_height;
     let FinalizedBlockTransitions { schedule, .. } = transitions.finalize();
     let (block, tasks) = schedule.into_iter().next().unwrap();
     assert_eq!(
@@ -2412,7 +2423,7 @@ async fn call_wait_up_to_with_huge_duration() {
     let duration = WAIT_UP_TO_SAFE_DURATION + 20;
     let wat = get_wat(duration);
     let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
-    let block_height = transitions.block_height();
+    let block_height = transitions.cfg().block_height;
     let FinalizedBlockTransitions { schedule, .. } = transitions.finalize();
     let (block, tasks) = schedule.into_iter().next().unwrap();
     assert_eq!(
