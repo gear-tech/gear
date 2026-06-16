@@ -129,10 +129,11 @@ async fn find_value_claim_proofs(
                 message_ids
                     .iter()
                     .map(|message_id| {
-                        let leaf_index = actions
+                        let leaf_index_usize = actions
                             .iter()
                             .position(|action| action.message_id() == *message_id)
                             .expect("checked above");
+                        let leaf_index: u32 = leaf_index_usize.try_into().expect("checked above");
                         let merkle_proof = binary_merkle_tree::merkle_proof_raw::<
                             sp_runtime::traits::Keccak256,
                             _,
@@ -144,7 +145,7 @@ async fn find_value_claim_proofs(
                             state_hash,
                             merkle_proof.number_of_leaves.into(),
                             merkle_proof.leaf_index.into(),
-                            actions[leaf_index].clone(),
+                            actions[leaf_index_usize].clone(),
                             merkle_proof.proof,
                         )
                     })
@@ -663,7 +664,7 @@ async fn mailbox() {
     // adds one block of distance). Schedule expiries are computed against
     // that synthetic height.
     let wake_expiry = block.header.height - 2 + 100;
-    let expiry = block.header.height - 2 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
+    let expiry = block.header.height - 2 + ethexe_common::MAILBOX_VALIDITY_VERSION_2.get();
 
     let expected_schedule = std::collections::BTreeMap::from_iter([
         (

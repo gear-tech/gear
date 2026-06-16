@@ -34,10 +34,6 @@ use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 
-/// 3h validity in mailbox for 12s blocks.
-// TODO (breathx): WITHIN THE PR
-pub const MAILBOX_VALIDITY: u32 = 54_000;
-
 #[allow(unused)]
 fn shortname<S: Any>() -> &'static str {
     core::any::type_name::<S>()

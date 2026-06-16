@@ -327,6 +327,9 @@ impl ProgramServer for ProgramApi {
             .map(|action| H256(action.to_digest().0))
             .collect();
 
+        let leaf_index: u32 = leaf_index
+            .try_into()
+            .map_err(|_| errors::db("Outgoing action index exceeds u32 range"))?;
         let merkle_proof = binary_merkle_tree::merkle_proof_raw::<Keccak256, _>(
             outgoing_actions_hashes,
             leaf_index,

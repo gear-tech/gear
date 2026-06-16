@@ -22,3 +22,14 @@ members = ["foo", "bar"]
 
 [workspace.metadata.gbuild]
 programs = ["foo", "bar"]
+
+# `time 0.3.48` breaks `tracing-subscriber` compilation with a false-positive
+# E0119 (time-rs/time#783); pin the last good release — the patch shadows the
+# whole semver-compatible 0.3.x range on crates.io.
+# TODO: drop this patch once a fixed time (> 0.3.48, time-rs/time#784) ships.
+[patch.crates-io]
+time = { git = "https://github.com/time-rs/time.git", tag = "v0.3.47" }
+
+[patch."https://github.com/paritytech/polkadot-sdk.git"]
+sp-runtime-interface-proc-macro = { path = "../../../substrate/sp-runtime-interface-proc-macro" }
+sp-wasm-interface = { path = "../../../substrate/sp-wasm-interface" }

@@ -482,7 +482,7 @@ mod tests {
             Operation::AdvanceTillEthereumBlock {
                 block_hash: H256::from_low_u64_be(0xEB00 + height),
             },
-            Operation::ProcessQueues { gas_allowance: 0 },
+            Operation::ProcessQueuesV2 { gas_allowance: 0 },
         ])
     }
 

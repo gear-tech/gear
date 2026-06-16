@@ -17,201 +17,196 @@ publish = false
 # they have features like `runtime-benchmarks` and `try-runtime`
 # so we cannot, for example, run `cargo build -p gear-cli` without `--all-features`
 
-[dependencies.frame-executive]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.frame-executive]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.frame-support]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.frame-support]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 features = ["experimental"]
 
-[dependencies.frame-try-runtime]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.frame-try-runtime]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-authority-discovery]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-authority-discovery]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-authorship]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-authorship]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-babe]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-babe]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-bags-list]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-bags-list]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-balances]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-balances]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-bounties]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-bounties]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-child-bounties]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-child-bounties]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-conviction-voting]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-conviction-voting]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-election-provider-multi-phase]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-election-provider-multi-phase]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-grandpa]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-grandpa]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-identity]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-identity]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-im-online]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-im-online]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-multisig]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-multisig]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-nomination-pools]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-nomination-pools]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-offences]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-offences]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-preimage]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-preimage]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-proxy]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-proxy]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-ranked-collective]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-ranked-collective]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-referenda]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-referenda]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-scheduler]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-scheduler]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-session]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-session]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["historical", "std"]
 
-[dependencies.pallet-sudo]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-sudo]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-timestamp]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-timestamp]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-transaction-payment]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-transaction-payment]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-treasury]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-treasury]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-utility]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-utility]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-vesting]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-vesting]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-whitelist]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-whitelist]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["std"]
 
-[dependencies.sc-client-db]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.sc-client-db]
+git = "https://github.com/paritytech/polkadot-sdk.git"
+rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c"
 default-features = false
 features = ["rocksdb", "test-helpers"]
-
-[dependencies.sc-service]
-git = "https://github.com/gear-tech/polkadot-sdk.git"
-branch = "gear-polkadot-stable2409-updated-wasmtime"
-features = ["test-helpers"]
 
 ### BEGIN HAKARI SECTION
 [target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies]
@@ -241,14 +236,14 @@ ark-serialize = { version = "0.4", default-features = false, features = ["derive
 ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 base64 = { version = "0.22" }
-binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
+binary-merkle-tree = { version = "16", default-features = false, features = ["std"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 bitvec = { version = "1" }
 blake2 = { version = "0.10" }
 blake2b_simd = { version = "1", default-features = false, features = ["std"] }
 bounded-collections = { version = "0.2", default-features = false, features = ["std"] }
-bp-header-chain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-bp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
+bp-header-chain = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+bp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 bs58 = { version = "0.5", features = ["check"] }
 bumpalo = { version = "3", features = ["allocator-api2"] }
 byte-slice-cast = { version = "1", default-features = false, features = ["std"] }
@@ -260,6 +255,7 @@ clap_builder = { version = "4", default-features = false, features = ["color", "
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
 cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
+cranelift-codegen = { version = "0.131", default-features = false, features = ["host-arch", "pulley", "std", "timing", "unwind"] }
 crc32fast = { version = "1" }
 crossbeam-channel = { version = "0.5" }
 crossbeam-epoch = { version = "0.9" }
@@ -269,7 +265,7 @@ crypto-common = { version = "0.1", default-features = false, features = ["getran
 curve25519-dalek = { version = "4", features = ["digest", "legacy_compatibility"] }
 data-encoding = { version = "2" }
 der = { version = "0.7", default-features = false, features = ["oid", "pem", "std"] }
-derive_more = { version = "2", default-features = false, features = ["full", "std"] }
+derive_more-f595c2ba2a3f28df = { package = "derive_more", version = "2", default-features = false, features = ["full", "std"] }
 digest-274715c4dabd11b0 = { package = "digest", version = "0.9", default-features = false, features = ["std"] }
 digest-93f6ce9d446188ac = { package = "digest", version = "0.10", features = ["mac", "oid", "std"] }
 ecdsa = { version = "0.16", default-features = false, features = ["pem", "serde", "signing", "std", "verifying"] }
@@ -287,10 +283,10 @@ fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
 fnv = { version = "1" }
 foldhash = { version = "0.2", default-features = false, features = ["std"] }
 form_urlencoded = { version = "1" }
-frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16", default-features = false, features = ["current", "std"] }
+frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16" }
 frame-metadata-e761569b921b4a02 = { package = "frame-metadata", version = "23", default-features = false, features = ["current", "std"] }
-frame-metadata-hash-extension = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-frame-system-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
+frame-metadata-hash-extension = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 futures = { version = "0.3", features = ["bilock", "thread-pool", "unstable"] }
 futures-channel = { version = "0.3", features = ["sink", "unstable"] }
 futures-core = { version = "0.3", features = ["unstable"] }
@@ -354,16 +350,15 @@ num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 numerated = { version = "2", default-features = false, features = ["mock"] }
 once_cell = { version = "1" }
-pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-pallet-staking-reward-fn = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-pallet-staking-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
+pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+pallet-staking-reward-fn = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+pallet-staking-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 parity-bip39 = { version = "2", features = ["rand"] }
 parity-scale-codec = { version = "3", features = ["bytes", "derive", "full", "max-encoded-len"] }
 parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 pbkdf2 = { version = "0.12", features = ["std"] }
 percent-encoding = { version = "2" }
-petgraph = { version = "0.6" }
 pkcs8 = { version = "0.10", default-features = false, features = ["pem", "std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
@@ -389,11 +384,9 @@ regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
 ring = { version = "0.17", features = ["std"] }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
-rustc-demangle = { version = "0.1", default-features = false, features = ["std"] }
 rustc-hash-dff4ba8e3ae991db = { package = "rustc-hash", version = "1" }
 rustc-hash-f595c2ba2a3f28df = { package = "rustc-hash", version = "2" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
-sc-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
 scale-bits = { version = "0.7" }
 scale-decode = { version = "0.16" }
 scale-encode = { version = "0.10" }
@@ -414,52 +407,48 @@ sha3 = { version = "0.10", features = ["asm"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
 soketto = { version = "0.8", features = ["http"] }
-sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["frame-metadata"] }
-sp-application-crypto = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-arithmetic = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-authority-discovery = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-block-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-consensus-babe = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-consensus-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-consensus-slots = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-core = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-crypto-ec-utils = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["bls12-381", "std"] }
-sp-crypto-hashing-35ef219cb4e8d0b3 = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
+sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["frame-metadata"] }
+sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-arithmetic = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-block-builder = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-consensus-slots = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-crypto-ec-utils = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["bls12-381", "std"] }
 sp-crypto-hashing-c65f7effa3be6d31 = { package = "sp-crypto-hashing", version = "0.1", default-features = false, features = ["std"] }
-sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-genesis-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-inherents = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-io = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["disable_allocator", "disable_oom", "disable_panic_handler"] }
-sp-keyring = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-keystore = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-metadata-ir = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-sp-npos-elections = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-sp-offchain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-runtime-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["disable_target_static_assertions"] }
-sp-session = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-state-machine = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-std = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-storage = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-timestamp = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-sp-tracing = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-transaction-pool = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-trie = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-version = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-wasm-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["wasmtime"] }
-sp-wasm-interface-common = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-sp-weights = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
+sp-crypto-hashing-d9686075916df9f5 = { package = "sp-crypto-hashing", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-externalities = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-genesis-builder = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-inherents = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["disable_oom", "disable_panic_handler", "improved_panic_error_reporting"] }
+sp-keyring = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-keystore = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-metadata-ir = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+sp-npos-elections = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+sp-offchain = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["disable_target_static_assertions"] }
+sp-session = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-state-machine = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-std = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-storage = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-timestamp = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+sp-tracing = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-transaction-pool = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-trie = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-version = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-weights = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 spki = { version = "0.7", default-features = false, features = ["pem", "std"] }
 ss58-registry = { version = "1", default-features = false, features = ["std"] }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
 strum-754bda37e0fb3874 = { package = "strum", version = "0.27", default-features = false, features = ["derive", "std"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
-substrate-bip39 = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
+substrate-bip39 = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 subtle = { version = "2" }
 subxt-metadata = { version = "0.44", default-features = false, features = ["std"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
-target-lexicon = { version = "0.13", features = ["std"] }
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tiny-keccak = { version = "2", features = ["keccak", "shake"] }
@@ -483,19 +472,13 @@ unicode-normalization = { version = "0.1", default-features = false, features = 
 unsigned-varint-c38e5c1d305a1b54 = { package = "unsigned-varint", version = "0.8", default-features = false, features = ["asynchronous_codec", "codec"] }
 unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7", default-features = false, features = ["asynchronous_codec", "futures"] }
 url = { version = "2", features = ["serde"] }
-uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
-wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
-wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
-wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
-wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["virtual_memory"] }
-wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
-wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
-wasmtime = { version = "44", features = ["winch"] }
-wasmtime-environ = { version = "44", default-features = false, features = ["backtrace", "compile", "component-model", "demangle", "gc-drc", "gc-null", "stack-switching", "threads"] }
-wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
-wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
+wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasmi = { version = "0.38", features = ["extra-checks"] }
+wasmparser = { version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
+wasmtime = { version = "44", default-features = false, features = ["anyhow", "cache", "cranelift", "parallel-compilation", "pooling-allocator", "winch"] }
+wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "serde", "std"] }
+wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["pulley"] }
 winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
@@ -530,14 +513,14 @@ ark-serialize = { version = "0.4", default-features = false, features = ["derive
 ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 base64 = { version = "0.22" }
-binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
+binary-merkle-tree = { version = "16", default-features = false, features = ["std"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 bitvec = { version = "1" }
 blake2 = { version = "0.10" }
 blake2b_simd = { version = "1", default-features = false, features = ["std"] }
 bounded-collections = { version = "0.2", default-features = false, features = ["std"] }
-bp-header-chain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-bp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
+bp-header-chain = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+bp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 bs58 = { version = "0.5", features = ["check"] }
 bumpalo = { version = "3", features = ["allocator-api2"] }
 byte-slice-cast = { version = "1", default-features = false, features = ["std"] }
@@ -550,6 +533,8 @@ clap_builder = { version = "4", default-features = false, features = ["color", "
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
 cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
+cranelift-codegen = { version = "0.131", default-features = false, features = ["host-arch", "pulley", "std", "timing", "unwind"] }
+cranelift-codegen-meta = { version = "0.131", default-features = false, features = ["pulley"] }
 crc32fast = { version = "1" }
 crossbeam-channel = { version = "0.5" }
 crossbeam-epoch = { version = "0.9" }
@@ -559,7 +544,8 @@ crypto-common = { version = "0.1", default-features = false, features = ["getran
 curve25519-dalek = { version = "4", features = ["digest", "legacy_compatibility"] }
 data-encoding = { version = "2" }
 der = { version = "0.7", default-features = false, features = ["oid", "pem", "std"] }
-derive_more = { version = "2", default-features = false, features = ["full", "std"] }
+derive_more-2247a326473123a6 = { package = "derive_more", version = "0.99" }
+derive_more-f595c2ba2a3f28df = { package = "derive_more", version = "2", default-features = false, features = ["full", "std"] }
 digest-274715c4dabd11b0 = { package = "digest", version = "0.9", default-features = false, features = ["std"] }
 digest-93f6ce9d446188ac = { package = "digest", version = "0.10", features = ["mac", "oid", "std"] }
 displaydoc = { version = "0.2" }
@@ -578,11 +564,11 @@ fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
 fnv = { version = "1" }
 foldhash = { version = "0.2", default-features = false, features = ["std"] }
 form_urlencoded = { version = "1" }
-frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16", default-features = false, features = ["current", "std"] }
+frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16" }
 frame-metadata-e761569b921b4a02 = { package = "frame-metadata", version = "23", default-features = false, features = ["current", "std"] }
-frame-metadata-hash-extension = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-frame-support-procedural = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["experimental", "std"] }
-frame-system-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
+frame-metadata-hash-extension = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+frame-support-procedural = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["experimental", "std"] }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 futures = { version = "0.3", features = ["bilock", "thread-pool", "unstable"] }
 futures-channel = { version = "0.3", features = ["sink", "unstable"] }
 futures-core = { version = "0.3", features = ["unstable"] }
@@ -646,17 +632,16 @@ num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 numerated = { version = "2", default-features = false, features = ["mock"] }
 once_cell = { version = "1" }
-pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-pallet-staking-reward-fn = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-pallet-staking-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
+pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+pallet-staking-reward-fn = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+pallet-staking-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 parity-bip39 = { version = "2", features = ["rand"] }
 parity-scale-codec = { version = "3", features = ["bytes", "derive", "full", "max-encoded-len"] }
 parity-scale-codec-derive = { version = "3", default-features = false, features = ["max-encoded-len"] }
 parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 pbkdf2 = { version = "0.12", features = ["std"] }
 percent-encoding = { version = "2" }
-petgraph = { version = "0.6" }
 pkcs8 = { version = "0.10", default-features = false, features = ["pem", "std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
@@ -682,11 +667,9 @@ regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
 ring = { version = "0.17", features = ["std"] }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
-rustc-demangle = { version = "0.1", default-features = false, features = ["std"] }
 rustc-hash-dff4ba8e3ae991db = { package = "rustc-hash", version = "1" }
 rustc-hash-f595c2ba2a3f28df = { package = "rustc-hash", version = "2" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
-sc-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
 scale-bits = { version = "0.7" }
 scale-decode = { version = "0.16" }
 scale-encode = { version = "0.10" }
@@ -708,55 +691,51 @@ sha3 = { version = "0.10", features = ["asm"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
 soketto = { version = "0.8", features = ["http"] }
-sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["frame-metadata"] }
-sp-api-proc-macro = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-sp-application-crypto = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-arithmetic = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-authority-discovery = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-block-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-consensus-babe = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-consensus-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-consensus-slots = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-core = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-crypto-ec-utils = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["bls12-381", "std"] }
-sp-crypto-hashing-35ef219cb4e8d0b3 = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
+sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["frame-metadata"] }
+sp-api-proc-macro = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-arithmetic = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-block-builder = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-consensus-slots = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-crypto-ec-utils = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["bls12-381", "std"] }
 sp-crypto-hashing-c65f7effa3be6d31 = { package = "sp-crypto-hashing", version = "0.1", default-features = false, features = ["std"] }
-sp-debug-derive = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["force-debug", "std"] }
-sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-genesis-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-inherents = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-io = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["disable_allocator", "disable_oom", "disable_panic_handler"] }
-sp-keyring = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-keystore = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-metadata-ir = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-sp-npos-elections = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-sp-offchain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-runtime-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["disable_target_static_assertions"] }
-sp-session = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-state-machine = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-std = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-storage = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-timestamp = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-sp-tracing = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-transaction-pool = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-trie = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-version = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
-sp-wasm-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", features = ["wasmtime"] }
-sp-wasm-interface-common = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
-sp-weights = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime" }
+sp-crypto-hashing-d9686075916df9f5 = { package = "sp-crypto-hashing", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-debug-derive = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["force-debug", "std"] }
+sp-externalities = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-genesis-builder = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-inherents = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["disable_oom", "disable_panic_handler", "improved_panic_error_reporting"] }
+sp-keyring = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-keystore = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-metadata-ir = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+sp-npos-elections = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+sp-offchain = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["disable_target_static_assertions"] }
+sp-session = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-state-machine = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-std = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-storage = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-timestamp = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+sp-tracing = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-transaction-pool = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-trie = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-version = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-weights = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 spki = { version = "0.7", default-features = false, features = ["pem", "std"] }
 ss58-registry = { version = "1", default-features = false, features = ["std"] }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
 strum-754bda37e0fb3874 = { package = "strum", version = "0.27", default-features = false, features = ["derive", "std"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
-substrate-bip39 = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-updated-wasmtime", default-features = false, features = ["std"] }
+substrate-bip39 = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 subtle = { version = "2" }
 subxt-metadata = { version = "0.44", default-features = false, features = ["std"] }
 syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "full", "visit"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
-target-lexicon = { version = "0.13", features = ["std"] }
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tiny-keccak = { version = "2", features = ["keccak", "shake"] }
@@ -780,19 +759,13 @@ unicode-normalization = { version = "0.1", default-features = false, features = 
 unsigned-varint-c38e5c1d305a1b54 = { package = "unsigned-varint", version = "0.8", default-features = false, features = ["asynchronous_codec", "codec"] }
 unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7", default-features = false, features = ["asynchronous_codec", "futures"] }
 url = { version = "2", features = ["serde"] }
-uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
-wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
-wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
-wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
-wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["virtual_memory"] }
-wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
-wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
-wasmtime = { version = "44", features = ["winch"] }
-wasmtime-environ = { version = "44", default-features = false, features = ["backtrace", "compile", "component-model", "demangle", "gc-drc", "gc-null", "stack-switching", "threads"] }
-wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
-wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["component-model", "gc-drc", "gc-null", "pulley", "stack-switching", "threads"] }
+wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasmi = { version = "0.38", features = ["extra-checks"] }
+wasmparser = { version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
+wasmtime = { version = "44", default-features = false, features = ["anyhow", "cache", "cranelift", "parallel-compilation", "pooling-allocator", "winch"] }
+wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "serde", "std"] }
+wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["pulley"] }
 winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
@@ -813,7 +786,7 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -837,7 +810,7 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -861,7 +834,7 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -885,7 +858,7 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "time", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
@@ -905,7 +878,7 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 security-framework = { version = "3", features = ["OSX_10_14"] }
@@ -927,7 +900,7 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rocksdb = { version = "0.21", default-features = false, features = ["jemalloc", "snappy"] }
-rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "thread", "use-libc"] }
+rustix = { version = "1", features = ["fs", "mm", "param", "process", "termios", "use-libc"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 security-framework = { version = "3", features = ["OSX_10_14"] }
