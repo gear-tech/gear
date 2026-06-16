@@ -905,8 +905,11 @@ mod tests {
 
     use super::*;
 
-    use crate::{InBlockTransitions, TransitionsConfig, state::MemStorage};
-    use crate::transitions::{ETHEREUM_EVENT_DESTINATION, SAILS_EVENT_DESTINATION};
+    use crate::{
+        InBlockTransitions, TransitionsConfig,
+        state::MemStorage,
+        transitions::{ETHEREUM_EVENT_DESTINATION, SAILS_EVENT_DESTINATION},
+    };
 
     fn init_setup(
         exec_balance: u128,
@@ -1160,7 +1163,12 @@ mod tests {
         assert_eq!(reply.id, MessageId::generate_reply(message_id));
         assert_eq!(reply.source, destination);
         assert_eq!(
-            reply.details.unwrap().to_reply_details().unwrap().to_reply_code(),
+            reply
+                .details
+                .unwrap()
+                .to_reply_details()
+                .unwrap()
+                .to_reply_code(),
             ReplyCode::Success(SuccessReplyReason::Auto)
         );
         assert!(queue.is_empty());
