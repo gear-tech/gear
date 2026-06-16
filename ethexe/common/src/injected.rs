@@ -3,12 +3,18 @@
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
+use ark_ec::AffineRepr;
+#[cfg(feature = "shielded")]
+use ark_ec::pairing::Pairing;
+#[cfg(feature = "shielded")]
+use ark_ff::Fp;
+use ark_ff::{BigInteger, PrimeField};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 #[cfg(feature = "shielded")]
 use gear_tdec::{
     Result as TdecResult,
-    bls12_381::{Ciphertext, DkgPublicKey, SharedSecret},
+    bls12_381::{Ciphertext, DkgPublicKey, E as Bls12_381, SharedSecret},
     rand_utils::Rng,
 };
 use gprimitives::{ActorId, H256, MessageId};
@@ -395,9 +401,9 @@ impl TransactionPurgedReason {
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ShieldedFields {
-    pub(crate) destination: ActorId,
-    pub(crate) value: u128,
-    pub(crate) payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
+    pub destination: ActorId,
+    pub value: u128,
+    pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
 }
 
 #[cfg(feature = "shielded")]
@@ -435,6 +441,33 @@ pub struct ShieldedTransaction {
 
 #[cfg(feature = "shielded")]
 impl ShieldedTransaction {
+    pub(crate) fn to_hashable_bytes(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+
+        // /// Helper macro to extend G1Affine or G2Affine point coordinate.
+        // macro_rules! extend_affine_coordinate {
+        //     ($coord:expr) => {{
+        //         let bytes = $coord.into_bigint().to_bytes_be();
+        //         buffer.extend_from_slice(&bytes);
+        //     }};
+        // }
+
+        // extend_affine_coordinate!(self.ciphertext.commitment.x);
+        // extend_affine_coordinate!(self.ciphertext.commitment.y);
+
+        // extend_affine_coordinate!(self.ciphertext.auth_tag.x);
+        // extend_affine_coordinate!(self.ciphertext.auth_tag.y);
+
+        // let v = self.ciphertext.auth_tag.x;
+
+        // buffer.extend(self.ciphertext.ciphertext.as_slice());
+
+        // buffer.extend_from_slice(self.aad.as_ref());
+        // buffer.extend_from_slice(self.reference_block.as_bytes());
+
+        buffer
+    }
+
     /// Constructs blake2b hash over [ShieldedTransaction].
     pub fn to_hash(&self) -> HashOf<Self> {
         todo!()
@@ -505,11 +538,18 @@ impl Transaction {
     }
 }
 
+/// Mirroring [Transaction] type, but stores internally references to
+/// transactions variants.
+///
+/// # Usage
+/// This type must be used to transform [Operation] type into [Option<TransactionRef>].
+///
+/// [Operation]: crate::malachite::Operation
 #[cfg(feature = "shielded")]
 #[derive(Clone, Copy)]
-pub enum TransactionRef<'t> {
-    Injected(&'t SignedInjectedTransaction),
-    Shielded(&'t SignedShieldedTransaction),
+pub enum TransactionRef<'op> {
+    Injected(&'op SignedInjectedTransaction),
+    Shielded(&'op SignedShieldedTransaction),
 }
 
 #[cfg(feature = "shielded")]
@@ -575,10 +615,63 @@ mod digest_hex {
 
 #[cfg(all(test, feature = "mock"))]
 mod tests {
+    use std::ops::Mul;
+
+    use gear_tdec::bls12_381::Fr;
     use gsigner::PrivateKey;
 
     use super::*;
     use crate::mock::Mock;
+
+    /// You can use this javascript code to reproduce serialize/deserialize paths.
+    /// ```rust,no_run,ignore
+    /// import { bls12_381 } from '@noble/curves/bls12-381.js';
+    /// const { G1, G2 } = bls12_381;
+    ///
+    /// function bytesToHex(bytes) {
+    ///     return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    /// }
+    /// function dumpPoint(name, point) {
+    ///     const compressed = point.toBytes(true);
+    ///     console.log(`\n${name}`);
+    ///     console.log(`compressed hex: 0x${bytesToHex(compressed)}`);
+    /// }
+    ///
+    /// dumpPoint('G1 * 123', G1.Point.BASE.multiply(123n));
+    /// dumpPoint('G2 * 123', G2.Point.BASE.multiply(123n));
+    // ```
+    #[test]
+    fn ark_noble_js_compatible_serialization() {
+        const NOBLE_JS_G1_123_COMPRESSED_SERIALIZED: &'static str = r#""0xa0ec3e71a719a25208adc97106b122809210faf45a17db24f10ffb1ac014fac1ab95a4a1967e55b185d4df622685b9e8""#;
+        const NOBLE_JS_G2_123_COMPRESSED_SERIALIZED: &'static str = r#""0x95e18bbdb8b7bd39ea677ee923d7e87af449c45209e635907a4a8a2e4c65fff97c46d038cff53a994da273310ac85866096a5e13fd3ebf4e140e26f6ddfac66651e04e530e6045572acab753bb1bcef990fe14b4426caee41016af69d313750d""#;
+        #[derive(serde::Serialize, serde::Deserialize)]
+        #[serde(transparent)]
+        struct G1Wrapper {
+            #[serde(with = "gear_tdec::serialization::ark_serde_hex")]
+            pub point: <Bls12_381 as Pairing>::G1,
+        }
+
+        let g1_123 = <Bls12_381 as Pairing>::G1Affine::generator().mul(Fr::from(123));
+        let wrapped_g1 = G1Wrapper { point: g1_123 };
+        assert_eq!(
+            serde_json::to_string(&wrapped_g1).unwrap(),
+            NOBLE_JS_G1_123_COMPRESSED_SERIALIZED
+        );
+
+        #[derive(serde::Serialize, serde::Deserialize)]
+        #[serde(transparent)]
+        struct G2Wrapper {
+            #[serde(with = "gear_tdec::serialization::ark_serde_hex")]
+            pub point: <Bls12_381 as Pairing>::G2,
+        }
+
+        let g2_123 = <Bls12_381 as Pairing>::G2Affine::generator().mul(Fr::from(123));
+        let wrapped_g2 = G2Wrapper { point: g2_123 };
+        assert_eq!(
+            serde_json::to_string(&wrapped_g2).unwrap(),
+            NOBLE_JS_G2_123_COMPRESSED_SERIALIZED
+        );
+    }
 
     #[test]
     fn signed_message_and_injected_transactions() {
