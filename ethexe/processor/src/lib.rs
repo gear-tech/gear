@@ -317,11 +317,13 @@ impl Processor {
             gas_allowance,
             events,
             mailbox_validity,
+            event_destinations_autoreply,
         } = executable;
 
         let cfg = TransitionsConfig {
             block_height: height,
             mailbox_validity,
+            event_destinations_autoreply,
         };
 
         let mut transitions = InBlockTransitions::new(cfg, program_states, schedule);
@@ -442,6 +444,7 @@ pub struct ExecutableData {
     pub gas_allowance: Option<u64>,
     pub events: Vec<BlockRequestEvent>,
     pub mailbox_validity: NonZero<u32>,
+    pub event_destinations_autoreply: bool,
 }
 
 #[cfg(test)]
@@ -456,6 +459,7 @@ impl Default for ExecutableData {
             gas_allowance: Some(ethexe_common::DEFAULT_BLOCK_GAS_LIMIT),
             events: vec![],
             mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+            event_destinations_autoreply: false,
         }
     }
 }
@@ -524,6 +528,7 @@ impl OverlaidProcessor {
         let cfg = TransitionsConfig {
             block_height: height,
             mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+            event_destinations_autoreply: false,
         };
 
         let transitions = InBlockTransitions::new(cfg, program_states, Schedule::default());

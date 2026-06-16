@@ -163,7 +163,7 @@ mod tests {
                 block_hash: eth_block_hash,
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueuesV2 { gas_allowance },
+            Operation::ProcessQueuesV3 { gas_allowance },
         ]));
 
         db.set_mb_compact_block(
