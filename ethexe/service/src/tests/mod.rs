@@ -7,8 +7,8 @@ pub(crate) mod utils;
 
 use crate::tests::utils::{
     EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, Node, NodeConfig, TestEnv,
-    TestEnvConfig, TestingEvent, TestingEventReceiver, TestingNetworkEvent, TestingRpcEvent,
-    ValidatorsConfig, init_logger, stop_nodes, test_info,
+    TestEnvConfig, TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig,
+    init_logger, stop_nodes, test_info,
 };
 use alloy::{
     primitives::U256,
@@ -1480,7 +1480,7 @@ async fn reorg_deeper_than_quarantine() {
 
     let latest_block = env.latest_block().await;
     test_info!("Waiting for {latest_block} to be finalized in MB");
-    node.events().find_advanced_mb(latest_block.hash).await;
+    node.events().find_mb_advanced_eb(latest_block.hash).await;
 
     test_info!("📗 Reverting Anvil to deep snapshot — past quarantine");
     env.provider
@@ -1498,7 +1498,7 @@ async fn reorg_deeper_than_quarantine() {
     let mut receiver = node.new_events();
     // Here we take in account kicking stream - latest_block is not passed quarantine yet,
     // but kicks will generate new anvil blocks, but still this block cannot be finalized in mb, because branch is broken.
-    let waiting_future = receiver.find_advanced_mb(latest_block.hash);
+    let waiting_future = receiver.find_mb_advanced_eb(latest_block.hash);
     tokio::time::timeout(Duration::from_secs(20), waiting_future)
         .await
         .expect_err("block should not be finalized within 20 seconds after deep reorg");
@@ -3267,11 +3267,10 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_advanced_mb(latest_block).await;
+    alice.events().find_mb_advanced_eb(latest_block).await;
 
     test_info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync()).await;
-
     bob.start_service().await;
 
     test_info!("📗 Sending messages to programs");
@@ -3291,16 +3290,11 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    // alice
-    //     .events()
-    //     .find_mb_computed()
-    //     .find_announce_computed(latest_block)
-    //     .await;
     let mut alice_events = alice.events();
     let mut bob_events = bob.events();
-    let (alice_mb_hash, bob_mb_hash) = tokio::join!(
-        alice_events.find_advanced_mb(latest_block),
-        bob_events.find_advanced_mb(latest_block)
+    tokio::join!(
+        alice_events.find_mb_computed_eb(latest_block),
+        bob_events.find_mb_computed_eb(latest_block)
     );
 
     test_info!("📗 Stopping Bob");
@@ -3331,15 +3325,18 @@ async fn fast_sync() {
     env.skip_blocks(100).await;
 
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_advanced_mb(latest_block).await;
+    alice.events().find_mb_advanced_eb(latest_block).await;
 
     test_info!("📗 Starting Bob again to check how it handles partially empty database");
     bob.start_service().await;
 
     let latest_block = env.latest_block().await.hash;
-    let alice_latest_advanced_mb = alice.events().find_advanced_mb(latest_block).await;
-    let bob_latest_advanced_mb = bob.events().find_advanced_mb(latest_block).await;
-    assert_eq!(alice_latest_advanced_mb, bob_latest_advanced_mb);
+    let mut alice_events = alice.events();
+    let mut bob_events = bob.events();
+    tokio::join!(
+        alice_events.find_mb_computed_eb(latest_block),
+        bob_events.find_mb_computed_eb(latest_block)
+    );
 
     assert_chain(
         latest_block,
@@ -3395,7 +3392,7 @@ async fn re_genesis_with_state_dump() {
     // Ensure the ping-pong state is committed on-chain before re-genesis, so the
     // dump taken at the new genesis block carries it.
     let latest_block = env.latest_block().await.hash;
-    node.events().find_advanced_mb(latest_block).await;
+    node.events().find_mb_advanced_eb(latest_block).await;
 
     log::info!(
         "📗 Phase 2: re-genesis the router via reinitialize + lookupGenesisHash. \
@@ -3417,7 +3414,7 @@ async fn re_genesis_with_state_dump() {
 
     // Wait until the node commits an MB covering the new genesis block before
     // dumping from its DB.
-    node.events().find_advanced_mb(new_genesis_hash).await;
+    node.events().find_mb_advanced_eb(new_genesis_hash).await;
 
     log::info!("📗 Phase 3: collect state dump at the new genesis block.");
     let dump = StateDump::collect_from_storage(&node.db, new_genesis_hash).unwrap();
@@ -3565,7 +3562,7 @@ async fn re_genesis_delayed_message() {
 
     // Ensure the delayed-send state is committed before re-genesis.
     let latest_block = env.latest_block().await.hash;
-    node.events().find_advanced_mb(latest_block).await;
+    node.events().find_mb_advanced_eb(latest_block).await;
 
     // Phase 2: re-genesis via reinitialize + lookupGenesisHash; the new genesis
     // is the block where the reinitialize tx was mined.
@@ -3586,7 +3583,7 @@ async fn re_genesis_delayed_message() {
 
     // Wait until the node commits an MB covering the new genesis block before
     // dumping from its DB.
-    node.events().find_advanced_mb(new_genesis_hash).await;
+    node.events().find_mb_advanced_eb(new_genesis_hash).await;
 
     // Phase 3: collect dump at the new genesis block; it should still carry the
     // pending delayed send in the dispatch stash because the 5-block delay
