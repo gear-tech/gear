@@ -162,7 +162,7 @@ impl Behaviour {
         identities: &ValidatorIdentities,
         transaction: Transaction,
     ) -> Result<NonZeroUsize, SendTransactionError> {
-        let tx_hash = transaction.hash();
+        let tx_hash = transaction.as_ref().hash();
 
         if identities.is_empty() {
             return Err(SendTransactionError::NoValidatorsFound);

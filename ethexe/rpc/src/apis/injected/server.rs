@@ -101,7 +101,7 @@ impl InjectedApi {
         pending: PendingSubscriptionSink,
         transaction: Transaction,
     ) -> SubscriptionResult {
-        let tx_hash = transaction.hash();
+        let tx_hash = transaction.as_ref().hash();
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
             Ok(subscriber) => subscriber,

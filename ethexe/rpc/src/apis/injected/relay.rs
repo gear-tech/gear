@@ -27,7 +27,7 @@ impl TransactionsRelayer {
         &self,
         transaction: Transaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        let tx_hash = transaction.hash();
+        let tx_hash = transaction.as_ref().hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
 
         match &transaction {

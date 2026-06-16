@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
     db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
-    injected::{PurgedTransaction, Transaction},
+    injected::{PurgedTransaction, Transaction, TransactionRef},
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
@@ -52,7 +52,7 @@ impl Mempool for EmptyMempool {
         Vec::new()
     }
 
-    async fn forget(&self, _committed: &[Transaction]) {}
+    async fn forget(&self, _committed: &[TransactionRef<'_>]) {}
 
     async fn wait_for_new_tx(&self) {
         std::future::pending().await
@@ -116,7 +116,7 @@ fn build_signer(home: &Path) -> (Signer<Secp256k1>, gsigner::schemes::secp256k1:
 
 /// Build the MalachiteConfig used by the resilience tests:
 /// quarantine-off (so the producer can advance immediately on each
-/// new chain head), default listen address, no persistent peers,
+/// new chain head), ephemeral listen port, no persistent peers,
 /// single-validator set so the local node can decide on its own.
 fn build_config(
     home: &Path,
@@ -211,10 +211,9 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     let chain = seed_chain(&db, 64, 0xDEAD_BEEF);
 
     let (signer, pub_key) = build_signer(home.path());
-
     // ---- first run -------------------------------------------------
     let mut svc = MalachiteService::new(
-        build_config(home.path(), 30_001, pub_key),
+        build_config(home.path(), 0, pub_key),
         db.clone(),
         signer.clone(),
         Some(pub_key),
@@ -256,7 +255,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
 
     // ---- second run on the SAME home dir + DB ----------------------
     let mut svc2 = MalachiteService::new(
-        build_config(home.path(), 30_001, pub_key),
+        build_config(home.path(), 0, pub_key),
         db.clone(),
         signer,
         Some(pub_key),
