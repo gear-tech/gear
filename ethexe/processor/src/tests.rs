@@ -5,7 +5,8 @@ use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT, MAILBOX_VALIDITY_VERSION_2, OUTGOING_MESSAGES_SOFT_LIMIT,
-    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PrivateKey, ScheduledTask, SignedMessage, StateHashWithQueueSize,
+    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PrivateKey, ScheduledTask, SignedMessage,
+    StateHashWithQueueSize,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
