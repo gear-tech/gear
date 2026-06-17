@@ -31,7 +31,6 @@ use futures::{
 };
 use gprimitives::H256;
 use std::{
-    collections::HashSet,
     iter,
     pin::Pin,
     task::{Context, Poll, ready},
@@ -401,28 +400,6 @@ impl TestingEventReceiver {
         self.find_mb_computed(mb_hash).await
     }
 
-    pub async fn wait_referenced_mbs_computed(
-        &mut self,
-        latest_block: H256,
-        replay_target: FastSyncReplayTarget,
-    ) {
-        let mut pending = referenced_committed_mbs(
-            self.db(),
-            latest_block,
-            replay_target.eb_hash,
-            replay_target.mb_hash,
-        )
-        .into_iter()
-        .filter(|mb_hash| !self.db().mb_meta(*mb_hash).computed)
-        .collect::<HashSet<_>>();
-
-        while !pending.is_empty() {
-            self.find(|event| matches!(event, TestingEvent::Compute(ComputeEvent::MbComputed(_))))
-                .await;
-            pending.retain(|mb_hash| !self.db().mb_meta(*mb_hash).computed);
-        }
-    }
-
     pub async fn find_map_with_db<U>(
         &mut self,
         mut f: impl FnMut(Database, TestingEvent) -> Option<U>,
@@ -431,35 +408,6 @@ impl TestingEventReceiver {
         let func = |event| f(db.clone(), event);
         self.find_map(func).await
     }
-}
-
-fn referenced_committed_mbs(
-    db: &Database,
-    latest_block: H256,
-    fast_synced_eb: H256,
-    fast_synced_mb: H256,
-) -> Vec<H256> {
-    let mut eb_hash = latest_block;
-    let mut seen = HashSet::new();
-    let mut mbs = Vec::new();
-
-    while eb_hash != fast_synced_eb {
-        let meta = db.block_meta(eb_hash);
-        let mb_hash = meta
-            .last_committed_mb
-            .unwrap_or_else(|| panic!("block {eb_hash} must have last_committed_mb"));
-
-        if mb_hash != fast_synced_mb && seen.insert(mb_hash) {
-            mbs.push(mb_hash);
-        }
-
-        eb_hash = db
-            .block_header(eb_hash)
-            .unwrap_or_else(|| panic!("block {eb_hash} must have header"))
-            .parent_hash;
-    }
-
-    mbs
 }
 
 impl ObserverEventReceiver {
@@ -519,47 +467,10 @@ mod tests {
     use super::*;
     use ethexe_common::{
         BlockHeader,
-        db::{BlockMetaStorageRW, CompactMb, OnChainStorageRW},
+        db::{CompactMb, OnChainStorageRW},
     };
     use ethexe_db::Database;
     use ethexe_malachite::CommitCertificate;
-
-    #[test]
-    fn referenced_committed_mbs_collects_unique_non_anchor_mbs_top_down() {
-        let db = Database::memory();
-        let fast_synced_eb = H256::from_low_u64_be(1);
-        let mid_eb = H256::from_low_u64_be(2);
-        let latest_eb = H256::from_low_u64_be(3);
-        let fast_synced_mb = H256::repeat_byte(0x11);
-        let first_mb = H256::repeat_byte(0x22);
-        let second_mb = H256::repeat_byte(0x33);
-
-        for (hash, parent_hash) in [
-            (fast_synced_eb, H256::zero()),
-            (mid_eb, fast_synced_eb),
-            (latest_eb, mid_eb),
-        ] {
-            db.set_block_header(
-                hash,
-                BlockHeader {
-                    height: hash.to_low_u64_be() as u32,
-                    timestamp: 0,
-                    parent_hash,
-                },
-            );
-        }
-
-        db.mutate_block_meta(latest_eb, |meta| meta.last_committed_mb = Some(first_mb));
-        db.mutate_block_meta(mid_eb, |meta| meta.last_committed_mb = Some(second_mb));
-        db.mutate_block_meta(fast_synced_eb, |meta| {
-            meta.last_committed_mb = Some(fast_synced_mb);
-        });
-
-        assert_eq!(
-            referenced_committed_mbs(&db, latest_eb, fast_synced_eb, fast_synced_mb),
-            vec![first_mb, second_mb]
-        );
-    }
 
     #[tokio::test]
     async fn find_mb_computed_eb_returns_when_mb_was_already_computed() {

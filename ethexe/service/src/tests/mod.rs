@@ -3303,12 +3303,9 @@ async fn fast_sync() {
     );
 
     test_info!("📗 Stopping Bob");
-    let replay_target = bob.latest_fast_synced_blocks.unwrap();
-    bob_events
-        .wait_referenced_mbs_computed(latest_block, replay_target)
-        .await;
     bob.stop_service().await;
 
+    let replay_target = bob.latest_fast_synced_blocks.unwrap();
     assert_chain(latest_block, replay_target, &alice, &bob);
 
     for (i, program_id) in program_ids.into_iter().enumerate() {
@@ -3343,9 +3340,6 @@ async fn fast_sync() {
     );
 
     let replay_target = bob.latest_fast_synced_blocks.unwrap();
-    bob_events
-        .wait_referenced_mbs_computed(latest_block, replay_target)
-        .await;
     assert_chain(latest_block, replay_target, &alice, &bob);
 }
 
