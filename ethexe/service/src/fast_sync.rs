@@ -58,13 +58,11 @@ impl EventData {
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
-        let mut latest_committed_batch = None;
-        let mut replay_target = None;
-
         let mut block = highest_block;
-        'blocks: while !db.block_meta(block).prepared {
+        while !db.block_meta(block).prepared {
             let block_data = block_loader.load(block, None).await?;
 
+            let mut latest_committed_batch = None;
             let mut pending_eb = None;
             for event in block_data.events.iter().rev() {
                 match event {
@@ -78,11 +76,19 @@ impl EventData {
                     }
                     BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(mb_hash))) => {
                         if let Some(eb_hash) = pending_eb.take() {
-                            replay_target = Some(FastSyncReplayTarget {
-                                mb_hash: *mb_hash,
-                                eb_hash,
-                            });
-                            break 'blocks;
+                            return Ok(Some(Self {
+                                // Keep the latest batch digest from this same
+                                // EB block; later batch-only commits in the
+                                // block still advance Router's previous-batch
+                                // state for the next submission.
+                                latest_committed_batch: latest_committed_batch.context(
+                                    "committed MB replay target without BatchCommitted event",
+                                )?,
+                                replay_target: FastSyncReplayTarget {
+                                    mb_hash: *mb_hash,
+                                    eb_hash,
+                                },
+                            }));
                         }
                     }
                     _ => {}
@@ -95,16 +101,7 @@ impl EventData {
             }
         }
 
-        let Some(replay_target) = replay_target else {
-            return Ok(None);
-        };
-
-        Ok(Some(Self {
-            // Router.commitBatch emits BatchCommitted before MB/EBCommitted; otherwise we'd seed a bogus previous batch.
-            latest_committed_batch: latest_committed_batch
-                .context("committed MB replay target without BatchCommitted event")?,
-            replay_target,
-        }))
+        Ok(None)
     }
 }
 
@@ -690,8 +687,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             latest_era_with_committed_validators,
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Default::default(),
-            // TODO #4812: using `latest_committed_batch` here is not correct,
-            // because `latest_committed_batch` is latest for finalized block, not for `block_hash`.
             last_committed_batch: latest_committed_batch,
             last_committed_mb: latest_committed_mb,
             last_committed_eb: latest_committed_eb,
@@ -896,6 +891,92 @@ mod tests {
         assert_eq!(event_data.replay_target.mb_hash, older_mb);
         assert_eq!(event_data.replay_target.eb_hash, older_eb);
         assert_eq!(event_data.latest_committed_batch, older_batch);
+    }
+
+    #[tokio::test]
+    async fn event_data_binds_batch_digest_to_selected_replay_target() {
+        let db = Database::memory();
+        let older_block = H256::from_low_u64_be(1);
+        let newer_block = H256::from_low_u64_be(2);
+        let older_mb = H256::repeat_byte(0x11);
+        let older_eb = H256::repeat_byte(0x22);
+        let older_batch = Digest::random();
+        let newer_batch = Digest::random();
+
+        let mut loader = TestBlockLoader::default();
+        loader.blocks.insert(
+            newer_block,
+            test_block(
+                newer_block,
+                older_block,
+                vec![BlockEvent::Router(RouterEvent::BatchCommitted(
+                    BatchCommittedEvent {
+                        digest: newer_batch,
+                    },
+                ))],
+            ),
+        );
+        loader.blocks.insert(
+            older_block,
+            test_block(
+                older_block,
+                H256::zero(),
+                vec![
+                    BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(older_mb))),
+                    BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(older_eb))),
+                    BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
+                        digest: older_batch,
+                    })),
+                ],
+            ),
+        );
+
+        let event_data = EventData::collect(&loader, &db, newer_block)
+            .await
+            .unwrap()
+            .expect("committed chain found");
+
+        assert_eq!(event_data.replay_target.mb_hash, older_mb);
+        assert_eq!(event_data.replay_target.eb_hash, older_eb);
+        assert_eq!(event_data.latest_committed_batch, older_batch);
+    }
+
+    #[tokio::test]
+    async fn event_data_keeps_latest_batch_digest_from_selected_block() {
+        let db = Database::memory();
+        let block = H256::from_low_u64_be(1);
+        let mb = H256::repeat_byte(0x11);
+        let eb = H256::repeat_byte(0x22);
+        let chain_batch = Digest::random();
+        let later_batch = Digest::random();
+
+        let mut loader = TestBlockLoader::default();
+        loader.blocks.insert(
+            block,
+            test_block(
+                block,
+                H256::zero(),
+                vec![
+                    BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(mb))),
+                    BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(eb))),
+                    BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
+                        digest: chain_batch,
+                    })),
+                    BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
+                        digest: later_batch,
+                    })),
+                ],
+            ),
+        );
+
+        let event_data = EventData::collect(&loader, &db, block)
+            .await
+            .unwrap()
+            .expect("committed chain found");
+
+        assert_eq!(event_data.replay_target.mb_hash, mb);
+        assert_eq!(event_data.replay_target.eb_hash, eb);
+        assert_eq!(event_data.latest_committed_batch, later_batch);
     }
 
     #[tokio::test]
