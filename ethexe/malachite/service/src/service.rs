@@ -196,10 +196,7 @@ impl MalachiteService {
     /// Every outcome — including rejecting ones — is a
     /// [`crate::mempool::TxInsertionStatus`] value; group membership is
     /// queried via [`crate::mempool::TxInsertionStatus::is_accepted`].
-    pub fn receive_injected_transaction(
-        &self,
-        tx: Transaction,
-    ) -> crate::mempool::TxInsertionStatus {
+    pub fn receive_transaction(&self, tx: Transaction) -> crate::mempool::TxInsertionStatus {
         self.mempool.insert(tx)
     }
 

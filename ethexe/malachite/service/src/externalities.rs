@@ -64,11 +64,19 @@ use std::{
 use tokio::sync::{Notify, mpsc};
 use tracing::{debug, error, info, warn};
 
+/// Optimization for reducing `clone` operation for potentially large transactions.
 fn operation_to_transaction(operation: &Operation) -> Option<TransactionRef<'_>> {
     match operation {
         Operation::Injected(tx) => Some(TransactionRef::Injected(tx)),
         Operation::Shielded(tx) => Some(TransactionRef::Shielded(tx)),
         _ => None,
+    }
+}
+
+fn transaction_ref_hash(transaction: TransactionRef<'_>) -> H256 {
+    match transaction {
+        TransactionRef::Injected(tx) => tx.data().to_hash().inner(),
+        TransactionRef::Shielded(tx) => tx.data().to_hash().inner(),
     }
 }
 
@@ -305,13 +313,13 @@ impl Externalities for EthexeExternalities {
             self.db.mb_meta(parent_mb_hash).last_advanced_eb
         };
 
-        let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await;
+        let (advance, transactions) = self.wait_for_proposable_content(parent_advanced).await;
 
         info!(
             %parent_mb_hash,
             %parent_advanced,
             advance = ?advance,
-            injected_count = injected.len(),
+            transactions_count = transactions.len(),
             "build_block_above: proposable content resolved",
         );
 
@@ -319,18 +327,18 @@ impl Externalities for EthexeExternalities {
         // run through TxValidityChecker so we don't waste an MB
         // round-trip on a tx the participant would reject.
         let chain_head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
-        let valid: Vec<Transaction> = match chain_head_snapshot {
+        let valid = match chain_head_snapshot {
             Some(head) => {
                 let checker = TxValidityChecker::new_for_mb(self.db.clone(), head, parent_mb_hash)?;
-                let mut accepted = Vec::with_capacity(injected.len());
-                for tx in injected {
+                let mut accepted = Vec::with_capacity(transactions.len());
+                for tx in transactions {
                     match checker.check_tx_validity(tx.as_ref())? {
                         TxValidity::Valid => accepted.push(tx),
                         reason => {
                             warn!(
-                                tx_hash = %tx.as_ref().hash(),
+                                tx_hash = %transaction_ref_hash(tx.as_ref()),
                                 ?reason,
-                                "build_block_above: dropping injected tx — fails TxValidity",
+                                "build_block_above: dropping transaction — fails TxValidity",
                             );
                         }
                     }
@@ -341,10 +349,10 @@ impl Externalities for EthexeExternalities {
             // for `is_reference_block_*`). Skip injected txs entirely
             // rather than emit unvalidated ones.
             None => {
-                if !injected.is_empty() {
+                if !transactions.is_empty() {
                     warn!(
-                        injected_count = injected.len(),
-                        "build_block_above: no chain head — dropping injected txs (unvalidated)",
+                        transactions_count = transactions.len(),
+                        "build_block_above: no chain head — dropping transactions (unvalidated)",
                     );
                 }
                 Vec::new()
@@ -636,9 +644,9 @@ impl Externalities for EthexeExternalities {
                 TxValidity::Valid => {}
                 reason => {
                     warn!(
-                        tx_hash = %transaction.hash(),
+                        tx_hash = %transaction_ref_hash(transaction),
                         ?reason,
-                        "validate: injected tx fails TxValidity — rejecting MB",
+                        "validate: transaction fails TxValidity — rejecting MB",
                     );
                     return Ok(false);
                 }
@@ -768,13 +776,13 @@ impl EthexeExternalities {
             let advance = self.find_eb_candidate_for_advancing(prev_advanced_eb_hash);
 
             let head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
-            let injected = match head_snapshot {
+            let transactions = match head_snapshot {
                 Some(head) => self.mempool.fetch(head).await,
                 None => Vec::new(),
             };
 
-            if advance.is_some() || !injected.is_empty() {
-                return (advance, injected);
+            if advance.is_some() || !transactions.is_empty() {
+                return (advance, transactions);
             }
 
             tokio::select! {

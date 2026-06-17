@@ -843,7 +843,7 @@ impl Service {
                             } => {
                                 let acceptance = match malachite.as_mut() {
                                     Some(malachite) => {
-                                        malachite.receive_injected_transaction(*transaction).into()
+                                        malachite.receive_transaction(*transaction).into()
                                     }
                                     None => InjectedTransactionAcceptance::Reject {
                                         reason: "no malachite service to handle transaction".into(),
@@ -890,8 +890,7 @@ impl Service {
                             let mut local_acceptance = None;
 
                             if let Some(malachite) = malachite.as_mut() {
-                                let status =
-                                    malachite.receive_injected_transaction(transaction.clone());
+                                let status = malachite.receive_transaction(transaction.clone());
                                 local_acceptance =
                                     Some(InjectedTransactionAcceptance::from(status));
                             }
