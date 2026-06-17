@@ -5,7 +5,7 @@
 
 use crate::Service;
 use alloy::eips::BlockId;
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result};
 use ethexe_common::{
     Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
     db::{
@@ -143,10 +143,12 @@ async fn collect_program_state_hashes(
             format!("failed to get state hash for actor {actor_id} at block {block_hash}")
         })?;
 
-        ensure!(
-            !state_hash.is_zero(),
-            "state hash is zero for actor {actor_id} at block {block_hash}"
-        );
+        if state_hash.is_zero() {
+            log::trace!(
+                "skipping program with zero mirror state during fast sync: actor {actor_id}, block {block_hash}"
+            );
+            continue;
+        }
 
         program_states.insert(actor_id, state_hash);
     }
@@ -224,7 +226,7 @@ impl RequestManager {
     }
 
     fn add(&mut self, hash: H256, metadata: RequestMetadata) {
-        debug_assert_ne!(
+        assert_ne!(
             hash,
             H256::zero(),
             "zero hash is cannot be requested from db or network"
