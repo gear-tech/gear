@@ -140,18 +140,7 @@ impl blockstore::Blockstore for Blockstore {
         task::spawn_blocking(move || {
             let hash = Self::convert_multihash(&hash)?;
             let data = match codec {
-                RAW_CODEC => {
-                    let data = db.read_by_hash(hash);
-
-                    if let Some(data) = &data
-                        && data.len() as u64 > Self::MAX_BLOCK_SIZE
-                    {
-                        log::warn!("{hash} is too large: {} bytes", data.len());
-                        return Err(blockstore::Error::ValueTooLarge);
-                    }
-
-                    data
-                }
+                RAW_CODEC => db.read_by_hash(hash),
                 codec => Err(blockstore::Error::CidError(CidError::InvalidCidCodec(
                     codec,
                 )))?,
