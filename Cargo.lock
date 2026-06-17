@@ -5761,6 +5761,7 @@ dependencies = [
  "ethexe-db",
  "ethexe-malachite-core",
  "ethexe-runtime-common",
+ "ferveo-gear-tdec",
  "futures",
  "gear-workspace-hack",
  "gprimitives",

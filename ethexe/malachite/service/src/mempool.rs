@@ -40,7 +40,8 @@ use ethexe_common::{
     HashOf, SimpleBlockData,
     db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO},
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, PurgedTransaction, Transaction,
+        InjectedTransaction, InjectedTransactionAcceptance, PurgedTransaction, ShieldedTransaction,
+        SignedInjectedTransaction, SignedShieldedTransaction, Transaction, TransactionHash,
         TransactionPurgedReason, TransactionRef, VALIDITY_WINDOW,
     },
 };
@@ -176,11 +177,23 @@ pub const DEFAULT_POOL_CAPACITY: usize = 10_000;
 /// Pool state behind a single mutex — operations are short, contention low.
 #[derive(Debug, Default)]
 struct Inner {
-    pool: HashMap<HashOf<InjectedTransaction>, Transaction>,
-    /// Recently committed txs (tx_hash → ref_block) for dedup. Aged out with the validity window.
-    seen: HashMap<HashOf<InjectedTransaction>, H256>,
+    /// Injected transactions waiting for its inclusion in chain.
+    injected_pool: HashMap<HashOf<InjectedTransaction>, SignedInjectedTransaction>,
+    /// Recently committed injected txs (tx_hash → ref_block) for dedup. Aged out with the validity window.
+    injected_seen: HashMap<HashOf<InjectedTransaction>, H256>,
+    /// Shielded transactions waiting for its inclusion in chain.
+    shielded_pool: HashMap<HashOf<ShieldedTransaction>, SignedShieldedTransaction>,
+    /// Recently committed shielded txs (tx_hash → ref_block) for dedup. Aged out with the validity window.
+    shielded_seen: HashMap<HashOf<ShieldedTransaction>, H256>,
     /// Latest chain head height — drives age-out of pool/seen entries.
     latest_head_height: Option<u32>,
+}
+
+impl Inner {
+    /// Returns number of transactions in `injected_pool` + `shielded_pool`.
+    pub fn len(&self) -> usize {
+        self.injected_pool.len() + self.shielded_pool.len()
+    }
 }
 
 #[derive(Debug)]
@@ -206,12 +219,13 @@ impl InjectedTxMempool {
         }
     }
 
+    /// Delegates call to [Inner::len].
     pub fn len(&self) -> usize {
-        self.inner.lock().expect("poisoned mempool").pool.len()
+        self.inner.lock().expect("poisoned mempool").len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.inner.lock().expect("poisoned mempool").pool.is_empty()
+        self.len() == 0
     }
 
     /// Resolve `reference_block` to its canonical height via the DB.
@@ -259,64 +273,75 @@ impl InjectedTxMempool {
     /// Evict pool entries and seen-hashes whose `reference_block` has
     /// aged out relative to `head_height`.
     fn purge_expired(inner: &mut Inner, head_height: u32, db: &Database) -> Vec<PurgedTransaction> {
-        inner.seen.retain(|tx_hash, ref_block| {
-            match db.block_header(*ref_block).map(|h| h.height) {
-                Some(h) if !Self::is_expired(head_height, h) => true,
-                _ => {
-                    trace!(%tx_hash, ref_block = %ref_block, "dropping expired seen-hash");
-                    false
-                }
+        let keep_seen = |tx_type: &'static str, tx_hash: H256, reference_block: &H256| match db
+            .block_header(*reference_block)
+            .map(|header| header.height)
+        {
+            Some(height) if !Self::is_expired(head_height, height) => true,
+            _ => {
+                trace!(%tx_type, %tx_hash, %reference_block, "dropping expired seen-hash");
+                false
             }
-        });
+        };
+        inner
+            .injected_seen
+            .retain(|tx_hash, ref_block| keep_seen("injected", tx_hash.inner(), ref_block));
+        inner
+            .shielded_seen
+            .retain(|tx_hash, ref_block| keep_seen("shielded", tx_hash.inner(), ref_block));
+
         let mut purged_txs = Vec::new();
-        inner.pool.retain(|tx_hash, tx| {
-            let ref_block = tx.as_ref().reference_block();
-            match db.block_header(ref_block).map(|h| h.height) {
-                Some(h) if !Self::is_expired(head_height, h) => true,
-                Some(h) => {
-                    trace!(
-                        %tx_hash, %ref_block, ref_height = h, head_height,
-                        "dropping expired tx from pool",
-                    );
-                    purged_txs.push(PurgedTransaction {
-                        tx_hash: *tx_hash,
-                        reason: TransactionPurgedReason::Outdated,
-                    });
-                    false
-                }
-                None => {
-                    trace!(
-                        %tx_hash, %ref_block,
-                        "dropping tx with unknown ref_block from pool",
-                    );
-                    purged_txs.push(PurgedTransaction {
-                        tx_hash: *tx_hash,
-                        reason: TransactionPurgedReason::UnknownReferenceBlock,
-                    });
-                    false
-                }
+        let mut purge_fn = |tx_hash: TransactionHash, ref_block: H256| match db
+            .block_header(ref_block)
+            .map(|h| h.height)
+        {
+            Some(h) if !Self::is_expired(head_height, h) => true,
+            Some(h) => {
+                trace!(
+                    %tx_hash, %ref_block, ref_height = h, head_height,
+                    "dropping expired tx from pool",
+                );
+                purged_txs.push(PurgedTransaction {
+                    tx_hash,
+                    reason: TransactionPurgedReason::Outdated,
+                });
+                false
             }
+            None => {
+                trace!(
+                    %tx_hash, %ref_block,
+                    "dropping tx with unknown ref_block from pool",
+                );
+                purged_txs.push(PurgedTransaction {
+                    tx_hash,
+                    reason: TransactionPurgedReason::UnknownReferenceBlock,
+                });
+                false
+            }
+        };
+
+        inner.injected_pool.retain(|tx_hash, tx| {
+            purge_fn(TransactionHash::Left(*tx_hash), tx.data().reference_block)
         });
+        inner.shielded_pool.retain(|tx_hash, tx| {
+            purge_fn(TransactionHash::Right(*tx_hash), tx.data().reference_block)
+        });
+
         purged_txs
     }
-}
 
-#[async_trait]
-impl Mempool for InjectedTxMempool {
-    fn insert(&self, tx: Transaction) -> TxInsertionStatus {
-        let tx_hash = tx.as_ref().hash();
-        let ref_block = tx.as_ref().reference_block();
+    fn insert_injected(&self, tx: SignedInjectedTransaction) -> TxInsertionStatus {
+        let tx_hash = tx.data().to_hash();
+        let ref_block = tx.data().reference_block;
 
         // Reject non-zero-value txs unconditionally (#5083 — value-bearing
         // injected txs are not supported yet). Done first so a malicious
         // sender can't burn pool capacity with txs that will never be
         // selectable.
-        if let Transaction::Injected(tx_data) = &tx
-            && tx_data.data().value != 0
-        {
+        if tx.data().value != 0 {
             info!(
                 %tx_hash,
-                value = tx_data.data().value,
+                value = tx.data().value,
                 "mempool: rejecting tx — non-zero value (#5083 not supported)",
             );
             return TxInsertionStatus::NonZeroValue;
@@ -324,13 +349,13 @@ impl Mempool for InjectedTxMempool {
 
         let inner = self.inner.lock().expect("poisoned mempool");
 
-        if inner.seen.contains_key(&tx_hash) {
+        if inner.injected_seen.contains_key(&tx_hash) {
             info!(%tx_hash, "mempool: idempotent no-op — hash already committed within validity window");
             return TxInsertionStatus::AlreadyIncluded;
         }
 
-        if inner.pool.contains_key(&tx_hash) {
-            info!(%tx_hash, pool_len = inner.pool.len(), "mempool: idempotent no-op — duplicate insert");
+        if inner.injected_pool.contains_key(&tx_hash) {
+            info!(%tx_hash, pool_len = inner.len(), "mempool: idempotent no-op — duplicate insert");
             return TxInsertionStatus::AlreadyInPool;
         }
 
@@ -350,7 +375,7 @@ impl Mempool for InjectedTxMempool {
             return TxInsertionStatus::ExpiredRefBlock;
         }
 
-        if inner.pool.len() >= self.capacity {
+        if inner.len() >= self.capacity {
             info!(%tx_hash, capacity = self.capacity, "mempool: rejecting tx — pool at capacity");
             return TxInsertionStatus::PoolFull;
         }
@@ -369,26 +394,23 @@ impl Mempool for InjectedTxMempool {
         // immediately picks the tx is guaranteed to find it in the DB.
         // The DB row is content-addressed by tx_hash, so two racing
         // writes converge on the same byte content.
-        match &tx {
-            Transaction::Injected(tx) => self.db.set_injected_transaction(tx.clone()),
-            Transaction::Shielded(_) => todo!("Shielded transaction storage"),
-        }
+        self.db.set_injected_transaction(tx.clone());
 
         let mut inner = self.inner.lock().expect("poisoned mempool");
 
         // Recheck dedup / capacity after the lock-free window.
-        if inner.seen.contains_key(&tx_hash) {
+        if inner.injected_seen.contains_key(&tx_hash) {
             return TxInsertionStatus::AlreadyIncluded;
         }
-        if inner.pool.contains_key(&tx_hash) {
+        if inner.injected_pool.contains_key(&tx_hash) {
             return TxInsertionStatus::AlreadyInPool;
         }
-        if inner.pool.len() >= self.capacity {
+        if inner.len() >= self.capacity {
             return TxInsertionStatus::PoolFull;
         }
 
-        let pool_len_after = inner.pool.len() + 1;
-        inner.pool.insert(tx_hash, tx);
+        let pool_len_after = inner.len() + 1;
+        inner.injected_pool.insert(tx_hash, tx);
         info!(
             %tx_hash,
             %ref_block,
@@ -397,11 +419,78 @@ impl Mempool for InjectedTxMempool {
             "mempool: insert accepted",
         );
 
-        // Drop the lock before signaling so a waiter resumed
-        // immediately doesn't have to bounce on the mutex.
         drop(inner);
         self.new_tx_notify.notify_one();
         TxInsertionStatus::Inserted
+    }
+
+    fn insert_shielded(&self, tx: SignedShieldedTransaction) -> TxInsertionStatus {
+        let tx_hash = tx.data().to_hash();
+        let ref_block = tx.data().reference_block;
+        let inner = self.inner.lock().expect("poisoned mempool");
+
+        if inner.shielded_seen.contains_key(&tx_hash) {
+            info!(tx_hash = %tx_hash.inner(), "mempool: idempotent no-op — shielded hash already committed within validity window");
+            return TxInsertionStatus::AlreadyIncluded;
+        }
+
+        if inner.shielded_pool.contains_key(&tx_hash) {
+            info!(tx_hash = %tx_hash.inner(), pool_len = inner.len(), "mempool: idempotent no-op — duplicate shielded insert");
+            return TxInsertionStatus::AlreadyInPool;
+        }
+
+        let ref_height_opt = self.ref_block_height(ref_block);
+        if let Some(ref_height) = ref_height_opt
+            && let Some(head_height) = inner.latest_head_height
+            && Self::is_expired(head_height, ref_height)
+        {
+            info!(
+                tx_hash = %tx_hash.inner(), %ref_block, ref_height, head_height,
+                "mempool: rejecting shielded tx — reference_block past VALIDITY_WINDOW"
+            );
+            return TxInsertionStatus::ExpiredRefBlock;
+        }
+
+        if inner.len() >= self.capacity {
+            info!(tx_hash = %tx_hash.inner(), capacity = self.capacity, "mempool: rejecting shielded tx — pool at capacity");
+            return TxInsertionStatus::PoolFull;
+        }
+        drop(inner);
+
+        let mut inner = self.inner.lock().expect("poisoned mempool");
+        if inner.shielded_seen.contains_key(&tx_hash) {
+            return TxInsertionStatus::AlreadyIncluded;
+        }
+        if inner.shielded_pool.contains_key(&tx_hash) {
+            return TxInsertionStatus::AlreadyInPool;
+        }
+        if inner.len() >= self.capacity {
+            return TxInsertionStatus::PoolFull;
+        }
+
+        let pool_len_after = inner.len() + 1;
+        inner.shielded_pool.insert(tx_hash, tx);
+        info!(
+            tx_hash = %tx_hash.inner(),
+            %ref_block,
+            ref_height = ?ref_height_opt,
+            pool_len = pool_len_after,
+            "mempool: shielded insert accepted",
+        );
+
+        drop(inner);
+        self.new_tx_notify.notify_one();
+        TxInsertionStatus::Inserted
+    }
+}
+
+#[async_trait]
+impl Mempool for InjectedTxMempool {
+    fn insert(&self, tx: Transaction) -> TxInsertionStatus {
+        match tx {
+            Transaction::Injected(tx) => self.insert_injected(tx),
+            Transaction::Shielded(tx) => self.insert_shielded(tx),
+        }
     }
 
     fn set_chain_head(&self, head: SimpleBlockData) -> Vec<PurgedTransaction> {
@@ -420,30 +509,49 @@ impl Mempool for InjectedTxMempool {
         let ancestors = self.recent_ancestors(&head);
 
         let inner = self.inner.lock().expect("poisoned mempool");
-        let pool_len = inner.pool.len();
-        let result: Vec<_> = inner
-            .pool
+        let pool_len = inner.len();
+
+        let mut transactions = Vec::new();
+        inner
+            .injected_pool
             .values()
-            .filter(|tx| ancestors.contains(&tx.as_ref().reference_block()))
-            .cloned()
-            .collect();
+            .filter(|tx| ancestors.contains(&tx.data().reference_block))
+            .for_each(|tx| transactions.push(Transaction::Injected(tx.clone())));
+
+        inner
+            .shielded_pool
+            .values()
+            .filter(|tx| ancestors.contains(&tx.data().reference_block))
+            .for_each(|tx| transactions.push(Transaction::Shielded(tx.clone())));
+
         info!(
             head_hash = %head.hash,
             head_height = head.header.height,
             ancestors = ancestors.len(),
             pool_len,
-            returned = result.len(),
+            returned = transactions.len(),
             "mempool: fetch",
         );
-        result
+        transactions
     }
 
     async fn forget(&self, committed: &[TransactionRef<'_>]) {
         let mut inner = self.inner.lock().expect("poisoned mempool");
-        committed.iter().for_each(|tx_ref| {
-            let tx_hash = tx_ref.hash();
-            inner.pool.remove(&tx_hash);
-            inner.seen.insert(tx_hash, tx_ref.reference_block());
+        committed.iter().for_each(|tx_ref| match tx_ref {
+            TransactionRef::Injected(tx) => {
+                let tx_hash = tx.data().to_hash();
+                inner.injected_pool.remove(&tx_hash);
+                inner
+                    .injected_seen
+                    .insert(tx_hash, tx.data().reference_block);
+            }
+            TransactionRef::Shielded(tx) => {
+                let tx_hash = tx.data().to_hash();
+                inner.shielded_pool.remove(&tx_hash);
+                inner
+                    .shielded_seen
+                    .insert(tx_hash, tx.data().reference_block);
+            }
         });
     }
 
@@ -466,7 +574,10 @@ mod tests {
     use ethexe_common::{
         BlockHeader, PrivateKey, SignedMessage, SimpleBlockData,
         db::{BlockMetaStorageRW, GlobalsStorageRW, OnChainStorageRW},
-        injected::{InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction},
+        injected::{
+            InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
+            SignedShieldedTransaction,
+        },
     };
     use gprimitives::ActorId;
     use std::time::Duration;
@@ -646,6 +757,28 @@ mod tests {
         .unwrap()
     }
 
+    fn signed_shielded_tx(
+        pk: &PrivateKey,
+        destination: ActorId,
+        ref_block: H256,
+        salt: u8,
+    ) -> SignedShieldedTransaction {
+        let injected_tx = InjectedTransaction {
+            destination,
+            payload: vec![1, 2, 3].try_into().unwrap(),
+            value: 0,
+            reference_block: ref_block,
+            salt: vec![salt; 32].try_into().unwrap(),
+        };
+        let mut rng = gear_tdec::rand_utils::test_rng();
+        let dealer_out = gear_tdec::deal::<gear_tdec::bls12_381::E>(3, 2, &mut rng);
+        let shielded_tx = injected_tx
+            .shield(&dealer_out.public_key, &mut rng)
+            .unwrap();
+
+        SignedMessage::create(pk.clone(), shielded_tx).unwrap()
+    }
+
     #[test]
     fn insert_unknown_ref_block_is_accepted() {
         let db = Database::memory();
@@ -698,6 +831,65 @@ mod tests {
             TxInsertionStatus::PoolFull,
         );
         assert_eq!(pool.len(), 2, "third insert must hit the capacity cap");
+    }
+
+    #[test]
+    fn capacity_is_shared_between_injected_and_shielded_pools() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, 2);
+        let pool = InjectedTxMempool::with_capacity(db, 1);
+        let pk = PrivateKey::random();
+
+        pool.insert(signed_shielded_tx(&pk, ActorId::zero(), chain[1].hash, 0).into());
+
+        assert_eq!(
+            pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 1).into()),
+            TxInsertionStatus::PoolFull,
+        );
+        assert_eq!(pool.len(), 1);
+    }
+
+    #[test]
+    fn shielded_insert_fetch_and_forget_round_trip() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, 3);
+        let pool = InjectedTxMempool::new(db);
+        let pk = PrivateKey::random();
+        let tx: Transaction = signed_shielded_tx(&pk, ActorId::zero(), chain[2].hash, 1).into();
+        let Transaction::Shielded(signed) = &tx else {
+            unreachable!("helper creates shielded transaction");
+        };
+        let tx_hash = signed.data().to_hash();
+
+        assert_eq!(pool.insert(tx.clone()), TxInsertionStatus::Inserted);
+        assert_eq!(pool.len(), 1);
+
+        let fetched = futures::executor::block_on(pool.fetch(chain[2]));
+        assert_eq!(fetched.len(), 1);
+        let Transaction::Shielded(fetched) = &fetched[0] else {
+            panic!("expected shielded transaction");
+        };
+        assert_eq!(fetched.data().to_hash(), tx_hash);
+
+        futures::executor::block_on(pool.forget(std::slice::from_ref(&tx.as_ref())));
+        assert_eq!(pool.len(), 0);
+        assert_eq!(pool.insert(tx), TxInsertionStatus::AlreadyIncluded);
+        assert_eq!(pool.len(), 0);
+    }
+
+    #[test]
+    fn set_chain_head_purges_expired_shielded() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, (VALIDITY_WINDOW as usize) + 5);
+        let pool = InjectedTxMempool::new(db);
+        let pk = PrivateKey::random();
+        let tx: Transaction = signed_shielded_tx(&pk, ActorId::zero(), chain[1].hash, 0).into();
+        pool.insert(tx);
+        assert_eq!(pool.len(), 1);
+
+        let head_idx = (VALIDITY_WINDOW as usize) + 1;
+        let _ = pool.set_chain_head(chain[head_idx]);
+        assert_eq!(pool.len(), 0);
     }
 
     #[test]

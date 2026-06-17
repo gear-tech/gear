@@ -3,12 +3,14 @@
 
 //! Common db types and traits.
 
+#[cfg(feature = "shielded")]
+use crate::injected::SignedTxReceipt;
 use crate::{
     Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
     SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
     malachite::Operations,
 };
 use alloc::{
@@ -118,6 +120,7 @@ pub trait InjectedStorageRO {
     /// Returns the promise by its transaction hash.
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 
+    #[cfg(feature = "shielded")]
     /// Returns the receipt by its transaction hash.
     fn receipt(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedTxReceipt>;
 }
@@ -128,6 +131,7 @@ pub trait InjectedStorageRW: InjectedStorageRO {
 
     fn set_promise(&self, promise: &Promise);
 
+    #[cfg(feature = "shielded")]
     fn set_receipt(&self, receipt: &SignedTxReceipt);
 }
 

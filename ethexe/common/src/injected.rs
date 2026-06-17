@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
+use crate::{Address, EitherHashOf, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -250,6 +250,7 @@ impl PromiseKind for CompactPromise {
 /// **Important**: `Receipt<CompactPromise>` and `Receipt<Promise>` have the same
 ///     digest. So it helps to reuses the producer's signature to construct the full
 ///     version from compact.
+#[cfg(feature = "shielded")]
 #[derive(
     Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::IsVariant, derive_more::Unwrap,
 )]
@@ -260,15 +261,22 @@ pub enum Receipt<P> {
     Purged(PurgedTransaction),
 }
 
+#[cfg(feature = "shielded")]
 impl<P: PromiseKind> Receipt<P> {
     pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
         match self {
             Self::Promise(promise) => promise.tx_hash(),
-            Self::Purged(purged) => purged.tx_hash,
+            Self::Purged(purged) => {
+                let TransactionHash::Left(tx_hash) = purged.tx_hash else {
+                    todo!()
+                };
+                tx_hash
+            }
         }
     }
 }
 
+#[cfg(feature = "shielded")]
 impl<P: ToDigest> ToDigest for Receipt<P> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         match self {
@@ -286,6 +294,7 @@ impl<P: ToDigest> ToDigest for Receipt<P> {
 
 /// Signed [Receipt] with a [Promise] generic.
 /// End RPC user always receives this object.
+#[cfg(feature = "shielded")]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Deref)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(transparent))]
@@ -293,6 +302,7 @@ pub struct SignedTxReceipt(SignedMessage<Receipt<Promise>>);
 
 /// Signed [Receipt] with a [CompactPromise] generic.
 /// It is used as a lightweight transfer type
+#[cfg(feature = "shielded")]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
 pub struct SignedCompactTxReceipt(SignedMessage<Receipt<CompactPromise>>);
 
@@ -301,12 +311,14 @@ pub struct SignedCompactTxReceipt(SignedMessage<Receipt<CompactPromise>>);
 /// to full version.
 /// [Pending](Self::Pending) means that receipt contains a promise and requires the
 /// full promise body to restore receipt.
+#[cfg(feature = "shielded")]
 #[derive(Debug, PartialEq, Eq, derive_more::From)]
 pub enum UpgradedReceipt {
     Pending(UnfilledPromiseReceipt),
     Ready(SignedTxReceipt),
 }
 
+#[cfg(feature = "shielded")]
 impl SignedCompactTxReceipt {
     /// Upgrades the compact receipt to its full version ([SignedTxReceipt]).
     pub fn upgrade(self) -> UpgradedReceipt {
@@ -334,11 +346,13 @@ pub struct UnfilledPromiseReceipt(#[deref] CompactPromise, Signature, Address);
 /// The result of [try_fill_with](UnfilledPromiseReceipt::try_fill_with) function.
 /// [Filled](Self::Filled) means the successful result.
 /// [HashesMismatch](Self::HashesMismatch) means that raw promise body and stored compact are not the same promise.
+#[cfg(feature = "shielded")]
 pub enum TryFillPromiseResult {
     Filled(SignedTxReceipt),
     HashesMismatch(UnfilledPromiseReceipt),
 }
 
+#[cfg(feature = "shielded")]
 impl UnfilledPromiseReceipt {
     pub fn try_fill_with(self, promise: Promise) -> TryFillPromiseResult {
         if self.0 != promise.to_compact() {
@@ -352,19 +366,23 @@ impl UnfilledPromiseReceipt {
     }
 }
 
-/// Represents the reason why [InjectedTransaction] was not included.
+/// Represents the reason why transaction was not included.
+#[cfg(feature = "shielded")]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[display("Injected transaction wasn't executed: tx_hash={tx_hash}, reason={reason}")]
 pub struct PurgedTransaction {
-    pub tx_hash: HashOf<InjectedTransaction>,
+    /// Has of [InjectedTransaction] or [ShieldedTransaction].
+    pub tx_hash: TransactionHash,
+    /// Reason why transaction was purged from mempool.
     pub reason: TransactionPurgedReason,
 }
 
+#[cfg(feature = "shielded")]
 impl ToDigest for PurgedTransaction {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self { tx_hash, reason } = self;
-        hasher.update(tx_hash.inner().0);
+        tx_hash.update_hasher(hasher);
         hasher.update([reason.variant_index()]);
     }
 }
@@ -512,6 +530,10 @@ pub enum Transaction {
     Injected(SignedInjectedTransaction),
     Shielded(SignedShieldedTransaction),
 }
+
+#[cfg(feature = "shielded")]
+/// Type alias over [EitherHashOf].
+pub type TransactionHash = EitherHashOf<InjectedTransaction, ShieldedTransaction>;
 
 #[cfg(feature = "shielded")]
 impl Transaction {
@@ -814,7 +836,7 @@ mod tests {
     #[test]
     fn tx_receipt_has_the_same_hash_for_error() {
         let purged = PurgedTransaction {
-            tx_hash: unsafe { HashOf::new(H256::random()) },
+            tx_hash: unsafe { TransactionHash::Left(HashOf::new(H256::random())) },
             reason: TransactionPurgedReason::Outdated,
         };
         let receipt1 = Receipt::<Promise>::Purged(purged.clone());
@@ -858,5 +880,12 @@ mod tests {
                 .to_address(),
             signed_tx.address()
         );
+    }
+
+    #[test]
+    fn mock_display() {
+        let hash = InjectedTransaction::mock(()).to_hash();
+        let h = TransactionHash::Left(hash);
+        println!("{h}");
     }
 }

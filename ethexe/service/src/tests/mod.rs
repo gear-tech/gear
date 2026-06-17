@@ -23,7 +23,7 @@ use ethexe_common::{
     },
     gear::BatchCommitment,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, Receipt, TransactionPurgedReason,
+        InjectedTransaction, InjectedTransactionAcceptance, Receipt, TransactionHash, TransactionPurgedReason
     },
     mock::*,
 };
@@ -1964,7 +1964,7 @@ async fn injected_tx_purged_receipt() {
             subscription_receipt.data()
         );
     };
-    assert_eq!(purged.tx_hash, tx_hash);
+    assert_eq!(purged.tx_hash, TransactionHash::Left(tx_hash));
     assert_eq!(
         purged.reason,
         TransactionPurgedReason::UnknownReferenceBlock

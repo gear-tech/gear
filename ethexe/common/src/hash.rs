@@ -1,6 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+use crate::ToDigest;
 use alloc::string::{String, ToString};
 use anyhow::Result;
 use core::{
@@ -13,6 +14,7 @@ use core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use sha3::Digest;
 
 fn option_string<T: ToString>(value: &Option<T>) -> String {
     value
@@ -198,5 +200,34 @@ impl<T> MaybeHashOf<T> {
 impl<T> From<HashOf<T>> for MaybeHashOf<T> {
     fn from(value: HashOf<T>) -> Self {
         Self(Some(value))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub enum EitherHashOf<Left: 'static, Right: 'static> {
+    #[display("Left({_0})")]
+    Left(HashOf<Left>),
+    #[display("Right({_0})")]
+    Right(HashOf<Right>),
+}
+
+impl<L, R> EitherHashOf<L, R> {
+    pub fn inner(&self) -> H256 {
+        match self {
+            Self::Left(left_hash) => left_hash.inner(),
+            Self::Right(right_hash) => right_hash.inner(),
+        }
+    }
+}
+
+impl<L, R> ToDigest for EitherHashOf<L, R> {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let prefix = match self {
+            Self::Left(_) => 0u8,
+            Self::Right(_) => 1u8,
+        };
+        hasher.update(&[prefix]);
+        hasher.update(self.inner().as_ref());
     }
 }
