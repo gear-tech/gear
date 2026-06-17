@@ -346,21 +346,19 @@ impl NetworkBehaviour for Behaviour {
             self.requests.insert(query_id, channel);
         }
 
-        if let Poll::Ready(to_swarm) = self.inner.poll(cx) {
-            return match to_swarm {
-                ToSwarm::GenerateEvent(event) => {
+        loop {
+            match self.inner.poll(cx) {
+                Poll::Ready(ToSwarm::GenerateEvent(event)) => {
                     self.handle_inner_event(event);
-                    Poll::Pending
                 }
-                to_swarm => {
-                    Poll::Ready(to_swarm.map_out(|_event| {
+                Poll::Ready(to_swarm) => {
+                    return Poll::Ready(to_swarm.map_out(|_event| {
                         unreachable!("`ToSwarm::GenerateEvent` is handled above")
-                    }))
+                    }));
                 }
-            };
+                Poll::Pending => return Poll::Pending,
+            }
         }
-
-        Poll::Pending
     }
 }
 
