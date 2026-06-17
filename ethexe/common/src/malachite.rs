@@ -28,6 +28,8 @@
 //! depending on the consensus layer.
 
 use crate::injected::SignedInjectedTransaction;
+#[cfg(feature = "shielded")]
+use crate::{HashOf, injected::ShieldedTransaction};
 use alloc::vec::Vec;
 use derive_more::{Deref, DerefMut, IntoIterator};
 use gprimitives::H256;
@@ -172,31 +174,17 @@ pub struct VotingExtension {
 }
 
 /// One validator's decryption-share payload for one shielded transaction.
-/// Holds [DecryptionShareSimple] over [ShieldedTransaction].
+/// Holds [`DecryptionShareSimple`] over [`ShieldedTransaction`].
 ///
 /// [ShieldedTransaction]: crate::injected::ShieldedTransaction
 #[cfg(feature = "shielded")]
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct VotingDecryptionShare {
-    pub tx_hash: H256,
+    /// Transaction hash decryption share belongs to.
+    pub tx_hash: HashOf<ShieldedTransaction>,
     pub share: DecryptionShareSimple,
 }
-
-// #[cfg(feature = "shielded")]
-// impl VotingDecryptionShare {
-//     pub fn from_shielded_tx(shielded_tx: &ShieldedTransaction) -> gear_tdec::Result<Self> {
-//         let ciphertext_header = shielded_tx.ciphertext.header()?;
-//         let share = DecryptionShareSimple::create(
-//             validator_decryption_key,
-//             private_key_share,
-//             &ciphertext_header,
-//             shielded_tx.aad.as_ref(),
-//         )?;
-//         let tx_hash = shielded_tx.to_hash();
-//         Ok(Self { tx_hash, share })
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

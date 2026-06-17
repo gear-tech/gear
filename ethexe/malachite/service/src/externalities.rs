@@ -48,8 +48,8 @@ use bytes::Bytes;
 use ethexe_common::{
     MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
-    injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, Transaction, TransactionRef},
-    malachite::{Operation, Operations, VotingExtension},
+    injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, Transaction},
+    malachite::{Operation, Operations, VotingDecryptionShare, VotingExtension},
 };
 use ethexe_db::Database;
 use ethexe_malachite_core::{
@@ -63,42 +63,6 @@ use std::{
 };
 use tokio::sync::{Notify, mpsc};
 use tracing::{debug, error, info, warn};
-
-/// Optimization for reducing `clone` operation for potentially large transactions.
-fn operation_to_transaction(operation: &Operation) -> Option<TransactionRef<'_>> {
-    match operation {
-        Operation::Injected(tx) => Some(TransactionRef::Injected(tx)),
-        Operation::Shielded(tx) => Some(TransactionRef::Shielded(tx)),
-        _ => None,
-    }
-}
-
-fn transaction_ref_hash(transaction: TransactionRef<'_>) -> H256 {
-    match transaction {
-        TransactionRef::Injected(tx) => tx.data().to_hash().inner(),
-        TransactionRef::Shielded(tx) => tx.data().to_hash().inner(),
-    }
-}
-
-fn transaction_to_operation(transaction: Transaction) -> Operation {
-    match transaction {
-        Transaction::Injected(tx) => Operation::Injected(tx),
-        Transaction::Shielded(_) => todo!("Shielded transaction block inclusion"),
-    }
-}
-
-fn decode_voting_extensions(
-    extensions: Vec<(MalachiteAddress, Bytes)>,
-) -> Result<Vec<(MalachiteAddress, VotingExtension)>> {
-    extensions
-        .into_iter()
-        .map(|(address, bytes)| {
-            VotingExtension::decode_all(&mut bytes.as_ref())
-                .map(|extension| (address, extension))
-                .map_err(|e| anyhow!("decoding voting extension from {address}: {e}"))
-        })
-        .collect()
-}
 
 /// Inputs the externalities need to satisfy the [`ethexe_malachite_core::Externalities`]
 /// contract. Constructed by [`crate::MalachiteService::new`] and
@@ -235,7 +199,7 @@ impl Externalities for EthexeExternalities {
         // back in before they age out.
         let transactions = payload
             .iter()
-            .filter_map(operation_to_transaction)
+            .filter_map(utils::operation_to_transaction)
             .collect::<Vec<_>>();
         if !transactions.is_empty() {
             self.mempool.forget(&transactions).await;
@@ -252,7 +216,7 @@ impl Externalities for EthexeExternalities {
             mb_hash,
             signatures: cert.signatures,
         };
-        let voting_extensions = decode_voting_extensions(extensions)?;
+        let voting_extensions = utils::decode_voting_extensions(extensions)?;
         if !voting_extensions.is_empty() {
             info!(
                 validators = voting_extensions.len(),
@@ -294,13 +258,25 @@ impl Externalities for EthexeExternalities {
         _mb: Block,
         extension: Bytes,
     ) -> Result<bool> {
-        match VotingExtension::decode_all(&mut extension.as_ref()) {
-            Ok(_) => Ok(true),
+        let decryption_shares = match VotingExtension::decode_all(&mut extension.as_ref()) {
+            Ok(voting_extension) => voting_extension.decryption_shares,
             Err(e) => {
                 warn!(error = %e, "verify_vote_extension: undecodable extension");
-                Ok(false)
+                return Ok(false);
             }
+        };
+
+        for VotingDecryptionShare { .. } in decryption_shares {
+            // let shielded_tx =
+            // let v = gear_tdec::verify_decryption_shares_simple(
+            //     pub_contexts,
+            //     ciphertext,
+            //     decryption_shares,
+            // );
+            // let _v = share.validator_checksum;
         }
+
+        Ok(true)
     }
 
     async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload> {
@@ -336,7 +312,7 @@ impl Externalities for EthexeExternalities {
                         TxValidity::Valid => accepted.push(tx),
                         reason => {
                             warn!(
-                                tx_hash = %transaction_ref_hash(tx.as_ref()),
+                                tx_hash = %utils::transaction_ref_hash(tx.as_ref()),
                                 ?reason,
                                 "build_block_above: dropping transaction — fails TxValidity",
                             );
@@ -432,7 +408,7 @@ impl Externalities for EthexeExternalities {
             operations.push(Operation::AdvanceTillEthereumBlock { block_hash });
         }
         for tx in capped {
-            operations.push(transaction_to_operation(tx));
+            operations.push(utils::transaction_to_operation(tx));
         }
         operations.push(Operation::ProgressTasks);
         operations.push(Operation::ProcessQueuesV2 {
@@ -465,7 +441,8 @@ impl Externalities for EthexeExternalities {
                 Operation::AdvanceTillEthereumBlock { .. }
                 | Operation::ProgressTasks
                 | Operation::ProcessQueuesV2 { .. }
-                | Operation::Injected(_) => {
+                | Operation::Injected(_)
+                | Operation::Shielded(_) => {
                     // Known and allowed.
                 }
                 op => {
@@ -615,7 +592,7 @@ impl Externalities for EthexeExternalities {
             // since the checker has no anchor to walk from.
             let has_injected = operations
                 .iter()
-                .any(|tx| operation_to_transaction(tx).is_some());
+                .any(|tx| utils::operation_to_transaction(tx).is_some());
             if has_injected {
                 warn!("validate: MB carries injected txs but no local chain head — abstaining");
                 return Ok(false);
@@ -632,7 +609,7 @@ impl Externalities for EthexeExternalities {
         // local DB corruption, not a peer-side issue.
         let checker = TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_hash)?;
         for op in operations.iter() {
-            let Some(transaction) = operation_to_transaction(op) else {
+            let Some(transaction) = utils::operation_to_transaction(op) else {
                 continue;
             };
             // `?` inside `check_tx_validity` only fires on local DB
@@ -644,7 +621,7 @@ impl Externalities for EthexeExternalities {
                 TxValidity::Valid => {}
                 reason => {
                     warn!(
-                        tx_hash = %transaction_ref_hash(transaction),
+                        tx_hash = %utils::transaction_ref_hash(transaction),
                         ?reason,
                         "validate: transaction fails TxValidity — rejecting MB",
                     );
@@ -830,6 +807,54 @@ impl EthexeExternalities {
     }
 }
 
+mod utils {
+    use anyhow::{Result, anyhow};
+    use bytes::Bytes;
+    use ethexe_common::{
+        injected::{Transaction, TransactionRef},
+        malachite::{Operation, VotingExtension},
+    };
+    use ethexe_malachite_core::Address as MalachiteAddress;
+    use gprimitives::H256;
+    use parity_scale_codec::DecodeAll;
+
+    /// Optimization for reducing `clone` operation for potentially large transactions.
+    pub(crate) fn operation_to_transaction(operation: &Operation) -> Option<TransactionRef<'_>> {
+        match operation {
+            Operation::Injected(tx) => Some(TransactionRef::Injected(tx)),
+            Operation::Shielded(tx) => Some(TransactionRef::Shielded(tx)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn transaction_ref_hash(transaction: TransactionRef<'_>) -> H256 {
+        match transaction {
+            TransactionRef::Injected(tx) => tx.data().to_hash().inner(),
+            TransactionRef::Shielded(tx) => tx.data().to_hash().inner(),
+        }
+    }
+
+    pub(crate) fn transaction_to_operation(transaction: Transaction) -> Operation {
+        match transaction {
+            Transaction::Injected(tx) => Operation::Injected(tx),
+            Transaction::Shielded(_) => todo!("Shielded transaction block inclusion"),
+        }
+    }
+
+    pub(crate) fn decode_voting_extensions(
+        extensions: Vec<(MalachiteAddress, Bytes)>,
+    ) -> Result<Vec<(MalachiteAddress, VotingExtension)>> {
+        extensions
+            .into_iter()
+            .map(|(address, bytes)| {
+                VotingExtension::decode_all(&mut bytes.as_ref())
+                    .map(|extension| (address, extension))
+                    .map_err(|e| anyhow!("decoding voting extension from {address}: {e}"))
+            })
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -838,7 +863,9 @@ mod tests {
     use ethexe_common::{
         BlockHeader, HashOf,
         db::{BlockMetaStorageRW, OnChainStorageRW},
-        injected::{InjectedTransaction, PurgedTransaction, SignedInjectedTransaction},
+        injected::{
+            InjectedTransaction, PurgedTransaction, SignedInjectedTransaction, TransactionRef,
+        },
     };
 
     fn to_payload(bytes: Vec<u8>) -> BlockPayload {

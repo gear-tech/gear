@@ -18,6 +18,7 @@ futures.workspace = true
 parity-scale-codec.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
 tracing.workspace = true
+gear-tdec.workspace = true
 
 # Generic Malachite-backed consensus service. Carries the engine,
 # libp2p swarm, store, and codec; ethexe-malachite only ships the

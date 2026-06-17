@@ -5704,6 +5704,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-ethereum",
  "ethexe-runtime-common",
+ "ferveo-gear-tdec",
  "flate2",
  "futures",
  "gear-core",

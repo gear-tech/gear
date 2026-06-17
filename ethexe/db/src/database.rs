@@ -19,7 +19,10 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
+    injected::{
+        InjectedTransaction, Promise, ShieldedTransaction, SignedInjectedTransaction,
+        SignedShieldedTransaction, SignedTxReceipt,
+    },
     malachite::Operations,
 };
 use ethexe_runtime_common::state::{
@@ -67,6 +70,7 @@ enum Key {
 
     Promise(HashOf<InjectedTransaction>) = 26,
     TxReceipt(HashOf<InjectedTransaction>) = 27,
+    ShieldedTransaction(HashOf<ShieldedTransaction>) = 28,
 }
 
 impl Key {
@@ -99,6 +103,7 @@ impl Key {
             Self::InjectedTransaction(hash) | Self::Promise(hash) | Self::TxReceipt(hash) => {
                 bytes.extend(hash.as_ref())
             }
+            Self::ShieldedTransaction(hash) => bytes.extend(hash.as_ref()),
 
             Self::ProgramToCodeId(program_id) => bytes.extend(program_id.as_ref()),
 
@@ -671,6 +676,18 @@ impl InjectedStorageRO for RawDatabase {
             })
     }
 
+    fn shielded_transaction(
+        &self,
+        hash: HashOf<ShieldedTransaction>,
+    ) -> Option<SignedShieldedTransaction> {
+        self.kv
+            .get(&Key::ShieldedTransaction(hash).to_bytes())
+            .map(|data| {
+                SignedShieldedTransaction::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `SignedShieldedTransaction`")
+            })
+    }
+
     fn promise(&self, tx_hash: HashOf<InjectedTransaction>) -> Option<Promise> {
         self.kv.get(&Key::Promise(tx_hash).to_bytes()).map(|data| {
             Promise::decode(&mut data.as_slice()).expect("Failed to decode data into Promise")
@@ -694,6 +711,14 @@ impl InjectedStorageRW for RawDatabase {
         tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
         self.kv
             .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
+    }
+
+    fn set_shielded_transaction(&self, tx: SignedShieldedTransaction) {
+        let tx_hash = tx.data().to_hash();
+
+        tracing::trace!(shielded_tx_hash = ?tx_hash, "Set shielded transaction");
+        self.kv
+            .put(&Key::ShieldedTransaction(tx_hash).to_bytes(), tx.encode());
     }
 
     fn set_promise(&self, promise: &Promise) {
@@ -961,6 +986,7 @@ impl OnChainStorageRW for Database {
 impl InjectedStorageRO for Database {
     delegate!(to self.raw {
         fn injected_transaction(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedInjectedTransaction>;
+        fn shielded_transaction(&self, hash: HashOf<ShieldedTransaction>) -> Option<SignedShieldedTransaction>;
         fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
         fn receipt(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedTxReceipt>;
     });
@@ -991,6 +1017,7 @@ impl MbStorageRW for Database {
 impl InjectedStorageRW for Database {
     delegate!(to self.raw {
         fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
+        fn set_shielded_transaction(&self, tx: SignedShieldedTransaction);
         fn set_promise(&self, promise: &Promise);
         fn set_receipt(&self, receipt: &SignedTxReceipt);
     });
@@ -1079,31 +1106,38 @@ mod tests {
     use ethexe_common::{
         ecdsa::PrivateKey,
         events::{RouterEvent, router::StorageSlotChangedEvent},
+        mock::Mock,
     };
-    use gear_core::{
-        code::{InstantiatedSectionSizes, InstrumentationStatus},
-        limited::LimitedVec,
-    };
+    use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
+    use gsigner::SignedMessage;
 
     #[test]
     fn test_injected_transaction() {
         let db = Database::memory();
 
         let private_key = PrivateKey::from_seed([1; 32]).expect("valid seed");
-        let tx = SignedInjectedTransaction::create(
-            private_key,
-            InjectedTransaction {
-                destination: ActorId::zero(),
-                payload: LimitedVec::new(),
-                value: 0,
-                reference_block: H256::random(),
-                salt: LimitedVec::new(),
-            },
-        )
-        .unwrap();
+        let tx = SignedMessage::create(private_key, InjectedTransaction::mock(())).unwrap();
         let tx_hash = tx.data().to_hash();
         db.set_injected_transaction(tx.clone());
         assert_eq!(db.injected_transaction(tx_hash), Some(tx));
+    }
+
+    #[test]
+    fn test_shielded_transaction() {
+        let db = Database::memory();
+
+        let mut rng = gear_tdec::rand_utils::test_rng();
+        let dealer_out = gear_tdec::deal::<gear_tdec::bls12_381::E>(3, 2, &mut rng);
+
+        let shielded_tx = InjectedTransaction::mock(())
+            .shield(&dealer_out.public_key, &mut rng)
+            .unwrap();
+        let tx = SignedMessage::create(PrivateKey::random(), shielded_tx).unwrap();
+        let tx_hash = tx.data().to_hash();
+
+        db.set_shielded_transaction(tx.clone());
+
+        assert_eq!(db.shielded_transaction(tx_hash), Some(tx));
     }
 
     #[test]

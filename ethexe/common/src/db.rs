@@ -4,14 +4,14 @@
 //! Common db types and traits.
 
 #[cfg(feature = "shielded")]
-use crate::injected::SignedTxReceipt;
+use crate::injected::{ShieldedTransaction, SignedShieldedTransaction, SignedTxReceipt};
 use crate::{
-    Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
-    SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
     malachite::Operations,
+    Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
+    SimpleBlockData, ValidatorsVec,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -117,6 +117,13 @@ pub trait InjectedStorageRO {
         hash: HashOf<InjectedTransaction>,
     ) -> Option<SignedInjectedTransaction>;
 
+    #[cfg(feature = "shielded")]
+    /// Returns the shielded transaction by its hash.
+    fn shielded_transaction(
+        &self,
+        hash: HashOf<ShieldedTransaction>,
+    ) -> Option<SignedShieldedTransaction>;
+
     /// Returns the promise by its transaction hash.
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 
@@ -128,6 +135,9 @@ pub trait InjectedStorageRO {
 #[auto_impl::auto_impl(&)]
 pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
+
+    #[cfg(feature = "shielded")]
+    fn set_shielded_transaction(&self, tx: SignedShieldedTransaction);
 
     fn set_promise(&self, promise: &Promise);
 
@@ -265,7 +275,7 @@ mod tests {
     use super::*;
     // use crate::malachite::Operations;
     use indoc::formatdoc;
-    use scale_info::{PortableRegistry, Registry, meta_type};
+    use scale_info::{meta_type, PortableRegistry, Registry};
     use sha3::{Digest, Sha3_256};
 
     #[test]
