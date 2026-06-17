@@ -3222,6 +3222,11 @@ async fn fast_sync() {
 
     let config = TestEnvConfig {
         network: EnvNetworkConfig::Enabled,
+        // Keep proposals one EB behind the freshest head. On loaded CI,
+        // Bob can receive Alice's proposal before its Malachite chain-head
+        // register observes the just-mined EB.
+        post_quarantine_delay: 1,
+        kicking_per_blocks: Some(1),
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
