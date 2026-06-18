@@ -2782,6 +2782,7 @@ async fn program_subscribe_best_state() {
 
     let mut env = TestEnv::default().await;
 
+    let pubkey = env.validators[0].public_key;
     let mut node = env
         .new_node(
             NodeConfig::default()
@@ -2843,6 +2844,54 @@ async fn program_subscribe_best_state() {
         "expected the PONG reply in the best state messages"
     );
     tracing::info!("✅ Best state successfully received from RPC subscription");
+
+    // Now send the same PING as an injected transaction: it must yield a PONG
+    // promise over its own subscription, and our best-state subscription must
+    // also observe the resulting transition.
+    let ping_tx = InjectedTransaction {
+        destination: ping_id,
+        payload: b"PING".to_vec().try_into().unwrap(),
+        value: 0,
+        reference_block: node.db.globals().latest_prepared_eb_hash,
+        salt: vec![1].try_into().unwrap(),
+    };
+    let rpc_tx = env
+        .signer
+        .signed_message(pubkey, ping_tx.clone(), None)
+        .unwrap();
+
+    let mut tx_subscription = rpc_client
+        .send_transaction_and_watch(rpc_tx)
+        .await
+        .expect("successfully subscribe for injected transaction promise");
+
+    let promise = tx_subscription
+        .next()
+        .await
+        .expect("promise from subscription")
+        .expect("transaction promise")
+        .data()
+        .clone()
+        .unwrap_promise();
+    assert_eq!(promise.tx_hash, ping_tx.to_hash());
+    assert_eq!(promise.reply.payload, b"PONG");
+    tracing::info!("✅ Injected PING promise received from RPC subscription");
+
+    let injected_best_state = subscription
+        .next()
+        .await
+        .expect("subscription produces a best state for the injected ping")
+        .expect("no RPC subscription error");
+    assert_ne!(injected_best_state.mb_hash, H256::zero());
+    assert_ne!(injected_best_state.new_state_hash, H256::zero());
+    assert!(
+        injected_best_state
+            .messages
+            .iter()
+            .any(|msg| msg.payload == b"PONG"),
+        "expected the injected PONG reply in the best state messages"
+    );
+    tracing::info!("✅ Best state for injected PING received from RPC subscription");
 
     subscription
         .unsubscribe()
