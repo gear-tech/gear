@@ -19,10 +19,14 @@ use ethexe_ethereum::{
         MirrorQuery as EthereumMirrorQuery,
     },
 };
-use ethexe_rpc::{CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramClient};
+use ethexe_rpc::{
+    CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramBestState,
+    ProgramClient,
+};
 use ethexe_runtime_common::state::ProgramState;
 use futures::TryFutureExt;
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
+use jsonrpsee::core::client::Subscription;
 use gsigner::secp256k1::Secp256k1SignerExt;
 
 pub struct Mirror<'a> {
@@ -279,6 +283,17 @@ impl<'a> Mirror<'a> {
         };
 
         Ok((message_id, promise))
+    }
+
+    /// Subscribes to this program's best state, yielding a [`ProgramBestState`]
+    /// on every newly computed MB that produces a transition for the program.
+    pub async fn subscribe_best_state(&self) -> Result<Subscription<ProgramBestState>> {
+        let program_id = self.actor_id().to_address_lossy();
+        self.api
+            .vara_eth_client
+            .subscribe_best_state(program_id)
+            .await
+            .with_context(|| "failed to subscribe to program best state")
     }
 
     pub async fn wait_for_reply(&self, message_id: MessageId) -> Result<ReplyInfo> {
