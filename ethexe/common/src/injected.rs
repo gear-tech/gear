@@ -550,13 +550,6 @@ impl Transaction {
             Self::Shielded(_) => None,
         }
     }
-
-    pub fn into_injected(self) -> Option<SignedInjectedTransaction> {
-        match self {
-            Self::Injected(tx) => Some(tx),
-            Self::Shielded(_) => None,
-        }
-    }
 }
 
 /// Mirroring [Transaction] type, but stores internally references to
@@ -664,8 +657,8 @@ mod tests {
     /// ```
     #[test]
     fn ark_noble_js_compatible_serialization() {
-        const NOBLE_JS_G1_123_COMPRESSED_SERIALIZED: &'static str = r#""0xa0ec3e71a719a25208adc97106b122809210faf45a17db24f10ffb1ac014fac1ab95a4a1967e55b185d4df622685b9e8""#;
-        const NOBLE_JS_G2_123_COMPRESSED_SERIALIZED: &'static str = r#""0x95e18bbdb8b7bd39ea677ee923d7e87af449c45209e635907a4a8a2e4c65fff97c46d038cff53a994da273310ac85866096a5e13fd3ebf4e140e26f6ddfac66651e04e530e6045572acab753bb1bcef990fe14b4426caee41016af69d313750d""#;
+        const NOBLE_JS_G1_123_COMPRESSED_SERIALIZED: &str = r#""0xa0ec3e71a719a25208adc97106b122809210faf45a17db24f10ffb1ac014fac1ab95a4a1967e55b185d4df622685b9e8""#;
+        const NOBLE_JS_G2_123_COMPRESSED_SERIALIZED: &str = r#""0x95e18bbdb8b7bd39ea677ee923d7e87af449c45209e635907a4a8a2e4c65fff97c46d038cff53a994da273310ac85866096a5e13fd3ebf4e140e26f6ddfac66651e04e530e6045572acab753bb1bcef990fe14b4426caee41016af69d313750d""#;
 
         #[derive(serde::Serialize, serde::Deserialize)]
         #[serde(transparent)]

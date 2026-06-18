@@ -6232,7 +6232,7 @@ dependencies = [
 [[package]]
 name = "ferveo-gear-common"
 version = "0.5.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#521a2462205e1995a2d7c69675fca96ab80b9321"
+source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#a8cabb84093e9c2f26e604834146d35a06a90b18"
 dependencies = [
  "ark-ec 0.5.0",
  "ark-serialize 0.5.0",
@@ -6248,7 +6248,7 @@ dependencies = [
 [[package]]
 name = "ferveo-gear-tdec"
 version = "0.5.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#521a2462205e1995a2d7c69675fca96ab80b9321"
+source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#a8cabb84093e9c2f26e604834146d35a06a90b18"
 dependencies = [
  "ark-bls12-381 0.5.0",
  "ark-ec 0.5.0",
@@ -18877,7 +18877,7 @@ dependencies = [
 [[package]]
 name = "subproductdomain-gear"
 version = "0.5.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#521a2462205e1995a2d7c69675fca96ab80b9321"
+source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#a8cabb84093e9c2f26e604834146d35a06a90b18"
 dependencies = [
  "anyhow",
  "ark-ec 0.5.0",

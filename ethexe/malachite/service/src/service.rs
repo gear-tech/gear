@@ -156,6 +156,8 @@ impl MalachiteService {
 
         let externalities = Arc::new(EthexeExternalities {
             db,
+            // TODO: FIXME (temporary solution)
+            tdec_store: gsigner::TdecKeyStore::memory(),
             mempool: Arc::clone(&mempool),
             chain_head: Arc::clone(&chain_head),
             chain_head_notify: Arc::clone(&chain_head_notify),

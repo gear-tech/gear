@@ -13,8 +13,8 @@ use crate::{
 };
 use ferveo_common::{Keypair, PublicKey, from_bytes, to_bytes};
 use gear_tdec::{
-    BlindedKeyShare, CiphertextHeader, DecryptionShareSimple, DomainPoint,
-    PublicDecryptionContextSimple, bls12_381::E,
+    DomainPoint, PublicDecryptionContextSimple,
+    bls12_381::{CiphertextHeader, DecryptionShareSimple as DecryptionShare, E},
 };
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
@@ -28,10 +28,8 @@ use tempfile::TempDir;
 pub type TdecPublicKey = PublicKey<E>;
 pub type TdecKeypair = Keypair<E>;
 pub type TdecDecryptionKey = DomainPoint<E>;
-pub type TdecBlindedKeyShare = BlindedKeyShare<E>;
-pub type TdecCiphertextHeader = CiphertextHeader<E>;
-pub type TdecDecryptionShare = DecryptionShareSimple<E>;
-pub type TdecPublicDecryptionContext = PublicDecryptionContextSimple<E>;
+pub type BlindedKeyShare = gear_tdec::BlindedKeyShare<E>;
+pub type PublicDecryptionContext = PublicDecryptionContextSimple<E>;
 
 const NAMESPACE_TDEC: &str = "tdec";
 
@@ -78,13 +76,13 @@ impl KeystoreEntry for TdecKeyEntry {
 /// `TdecKeyStore` keeps only the validator's private decryption scalar and the
 /// corresponding public key. It does not store
 /// [`gear_tdec::PrivateDecryptionContextSimple`]; callers should keep or obtain
-/// [`TdecPublicDecryptionContext`] separately and pass it to [`Self::create_share`].
+/// [`PublicDecryptionContext`] separately and pass it to [`Self::create_share`].
 ///
 /// Typical usage:
 ///
 /// 1. Import the local validator's `validator_decryption_key` with
 ///    [`Self::import_decryption_key`].
-/// 2. Receive or load a [`TdecPublicDecryptionContext`] containing
+/// 2. Receive or load a [`PublicDecryptionContext`] containing
 ///    `validator_public_key` and `blinded_key_share`.
 /// 3. Call [`Self::create_share`] with the public context, ciphertext header,
 ///    and AAD. The store finds the matching local private scalar by public key
@@ -205,10 +203,10 @@ impl TdecKeyStore {
     /// `gear-tdec`.
     pub fn create_share(
         &self,
-        public_context: &TdecPublicDecryptionContext,
-        ciphertext_header: &TdecCiphertextHeader,
+        public_context: &PublicDecryptionContext,
+        ciphertext_header: &CiphertextHeader,
         aad: &[u8],
-    ) -> Result<TdecDecryptionShare> {
+    ) -> Result<DecryptionShare> {
         self.create_share_with_blinded_key(
             &public_context.validator_public_key,
             &public_context.blinded_key_share,
@@ -224,10 +222,10 @@ impl TdecKeyStore {
     pub fn create_share_with_blinded_key(
         &self,
         public_key: &TdecPublicKey,
-        blinded_key_share: &TdecBlindedKeyShare,
-        ciphertext_header: &TdecCiphertextHeader,
+        blinded_key_share: &BlindedKeyShare,
+        ciphertext_header: &CiphertextHeader,
         aad: &[u8],
-    ) -> Result<TdecDecryptionShare> {
+    ) -> Result<DecryptionShare> {
         let keypair = self.keypair(public_key)?;
         blinded_key_share
             .create_decryption_share_simple(ciphertext_header, aad, &keypair)
@@ -336,7 +334,7 @@ mod tests {
         let public_context = context.public_decryption_contexts[context.index].clone();
         let ciphertext =
             gear_tdec::encrypt_raw::<E>(b"hello", b"aad", &dealer.public_key, &mut rng).unwrap();
-        let header = ciphertext.header().unwrap();
+        let header = ciphertext.header();
         let store = TdecKeyStore::memory();
         store
             .import_decryption_key(context.validator_decryption_key)
