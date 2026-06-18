@@ -57,13 +57,11 @@ impl BestStateManager {
     }
 
     fn outcome(&self, mb_hash: H256) -> Option<Arc<Vec<StateTransition>>> {
-        if let Some(transitions) = self.cache.get(&mb_hash) {
-            return Some(transitions);
-        }
-
-        let transitions = Arc::new(self.db.mb_outcome(mb_hash)?);
-        self.cache.insert(mb_hash, transitions.clone());
-        Some(transitions)
+        // `try_get_with` coalesces concurrent misses for the same `mb_hash`, so
+        // many subscribers sharing an MB trigger only a single DB read.
+        self.cache
+            .try_get_with(mb_hash, || self.db.mb_outcome(mb_hash).map(Arc::new).ok_or(()))
+            .ok()
     }
 }
 
