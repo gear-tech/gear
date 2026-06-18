@@ -60,7 +60,9 @@ impl BestStateManager {
         // `try_get_with` coalesces concurrent misses for the same `mb_hash`, so
         // many subscribers sharing an MB trigger only a single DB read.
         self.cache
-            .try_get_with(mb_hash, || self.db.mb_outcome(mb_hash).map(Arc::new).ok_or(()))
+            .try_get_with(mb_hash, || {
+                self.db.mb_outcome(mb_hash).map(Arc::new).ok_or(())
+            })
             .ok()
     }
 }
