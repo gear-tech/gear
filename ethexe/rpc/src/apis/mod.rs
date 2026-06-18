@@ -7,6 +7,8 @@ mod dev;
 mod info;
 mod injected;
 mod program;
+#[cfg(feature = "server")]
+mod program_best_state;
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
@@ -15,7 +17,9 @@ pub use crate::apis::{
     dev::DevClient,
     info::{InfoClient, RPC_VERSION},
     injected::InjectedClient,
-    program::{CalculateReplyForHandleResult, FullProgramState, ProgramClient, Proof},
+    program::{
+        CalculateReplyForHandleResult, FullProgramState, ProgramBestState, ProgramClient, Proof,
+    },
 };
 #[cfg(feature = "server")]
 pub use block::{BlockApi, BlockServer};
@@ -29,3 +33,5 @@ pub use info::{InfoApi, InfoServer};
 pub use injected::{InjectedApi, InjectedServer};
 #[cfg(feature = "server")]
 pub use program::{ProgramApi, ProgramServer};
+#[cfg(feature = "server")]
+pub use program_best_state::BestStateManager;

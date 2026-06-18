@@ -22,7 +22,7 @@
 //! - [`VaraEthApi`] — SDK root; built with `VaraEthApi::new`. Factory methods `mirror`, `router`, `wrapped_vara` return scoped
 //!   wrappers.
 //! - [`Mirror`] — Per-program operations: `send_message`, `send_reply`, `send_message_injected`, `wait_for_reply`, `claim_value`,
-//!   `state`, `calculate_reply_for_handle`, plus `*_with_receipt` variants.
+//!   `state`, `calculate_reply_for_handle`, `calculate_reply_for_handle_with_top_up`, plus `*_with_receipt` variants.
 //! - [`Router`] — Router-contract and global queries: `request_code_validation`, `create_program`, validator queries,
 //!   `code_state`, `program_ids`, `storage_view`.
 //! - [`WVara`] — WrappedVara ERC20 queries and transfers, plus `mint` and `events`.

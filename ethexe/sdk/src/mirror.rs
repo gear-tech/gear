@@ -22,12 +22,14 @@ use ethexe_ethereum::{
     },
 };
 use ethexe_rpc::{
-    CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramClient, Proof,
+    CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramBestState,
+    ProgramClient, Proof,
 };
 use ethexe_runtime_common::state::{Mailbox, ProgramState, UserMailbox};
 use futures::{StreamExt, TryFutureExt};
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use gsigner::secp256k1::Secp256k1SignerExt;
+use jsonrpsee::core::client::Subscription;
 
 pub struct Mirror<'a> {
     pub(crate) api: &'a VaraEthApi,
@@ -155,11 +157,32 @@ impl<'a> Mirror<'a> {
             .await
     }
 
+    pub async fn calculate_reply_for_handle_with_top_up(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        top_up: u128,
+    ) -> Result<CalculateReplyForHandleResult> {
+        self.calculate_reply_for_handle_at_with_top_up(payload, value, None, Some(top_up))
+            .await
+    }
+
     pub async fn calculate_reply_for_handle_at(
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
         at: Option<H256>,
+    ) -> Result<CalculateReplyForHandleResult> {
+        self.calculate_reply_for_handle_at_with_top_up(payload, value, at, None)
+            .await
+    }
+
+    pub async fn calculate_reply_for_handle_at_with_top_up(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        at: Option<H256>,
+        top_up: Option<u128>,
     ) -> Result<CalculateReplyForHandleResult> {
         let sender_address = self.api.ethereum_client.sender_address();
         let source: ActorId = sender_address.into();
@@ -172,6 +195,7 @@ impl<'a> Mirror<'a> {
                 destination.to_address_lossy(),
                 payload.as_ref().to_vec().into(),
                 value,
+                top_up,
             )
             .map_err(Into::into)
             .await
@@ -300,6 +324,17 @@ impl<'a> Mirror<'a> {
         };
 
         Ok((message_id, promise))
+    }
+
+    /// Subscribes to this program's best state, yielding a [`ProgramBestState`]
+    /// on every newly computed MB that produces a transition for the program.
+    pub async fn subscribe_best_state(&self) -> Result<Subscription<ProgramBestState>> {
+        let program_id = self.actor_id().to_address_lossy();
+        self.api
+            .vara_eth_client
+            .subscribe_best_state(program_id)
+            .await
+            .with_context(|| "failed to subscribe to program best state")
     }
 
     pub async fn wait_for_reply(&self, message_id: MessageId) -> Result<ReplyInfo> {
