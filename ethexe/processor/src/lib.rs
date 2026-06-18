@@ -81,10 +81,11 @@
 //! [`OverlaidProcessor`] wraps a [`Processor`] whose database is swapped
 //! for an overlaid, copy-on-write view. Mutations are kept in memory and
 //! discarded when the overlay is dropped, so the underlying state is
-//! never touched. [`OverlaidProcessor::execute_for_reply`] synthesizes a
-//! single [`MessageQueueingRequestedEvent`] into the target program's
-//! canonical queue and runs against this overlay with the following
-//! simulation semantics:
+//! never touched. [`OverlaidProcessor::execute_for_reply`] synthesizes
+//! overlay-only events into the target program's canonical queue — an
+//! optional [`ExecutableBalanceTopUpRequestedEvent`] followed by a
+//! [`MessageQueueingRequestedEvent`] — and runs against this overlay with
+//! the following simulation semantics:
 //!
 //! - the target program's canonical queue is trimmed to only the
 //!   synthetic dispatch, so the simulation starts from a clean slate
@@ -147,7 +148,10 @@ use core::num::NonZero;
 use ethexe_common::{
     CodeAndIdUnchecked, MAILBOX_VALIDITY_VERSION_2, ProgramStates, Schedule,
     ecdsa::VerifiedData,
-    events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
+    events::{
+        BlockRequestEvent, MirrorRequestEvent,
+        mirror::{ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent},
+    },
     gear::Message,
     injected::InjectedTransaction,
 };
@@ -494,8 +498,9 @@ impl OverlaidProcessor {
     pub async fn execute_for_reply(
         &mut self,
         executable: ExecutableDataForReply,
+        top_up: Option<u128>,
     ) -> Result<ExecuteForReplyOutcome, ExecuteForReplyError> {
-        log::debug!("{executable}");
+        log::debug!("{executable}, top_up: {top_up:?}");
 
         let ExecutableDataForReply {
             height,
@@ -533,22 +538,32 @@ impl OverlaidProcessor {
 
         let transitions = InBlockTransitions::new(cfg, program_states, Schedule::default());
 
-        let transitions = self.0.handle_injected_and_events(
-            transitions,
-            vec![],
-            vec![BlockRequestEvent::Mirror {
+        let top_up_value = top_up.filter(|&value| value > 0);
+        let mut events = Vec::with_capacity(if top_up_value.is_some() { 2 } else { 1 });
+
+        if let Some(value) = top_up_value {
+            events.push(BlockRequestEvent::Mirror {
                 actor_id: program_id,
-                event: MirrorRequestEvent::MessageQueueingRequested(
-                    MessageQueueingRequestedEvent {
-                        id: MessageId::zero(),
-                        source,
-                        payload: payload.clone(),
-                        value,
-                        call_reply: true,
-                    },
+                event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                    ExecutableBalanceTopUpRequestedEvent { value },
                 ),
-            }],
-        )?;
+            });
+        }
+
+        events.push(BlockRequestEvent::Mirror {
+            actor_id: program_id,
+            event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::zero(),
+                source,
+                payload: payload.clone(),
+                value,
+                call_reply: true,
+            }),
+        });
+
+        let transitions = self
+            .0
+            .handle_injected_and_events(transitions, vec![], events)?;
 
         let transitions = OverlaidRunContext::new(
             self.0.db.clone(),

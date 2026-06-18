@@ -58,6 +58,7 @@ pub trait Program {
         program_id: H160,
         payload: Bytes,
         value: u128,
+        top_up: Option<u128>,
     ) -> jsonrpsee::core::RpcResult<CalculateReplyForHandleResult>;
 
     #[method(name = "program_ids")]
@@ -135,6 +136,7 @@ impl ProgramServer for ProgramApi {
         program_id: H160,
         payload: Bytes,
         value: u128,
+        top_up: Option<u128>,
     ) -> jsonrpsee::core::RpcResult<CalculateReplyForHandleResult> {
         let mb_hash = utils::latest_computed_mb(&self.db)?;
         let block = utils::block_at_or_latest_synced(&self.db, None)?;
@@ -158,7 +160,7 @@ impl ProgramServer for ProgramApi {
 
         self.processor
             .clone()
-            .execute_for_reply(executable)
+            .execute_for_reply(executable, top_up)
             .await
             .map(|outcome| CalculateReplyForHandleResult {
                 reply: outcome.reply,
