@@ -29,7 +29,6 @@ use jsonrpsee::{
     core::{SubscriptionResult, async_trait},
     server::PendingSubscriptionSink,
 };
-#[cfg(feature = "server")]
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_core::Bytes;
