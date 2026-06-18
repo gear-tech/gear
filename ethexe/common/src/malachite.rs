@@ -57,6 +57,11 @@ pub enum Operation {
     /// Execute queued messages within `gas_allowance`.
     /// V2 - changes mailbox validity, from one week to 15 minutes
     ProcessQueuesV2 { gas_allowance: u64 } = 4,
+
+    /// Execute queued messages within `gas_allowance`.
+    /// V3 - auto-replies to Sails event destinations without mailboxing and
+    /// emits Ethereum event destinations via transition messages.
+    ProcessQueuesV3 { gas_allowance: u64 } = 5,
 }
 
 impl Operation {
@@ -76,6 +81,7 @@ impl Operation {
             Self::ProcessQueues { .. } => 2,
             Self::Injected(_) => 3,
             Self::ProcessQueuesV2 { .. } => 4,
+            Self::ProcessQueuesV3 { .. } => 5,
         }
     }
 }
@@ -103,6 +109,9 @@ impl Decode for Operation {
             4 => Ok(Operation::ProcessQueuesV2 {
                 gas_allowance: u64::decode(input)?,
             }),
+            5 => Ok(Operation::ProcessQueuesV3 {
+                gas_allowance: u64::decode(input)?,
+            }),
             _ => Err(parity_scale_codec::Error::from("invalid operation tag")),
         }
     }
@@ -117,6 +126,7 @@ impl Encode for Operation {
             Operation::ProcessQueues { gas_allowance } => gas_allowance.encode_to(dest),
             Operation::Injected(signed_tx) => signed_tx.encode_to(dest),
             Operation::ProcessQueuesV2 { gas_allowance } => gas_allowance.encode_to(dest),
+            Operation::ProcessQueuesV3 { gas_allowance } => gas_allowance.encode_to(dest),
         }
     }
 }
@@ -146,7 +156,7 @@ mod tests {
     fn empty_txs() -> Operations {
         Operations::new(alloc::vec![
             Operation::ProgressTasks,
-            Operation::ProcessQueuesV2 {
+            Operation::ProcessQueuesV3 {
                 gas_allowance: 1234,
             },
         ])
@@ -175,12 +185,12 @@ mod tests {
             block_hash: H256::zero(),
         };
         let progress = Operation::ProgressTasks;
-        let queues = Operation::ProcessQueuesV2 {
+        let queues = Operation::ProcessQueuesV3 {
             gas_allowance: 1234,
         };
         assert!(advance.is_advance_till_ethereum_block());
         assert!(progress.is_progress_tasks());
-        assert!(queues.is_process_queues_v_2());
+        assert!(queues.is_process_queues_v_3());
     }
 
     #[test]
@@ -200,6 +210,7 @@ mod tests {
         assert_eq!(Operation::ProgressTasks.tag(), 1);
         assert_eq!(Operation::ProcessQueues { gas_allowance: 0 }.tag(), 2);
         assert_eq!(Operation::ProcessQueuesV2 { gas_allowance: 0 }.tag(), 4);
+        assert_eq!(Operation::ProcessQueuesV3 { gas_allowance: 0 }.tag(), 5);
 
         assert_eq!(
             &Operation::AdvanceTillEthereumBlock {
@@ -217,10 +228,14 @@ mod tests {
             &Operation::ProcessQueuesV2 { gas_allowance: 0 }.encode()[..4],
             &[4, 0, 0, 0],
         );
+        assert_eq!(
+            &Operation::ProcessQueuesV3 { gas_allowance: 0 }.encode()[..4],
+            &[5, 0, 0, 0],
+        );
 
         // Unknown tag must be rejected by `Decode`, not interpreted.
         use parity_scale_codec::DecodeAll;
-        assert!(Operation::decode_all(&mut [5u8, 0, 0, 0].as_slice()).is_err());
+        assert!(Operation::decode_all(&mut [6u8, 0, 0, 0].as_slice()).is_err());
     }
 
     #[test]

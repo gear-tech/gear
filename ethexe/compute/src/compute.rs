@@ -303,6 +303,7 @@ fn build_executable_data(
     let mut gas_allowance: Option<u64> = None;
     let mut current_anchor = initial_advanced_block;
     let mut mailbox_validity = ethexe_common::MAILBOX_VALIDITY_VERSION_2;
+    let mut event_destinations_autoreply = false;
 
     for op in operations {
         match op {
@@ -328,6 +329,7 @@ fn build_executable_data(
             } => {
                 // Old block - change mailbox validity to the previous default one
                 mailbox_validity = ethexe_common::MAILBOX_VALIDITY_VERSION_1;
+                event_destinations_autoreply = false;
 
                 gas_allowance = Some(op_gas_allowance);
             }
@@ -335,6 +337,15 @@ fn build_executable_data(
                 gas_allowance: op_gas_allowance,
             } => {
                 // Keep the new mailbox validity for this operation, as it is the default one
+                event_destinations_autoreply = false;
+
+                gas_allowance = Some(op_gas_allowance);
+            }
+            Operation::ProcessQueuesV3 {
+                gas_allowance: op_gas_allowance,
+            } => {
+                // Keep V2 mailbox validity and enable V3 event-destination handling.
+                event_destinations_autoreply = true;
 
                 gas_allowance = Some(op_gas_allowance);
             }
@@ -361,6 +372,7 @@ fn build_executable_data(
         gas_allowance,
         events,
         mailbox_validity,
+        event_destinations_autoreply,
     })
 }
 
@@ -553,7 +565,7 @@ mod tests {
                 block_hash: eth_block_hash,
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueuesV2 {
+            Operation::ProcessQueuesV3 {
                 gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ])
@@ -779,7 +791,7 @@ mod tests {
     fn mb_bookend() -> [Operation; 2] {
         [
             Operation::ProgressTasks,
-            Operation::ProcessQueuesV2 {
+            Operation::ProcessQueuesV3 {
                 gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
             },
         ]
