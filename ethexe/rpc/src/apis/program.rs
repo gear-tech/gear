@@ -17,7 +17,7 @@ use ethexe_db::Database;
 #[cfg(feature = "server")]
 use ethexe_processor::{ExecutableDataForReply, OverlaidProcessor};
 use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Waitlist,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, UserMailbox, Waitlist,
 };
 #[cfg(feature = "server")]
 use ethexe_runtime_common::state::{QueryableStorage, Storage};
@@ -95,6 +95,9 @@ pub trait Program {
     #[method(name = "program_readMailbox")]
     async fn read_mailbox(&self, hash: H256) -> jsonrpsee::core::RpcResult<Mailbox>;
 
+    #[method(name = "program_readUserMailbox")]
+    async fn read_user_mailbox(&self, hash: H256) -> jsonrpsee::core::RpcResult<UserMailbox>;
+
     #[method(name = "program_readFullState")]
     async fn read_full_state(&self, hash: H256) -> jsonrpsee::core::RpcResult<FullProgramState>;
 
@@ -152,6 +155,10 @@ impl ProgramApi {
 
     fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
         self.db.mailbox(unsafe { HashOf::new(hash) })
+    }
+
+    fn read_user_mailbox(&self, hash: H256) -> Option<UserMailbox> {
+        self.db.user_mailbox(unsafe { HashOf::new(hash) })
     }
 }
 
@@ -241,6 +248,11 @@ impl ProgramServer for ProgramApi {
     async fn read_mailbox(&self, hash: H256) -> jsonrpsee::core::RpcResult<Mailbox> {
         self.read_mailbox(hash)
             .ok_or_else(|| errors::db("Failed to read mailbox by hash"))
+    }
+
+    async fn read_user_mailbox(&self, hash: H256) -> jsonrpsee::core::RpcResult<UserMailbox> {
+        self.read_user_mailbox(hash)
+            .ok_or_else(|| errors::db("Failed to read user mailbox by hash"))
     }
 
     async fn read_full_state(&self, hash: H256) -> jsonrpsee::core::RpcResult<FullProgramState> {

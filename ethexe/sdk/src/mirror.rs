@@ -5,7 +5,7 @@ use crate::VaraEthApi;
 use alloy::rpc::types::TransactionReceipt;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use ethexe_common::{
-    Address, SimpleBlockData,
+    Address, HashOf, SimpleBlockData,
     gear_core::rpc::ReplyInfo,
     injected::{
         InjectedTransaction, InjectedTransactionAcceptance, Promise, Receipt,
@@ -23,7 +23,7 @@ use ethexe_rpc::{
     CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramBestState,
     ProgramClient,
 };
-use ethexe_runtime_common::state::ProgramState;
+use ethexe_runtime_common::state::{Mailbox, ProgramState, UserMailbox};
 use futures::TryFutureExt;
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use gsigner::secp256k1::Secp256k1SignerExt;
@@ -79,6 +79,25 @@ impl<'a> Mirror<'a> {
         self.api
             .vara_eth_client
             .read_full_state(state_hash)
+            .map_err(Into::into)
+            .await
+    }
+
+    pub async fn mailbox(&self, mailbox_hash: HashOf<Mailbox>) -> Result<Mailbox> {
+        self.api
+            .vara_eth_client
+            .read_mailbox(mailbox_hash.inner())
+            .map_err(Into::into)
+            .await
+    }
+
+    pub async fn user_mailbox(
+        &self,
+        user_mailbox_hash: HashOf<UserMailbox>,
+    ) -> Result<UserMailbox> {
+        self.api
+            .vara_eth_client
+            .read_user_mailbox(user_mailbox_hash.inner())
             .map_err(Into::into)
             .await
     }
