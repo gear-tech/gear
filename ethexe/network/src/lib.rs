@@ -1021,30 +1021,6 @@ impl NetworkService {
             .debug_counters
     }
 
-    pub async fn register_malachite_lane<Ctx, Codec>(
-        &mut self,
-        codec: Codec,
-    ) -> anyhow::Result<malachite::MalachiteNetworkParts<Ctx>>
-    where
-        Ctx: malachitebft_core_types::Context,
-        Codec: Send
-            + Sync
-            + 'static
-            + malachitebft_codec::Codec<Ctx::ProposalPart>
-            + malachitebft_codec::Codec<malachitebft_core_consensus::SignedConsensusMsg<Ctx>>
-            + malachitebft_codec::Codec<
-                malachitebft_engine::util::streaming::StreamMessage<Ctx::ProposalPart>,
-            >
-            + malachitebft_codec::Codec<malachitebft_core_consensus::LivenessMsg<Ctx>>
-            + malachitebft_codec::Codec<malachitebft_sync::Status<Ctx>>
-            + malachitebft_codec::Codec<malachitebft_sync::Request<Ctx>>
-            + malachitebft_codec::Codec<malachitebft_sync::Response<Ctx>>
-            + malachitebft_codec::Codec<malachitebft_core_types::ValidatorProof<Ctx>>,
-    {
-        self.register_malachite_lane_with_persistent_peers(codec, Vec::new())
-            .await
-    }
-
     pub async fn register_malachite_lane_with_persistent_peers<Ctx, Codec>(
         &mut self,
         codec: Codec,

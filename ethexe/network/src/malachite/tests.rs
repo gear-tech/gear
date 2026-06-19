@@ -32,12 +32,15 @@ async fn network_service_runs_without_malachite_lane() {
 }
 
 #[tokio::test]
-async fn register_malachite_lane_returns_engine_parts() {
+async fn register_malachite_lane_with_persistent_peers_returns_engine_parts() {
     init_logger();
 
     let mut service = new_service();
     let parts = service
-        .register_malachite_lane::<TestContext, JsonCodec>(JsonCodec)
+        .register_malachite_lane_with_persistent_peers::<TestContext, JsonCodec>(
+            JsonCodec,
+            Vec::new(),
+        )
         .await
         .expect("registers malachite lane");
 
@@ -52,7 +55,10 @@ async fn register_malachite_lane_returns_engine_parts() {
 async fn persistent_peer_updates_reach_lane_state() {
     let mut service = new_service();
     let parts = service
-        .register_malachite_lane::<TestContext, JsonCodec>(JsonCodec)
+        .register_malachite_lane_with_persistent_peers::<TestContext, JsonCodec>(
+            JsonCodec,
+            Vec::new(),
+        )
         .await
         .expect("registers malachite lane");
     let (network_ref, _tx_network) = parts.into_engine_parts();
@@ -96,7 +102,10 @@ async fn persistent_peer_updates_connect_shared_swarm() {
 
     let mut service = new_service();
     let parts = service
-        .register_malachite_lane::<TestContext, JsonCodec>(JsonCodec)
+        .register_malachite_lane_with_persistent_peers::<TestContext, JsonCodec>(
+            JsonCodec,
+            Vec::new(),
+        )
         .await
         .expect("registers malachite lane");
     let (network_ref, _tx_network) = parts.into_engine_parts();
@@ -156,7 +165,10 @@ async fn persistent_peer_updates_connect_shared_swarm() {
 async fn malachite_lane_does_not_add_second_ping_or_identify() {
     let mut service = new_service();
     service
-        .register_malachite_lane::<TestContext, JsonCodec>(JsonCodec)
+        .register_malachite_lane_with_persistent_peers::<TestContext, JsonCodec>(
+            JsonCodec,
+            Vec::new(),
+        )
         .await
         .expect("registers malachite lane");
 
@@ -168,7 +180,10 @@ async fn malachite_lane_does_not_add_second_ping_or_identify() {
 async fn publish_proposal_part_uses_malachite_lane() {
     let mut service = new_service();
     service
-        .register_malachite_lane::<TestContext, JsonCodec>(JsonCodec)
+        .register_malachite_lane_with_persistent_peers::<TestContext, JsonCodec>(
+            JsonCodec,
+            Vec::new(),
+        )
         .await
         .expect("registers malachite lane");
 

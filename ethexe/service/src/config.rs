@@ -24,7 +24,7 @@ pub struct Config {
 /// User-facing subset of [`ethexe_malachite::MalachiteConfig`],
 /// resolved at CLI/TOML parse time. The rest of the runtime fields
 /// (home directory, mempool) are filled in by the service itself.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MalachiteCliConfig {
     /// Shared-network peers the Malachite consensus lane should keep
     /// connected to. Multiaddrs use the shared `ethexe-network` peer id.
@@ -38,15 +38,6 @@ pub struct MalachiteCliConfig {
     /// in this table, so the table must contain every active
     /// validator's address.
     pub validator_pub_keys: BTreeMap<Address, PublicKey>,
-}
-
-impl Default for MalachiteCliConfig {
-    fn default() -> Self {
-        Self {
-            persistent_peers: Vec::new(),
-            validator_pub_keys: BTreeMap::new(),
-        }
-    }
 }
 
 impl Config {

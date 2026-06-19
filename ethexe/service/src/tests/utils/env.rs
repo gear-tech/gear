@@ -1437,9 +1437,7 @@ impl Node {
             db: self.db.clone(),
         };
 
-        let network = NetworkService::new(config, runtime_config).unwrap();
-
-        network
+        NetworkService::new(config, runtime_config).unwrap()
     }
 
     #[allow(dead_code)]

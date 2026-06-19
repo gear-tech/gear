@@ -508,8 +508,12 @@ impl Service {
                 .as_mut()
                 .context("Malachite consensus requires ethexe-network to be enabled")?;
             let malachite_network = network
-                .register_malachite_lane::<ethexe_malachite::MalachiteCtx, ethexe_malachite::ScaleCodec>(
+                .register_malachite_lane_with_persistent_peers::<
+                    ethexe_malachite::MalachiteCtx,
                     ethexe_malachite::ScaleCodec,
+                >(
+                    ethexe_malachite::ScaleCodec,
+                    malachite_base_config.persistent_peers.clone(),
                 )
                 .await
                 .context("failed to register Malachite network lane")?;
