@@ -20,11 +20,6 @@ use tokio::sync::mpsc;
 
 use super::{AppNetworkMsg, EngineNetworkMsg, EngineNetworkRef};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MalachiteLaneStatus {
-    Registered,
-}
-
 #[allow(dead_code)]
 pub(crate) enum LaneCommand {
     PublishConsensus(Bytes),

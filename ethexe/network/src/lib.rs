@@ -201,9 +201,6 @@ pub struct NetworkService {
     metrics: Libp2pMetrics,
     keypair: identity::Keypair,
     allow_non_global_addresses: bool,
-    malachite_lane_registered: bool,
-    malachite_lane_rx: Option<tokio::sync::mpsc::Receiver<malachite::adapter::LaneCommand>>,
-    malachite_events_tx: Option<tokio::sync::mpsc::UnboundedSender<malachitebft_network::Event>>,
     malachite_state: Option<malachite::state::State>,
 }
 
@@ -345,9 +342,6 @@ impl NetworkService {
             metrics: (registry, metrics),
             keypair,
             allow_non_global_addresses,
-            malachite_lane_registered: false,
-            malachite_lane_rx: None,
-            malachite_events_tx: None,
             malachite_state: None,
         })
     }
@@ -597,18 +591,18 @@ impl NetworkService {
     }
 
     fn send_malachite_event_to_adapter(&self, event: malachitebft_network::Event) {
-        let Some(tx) = &self.malachite_events_tx else {
+        let Some(state) = &self.malachite_state else {
             log::warn!("dropping Malachite network event because the adapter is not registered");
             return;
         };
 
-        if let Err(error) = tx.send(event) {
+        if let Err(error) = state.events_tx.send(event) {
             log::warn!("dropping Malachite network event because the adapter is closed: {error}");
         }
     }
 
     fn try_send_malachite_event_to_adapter(&self, event: malachitebft_network::Event) {
-        if self.malachite_events_tx.is_some() {
+        if self.malachite_state.is_some() {
             self.send_malachite_event_to_adapter(event);
         }
     }
@@ -617,17 +611,21 @@ impl NetworkService {
         &mut self,
         cx: &mut std::task::Context<'_>,
     ) -> Option<NetworkEvent> {
-        let Some(rx) = &mut self.malachite_lane_rx else {
-            return None;
+        let poll = {
+            let Some(state) = &mut self.malachite_state else {
+                return None;
+            };
+
+            Pin::new(&mut state.lane_rx).poll_recv(cx)
         };
 
-        match Pin::new(rx).poll_recv(cx) {
+        match poll {
             Poll::Ready(Some(command)) => {
                 self.handle_malachite_command(command);
                 cx.waker().wake_by_ref();
             }
             Poll::Ready(None) => {
-                self.malachite_lane_rx = None;
+                unreachable!("Malachite lane sender lives as long as the adapter actor")
             }
             Poll::Pending => {}
         }
@@ -644,11 +642,6 @@ impl NetworkService {
                     .as_mut()
                     .expect("Malachite behaviour registered")
                     .publish_consensus(data);
-                self.malachite_state
-                    .as_mut()
-                    .expect("Malachite lane state exists")
-                    .debug_counters
-                    .consensus_published += 1;
             }
             malachite::adapter::LaneCommand::PublishLiveness(data) => {
                 self.swarm
@@ -657,11 +650,6 @@ impl NetworkService {
                     .as_mut()
                     .expect("Malachite behaviour registered")
                     .publish_liveness(data);
-                self.malachite_state
-                    .as_mut()
-                    .expect("Malachite lane state exists")
-                    .debug_counters
-                    .liveness_published += 1;
             }
             malachite::adapter::LaneCommand::PublishProposalPart(data) => {
                 self.swarm
@@ -670,11 +658,6 @@ impl NetworkService {
                     .as_mut()
                     .expect("Malachite behaviour registered")
                     .publish_proposal_part(data);
-                self.malachite_state
-                    .as_mut()
-                    .expect("Malachite lane state exists")
-                    .debug_counters
-                    .proposal_parts_published += 1;
             }
             malachite::adapter::LaneCommand::BroadcastStatus(data) => {
                 self.swarm
@@ -700,11 +683,6 @@ impl NetworkService {
                     .expect("Malachite lane state exists")
                     .outbound_sync_requests
                     .insert(request_id, malachite_request_id.clone());
-                self.malachite_state
-                    .as_mut()
-                    .expect("Malachite lane state exists")
-                    .debug_counters
-                    .sync_requests_sent += 1;
                 let _ = reply.send(malachite_request_id);
             }
             malachite::adapter::LaneCommand::OutgoingResponse { request_id, body } => {
@@ -721,11 +699,6 @@ impl NetworkService {
                     .as_mut()
                     .expect("Malachite behaviour registered")
                     .send_sync_response(channel, body);
-                self.malachite_state
-                    .as_mut()
-                    .expect("Malachite lane state exists")
-                    .debug_counters
-                    .sync_responses_sent += 1;
             }
             malachite::adapter::LaneCommand::DumpState(reply) => {
                 let state = self
@@ -761,11 +734,6 @@ impl NetworkService {
                         .verified_validator_proofs
                         .insert(libp2p_peer_id, public_key);
                 }
-                self.malachite_state
-                    .as_mut()
-                    .expect("Malachite lane state exists")
-                    .debug_counters
-                    .validator_proofs_verified += 1;
             }
         }
     }
@@ -999,11 +967,6 @@ impl NetworkService {
         self.swarm.behaviour().db_sync.handle()
     }
 
-    pub fn malachite_lane_status(&self) -> Option<malachite::MalachiteLaneStatus> {
-        self.malachite_lane_registered
-            .then_some(malachite::MalachiteLaneStatus::Registered)
-    }
-
     #[cfg(test)]
     pub(crate) fn malachite_persistent_peers(&self) -> &std::collections::HashSet<Multiaddr> {
         &self
@@ -1011,14 +974,6 @@ impl NetworkService {
             .as_ref()
             .expect("Malachite lane registered")
             .persistent_peers
-    }
-
-    #[cfg(test)]
-    pub(crate) fn malachite_debug_counters(&self) -> malachite::state::DebugCounters {
-        self.malachite_state
-            .as_ref()
-            .expect("Malachite lane registered")
-            .debug_counters
     }
 
     pub async fn register_malachite_lane_with_persistent_peers<Ctx, Codec>(
@@ -1043,7 +998,7 @@ impl NetworkService {
             + malachitebft_codec::Codec<malachitebft_core_types::ValidatorProof<Ctx>>,
     {
         ensure!(
-            !self.malachite_lane_registered,
+            self.malachite_state.is_none(),
             "malachite lane is already registered"
         );
 
@@ -1052,7 +1007,7 @@ impl NetworkService {
         let (lane_tx, lane_rx) = tokio::sync::mpsc::channel(128);
         let local_peer_id = malachitebft_network::PeerId::from_libp2p(&self.local_peer_id());
         let parts = malachite::adapter::spawn_adapter(lane_tx, local_peer_id, codec).await?;
-        self.malachite_events_tx = Some(parts.events_tx());
+        let events_tx = parts.events_tx();
         let config = Self::default_malachite_config();
         let behaviour = malachite::behaviour::Behaviour::new(
             self.keypair.clone(),
@@ -1063,9 +1018,7 @@ impl NetworkService {
         .context("failed to create malachite lane behaviour")?;
         self.swarm.behaviour_mut().malachite = Toggle::from(Some(behaviour));
 
-        self.malachite_lane_registered = true;
-        self.malachite_lane_rx = Some(lane_rx);
-        self.malachite_state = Some(malachite::state::State::new(Vec::new()));
+        self.malachite_state = Some(malachite::state::State::new(lane_rx, events_tx, Vec::new()));
         for peer in persistent_peers {
             self.handle_malachite_persistent_peer_op(malachitebft_network::PersistentPeersOp::Add(
                 peer,

@@ -28,7 +28,7 @@ fn adapter_parts_are_upstream_malachite_types() {
 #[tokio::test]
 async fn network_service_runs_without_malachite_lane() {
     let service = new_service();
-    assert!(service.malachite_lane_status().is_none());
+    assert!(service.malachite_state.is_none());
 }
 
 #[tokio::test]
@@ -45,10 +45,7 @@ async fn register_malachite_lane_with_persistent_peers_returns_engine_parts() {
         .expect("registers malachite lane");
 
     let (_network_ref, _tx_network) = parts.into_engine_parts();
-    assert_eq!(
-        service.malachite_lane_status(),
-        Some(MalachiteLaneStatus::Registered)
-    );
+    assert!(service.malachite_state.is_some());
 }
 
 #[tokio::test]
@@ -174,25 +171,4 @@ async fn malachite_lane_does_not_add_second_ping_or_identify() {
 
     let behaviour = service.swarm.behaviour();
     assert!(behaviour.malachite.as_ref().is_some());
-}
-
-#[tokio::test]
-async fn publish_proposal_part_uses_malachite_lane() {
-    let mut service = new_service();
-    service
-        .register_malachite_lane_with_persistent_peers::<TestContext, JsonCodec>(
-            JsonCodec,
-            Vec::new(),
-        )
-        .await
-        .expect("registers malachite lane");
-
-    service.handle_malachite_command(adapter::LaneCommand::PublishProposalPart(
-        bytes::Bytes::from_static(b"part"),
-    ));
-
-    assert_eq!(
-        service.malachite_debug_counters().proposal_parts_published,
-        1
-    );
 }

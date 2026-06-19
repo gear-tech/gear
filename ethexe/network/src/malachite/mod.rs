@@ -5,7 +5,7 @@ pub(crate) mod state;
 #[cfg(test)]
 mod tests;
 
-pub use adapter::{MalachiteLaneStatus, MalachiteNetworkParts};
+pub use adapter::MalachiteNetworkParts;
 
 pub type AppNetworkMsg<Ctx> = malachitebft_app_channel::NetworkMsg<Ctx>;
 pub type EngineNetworkRef<Ctx> = malachitebft_engine::network::NetworkRef<Ctx>;
