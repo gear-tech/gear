@@ -188,6 +188,9 @@ async fn collect_until_finalized(
             Ok(Some(Ok(MalachiteEvent::PurgedTransactions { .. }))) => {
                 // ignore
             }
+            Ok(Some(Ok(MalachiteEvent::DecryptionShares { .. }))) => {
+                // ignore
+            }
             Ok(Some(Err(e))) => panic!("service error: {e}"),
             Ok(None) | Err(_) => break,
         }
@@ -217,6 +220,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         db.clone(),
         signer.clone(),
         Some(pub_key),
+        None,
         Arc::new(EmptyMempool),
     )
     .await
@@ -259,6 +263,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         db.clone(),
         signer,
         Some(pub_key),
+        None,
         Arc::new(EmptyMempool),
     )
     .await

@@ -68,7 +68,7 @@ pub enum Operation {
 
     /// User-submitted shielded transaction from mempool.
     #[cfg(feature = "shielded")]
-    Shielded(SignedShieldedTransaction) = 6,
+    Shielded(SignedShieldedTransaction) = 6, // encrypted transactions
 }
 
 impl Operation {
@@ -82,21 +82,20 @@ impl Operation {
         // Mirrors the `#[repr(u32)]` discriminants below and the `Decode`
         // arms. These three must agree; `operation_encoding_is_frozen` pins
         // the bytes so a divergence can't slip through.
-        match self {
-            Self::AdvanceTillEthereumBlock { .. } => 0,
-            Self::ProgressTasks => 1,
-            Self::ProcessQueues { .. } => 2,
-            Self::Injected(_) => 3,
-            Self::ProcessQueuesV2 { .. } => 4,
-            Self::ProcessQueuesV3 { .. } => 5,
-            #[cfg(feature = "shielded")]
-            Self::Shielded(_) => 6,
-        }
+        unsafe { (self as *const Operation).cast::<u32>().read() }
     }
 
     /// Returns `Some` if `Self` contains shielded transaction.
     #[cfg(feature = "shielded")]
     pub fn as_shielded(&self) -> Option<&SignedShieldedTransaction> {
+        match self {
+            Self::Shielded(tx) => Some(tx),
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "shielded")]
+    pub fn into_shielded(self) -> Option<SignedShieldedTransaction> {
         match self {
             Self::Shielded(tx) => Some(tx),
             _ => None,

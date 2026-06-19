@@ -61,7 +61,7 @@ pub use crate::{
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
-use ethexe_common::injected::PurgedTransaction;
+use ethexe_common::{injected::PurgedTransaction, malachite::VotingDecryptionShare};
 pub use ethexe_common::{
     injected::Transaction,
     malachite::{Operation, Operations},
@@ -97,6 +97,12 @@ pub enum MalachiteEvent {
         eb_hash: H256,
         transactions: Vec<PurgedTransaction>,
     },
+
+    /// Decryption shares for shielded transaction in a concrete malachite block.
+    DecryptionShares {
+        mb_hash: H256,
+        shares: Vec<VotingDecryptionShare>,
+    },
 }
 
 impl std::fmt::Display for MalachiteEvent {
@@ -124,6 +130,13 @@ impl std::fmt::Display for MalachiteEvent {
                     f,
                     "PurgedTransactions(eb_hash: {eb_hash}, transactions_len: {})",
                     transactions.len()
+                )
+            }
+            Self::DecryptionShares { mb_hash, shares } => {
+                write!(
+                    f,
+                    "DecryptionShares(mb_hash: {mb_hash}, shares_len: {})",
+                    shares.len()
                 )
             }
         }

@@ -97,6 +97,7 @@ impl MalachiteService {
         db: Database,
         signer: Signer<Secp256k1>,
         validator_pub_key: Option<gsigner::schemes::secp256k1::PublicKey>,
+        validator_tdec_ctx: Option<gsigner::PublicDecryptionContext>,
         mempool: Arc<dyn Mempool>,
     ) -> Result<Self> {
         tracing::info!(
@@ -156,8 +157,11 @@ impl MalachiteService {
 
         let externalities = Arc::new(EthexeExternalities {
             db,
+
             // TODO: FIXME (temporary solution)
+            tdec_pub_ctx: validator_tdec_ctx,
             tdec_store: gsigner::TdecKeyStore::memory(),
+
             mempool: Arc::clone(&mempool),
             chain_head: Arc::clone(&chain_head),
             chain_head_notify: Arc::clone(&chain_head_notify),

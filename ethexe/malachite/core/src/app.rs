@@ -171,34 +171,13 @@ where
             }
 
             // Vote extensions.
-            AppMsg::ExtendVote {
-                value_id, reply, ..
-            } => {
-                let extension = self
-                    .process_extend_vote(value_id)
-                    .await
-                    .unwrap_or_else(|e| {
-                        error!(?e, %value_id, "ExtendVote: process failed");
-                        None
-                    });
-                if reply.send(extension).is_err() {
+            AppMsg::ExtendVote { reply, .. } => {
+                if reply.send(self.process_extend_vote()).is_err() {
                     error!("ExtendVote: failed to send reply");
                 }
             }
-            AppMsg::VerifyVoteExtension {
-                value_id,
-                reply,
-                extension,
-                ..
-            } => {
-                let result = self
-                    .process_verify_vote_extension(value_id, extension)
-                    .await
-                    .unwrap_or_else(|e| {
-                        error!(?e, %value_id, "VerifyVoteExtension: process failed");
-                        Err(VoteExtensionError::InvalidVoteExtension)
-                    });
-                if reply.send(result).is_err() {
+            AppMsg::VerifyVoteExtension { reply, .. } => {
+                if reply.send(self.process_verify_vote_extension()).is_err() {
                     error!("VerifyVoteExtension: failed to send reply");
                 }
             }
@@ -426,34 +405,12 @@ where
         Ok(locally)
     }
 
-    async fn process_extend_vote(&self, value_id: ValueId) -> Result<Option<Bytes>> {
-        let Some(block) = self.block_by_value_id(value_id)? else {
-            return Ok(None);
-        };
-        self.externalities
-            .extend_vote(block.hash(), block)
-            .await
-            .context("extend vote")
+    fn process_extend_vote(&self) -> Option<Bytes> {
+        None
     }
 
-    async fn process_verify_vote_extension(
-        &self,
-        value_id: ValueId,
-        extension: Bytes,
-    ) -> Result<Result<(), VoteExtensionError>> {
-        let Some(block) = self.block_by_value_id(value_id)? else {
-            return Ok(Err(VoteExtensionError::InvalidVoteExtension));
-        };
-        let is_valid = self
-            .externalities
-            .verify_vote_extension(block.hash(), block, extension)
-            .await
-            .context("verify vote extension")?;
-        Ok(if is_valid {
-            Ok(())
-        } else {
-            Err(VoteExtensionError::InvalidVoteExtension)
-        })
+    fn process_verify_vote_extension(&self) -> Result<(), VoteExtensionError> {
+        Ok(())
     }
 
     fn block_by_value_id(&self, value_id: ValueId) -> Result<Option<Block>> {

@@ -534,6 +534,7 @@ impl Service {
                     db.clone(),
                     signer.clone(),
                     validator_pub_key,
+                    None,
                     std::sync::Arc::new(InjectedTxMempool::new(db.clone())),
                 )
                 .await
@@ -1045,6 +1046,9 @@ impl Service {
                                 }
                             }
                         });
+                    }
+                    MalachiteEvent::DecryptionShares { mb_hash, shares } => {
+                        todo!("handle this malachite event variant")
                     }
                 },
                 Event::Prometheus(event) => match event {

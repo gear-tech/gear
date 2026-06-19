@@ -61,22 +61,6 @@ pub trait Externalities: Send + Sync + 'static {
         extensions: Vec<(Address, Bytes)>,
     ) -> Result<()>;
 
-    /// Build an optional opaque vote extension for the block this node is about
-    /// to precommit.
-    async fn extend_vote(&self, _mb_hash: H256, _block: Block) -> Result<Option<Bytes>> {
-        Ok(None)
-    }
-
-    /// Application-side validation for an opaque vote extension.
-    async fn verify_vote_extension(
-        &self,
-        _mb_hash: H256,
-        _block: Block,
-        _extension: Bytes,
-    ) -> Result<bool> {
-        Ok(false)
-    }
-
     /// Build a fresh block payload whose parent has hash
     /// `parent_mb_hash`. Called only when this node has been elected
     /// proposer. The new block's height is derivable from `parent_mb_hash`

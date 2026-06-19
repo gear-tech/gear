@@ -1202,6 +1202,7 @@ impl Node {
                 self.db.clone(),
                 self.signer.clone(),
                 self.validator_config.as_ref().map(|c| c.public_key),
+                None,
                 mempool,
             )
             .await

@@ -31,7 +31,6 @@ k256 = { version = "0.13.4", features = ["ecdsa"], default-features = false }
 nonempty.workspace = true
 
 ark-ec.workspace = true
-ark-ff.workspace = true
 
 # optional dependencies
 serde = { workspace = true, optional = true }
