@@ -5,12 +5,11 @@
 //!
 //! Kept in its own file (mirroring [`super::network`]) because the set
 //! of user-facing knobs is expected to grow considerably — peer
-//! discovery, persistent peers, timeouts, gas budget, etc.
+//! discovery, timeouts, gas budget, etc.
 
 use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
-use ethexe_malachite::Multiaddr;
 use ethexe_service::config::MalachiteCliConfig;
 use gsigner::secp256k1::{Address, PublicKey};
 use serde::Deserialize;
@@ -24,16 +23,6 @@ use std::{collections::BTreeMap, path::PathBuf};
 #[derive(Clone, Debug, Default, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct MalachiteParams {
-    /// Shared-network peer multiaddrs the Malachite consensus lane
-    /// should keep connected to. Each entry must include the shared
-    /// `/p2p/<peer_id>` suffix. Repeat the flag to add more than one peer.
-    ///
-    /// Example for a 3-node test on localhost:
-    ///   `--malachite-persistent-peer /ip4/127.0.0.1/udp/20333/quic-v1/p2p/12D3KooW...`
-    #[arg(long = "malachite-persistent-peer", aliases = &["mala-persistent-peer"])]
-    #[serde(default, rename = "persistent-peers")]
-    pub malachite_persistent_peers: Vec<Multiaddr>,
-
     /// Path to a JSON file mapping validator Ethereum addresses to
     /// their Malachite secp256k1 public keys.
     ///
@@ -65,10 +54,7 @@ impl MalachiteParams {
             Some(path) => load_validator_pub_keys_table(&path)?,
             None => BTreeMap::new(),
         };
-        Ok(MalachiteCliConfig {
-            persistent_peers: self.malachite_persistent_peers,
-            validator_pub_keys,
-        })
+        Ok(MalachiteCliConfig { validator_pub_keys })
     }
 }
 
@@ -92,12 +78,7 @@ fn load_validator_pub_keys_table(path: &std::path::Path) -> Result<BTreeMap<Addr
 
 impl MergeParams for MalachiteParams {
     fn merge(self, with: Self) -> Self {
-        // Persistent peers concatenate (CLI list + file list). Empty
-        // lists merge to empty, which is the same as the default.
-        let mut persistent_peers = self.malachite_persistent_peers;
-        persistent_peers.extend(with.malachite_persistent_peers);
         Self {
-            malachite_persistent_peers: persistent_peers,
             validators_malachite_pub_keys: self
                 .validators_malachite_pub_keys
                 .or(with.validators_malachite_pub_keys),

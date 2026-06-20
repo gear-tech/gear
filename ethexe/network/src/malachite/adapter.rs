@@ -1,24 +1,24 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    marker::PhantomData,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use ethexe_malachite_core::{MalachiteCtx, ScaleCodec};
 use libp2p::request_response;
 use malachitebft_codec::Codec as MalachiteCodec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
-use malachitebft_core_types::{Context, SigningScheme, Validator, ValidatorProof, ValidatorSet};
+use malachitebft_core_types::{SigningScheme, Validator, ValidatorProof};
 use malachitebft_engine::{
     network::{NetworkEvent, Status},
     util::{output_port::OutputPort, streaming::StreamMessage},
 };
 use malachitebft_network::{Channel, Event as LaneEvent, NetworkStateDump, PeerId};
-use malachitebft_sync::{self as sync, RawMessage, Request, Response};
+use malachitebft_sync::{self as sync, RawMessage, Request};
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::sync::mpsc;
 
 use super::{AppNetworkMsg, EngineNetworkMsg, EngineNetworkRef};
+
+type Ctx = MalachiteCtx;
 
 #[allow(dead_code)]
 pub(crate) enum LaneCommand {
@@ -48,36 +48,30 @@ pub(crate) enum LaneCommand {
     },
 }
 
-pub(crate) struct AdapterState<Ctx: Context> {
+pub(crate) struct AdapterState {
     listen_addrs: Vec<malachitebft_network::Multiaddr>,
     peers: BTreeSet<PeerId>,
     inbound_requests: BTreeMap<sync::InboundRequestId, request_response::InboundRequestId>,
     output_port: OutputPort<NetworkEvent<Ctx>>,
 }
 
-pub(crate) struct Adapter<Ctx, Codec> {
+pub(crate) struct Adapter {
     lane_tx: mpsc::Sender<LaneCommand>,
     local_peer_id: PeerId,
-    codec: Codec,
-    marker: PhantomData<Ctx>,
+    codec: ScaleCodec,
 }
 
-impl<Ctx, Codec> Adapter<Ctx, Codec> {
-    fn new(lane_tx: mpsc::Sender<LaneCommand>, local_peer_id: PeerId, codec: Codec) -> Self {
+impl Adapter {
+    fn new(lane_tx: mpsc::Sender<LaneCommand>, local_peer_id: PeerId) -> Self {
         Self {
             lane_tx,
             local_peer_id,
-            codec,
-            marker: PhantomData,
+            codec: ScaleCodec,
         }
     }
 }
 
-impl<Ctx, Codec> Adapter<Ctx, Codec>
-where
-    Ctx: Context,
-    Codec: AdapterCodec<Ctx>,
-{
+impl Adapter {
     async fn send_lane_command(&self, command: LaneCommand) {
         if let Err(error) = self.lane_tx.send(command).await {
             log::error!("failed to send Malachite lane command: {error}");
@@ -86,7 +80,7 @@ where
 
     async fn publish_encoded<T>(&self, value: &T, command: impl FnOnce(Bytes) -> LaneCommand)
     where
-        Codec: MalachiteCodec<T>,
+        ScaleCodec: MalachiteCodec<T>,
     {
         match self.codec.encode(value) {
             Ok(bytes) => self.send_lane_command(command(bytes)).await,
@@ -94,7 +88,7 @@ where
         }
     }
 
-    fn handle_lane_event(&self, event: LaneEvent, state: &mut AdapterState<Ctx>) {
+    fn handle_lane_event(&self, event: LaneEvent, state: &mut AdapterState) {
         match event {
             LaneEvent::Listening(addr) => {
                 state.listen_addrs.push(addr.clone());
@@ -134,7 +128,7 @@ where
         }
     }
 
-    fn handle_liveness_message(&self, from: PeerId, bytes: Bytes, state: &mut AdapterState<Ctx>) {
+    fn handle_liveness_message(&self, from: PeerId, bytes: Bytes, state: &mut AdapterState) {
         let message: LivenessMsg<Ctx> = match self.codec.decode(bytes) {
             Ok(message) => message,
             Err(error) => {
@@ -155,7 +149,7 @@ where
         state.output_port.send(event);
     }
 
-    fn handle_consensus_message(&self, from: PeerId, bytes: Bytes, state: &mut AdapterState<Ctx>) {
+    fn handle_consensus_message(&self, from: PeerId, bytes: Bytes, state: &mut AdapterState) {
         let message: SignedConsensusMsg<Ctx> = match self.codec.decode(bytes) {
             Ok(message) => message,
             Err(error) => {
@@ -171,8 +165,10 @@ where
         state.output_port.send(event);
     }
 
-    fn handle_proposal_part(&self, from: PeerId, bytes: Bytes, state: &mut AdapterState<Ctx>) {
-        let message: StreamMessage<Ctx::ProposalPart> = match self.codec.decode(bytes) {
+    fn handle_proposal_part(&self, from: PeerId, bytes: Bytes, state: &mut AdapterState) {
+        let message: StreamMessage<
+            <MalachiteCtx as malachitebft_core_types::Context>::ProposalPart,
+        > = match self.codec.decode(bytes) {
             Ok(message) => message,
             Err(error) => {
                 log::error!("failed to decode proposal part from {from}: {error}");
@@ -185,7 +181,7 @@ where
             .send(NetworkEvent::ProposalPart(from, message));
     }
 
-    fn handle_status(&self, from: PeerId, bytes: Bytes, state: &mut AdapterState<Ctx>) {
+    fn handle_status(&self, from: PeerId, bytes: Bytes, state: &mut AdapterState) {
         let status: sync::Status<Ctx> = match self.codec.decode(bytes) {
             Ok(status) => status,
             Err(error) => {
@@ -208,7 +204,7 @@ where
         ));
     }
 
-    fn handle_sync_message(&self, message: RawMessage, state: &mut AdapterState<Ctx>) {
+    fn handle_sync_message(&self, message: RawMessage, state: &mut AdapterState) {
         match message {
             RawMessage::Request {
                 request_id,
@@ -259,7 +255,7 @@ where
         &self,
         peer_id: PeerId,
         proof_bytes: Bytes,
-        state: &mut AdapterState<Ctx>,
+        state: &mut AdapterState,
     ) {
         let proof: ValidatorProof<Ctx> = match self.codec.decode(proof_bytes) {
             Ok(proof) => proof,
@@ -286,13 +282,9 @@ where
 }
 
 #[async_trait]
-impl<Ctx, Codec> Actor for Adapter<Ctx, Codec>
-where
-    Ctx: Context,
-    Codec: AdapterCodec<Ctx>,
-{
-    type Msg = EngineNetworkMsg<Ctx>;
-    type State = AdapterState<Ctx>;
+impl Actor for Adapter {
+    type Msg = EngineNetworkMsg;
+    type State = AdapterState;
     type Arguments = ();
 
     async fn pre_start(
@@ -394,7 +386,9 @@ where
                     .iter()
                     .map(|validator| malachitebft_network::ValidatorInfo {
                         address: validator.address().to_string(),
-                        public_key: Ctx::SigningScheme::encode_public_key(validator.public_key()),
+                        public_key: <<MalachiteCtx as malachitebft_core_types::Context>::SigningScheme as SigningScheme>::encode_public_key(
+                            validator.public_key(),
+                        ),
                         voting_power: validator.voting_power(),
                     })
                     .collect();
@@ -420,50 +414,16 @@ where
     }
 }
 
-pub(crate) trait AdapterCodec<Ctx>:
-    Send
-    + Sync
-    + 'static
-    + MalachiteCodec<Ctx::ProposalPart>
-    + MalachiteCodec<SignedConsensusMsg<Ctx>>
-    + MalachiteCodec<StreamMessage<Ctx::ProposalPart>>
-    + MalachiteCodec<LivenessMsg<Ctx>>
-    + MalachiteCodec<sync::Status<Ctx>>
-    + MalachiteCodec<Request<Ctx>>
-    + MalachiteCodec<Response<Ctx>>
-    + MalachiteCodec<ValidatorProof<Ctx>>
-where
-    Ctx: Context,
-{
-}
-
-impl<Ctx, Codec> AdapterCodec<Ctx> for Codec
-where
-    Ctx: Context,
-    Codec: Send
-        + Sync
-        + 'static
-        + MalachiteCodec<Ctx::ProposalPart>
-        + MalachiteCodec<SignedConsensusMsg<Ctx>>
-        + MalachiteCodec<StreamMessage<Ctx::ProposalPart>>
-        + MalachiteCodec<LivenessMsg<Ctx>>
-        + MalachiteCodec<sync::Status<Ctx>>
-        + MalachiteCodec<Request<Ctx>>
-        + MalachiteCodec<Response<Ctx>>
-        + MalachiteCodec<ValidatorProof<Ctx>>,
-{
-}
-
-pub struct MalachiteNetworkParts<Ctx: Context> {
-    network_ref: EngineNetworkRef<Ctx>,
-    tx_network: mpsc::Sender<AppNetworkMsg<Ctx>>,
+pub struct MalachiteNetworkParts {
+    network_ref: EngineNetworkRef,
+    tx_network: mpsc::Sender<AppNetworkMsg>,
     events_tx: mpsc::UnboundedSender<LaneEvent>,
 }
 
-impl<Ctx: Context> MalachiteNetworkParts<Ctx> {
+impl MalachiteNetworkParts {
     pub(crate) fn new(
-        network_ref: EngineNetworkRef<Ctx>,
-        tx_network: mpsc::Sender<AppNetworkMsg<Ctx>>,
+        network_ref: EngineNetworkRef,
+        tx_network: mpsc::Sender<AppNetworkMsg>,
         events_tx: mpsc::UnboundedSender<LaneEvent>,
     ) -> Self {
         Self {
@@ -477,21 +437,16 @@ impl<Ctx: Context> MalachiteNetworkParts<Ctx> {
         self.events_tx.clone()
     }
 
-    pub fn into_engine_parts(self) -> (EngineNetworkRef<Ctx>, mpsc::Sender<AppNetworkMsg<Ctx>>) {
+    pub fn into_engine_parts(self) -> (EngineNetworkRef, mpsc::Sender<AppNetworkMsg>) {
         (self.network_ref, self.tx_network)
     }
 }
 
-pub(crate) async fn spawn_adapter<Ctx, Codec>(
+pub(crate) async fn spawn_adapter(
     lane_tx: mpsc::Sender<LaneCommand>,
     local_peer_id: PeerId,
-    codec: Codec,
-) -> anyhow::Result<MalachiteNetworkParts<Ctx>>
-where
-    Ctx: Context,
-    Codec: AdapterCodec<Ctx>,
-{
-    let adapter = Adapter::<Ctx, Codec>::new(lane_tx, local_peer_id, codec);
+) -> anyhow::Result<MalachiteNetworkParts> {
+    let adapter = Adapter::new(lane_tx, local_peer_id);
     let (network_ref, _) = Actor::spawn(None, adapter, ()).await?;
 
     let (events_tx, mut events_rx) = mpsc::unbounded_channel::<LaneEvent>();
@@ -507,7 +462,7 @@ where
         }
     });
 
-    let (tx_network, mut rx_network) = mpsc::channel::<AppNetworkMsg<Ctx>>(128);
+    let (tx_network, mut rx_network) = mpsc::channel::<AppNetworkMsg>(128);
     tokio::spawn({
         let network_ref = network_ref.clone();
         async move {

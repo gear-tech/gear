@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Parameters controlling the optional libp2p networking service.
+//! Parameters controlling the libp2p networking service.
 
 use super::MergeParams;
 use anyhow::{Context, Result};
@@ -16,7 +16,7 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 /// Parameters for the networking service to start.
-#[derive(Clone, Debug, Deserialize, Parser)]
+#[derive(Clone, Debug, Default, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct NetworkParams {
     /// Network pubkey of the node. If not provided, tries to fetch one from .net directory, in case of absence - generates and stores new random one.
@@ -28,6 +28,16 @@ pub struct NetworkParams {
     #[arg(long, aliases = &["net-bootnodes", "bootnodes"])]
     #[serde(rename = "bootnodes")]
     pub network_bootnodes: Option<Vec<Multiaddr>>,
+
+    /// Shared-network peer multiaddrs the Malachite consensus lane
+    /// should keep connected to. Each entry must include the shared
+    /// `/p2p/<peer_id>` suffix. Repeat the flag to add more than one peer.
+    #[arg(
+        long = "network-persistent-peer",
+        aliases = &["malachite-persistent-peer", "mala-persistent-peer"]
+    )]
+    #[serde(default, rename = "persistent-peers")]
+    pub network_persistent_peers: Vec<Multiaddr>,
 
     /// Externally exposed network addresses of the node.
     #[arg(long, aliases = &["net-public-addr", "public-addr"])]
@@ -43,28 +53,19 @@ pub struct NetworkParams {
     #[arg(long, alias = "net-port")]
     #[serde(rename = "port")]
     pub network_port: Option<u16>,
-
-    /// Flag to disable network service.
-    #[arg(long, alias = "no-net")]
-    #[serde(default, rename = "no-network", alias = "no-net")]
-    pub no_network: bool,
 }
 
 impl NetworkParams {
-    /// Converts networking parameters into an optional [`NetworkConfig`].
+    /// Converts networking parameters into a [`NetworkConfig`].
     ///
-    /// When networking is enabled, the method either parses an explicit network key or
-    /// resolves one from the `net/` key store, generating it on first use.
+    /// The method either parses an explicit network key or resolves one from
+    /// the `net/` key store, generating it on first use.
     pub fn into_config(
         self,
         config_dir: PathBuf,
         router_address: Address,
         is_dev: bool,
-    ) -> Result<Option<NetworkConfig>> {
-        if self.no_network {
-            return Ok(None);
-        }
-
+    ) -> Result<NetworkConfig> {
         let public_key = if let Some(key) = self.network_key {
             log::trace!("use network key from command-line arguments");
             key.parse().context("invalid network key")?
@@ -118,15 +119,16 @@ impl NetworkParams {
             network_listen_addr.into_iter().collect()
         };
 
-        Ok(Some(NetworkConfig {
+        Ok(NetworkConfig {
             public_key,
             router_address,
             external_addresses,
             bootstrap_addresses,
+            persistent_peers: self.network_persistent_peers,
             listen_addresses,
             transport_type: Default::default(),
             allow_non_global_addresses: is_dev,
-        }))
+        })
     }
 }
 
@@ -135,10 +137,14 @@ impl MergeParams for NetworkParams {
         Self {
             network_key: self.network_key.or(with.network_key),
             network_bootnodes: self.network_bootnodes.or(with.network_bootnodes),
+            network_persistent_peers: {
+                let mut peers = self.network_persistent_peers;
+                peers.extend(with.network_persistent_peers);
+                peers
+            },
             network_public_addr: self.network_public_addr.or(with.network_public_addr),
             network_listen_addr: self.network_listen_addr.or(with.network_listen_addr),
             network_port: self.network_port.or(with.network_port),
-            no_network: self.no_network || with.no_network,
         }
     }
 }

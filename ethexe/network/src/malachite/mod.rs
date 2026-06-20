@@ -7,6 +7,7 @@ mod tests;
 
 pub use adapter::MalachiteNetworkParts;
 
-pub type AppNetworkMsg<Ctx> = malachitebft_app_channel::NetworkMsg<Ctx>;
-pub type EngineNetworkRef<Ctx> = malachitebft_engine::network::NetworkRef<Ctx>;
-pub type EngineNetworkMsg<Ctx> = malachitebft_engine::network::NetworkMsg<Ctx>;
+pub type AppNetworkMsg = ethexe_malachite_core::NetworkMsg<ethexe_malachite_core::MalachiteCtx>;
+pub type EngineNetworkRef = ethexe_malachite_core::NetworkRef<ethexe_malachite_core::MalachiteCtx>;
+pub type EngineNetworkMsg =
+    ethexe_malachite_core::EngineNetworkMsg<ethexe_malachite_core::MalachiteCtx>;

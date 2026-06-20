@@ -5,7 +5,6 @@ use libp2p::multiaddr::Protocol;
 use libp2p_swarm_test::SwarmExt;
 use malachitebft_engine::network::NetworkMsg;
 use malachitebft_network::PersistentPeersOp;
-use malachitebft_test::{TestContext, codec::json::JsonCodec};
 use ractor::call_t;
 use std::{task::Poll, time::Duration};
 
@@ -20,44 +19,39 @@ async fn poll_service_once(service: &mut crate::NetworkService) {
 #[test]
 fn adapter_parts_are_upstream_malachite_types() {
     #[allow(dead_code)]
-    fn assert_parts(parts: MalachiteNetworkParts<TestContext>) {
+    fn assert_parts(parts: MalachiteNetworkParts) {
         let (_network_ref, _tx_network) = parts.into_engine_parts();
     }
 }
 
 #[tokio::test]
-async fn network_service_runs_without_malachite_lane() {
-    let service = new_service();
-    assert!(service.malachite_state.is_none());
+async fn network_service_starts_with_malachite_lane() {
+    let mut service = new_service().await;
+
+    assert!(service.malachite_persistent_peers().is_empty());
+    assert!(service.swarm.behaviour().malachite.as_ref().is_some());
+    assert!(service.take_malachite_network_parts().is_some());
+    assert!(service.take_malachite_network_parts().is_none());
 }
 
 #[tokio::test]
-async fn register_malachite_lane_with_persistent_peers_returns_engine_parts() {
+async fn take_malachite_network_parts_returns_engine_parts() {
     init_logger();
 
-    let mut service = new_service();
+    let mut service = new_service().await;
     let parts = service
-        .register_malachite_lane_with_persistent_peers::<TestContext, JsonCodec>(
-            JsonCodec,
-            Vec::new(),
-        )
-        .await
-        .expect("registers malachite lane");
+        .take_malachite_network_parts()
+        .expect("malachite network parts are available");
 
     let (_network_ref, _tx_network) = parts.into_engine_parts();
-    assert!(service.malachite_state.is_some());
 }
 
 #[tokio::test]
 async fn persistent_peer_updates_reach_lane_state() {
-    let mut service = new_service();
+    let mut service = new_service().await;
     let parts = service
-        .register_malachite_lane_with_persistent_peers::<TestContext, JsonCodec>(
-            JsonCodec,
-            Vec::new(),
-        )
-        .await
-        .expect("registers malachite lane");
+        .take_malachite_network_parts()
+        .expect("malachite network parts are available");
     let (network_ref, _tx_network) = parts.into_engine_parts();
 
     let peer: libp2p::Multiaddr =
@@ -97,17 +91,13 @@ async fn persistent_peer_updates_reach_lane_state() {
 async fn persistent_peer_updates_connect_shared_swarm() {
     init_logger();
 
-    let mut service = new_service();
+    let mut service = new_service().await;
     let parts = service
-        .register_malachite_lane_with_persistent_peers::<TestContext, JsonCodec>(
-            JsonCodec,
-            Vec::new(),
-        )
-        .await
-        .expect("registers malachite lane");
+        .take_malachite_network_parts()
+        .expect("malachite network parts are available");
     let (network_ref, _tx_network) = parts.into_engine_parts();
 
-    let mut peer_service = new_service();
+    let mut peer_service = new_service().await;
     peer_service
         .swarm
         .listen()
@@ -159,16 +149,11 @@ async fn persistent_peer_updates_connect_shared_swarm() {
 }
 
 #[tokio::test]
-async fn malachite_lane_does_not_add_second_ping_or_identify() {
-    let mut service = new_service();
-    service
-        .register_malachite_lane_with_persistent_peers::<TestContext, JsonCodec>(
-            JsonCodec,
-            Vec::new(),
-        )
-        .await
-        .expect("registers malachite lane");
+async fn malachite_behaviour_does_not_own_gossipsub() {
+    let service = new_service().await;
 
     let behaviour = service.swarm.behaviour();
+    let _shared_gossipsub = &behaviour.gossipsub;
+    let _malachite = &behaviour.malachite;
     assert!(behaviour.malachite.as_ref().is_some());
 }

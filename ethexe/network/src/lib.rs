@@ -40,7 +40,7 @@ use crate::{
     utils::MultiaddrExt,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
-use anyhow::{Context, anyhow, ensure};
+use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
@@ -129,6 +129,8 @@ pub struct NetworkConfig {
     pub external_addresses: HashSet<Multiaddr>,
     /// Peers we try to connect to proactively at startup.
     pub bootstrap_addresses: HashSet<Multiaddr>,
+    /// Shared-network peers the Malachite consensus lane keeps connected to.
+    pub persistent_peers: Vec<Multiaddr>,
     /// Addresses the local swarm listens on.
     pub listen_addresses: HashSet<Multiaddr>,
     /// Transport backend to use.
@@ -146,6 +148,7 @@ impl NetworkConfig {
             public_key,
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
+            persistent_peers: Default::default(),
             listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
             transport_type: TransportType::Default,
             router_address,
@@ -159,6 +162,7 @@ impl NetworkConfig {
             public_key,
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
+            persistent_peers: Default::default(),
             listen_addresses: Default::default(),
             transport_type: TransportType::Test,
             router_address,
@@ -199,9 +203,9 @@ pub struct NetworkService {
     validator_list: ValidatorList,
     validator_topic: ValidatorTopic,
     metrics: Libp2pMetrics,
-    keypair: identity::Keypair,
     allow_non_global_addresses: bool,
-    malachite_state: Option<malachite::state::State>,
+    malachite_state: malachite::state::State,
+    malachite_network_parts: Option<malachite::MalachiteNetworkParts>,
 }
 
 impl Stream for NetworkService {
@@ -239,7 +243,7 @@ impl FusedStream for NetworkService {
 
 impl NetworkService {
     /// Construct a network service with all protocols enabled.
-    pub fn new(
+    pub async fn new(
         config: NetworkConfig,
         runtime_config: NetworkRuntimeConfig,
     ) -> anyhow::Result<NetworkService> {
@@ -247,6 +251,7 @@ impl NetworkService {
             public_key,
             external_addresses,
             bootstrap_addresses,
+            persistent_peers,
             listen_addresses,
             transport_type,
             router_address,
@@ -279,9 +284,11 @@ impl NetworkService {
 
         let transport = Self::create_transport(&keypair, transport_type, &mut registry)?;
 
+        let malachite_config = Self::default_malachite_config();
         let behaviour_config = BehaviourConfig {
             router_address,
             keypair: keypair.clone(),
+            malachite_config: &malachite_config,
             external_data_provider,
             db: DbSyncDatabase::clone_boxed(&db),
             transport_type,
@@ -291,7 +298,16 @@ impl NetworkService {
             allow_non_global_addresses,
             metrics: (&mut registry, metrics.clone()),
         };
-        let behaviour = Behaviour::new(behaviour_config)?;
+        let mut behaviour = Behaviour::new(behaviour_config)?;
+
+        let malachite_behaviour = malachite::behaviour::Behaviour::new(
+            keypair.clone(),
+            &malachite_config,
+            None,
+            &mut registry,
+        )
+        .context("failed to create malachite lane behaviour")?;
+        behaviour.malachite = Toggle::from(Some(malachite_behaviour));
 
         let mut swarm = Self::create_swarm(keypair.clone(), transport, transport_type, behaviour)?;
 
@@ -328,22 +344,53 @@ impl NetworkService {
             bootstrap_peers.insert(peer_id);
         }
 
+        let persistent_peers_with_ids = persistent_peers
+            .iter()
+            .map(|addr| {
+                Self::malachite_peer_id_from_addr(addr)
+                    .map(|peer_id| (addr.clone(), peer_id))
+                    .map_err(|error| {
+                        anyhow!("failed to apply Malachite persistent peer {addr}: {error}")
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        use malachitebft_network::PeerIdExt as _;
+
+        let (malachite_lane_tx, malachite_lane_rx) = tokio::sync::mpsc::channel(128);
+        let local_malachite_peer_id =
+            malachitebft_network::PeerId::from_libp2p(&keypair.public().to_peer_id());
+        let malachite_network_parts =
+            malachite::adapter::spawn_adapter(malachite_lane_tx, local_malachite_peer_id).await?;
+        let malachite_events_tx = malachite_network_parts.events_tx();
+        let malachite_state = malachite::state::State::new(
+            malachite_lane_rx,
+            malachite_events_tx,
+            persistent_peers.clone(),
+        );
+
         log::info!(
             "NetworkService created with peer id: {}",
             swarm.local_peer_id()
         );
 
-        Ok(Self {
+        let mut service = Self {
             swarm,
             listeners,
             bootstrap_peers,
             validator_list,
             validator_topic,
             metrics: (registry, metrics),
-            keypair,
             allow_non_global_addresses,
-            malachite_state: None,
-        })
+            malachite_state,
+            malachite_network_parts: Some(malachite_network_parts),
+        };
+
+        for (addr, peer_id) in persistent_peers_with_ids {
+            service.add_malachite_persistent_peer_to_swarm(peer_id, &addr);
+        }
+
+        Ok(service)
     }
 
     fn create_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
@@ -479,29 +526,6 @@ impl NetworkService {
         log::trace!("new Malachite lane event: {event:?}");
 
         match event {
-            malachite::behaviour::Event::GossipSub(libp2p::gossipsub::Event::Message {
-                propagation_source,
-                message,
-                ..
-            }) => {
-                let Some(channel) = malachitebft_network::Channel::from_gossipsub_topic_hash(
-                    &message.topic,
-                    malachitebft_network::ChannelNames::default(),
-                ) else {
-                    return;
-                };
-
-                use malachitebft_network::PeerIdExt as _;
-
-                let peer = malachitebft_network::PeerId::from_libp2p(&propagation_source);
-                let body = bytes::Bytes::from(message.data);
-                let event = if channel == malachitebft_network::Channel::Liveness {
-                    malachitebft_network::Event::LivenessMessage(channel, peer, body)
-                } else {
-                    malachitebft_network::Event::ConsensusMessage(channel, peer, body)
-                };
-                self.send_malachite_event_to_adapter(event);
-            }
             malachite::behaviour::Event::Broadcast(libp2p_broadcast::Event::Received(
                 peer,
                 topic,
@@ -538,8 +562,6 @@ impl NetworkService {
                         channel,
                     } => {
                         self.malachite_state
-                            .as_mut()
-                            .expect("Malachite lane state exists")
                             .inbound_sync_requests
                             .insert(request_id, channel);
                         self.send_malachite_event_to_adapter(malachitebft_network::Event::Sync(
@@ -556,8 +578,6 @@ impl NetworkService {
                     } => {
                         let _ = self
                             .malachite_state
-                            .as_mut()
-                            .expect("Malachite lane state exists")
                             .outbound_sync_requests
                             .remove(&request_id)
                             .expect("outbound sync response has tracked request id");
@@ -583,41 +603,27 @@ impl NetworkService {
                     },
                 );
             }
-            malachite::behaviour::Event::GossipSub(_)
-            | malachite::behaviour::Event::Broadcast(_)
+            malachite::behaviour::Event::Broadcast(_)
             | malachite::behaviour::Event::Sync(_)
             | malachite::behaviour::Event::ValidatorProof(_) => {}
         }
     }
 
     fn send_malachite_event_to_adapter(&self, event: malachitebft_network::Event) {
-        let Some(state) = &self.malachite_state else {
-            log::warn!("dropping Malachite network event because the adapter is not registered");
-            return;
-        };
-
-        if let Err(error) = state.events_tx.send(event) {
+        if let Err(error) = self.malachite_state.events_tx.send(event) {
             log::warn!("dropping Malachite network event because the adapter is closed: {error}");
         }
     }
 
     fn try_send_malachite_event_to_adapter(&self, event: malachitebft_network::Event) {
-        if self.malachite_state.is_some() {
-            self.send_malachite_event_to_adapter(event);
-        }
+        self.send_malachite_event_to_adapter(event);
     }
 
     fn handle_next_malachite_command(
         &mut self,
         cx: &mut std::task::Context<'_>,
     ) -> Option<NetworkEvent> {
-        let poll = {
-            let Some(state) = &mut self.malachite_state else {
-                return None;
-            };
-
-            Pin::new(&mut state.lane_rx).poll_recv(cx)
-        };
+        let poll = Pin::new(&mut self.malachite_state.lane_rx).poll_recv(cx);
 
         match poll {
             Poll::Ready(Some(command)) => {
@@ -638,26 +644,20 @@ impl NetworkService {
             malachite::adapter::LaneCommand::PublishConsensus(data) => {
                 self.swarm
                     .behaviour_mut()
-                    .malachite
-                    .as_mut()
-                    .expect("Malachite behaviour registered")
-                    .publish_consensus(data);
+                    .gossipsub
+                    .publish_malachite_consensus(data);
             }
             malachite::adapter::LaneCommand::PublishLiveness(data) => {
                 self.swarm
                     .behaviour_mut()
-                    .malachite
-                    .as_mut()
-                    .expect("Malachite behaviour registered")
-                    .publish_liveness(data);
+                    .gossipsub
+                    .publish_malachite_liveness(data);
             }
             malachite::adapter::LaneCommand::PublishProposalPart(data) => {
                 self.swarm
                     .behaviour_mut()
-                    .malachite
-                    .as_mut()
-                    .expect("Malachite behaviour registered")
-                    .publish_proposal_part(data);
+                    .gossipsub
+                    .publish_malachite_proposal_part(data);
             }
             malachite::adapter::LaneCommand::BroadcastStatus(data) => {
                 self.swarm
@@ -679,8 +679,6 @@ impl NetworkService {
                     .send_sync_request(peer.to_libp2p(), body);
                 let malachite_request_id = malachitebft_sync::OutboundRequestId::new(request_id);
                 self.malachite_state
-                    .as_mut()
-                    .expect("Malachite lane state exists")
                     .outbound_sync_requests
                     .insert(request_id, malachite_request_id.clone());
                 let _ = reply.send(malachite_request_id);
@@ -688,8 +686,6 @@ impl NetworkService {
             malachite::adapter::LaneCommand::OutgoingResponse { request_id, body } => {
                 let channel = self
                     .malachite_state
-                    .as_mut()
-                    .expect("Malachite lane state exists")
                     .inbound_sync_requests
                     .remove(&request_id)
                     .expect("sync response has tracked inbound request id");
@@ -701,10 +697,7 @@ impl NetworkService {
                     .send_sync_response(channel, body);
             }
             malachite::adapter::LaneCommand::DumpState(reply) => {
-                let state = self
-                    .malachite_state
-                    .as_ref()
-                    .map(|state| state.dump_state(self.local_peer_id()));
+                let state = Some(self.malachite_state.dump_state(self.local_peer_id()));
                 let _ = reply.send(state);
             }
             malachite::adapter::LaneCommand::UpdatePersistentPeers(op, reply) => {
@@ -712,10 +705,7 @@ impl NetworkService {
                 let _ = reply.send(result);
             }
             malachite::adapter::LaneCommand::UpdateValidatorSet(validators) => {
-                self.malachite_state
-                    .as_mut()
-                    .expect("Malachite lane state exists")
-                    .validators = validators;
+                self.malachite_state.validators = validators;
             }
             malachite::adapter::LaneCommand::ValidatorProofVerified {
                 peer_id,
@@ -729,8 +719,6 @@ impl NetworkService {
                     let _ = self.swarm.disconnect_peer_id(libp2p_peer_id);
                 } else if let Some(public_key) = public_key {
                     self.malachite_state
-                        .as_mut()
-                        .expect("Malachite lane state exists")
                         .verified_validator_proofs
                         .insert(libp2p_peer_id, public_key);
                 }
@@ -746,32 +734,30 @@ impl NetworkService {
             malachitebft_network::PersistentPeersOp::Add(addr) => {
                 let peer_id = Self::malachite_peer_id_from_addr(&addr)?;
 
-                self.malachite_state
-                    .as_mut()
-                    .expect("Malachite lane command requires registered state")
-                    .apply_persistent_peer_op(malachitebft_network::PersistentPeersOp::Add(
-                        addr.clone(),
-                    ))?;
+                self.malachite_state.apply_persistent_peer_op(
+                    malachitebft_network::PersistentPeersOp::Add(addr.clone()),
+                )?;
 
-                self.swarm.add_peer_address(peer_id, addr.clone());
-                self.swarm
-                    .behaviour_mut()
-                    .kad
-                    .add_address(peer_id, addr.clone());
-
-                if !self.swarm.is_connected(&peer_id)
-                    && let Err(error) = self.swarm.dial(addr.clone())
-                {
-                    log::debug!("failed to dial Malachite persistent peer {addr}: {error}");
-                }
-
+                self.add_malachite_persistent_peer_to_swarm(peer_id, &addr);
                 Ok(())
             }
             malachitebft_network::PersistentPeersOp::Remove(addr) => self
                 .malachite_state
-                .as_mut()
-                .expect("Malachite lane command requires registered state")
                 .apply_persistent_peer_op(malachitebft_network::PersistentPeersOp::Remove(addr)),
+        }
+    }
+
+    fn add_malachite_persistent_peer_to_swarm(&mut self, peer_id: PeerId, addr: &Multiaddr) {
+        self.swarm.add_peer_address(peer_id, addr.clone());
+        self.swarm
+            .behaviour_mut()
+            .kad
+            .add_address(peer_id, addr.clone());
+
+        if !self.swarm.is_connected(&peer_id)
+            && let Err(error) = self.swarm.dial(addr.clone())
+        {
+            log::debug!("failed to dial Malachite persistent peer {addr}: {error}");
         }
     }
 
@@ -883,6 +869,7 @@ impl NetworkService {
     fn handle_gossipsub_event(&mut self, event: gossipsub::Event) -> Option<NetworkEvent> {
         match event {
             gossipsub::Event::Message { source, validator } => {
+                let malachite_events_tx = self.malachite_state.events_tx.clone();
                 let behaviour = self.swarm.behaviour_mut();
                 let gossipsub = &mut behaviour.gossipsub;
 
@@ -900,6 +887,33 @@ impl NetworkService {
                             self.validator_topic.verify_receipt(source, receipt);
                         (acceptance, receipt.map(NetworkEvent::TxReceiptMessage))
                     }
+                    gossipsub::Message::MalachiteConsensus(data) => (
+                        libp2p::gossipsub::MessageAcceptance::Accept,
+                        Self::send_malachite_gossip(
+                            &malachite_events_tx,
+                            malachitebft_network::Channel::Consensus,
+                            source,
+                            data,
+                        ),
+                    ),
+                    gossipsub::Message::MalachiteLiveness(data) => (
+                        libp2p::gossipsub::MessageAcceptance::Accept,
+                        Self::send_malachite_gossip(
+                            &malachite_events_tx,
+                            malachitebft_network::Channel::Liveness,
+                            source,
+                            data,
+                        ),
+                    ),
+                    gossipsub::Message::MalachiteProposalParts(data) => (
+                        libp2p::gossipsub::MessageAcceptance::Accept,
+                        Self::send_malachite_gossip(
+                            &malachite_events_tx,
+                            malachitebft_network::Channel::ProposalParts,
+                            source,
+                            data,
+                        ),
+                    ),
                 })
             }
             gossipsub::Event::PublishFailure {
@@ -913,6 +927,26 @@ impl NetworkService {
                 None
             }
         }
+    }
+
+    fn send_malachite_gossip(
+        events_tx: &tokio::sync::mpsc::UnboundedSender<malachitebft_network::Event>,
+        channel: malachitebft_network::Channel,
+        source: PeerId,
+        data: bytes::Bytes,
+    ) -> Option<NetworkEvent> {
+        use malachitebft_network::PeerIdExt as _;
+
+        let peer = malachitebft_network::PeerId::from_libp2p(&source);
+        let event = if channel == malachitebft_network::Channel::Liveness {
+            malachitebft_network::Event::LivenessMessage(channel, peer, data)
+        } else {
+            malachitebft_network::Event::ConsensusMessage(channel, peer, data)
+        };
+        if let Err(error) = events_tx.send(event) {
+            log::warn!("dropping Malachite network event because the adapter is closed: {error}");
+        }
+        None
     }
 
     fn handle_injected_event(&mut self, event: injected::Event) -> Option<NetworkEvent> {
@@ -967,66 +1001,14 @@ impl NetworkService {
         self.swarm.behaviour().db_sync.handle()
     }
 
-    #[cfg(test)]
-    pub(crate) fn malachite_persistent_peers(&self) -> &std::collections::HashSet<Multiaddr> {
-        &self
-            .malachite_state
-            .as_ref()
-            .expect("Malachite lane registered")
-            .persistent_peers
+    /// Take the one-shot Malachite network parts used by the consensus engine.
+    pub fn take_malachite_network_parts(&mut self) -> Option<malachite::MalachiteNetworkParts> {
+        self.malachite_network_parts.take()
     }
 
-    pub async fn register_malachite_lane_with_persistent_peers<Ctx, Codec>(
-        &mut self,
-        codec: Codec,
-        persistent_peers: Vec<Multiaddr>,
-    ) -> anyhow::Result<malachite::MalachiteNetworkParts<Ctx>>
-    where
-        Ctx: malachitebft_core_types::Context,
-        Codec: Send
-            + Sync
-            + 'static
-            + malachitebft_codec::Codec<Ctx::ProposalPart>
-            + malachitebft_codec::Codec<malachitebft_core_consensus::SignedConsensusMsg<Ctx>>
-            + malachitebft_codec::Codec<
-                malachitebft_engine::util::streaming::StreamMessage<Ctx::ProposalPart>,
-            >
-            + malachitebft_codec::Codec<malachitebft_core_consensus::LivenessMsg<Ctx>>
-            + malachitebft_codec::Codec<malachitebft_sync::Status<Ctx>>
-            + malachitebft_codec::Codec<malachitebft_sync::Request<Ctx>>
-            + malachitebft_codec::Codec<malachitebft_sync::Response<Ctx>>
-            + malachitebft_codec::Codec<malachitebft_core_types::ValidatorProof<Ctx>>,
-    {
-        ensure!(
-            self.malachite_state.is_none(),
-            "malachite lane is already registered"
-        );
-
-        use malachitebft_network::PeerIdExt;
-
-        let (lane_tx, lane_rx) = tokio::sync::mpsc::channel(128);
-        let local_peer_id = malachitebft_network::PeerId::from_libp2p(&self.local_peer_id());
-        let parts = malachite::adapter::spawn_adapter(lane_tx, local_peer_id, codec).await?;
-        let events_tx = parts.events_tx();
-        let config = Self::default_malachite_config();
-        let behaviour = malachite::behaviour::Behaviour::new(
-            self.keypair.clone(),
-            &config,
-            None,
-            &mut self.metrics.0,
-        )
-        .context("failed to create malachite lane behaviour")?;
-        self.swarm.behaviour_mut().malachite = Toggle::from(Some(behaviour));
-
-        self.malachite_state = Some(malachite::state::State::new(lane_rx, events_tx, Vec::new()));
-        for peer in persistent_peers {
-            self.handle_malachite_persistent_peer_op(malachitebft_network::PersistentPeersOp::Add(
-                peer,
-            ))
-            .map_err(|error| anyhow!("failed to add Malachite persistent peer: {error}"))?;
-        }
-
-        Ok(parts)
+    #[cfg(test)]
+    pub(crate) fn malachite_persistent_peers(&self) -> &std::collections::HashSet<Multiaddr> {
+        &self.malachite_state.persistent_peers
     }
 
     fn default_malachite_config() -> malachitebft_network::Config {
@@ -1115,6 +1097,7 @@ impl NetworkService {
 struct BehaviourConfig<'a> {
     router_address: Address,
     keypair: identity::Keypair,
+    malachite_config: &'a malachitebft_network::Config,
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     db: Box<dyn DbSyncDatabase>,
     transport_type: TransportType,
@@ -1161,6 +1144,7 @@ impl Behaviour {
         let BehaviourConfig {
             router_address,
             keypair,
+            malachite_config,
             external_data_provider,
             db,
             transport_type,
@@ -1213,6 +1197,7 @@ impl Behaviour {
             keypair.clone(),
             peer_score_handle.clone(),
             router_address,
+            malachite_config,
             registry,
             metrics.clone(),
         )
@@ -1350,6 +1335,7 @@ mod tests {
         latest_validators: ValidatorsVec,
         signer: Signer,
         validator_key: Option<PublicKey>,
+        router_address: Address,
     }
 
     impl NetworkServiceBuilder {
@@ -1360,10 +1346,16 @@ mod tests {
                 latest_validators: nonempty![Address::default()].into(),
                 signer: Signer::memory(),
                 validator_key: None,
+                router_address: Address::default(),
             }
         }
 
-        fn build(self) -> NetworkService {
+        fn router_address(mut self, router_address: Address) -> Self {
+            self.router_address = router_address;
+            self
+        }
+
+        async fn build(self) -> NetworkService {
             const GENESIS_BLOCK_HEADER: BlockHeader = BlockHeader {
                 height: 0,
                 timestamp: 0,
@@ -1382,6 +1374,7 @@ mod tests {
                 latest_validators,
                 signer,
                 validator_key,
+                router_address,
             } = self;
 
             db.set_config(DBConfig {
@@ -1390,7 +1383,7 @@ mod tests {
             });
 
             let key = signer.generate().unwrap();
-            let config = NetworkConfig::new_test(key, Address::default());
+            let config = NetworkConfig::new_test(key, router_address);
 
             let runtime_config = NetworkRuntimeConfig {
                 latest_block_header: GENESIS_BLOCK_HEADER,
@@ -1402,20 +1395,105 @@ mod tests {
                 db,
             };
 
-            NetworkService::new(config, runtime_config).unwrap()
+            NetworkService::new(config, runtime_config).await.unwrap()
         }
     }
 
-    pub(crate) fn new_service() -> NetworkService {
-        NetworkServiceBuilder::new().build()
+    pub(crate) async fn new_service() -> NetworkService {
+        NetworkServiceBuilder::new().build().await
+    }
+
+    async fn new_service_with_router(router_address: Address) -> NetworkService {
+        NetworkServiceBuilder::new()
+            .router_address(router_address)
+            .build()
+            .await
+    }
+
+    #[tokio::test]
+    async fn malachite_gossip_topics_are_router_scoped() {
+        let router_a = Address::from([1u8; 20]);
+        let router_b = Address::from([2u8; 20]);
+        let service_a = new_service_with_router(router_a).await;
+        let service_b = new_service_with_router(router_b).await;
+
+        let topics_a = service_a
+            .swarm
+            .behaviour()
+            .gossipsub
+            .malachite_topic_hashes_for_tests();
+        let topics_b = service_b
+            .swarm
+            .behaviour()
+            .gossipsub
+            .malachite_topic_hashes_for_tests();
+
+        assert_ne!(topics_a.consensus, topics_b.consensus);
+        assert_ne!(topics_a.liveness, topics_b.liveness);
+        assert_ne!(topics_a.proposal_parts, topics_b.proposal_parts);
+    }
+
+    #[test]
+    fn malachite_gossip_channels_map_to_adapter_events() {
+        let (events_tx, mut events_rx) = tokio::sync::mpsc::unbounded_channel();
+        let source = PeerId::random();
+        let data = bytes::Bytes::from_static(b"malachite-message");
+
+        NetworkService::send_malachite_gossip(
+            &events_tx,
+            malachitebft_network::Channel::Consensus,
+            source,
+            data.clone(),
+        );
+        let event = events_rx.try_recv().expect("consensus event");
+        assert!(matches!(
+            event,
+            malachitebft_network::Event::ConsensusMessage(
+                malachitebft_network::Channel::Consensus,
+                _,
+                body,
+            ) if body == data
+        ));
+
+        NetworkService::send_malachite_gossip(
+            &events_tx,
+            malachitebft_network::Channel::Liveness,
+            source,
+            data.clone(),
+        );
+        let event = events_rx.try_recv().expect("liveness event");
+        assert!(matches!(
+            event,
+            malachitebft_network::Event::LivenessMessage(
+                malachitebft_network::Channel::Liveness,
+                _,
+                body,
+            ) if body == data
+        ));
+
+        NetworkService::send_malachite_gossip(
+            &events_tx,
+            malachitebft_network::Channel::ProposalParts,
+            source,
+            data.clone(),
+        );
+        let event = events_rx.try_recv().expect("proposal parts event");
+        assert!(matches!(
+            event,
+            malachitebft_network::Event::ConsensusMessage(
+                malachitebft_network::Channel::ProposalParts,
+                _,
+                body,
+            ) if body == data
+        ));
     }
 
     #[tokio::test]
     async fn test_memory_transport() {
         init_logger();
 
-        let mut service1 = new_service();
-        let mut service2 = new_service();
+        let mut service1 = new_service().await;
+        let mut service2 = new_service().await;
 
         service1.connect(&mut service2).await;
     }
@@ -1424,7 +1502,7 @@ mod tests {
     async fn request_db_data() {
         init_logger();
 
-        let mut service1 = new_service();
+        let mut service1 = new_service().await;
         let service1_handle = service1.db_sync_handle();
 
         // second service
@@ -1433,7 +1511,7 @@ mod tests {
         let hello = service2.db.cas().write(b"hello");
         let world = service2.db.cas().write(b"world");
 
-        let mut service2 = service2.build();
+        let mut service2 = service2.build().await;
 
         service1.connect(&mut service2).await;
         tokio::spawn(service1.loop_on_next());
@@ -1456,11 +1534,11 @@ mod tests {
     async fn peer_blocked_by_score() {
         init_logger();
 
-        let mut service1 = new_service();
+        let mut service1 = new_service().await;
         let peer_score_handle = service1.score_handle();
 
         // second service
-        let mut service2 = new_service();
+        let mut service2 = new_service().await;
         let service2_peer_id = service2.local_peer_id();
 
         service1.connect(&mut service2).await;
@@ -1485,11 +1563,11 @@ mod tests {
 
         let alice = NetworkServiceBuilder::new();
         let alice_data_provider = alice.data_provider.clone();
-        let mut alice = alice.build();
+        let mut alice = alice.build().await;
         let alice_handle = alice.db_sync_handle();
 
         let bob = NetworkServiceBuilder::new();
-        let mut bob = bob.build();
+        let mut bob = bob.build().await;
 
         alice.connect(&mut bob).await;
         tokio::spawn(alice.loop_on_next());
@@ -1521,13 +1599,13 @@ mod tests {
         alice.latest_validators = latest_validators.clone();
         alice.signer = signer.clone();
         alice.validator_key = Some(alice_key);
-        let mut alice = alice.build();
+        let mut alice = alice.build().await;
 
         let mut bob = NetworkServiceBuilder::new();
         bob.latest_validators = latest_validators;
         bob.signer = signer.clone();
         bob.validator_key = Some(bob_key);
-        let mut bob = bob.build();
+        let mut bob = bob.build().await;
 
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());

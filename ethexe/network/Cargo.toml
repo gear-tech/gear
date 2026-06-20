@@ -20,6 +20,7 @@ gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring"
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
 ethexe-common.workspace = true
+ethexe-malachite-core.workspace = true
 gprimitives = { workspace = true, features = ["std", "codec"] }
 
 # libp2p

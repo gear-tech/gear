@@ -4,7 +4,6 @@
 //! Application config in one place.
 
 use anyhow::Result;
-use ethexe_malachite::Multiaddr;
 use ethexe_network::NetworkConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -15,7 +14,7 @@ use std::{collections::BTreeMap, path::PathBuf, str::FromStr, time::Duration};
 pub struct Config {
     pub node: NodeConfig,
     pub ethereum: EthereumConfig,
-    pub network: Option<NetworkConfig>,
+    pub network: NetworkConfig,
     pub malachite: MalachiteCliConfig,
     pub rpc: Option<RpcConfig>,
     pub prometheus: Option<PrometheusConfig>,
@@ -26,9 +25,6 @@ pub struct Config {
 /// (home directory, mempool) are filled in by the service itself.
 #[derive(Clone, Debug, Default)]
 pub struct MalachiteCliConfig {
-    /// Shared-network peers the Malachite consensus lane should keep
-    /// connected to. Multiaddrs use the shared `ethexe-network` peer id.
-    pub persistent_peers: Vec<Multiaddr>,
     /// Map from validator Ethereum [`Address`] to its Malachite
     /// secp256k1 [`PublicKey`]. The on-chain Router contract stores
     /// the validator set as Ethereum addresses; Malachite needs the
@@ -49,9 +45,7 @@ impl Config {
             "📡 Ethereum router address: {}",
             self.ethereum.router_address
         );
-        if let Some(network) = &self.network {
-            log::info!("🛜  Network public key: {}", network.public_key);
-        }
+        log::info!("🛜  Network public key: {}", self.network.public_key);
     }
 }
 

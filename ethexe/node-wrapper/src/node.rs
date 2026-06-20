@@ -16,8 +16,8 @@ use std::{
 const VARA_ETH_BINARY: &str = "ethexe";
 
 /// [VaraEth] default command arguments.
-/// Runs dev environment without P2P network.
-const DEFAULT_ARGS: &[&str] = &["run", "--dev", "--no-network"];
+/// Runs dev environment with the mandatory P2P network.
+const DEFAULT_ARGS: &[&str] = &["run", "--dev"];
 
 /// Timeout for waiting for the node starting.
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(5);
