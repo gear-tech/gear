@@ -298,16 +298,7 @@ impl NetworkService {
             allow_non_global_addresses,
             metrics: (&mut registry, metrics.clone()),
         };
-        let mut behaviour = Behaviour::new(behaviour_config)?;
-
-        let malachite_behaviour = malachite::behaviour::Behaviour::new(
-            keypair.clone(),
-            &malachite_config,
-            None,
-            &mut registry,
-        )
-        .context("failed to create malachite lane behaviour")?;
-        behaviour.malachite = Toggle::from(Some(malachite_behaviour));
+        let behaviour = Behaviour::new(behaviour_config)?;
 
         let mut swarm = Self::create_swarm(keypair.clone(), transport, transport_type, behaviour)?;
 
@@ -660,12 +651,7 @@ impl NetworkService {
                     .publish_malachite_proposal_part(data);
             }
             malachite::adapter::LaneCommand::BroadcastStatus(data) => {
-                self.swarm
-                    .behaviour_mut()
-                    .malachite
-                    .as_mut()
-                    .expect("Malachite behaviour registered")
-                    .broadcast_status(data);
+                self.swarm.behaviour_mut().malachite.broadcast_status(data);
             }
             malachite::adapter::LaneCommand::OutgoingRequest { peer, body, reply } => {
                 use malachitebft_network::PeerIdExt as _;
@@ -674,8 +660,6 @@ impl NetworkService {
                     .swarm
                     .behaviour_mut()
                     .malachite
-                    .as_mut()
-                    .expect("Malachite behaviour registered")
                     .send_sync_request(peer.to_libp2p(), body);
                 let malachite_request_id = malachitebft_sync::OutboundRequestId::new(request_id);
                 self.malachite_state
@@ -692,8 +676,6 @@ impl NetworkService {
                 self.swarm
                     .behaviour_mut()
                     .malachite
-                    .as_mut()
-                    .expect("Malachite behaviour registered")
                     .send_sync_response(channel, body);
             }
             malachite::adapter::LaneCommand::DumpState(reply) => {
@@ -1135,8 +1117,8 @@ pub(crate) struct Behaviour {
     pub injected: injected::Behaviour,
     // validator discovery
     pub validator_discovery: validator::discovery::Behaviour,
-    // optional Malachite BFT protocol lane
-    pub malachite: Toggle<malachite::behaviour::Behaviour>,
+    // Malachite BFT protocol lane
+    pub malachite: malachite::behaviour::Behaviour,
 }
 
 impl Behaviour {
@@ -1212,6 +1194,10 @@ impl Behaviour {
 
         let injected = injected::Behaviour::new();
 
+        let malachite =
+            malachite::behaviour::Behaviour::new(keypair.clone(), malachite_config, None, registry)
+                .context("failed to create malachite lane behaviour")?;
+
         let validator_discovery = validator::discovery::Config {
             kad: kad_handle,
             keypair,
@@ -1221,7 +1207,6 @@ impl Behaviour {
             allow_non_global_addresses,
         };
         let validator_discovery = validator::discovery::Behaviour::new(validator_discovery);
-        let malachite = Toggle::from(None);
 
         Ok(Self {
             connection_limits,

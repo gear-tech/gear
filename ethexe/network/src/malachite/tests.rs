@@ -29,7 +29,7 @@ async fn network_service_starts_with_malachite_lane() {
     let mut service = new_service().await;
 
     assert!(service.malachite_persistent_peers().is_empty());
-    assert!(service.swarm.behaviour().malachite.as_ref().is_some());
+    let _malachite = &service.swarm.behaviour().malachite;
     assert!(service.take_malachite_network_parts().is_some());
     assert!(service.take_malachite_network_parts().is_none());
 }
@@ -155,5 +155,4 @@ async fn malachite_behaviour_does_not_own_gossipsub() {
     let behaviour = service.swarm.behaviour();
     let _shared_gossipsub = &behaviour.gossipsub;
     let _malachite = &behaviour.malachite;
-    assert!(behaviour.malachite.as_ref().is_some());
 }
