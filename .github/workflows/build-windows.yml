@@ -28,7 +28,7 @@ jobs:
     name: build-windows (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "ACTIONS: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -77,7 +77,7 @@ jobs:
     name: test-windows (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
