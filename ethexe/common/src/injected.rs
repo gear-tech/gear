@@ -398,6 +398,7 @@ pub enum TransactionPurgedReason {
     /// The transaction references a block that is not known locally.
     #[display("transaction reference block is unknown")]
     UnknownReferenceBlock = 2,
+    /// 
 
     /// The transaction has a non-zero value, which is not supported yet.
     ///

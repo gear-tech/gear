@@ -44,6 +44,7 @@ use {
     gear_tdec::bls12_381::SharedSecret,
     gsigner::{DecryptionShare, SignedMessage},
     sha3::{Digest as _, Keccak256},
+    std::collections::BTreeMap,
 };
 #[cfg(all(feature = "shielded", feature = "std"))]
 use {gsigner::PublicDecryptionContext, std::collections::HashMap};
@@ -82,7 +83,7 @@ pub enum Operation {
     Shielded(SignedShieldedTransaction) = 6,
 
     #[cfg(feature = "shielded")]
-    DecryptionKeys(Vec<(HashOf<ShieldedTransaction>, SharedSecret)>) = 7,
+    DecryptionKeys(BTreeMap<HashOf<ShieldedTransaction>, SharedSecret>) = 7,
 }
 
 impl Operation {
@@ -140,9 +141,9 @@ impl Decode for Operation {
                 input,
             )?)),
             #[cfg(feature = "shielded")]
-            7 => Ok(Operation::DecryptionKeys(<Vec<_> as Decode>::decode(
-                input,
-            )?)),
+            7 => Ok(Operation::DecryptionKeys(
+                <BTreeMap<_, _> as Decode>::decode(input)?,
+            )),
             _ => Err(parity_scale_codec::Error::from("invalid operation tag")),
         }
     }

@@ -389,6 +389,12 @@ impl<T> VerifiedData<T> {
         VerifiedData { data, public_key }
     }
 
+    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<VerifiedData<U>, E> {
+        let Self { data, public_key } = self;
+        let data = f(data)?;
+        Ok(VerifiedData { data, public_key })
+    }
+
     pub fn data(&self) -> &T {
         &self.data
     }

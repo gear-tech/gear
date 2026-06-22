@@ -67,7 +67,7 @@ use gprimitives::H256;
 use gsigner::tdec::TdecKeyStore;
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     sync::{Arc, Mutex, RwLock},
 };
 use tokio::sync::{Notify, mpsc};
@@ -427,7 +427,7 @@ impl Externalities for EthexeExternalities {
             operations.push(Operation::AdvanceTillEthereumBlock { block_hash });
         }
         if let Some(keys) = decryption_keys {
-            operations.push(Operation::DecryptionKeys(keys.into_iter().collect()));
+            operations.push(Operation::DecryptionKeys(keys));
         }
         for tx in capped {
             operations.push(utils::transaction_to_operation(tx));
@@ -797,7 +797,7 @@ impl EthexeExternalities {
     async fn wait_for_shielded_tx_decryption_keys(
         &self,
         parent_mb_hash: H256,
-    ) -> Result<Option<HashMap<HashOf<ShieldedTransaction>, SharedSecret>>> {
+    ) -> Result<Option<BTreeMap<HashOf<ShieldedTransaction>, SharedSecret>>> {
         if parent_mb_hash.is_zero() {
             return Ok(None);
         }
@@ -834,7 +834,7 @@ impl EthexeExternalities {
             );
         }
 
-        let mut keys = HashMap::with_capacity(pending.len());
+        let mut keys = BTreeMap::new();
         while !pending.is_empty() {
             pending.retain(|tx_hash| {
                 let Some(selected) =
