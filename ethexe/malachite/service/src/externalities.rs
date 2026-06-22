@@ -308,14 +308,6 @@ impl Externalities for EthexeExternalities {
         let decryption_keys = self
             .wait_for_shielded_tx_decryption_keys(parent_mb_hash)
             .await?;
-        if let Some(keys) = decryption_keys.as_ref() {
-            debug!(
-                %parent_mb_hash,
-                transactions = keys.len(),
-                "build_block_above: reconstructed shielded transaction keys",
-            );
-        }
-
         let (advance, transactions) = self.wait_for_proposable_content(parent_advanced).await;
 
         info!(
@@ -433,6 +425,9 @@ impl Externalities for EthexeExternalities {
         let mut operations = Vec::with_capacity(capped.len() + 3);
         if let Some(block_hash) = advance {
             operations.push(Operation::AdvanceTillEthereumBlock { block_hash });
+        }
+        if let Some(keys) = decryption_keys {
+            operations.push(Operation::DecryptionKeys(keys.into_iter().collect()));
         }
         for tx in capped {
             operations.push(utils::transaction_to_operation(tx));
@@ -803,10 +798,6 @@ impl EthexeExternalities {
         &self,
         parent_mb_hash: H256,
     ) -> Result<Option<HashMap<HashOf<ShieldedTransaction>, SharedSecret>>> {
-        let Some(ctx) = self.tdec_ctx.as_ref() else {
-            bail!("block producer has no threshold-decryption context")
-        };
-
         if parent_mb_hash.is_zero() {
             return Ok(None);
         }
@@ -830,6 +821,10 @@ impl EthexeExternalities {
         if pending.is_empty() {
             return Ok(None);
         }
+
+        let Some(ctx) = self.tdec_ctx.as_ref() else {
+            bail!("block producer has no threshold-decryption context")
+        };
 
         let threshold = ctx.threshold.get();
         if threshold > ctx.contexts.len() {

@@ -31,17 +31,18 @@
 use std::num::NonZeroUsize;
 
 use crate::{Address, injected::SignedInjectedTransaction};
-#[cfg(feature = "shielded")]
-use crate::{HashOf, ToDigest, injected::ShieldedTransaction};
 use alloc::vec::Vec;
 use derive_more::{Deref, DerefMut, IntoIterator};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "shielded")]
 use {
-    crate::injected::SignedShieldedTransaction,
-    gear_tdec::bls12_381::DecryptionShareSimple,
-    gsigner::SignedMessage,
+    crate::{
+        HashOf, ToDigest,
+        injected::{ShieldedTransaction, SignedShieldedTransaction},
+    },
+    gear_tdec::bls12_381::SharedSecret,
+    gsigner::{DecryptionShare, SignedMessage},
     sha3::{Digest as _, Keccak256},
 };
 #[cfg(all(feature = "shielded", feature = "std"))]
@@ -78,7 +79,10 @@ pub enum Operation {
 
     /// User-submitted shielded transaction from mempool.
     #[cfg(feature = "shielded")]
-    Shielded(SignedShieldedTransaction) = 6, // encrypted transactions
+    Shielded(SignedShieldedTransaction) = 6,
+
+    #[cfg(feature = "shielded")]
+    DecryptionKeys(Vec<(HashOf<ShieldedTransaction>, SharedSecret)>) = 7,
 }
 
 impl Operation {
@@ -98,14 +102,6 @@ impl Operation {
     /// Returns `Some` if `Self` contains shielded transaction.
     #[cfg(feature = "shielded")]
     pub fn as_shielded(&self) -> Option<&SignedShieldedTransaction> {
-        match self {
-            Self::Shielded(tx) => Some(tx),
-            _ => None,
-        }
-    }
-
-    #[cfg(feature = "shielded")]
-    pub fn into_shielded(self) -> Option<SignedShieldedTransaction> {
         match self {
             Self::Shielded(tx) => Some(tx),
             _ => None,
@@ -143,6 +139,10 @@ impl Decode for Operation {
             6 => Ok(Operation::Shielded(SignedShieldedTransaction::decode(
                 input,
             )?)),
+            #[cfg(feature = "shielded")]
+            7 => Ok(Operation::DecryptionKeys(<Vec<_> as Decode>::decode(
+                input,
+            )?)),
             _ => Err(parity_scale_codec::Error::from("invalid operation tag")),
         }
     }
@@ -160,6 +160,8 @@ impl Encode for Operation {
             Operation::ProcessQueuesV3 { gas_allowance } => gas_allowance.encode_to(dest),
             #[cfg(feature = "shielded")]
             Operation::Shielded(shielded_tx) => shielded_tx.encode_to(dest),
+            #[cfg(feature = "shielded")]
+            Operation::DecryptionKeys(keys) => keys.encode_to(dest),
         }
     }
 }
@@ -196,7 +198,7 @@ pub struct MalachiteTdecContext {
 }
 
 /// One validator's decryption-share payload for one shielded transaction.
-/// Holds [`DecryptionShareSimple`] over [`ShieldedTransaction`].
+/// Holds [`DecryptionShare`] over [`ShieldedTransaction`].
 ///
 /// [ShieldedTransaction]: crate::injected::ShieldedTransaction
 #[cfg(feature = "shielded")]
@@ -205,7 +207,7 @@ pub struct MalachiteTdecContext {
 pub struct ShieldedTxDecryptionShare {
     /// Transaction hash decryption share belongs to.
     pub tx_hash: HashOf<ShieldedTransaction>,
-    pub share: DecryptionShareSimple,
+    pub share: DecryptionShare,
 }
 
 #[cfg(feature = "shielded")]

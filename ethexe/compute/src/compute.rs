@@ -285,6 +285,9 @@ fn build_executable_data(
                 }
                 current_anchor = block_hash;
             }
+            Operation::DecryptionKeys(keys) => {
+                todo!()
+            }
             Operation::Injected(signed) => {
                 let verified = signed.into_verified();
                 injected_transactions.push(verified);
