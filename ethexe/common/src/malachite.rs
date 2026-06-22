@@ -29,13 +29,18 @@
 
 use crate::injected::SignedInjectedTransaction;
 #[cfg(feature = "shielded")]
-use crate::{HashOf, injected::ShieldedTransaction};
+use crate::{HashOf, ToDigest, injected::ShieldedTransaction};
 use alloc::vec::Vec;
 use derive_more::{Deref, DerefMut, IntoIterator};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "shielded")]
-use {crate::injected::SignedShieldedTransaction, gear_tdec::bls12_381::DecryptionShareSimple};
+use {
+    crate::injected::SignedShieldedTransaction,
+    gear_tdec::bls12_381::DecryptionShareSimple,
+    gsigner::{PublicDecryptionContext, SignedMessage},
+    sha3::Keccak256,
+};
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -170,16 +175,18 @@ impl Operations {
     }
 }
 
-/// Opaque application data attached to a Malachite precommit vote.
-///
-/// The consensus layer transports this as bytes. Ethexe decodes the bytes into
-/// this type at the application boundary, so the generic Malachite service does
-/// not need to know about shielded transactions or threshold-decryption types.
 #[cfg(feature = "shielded")]
-#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct VotingExtension {
-    pub decryption_shares: Vec<VotingDecryptionShare>,
+#[derive(Debug, Clone)]
+pub struct MalachiteTdecContext {
+    /// Minimal number of decryption shares required to decrypt transaction.
+    pub threshold: u8,
+    /// Current validator's public decryption context.
+    /// Private data stored in [TdecKeyStore].
+    ///
+    /// [TdecKeyStore]: gsigner::tdec::TdecKeyStore
+    pub my_context: PublicDecryptionContext,
+    /// Public contexts of the remaining validators involved in decryption.
+    pub others_contexts: Vec<PublicDecryptionContext>,
 }
 
 /// One validator's decryption-share payload for one shielded transaction.
@@ -189,11 +196,32 @@ pub struct VotingExtension {
 #[cfg(feature = "shielded")]
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct VotingDecryptionShare {
+pub struct ShieldedTxDecryptionShare {
     /// Transaction hash decryption share belongs to.
     pub tx_hash: HashOf<ShieldedTransaction>,
     pub share: DecryptionShareSimple,
 }
+
+#[cfg(feature = "shielded")]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub struct BlockDecryptionData {
+    /// Malachite block hash the decryption shares belong to.
+    pub mb_hash: H256,
+    /// Decryption shares for [`ShieldedTransaction`]s in the Malachite block.
+    pub shares: Vec<ShieldedTxDecryptionShare>,
+}
+
+#[cfg(feature = "shielded")]
+impl ToDigest for BlockDecryptionData {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
+        // TODO:
+    }
+}
+
+/// Validator-signed decryption shares for one Malachite block.
+#[cfg(feature = "shielded")]
+pub type SignedBlockDecryptionShares = SignedMessage<BlockDecryptionData>;
 
 #[cfg(test)]
 mod tests {

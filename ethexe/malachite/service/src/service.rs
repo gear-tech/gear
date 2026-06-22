@@ -28,6 +28,7 @@ use ethexe_common::{
     Address, SimpleBlockData,
     db::{ConfigStorageRO, OnChainStorageRO},
     injected::Transaction,
+    malachite::{MalachiteTdecContext, SignedBlockDecryptionShares},
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -44,6 +45,7 @@ pub struct MalachiteService {
     events_rx: mpsc::UnboundedReceiver<Result<MalachiteEvent>>,
     chain_head: Arc<RwLock<Option<SimpleBlockData>>>,
     chain_head_notify: Arc<Notify>,
+    decryption_share_notify: Arc<Notify>,
     mempool: Arc<dyn Mempool>,
     /// Shared with the inner engine — held here so
     /// [`Self::receive_new_chain_head`] can release pending events
@@ -97,7 +99,7 @@ impl MalachiteService {
         db: Database,
         signer: Signer<Secp256k1>,
         validator_pub_key: Option<gsigner::schemes::secp256k1::PublicKey>,
-        validator_tdec_ctx: Option<gsigner::PublicDecryptionContext>,
+        validator_tdec_ctx: Option<MalachiteTdecContext>,
         mempool: Arc<dyn Mempool>,
     ) -> Result<Self> {
         tracing::info!(
@@ -153,18 +155,20 @@ impl MalachiteService {
 
         let chain_head = Arc::new(RwLock::new(None));
         let chain_head_notify = Arc::new(Notify::new());
+        let decryption_share_notify = Arc::new(Notify::new());
         let (events_tx, events_rx) = mpsc::unbounded_channel();
 
         let externalities = Arc::new(EthexeExternalities {
             db,
 
             // TODO: FIXME (temporary solution)
-            tdec_pub_ctx: validator_tdec_ctx,
+            tdec_ctx: validator_tdec_ctx,
             tdec_store: gsigner::TdecKeyStore::memory(),
 
             mempool: Arc::clone(&mempool),
             chain_head: Arc::clone(&chain_head),
             chain_head_notify: Arc::clone(&chain_head_notify),
+            decryption_share_notify: Arc::clone(&decryption_share_notify),
             event_tx: events_tx,
             pending_events: std::sync::Mutex::new(std::collections::VecDeque::new()),
             gas_allowance: config.gas_allowance,
@@ -188,6 +192,7 @@ impl MalachiteService {
             events_rx,
             chain_head,
             chain_head_notify,
+            decryption_share_notify,
             mempool,
             externalities,
             validator_pool,
@@ -269,6 +274,14 @@ impl MalachiteService {
         // `_eb_hash` here — the FIFO drain releases everything that
         // newly satisfies its prerequisite.
         self.externalities.drain_pending_events();
+    }
+
+    /// Handle signed decryption shares for [ShieldedTransaction].
+    ///
+    /// [ShieldedTransaction]: ethexe_common::injected::ShieldedTransaction
+    pub fn receive_decryption_shares(&self, _signed_shares: SignedBlockDecryptionShares) {
+        self.decryption_share_notify.notify_one();
+        todo!()
     }
 
     /// Push the on-chain validators for `head`'s era into the engine,

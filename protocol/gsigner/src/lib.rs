@@ -97,20 +97,13 @@ pub use storage::{FilesystemBackend, MemoryBackend, StorageBackend, StorageError
     feature = "serde",
     feature = "tdec"
 ))]
-mod tdec_exports {
-    pub use crate::tdec::{
+pub use {
+    crate::tdec::{
         BlindedKeyShare, PublicDecryptionContext, TdecDecryptionKey, TdecKeyEntry, TdecKeyStore,
         TdecKeypair, TdecPublicKey,
-    };
-    pub use gear_tdec::bls12_381::{CiphertextHeader, DecryptionShareSimple as DecryptionShare};
-}
-#[cfg(all(
-    feature = "std",
-    feature = "keyring",
-    feature = "serde",
-    feature = "tdec"
-))]
-pub use tdec_exports::*;
+    },
+    gear_tdec::bls12_381::{CiphertextHeader, DecryptionShareSimple as DecryptionShare},
+};
 
 #[cfg(feature = "secp256k1")]
 pub use schemes::secp256k1::{

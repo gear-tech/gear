@@ -8,7 +8,7 @@
 //!
 //! - peer management and connection caps;
 //! - Kademlia-backed validator discovery;
-//! - gossipsub topics for validator messages and public promises;
+//! - gossipsub topics for validator messages, public promises, and decryption shares;
 //! - request/response database synchronization;
 //! - private injected-transaction delivery to validators;
 //! - peer scoring and temporary peer blocking.
@@ -45,6 +45,7 @@ use ethexe_common::{
     db::ConfigStorageRO,
     ecdsa::PublicKey,
     injected::{SignedCompactTxReceipt, Transaction},
+    malachite::SignedBlockDecryptionShares,
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -92,6 +93,8 @@ pub enum NetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
     /// A public promise observed on the promise gossipsub topic.
     TxReceiptMessage(SignedCompactTxReceipt),
+    /// Validator-signed decryption shares for a Malachite block.
+    DecryptionShares(SignedBlockDecryptionShares),
     /// Validator discovery learned or refreshed the network identity of the
     /// given validator address.
     ValidatorIdentityUpdated(Address),
@@ -543,6 +546,12 @@ impl NetworkService {
                             self.validator_topic.verify_receipt(source, receipt);
                         (acceptance, receipt.map(NetworkEvent::TxReceiptMessage))
                     }
+                    gossipsub::Message::DecryptionShares(message) => {
+                        let (acceptance, message) = self
+                            .validator_topic
+                            .verify_decryption_message(source, message);
+                        (acceptance, message.map(NetworkEvent::DecryptionShares))
+                    }
                 })
             }
             gossipsub::Event::PublishFailure {
@@ -645,6 +654,11 @@ impl NetworkService {
     /// Publish a signed promise to the public promise gossipsub topic.
     pub fn publish_tx_receipt(&mut self, receipt: SignedCompactTxReceipt) {
         self.swarm.behaviour_mut().gossipsub.publish(receipt)
+    }
+
+    /// Publish validator-signed decryption shares for a Malachite block.
+    pub fn publish_decryption_shares(&mut self, message: SignedBlockDecryptionShares) {
+        self.swarm.behaviour_mut().gossipsub.publish(message)
     }
 }
 

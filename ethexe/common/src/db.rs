@@ -6,12 +6,12 @@
 #[cfg(feature = "shielded")]
 use crate::injected::{ShieldedTransaction, SignedShieldedTransaction, SignedTxReceipt};
 use crate::{
+    Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
+    SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
     malachite::Operations,
-    Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
-    SimpleBlockData, ValidatorsVec,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -275,7 +275,7 @@ mod tests {
     use super::*;
     // use crate::malachite::Operations;
     use indoc::formatdoc;
-    use scale_info::{meta_type, PortableRegistry, Registry};
+    use scale_info::{PortableRegistry, Registry, meta_type};
     use sha3::{Digest, Sha3_256};
 
     #[test]

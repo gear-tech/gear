@@ -23,7 +23,8 @@ use ethexe_common::{
     },
     gear::BatchCommitment,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, Receipt, TransactionHash, TransactionPurgedReason
+        InjectedTransaction, InjectedTransactionAcceptance, Receipt, TransactionHash,
+        TransactionPurgedReason,
     },
     mock::*,
 };

@@ -39,38 +39,32 @@
 //! back via the same key the consensus layer hands in.
 
 use crate::{
-    CommitCertificate, MalachiteEvent, Mempool,
-    externalities::utils::operation_to_transaction,
-    quarantine,
+    CommitCertificate, MalachiteEvent, Mempool, quarantine,
     tx_validity::{TxValidity, TxValidityChecker, eb_touched_programs},
 };
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
 use bytes::Bytes;
 use ethexe_common::{
     MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
-    db::{
-        CompactMb, GlobalsStorageRO, GlobalsStorageRW, InjectedStorageRO, MbStorageRO, MbStorageRW,
-    },
-    injected::{
-        MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, ShieldedFields, SignedShieldedTransaction,
-        Transaction,
-    },
-    malachite::{Operation, Operations, VotingDecryptionShare, VotingExtension},
+    db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
+    injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, Transaction},
+    malachite::{MalachiteTdecContext, Operation, Operations, ShieldedTxDecryptionShare},
 };
 use ethexe_db::Database;
 use ethexe_malachite_core::{
     Address as MalachiteAddress, Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES,
 };
+use gear_tdec::bls12_381::SharedSecret;
 use gprimitives::H256;
-use gsigner::{PublicDecryptionContext, tdec::TdecKeyStore};
+use gsigner::tdec::TdecKeyStore;
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{
-    collections::{BTreeSet, HashMap, VecDeque},
+    collections::{HashSet, VecDeque},
     sync::{Arc, Mutex, RwLock},
 };
 use tokio::sync::{Notify, mpsc};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 
 /// Inputs the externalities need to satisfy the [`ethexe_malachite_core::Externalities`]
 /// contract. Constructed by [`crate::MalachiteService::new`] and
@@ -78,11 +72,12 @@ use tracing::{debug, error, info, trace, warn};
 pub(crate) struct EthexeExternalities {
     /// Ethexe database.
     pub(crate) db: Database,
-    ///
-    pub(crate) tdec_pub_ctx: Option<PublicDecryptionContext>,
-    pub(crate) tdec_store: TdecKeyStore,
     /// Validator's local transaction pool.
     pub(crate) mempool: Arc<dyn Mempool>,
+    /// ...
+    pub(crate) tdec_ctx: Option<MalachiteTdecContext>,
+    /// ...
+    pub(crate) tdec_store: TdecKeyStore,
     /// Latest Ethereum chain head observed via the outer
     /// [`crate::MalachiteService::receive_new_chain_head`]. The
     /// producer reads this from inside [`Self::build_block_above`];
@@ -95,6 +90,8 @@ pub(crate) struct EthexeExternalities {
     /// fresh chain head arrives. Combines with the mempool's
     /// [`Mempool::wait_for_new_tx`] notify into a single select.
     pub(crate) chain_head_notify: Arc<Notify>,
+    /// ...
+    pub(crate) decryption_share_notify: Arc<Notify>,
     /// Outbound event channel — drained by
     /// [`crate::MalachiteService::poll_next`]. We wrap each emit in
     /// [`Self::try_emit_or_queue`] so that events whose
@@ -186,9 +183,10 @@ impl Externalities for EthexeExternalities {
             last_advanced,
         );
 
-        let Some(decryption_context) = self.tdec_pub_ctx.as_ref() else {
+        let Some(context) = self.tdec_ctx.as_ref() else {
             return Ok(());
         };
+        let decryption_context = &context.my_context;
 
         let shares = operations
             .iter()
@@ -196,7 +194,7 @@ impl Externalities for EthexeExternalities {
             .filter_map(|tx| {
                 self.tdec_store
                     .create_share(decryption_context, &tx.ciphertext.header(), tx.aad.as_ref())
-                    .map(|share| VotingDecryptionShare {
+                    .map(|share| ShieldedTxDecryptionShare {
                         tx_hash: tx.to_hash(),
                         share,
                     })
@@ -205,8 +203,8 @@ impl Externalities for EthexeExternalities {
             .collect::<Vec<_>>();
 
         if !shares.is_empty() {
-            // let event = MalachiteEvent::
-            let v = self
+            // Channel receiver is dropped only during shutdown.
+            let _ = self
                 .event_tx
                 .send(Ok(MalachiteEvent::DecryptionShares { mb_hash, shares }));
         }
@@ -217,7 +215,7 @@ impl Externalities for EthexeExternalities {
         &self,
         mb_hash: H256,
         cert: ethexe_malachite_core::CommitCertificate,
-        extensions: Vec<(MalachiteAddress, Bytes)>,
+        _extensions: Vec<(MalachiteAddress, Bytes)>,
     ) -> Result<()> {
         let compact = self.db.mb_compact_block(mb_hash).ok_or_else(|| {
             anyhow!(
@@ -254,13 +252,6 @@ impl Externalities for EthexeExternalities {
             mb_hash,
             signatures: cert.signatures,
         };
-        let voting_extensions = utils::decode_voting_extensions(extensions)?;
-        if !voting_extensions.is_empty() {
-            info!(
-                validators = voting_extensions.len(),
-                "process_mb_finalized: received voting extensions",
-            );
-        }
         // Same prerequisite as the matching BlockProposal — by the
         // time `process_mb_finalized` runs, `process_mb_proposal` has
         // already populated `mb_meta(block_hash).last_advanced_eb`.
@@ -286,6 +277,7 @@ impl Externalities for EthexeExternalities {
             self.db.mb_meta(parent_mb_hash).last_advanced_eb
         };
 
+        // let shares = self.wait_for_proposable_content(prev_advanced_eb_hash)
         let (advance, transactions) = self.wait_for_proposable_content(parent_advanced).await;
 
         info!(
@@ -767,6 +759,46 @@ impl EthexeExternalities {
         }
     }
 
+    /// ...
+    async fn wait_for_shielded_tx_decryption_key(
+        &self,
+        parent_mb_hash: H256,
+    ) -> Result<Option<SharedSecret>> {
+        let Some(ctx) = self.tdec_ctx.as_ref() else {
+            bail!("block produces has no decryption context")
+        };
+
+        let Some(compact) = self.db.mb_compact_block(parent_mb_hash) else {
+            bail!("compact block not found for block with hash={parent_mb_hash}")
+        };
+
+        let Some(operations) = self.db.operations(compact.operations_hash) else {
+            bail!(
+                "operations not found for block with hash={parent_mb_hash}, op_hash={}",
+                compact.operations_hash
+            )
+        };
+
+        // Set of shielded transactions hashes that are waiting to be decrypt.
+        let shielded = operations
+            .iter()
+            .filter_map(|op| op.as_shielded().map(|tx| tx.data().to_hash()))
+            .collect::<HashSet<_>>();
+
+        // No shielded transactions in previous block, do not need to wait for decryption shares.
+        if shielded.is_empty() {
+            return Ok(None);
+        }
+
+        loop {
+            // Waiting when new decryption shares will be received.
+            // self.decryption_share_notify.notified().await;
+            break;
+        }
+
+        Ok(None)
+    }
+
     // Candidate EB must be anchored in the quarantine and a strict descendant of the previously advanced EB.
     fn find_eb_candidate_for_advancing(&self, prev_advanced_eb_hash: H256) -> Option<H256> {
         let head = (*self.chain_head.read().expect("chain_head poisoned"))?;
@@ -805,15 +837,11 @@ impl EthexeExternalities {
 }
 
 mod utils {
-    use anyhow::{Result, anyhow};
-    use bytes::Bytes;
     use ethexe_common::{
         injected::{Transaction, TransactionRef},
-        malachite::{Operation, VotingExtension},
+        malachite::Operation,
     };
-    use ethexe_malachite_core::Address as MalachiteAddress;
     use gprimitives::H256;
-    use parity_scale_codec::DecodeAll;
 
     /// Optimization for reducing `clone` operation for potentially large transactions.
     pub(crate) fn operation_to_transaction(operation: &Operation) -> Option<TransactionRef<'_>> {
@@ -836,19 +864,6 @@ mod utils {
             Transaction::Injected(tx) => Operation::Injected(tx),
             Transaction::Shielded(_) => todo!("Shielded transaction block inclusion"),
         }
-    }
-
-    pub(crate) fn decode_voting_extensions(
-        extensions: Vec<(MalachiteAddress, Bytes)>,
-    ) -> Result<Vec<(MalachiteAddress, VotingExtension)>> {
-        extensions
-            .into_iter()
-            .map(|(address, bytes)| {
-                VotingExtension::decode_all(&mut bytes.as_ref())
-                    .map(|extension| (address, extension))
-                    .map_err(|e| anyhow!("decoding voting extension from {address}: {e}"))
-            })
-            .collect()
     }
 }
 
@@ -901,11 +916,12 @@ mod tests {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let ext = EthexeExternalities {
             db,
-            tdec_pub_ctx: None,
+            tdec_ctx: None,
             tdec_store: TdecKeyStore::memory(),
             mempool: Arc::new(EmptyMempool),
             chain_head: Arc::new(RwLock::new(None)),
             chain_head_notify: Arc::new(Notify::new()),
+            decryption_share_notify: Arc::new(Notify::new()),
             event_tx,
             pending_events: Mutex::new(VecDeque::new()),
             gas_allowance: 1_000_000,
@@ -1319,7 +1335,8 @@ mod tests {
         let (event_tx, mut event_rx) = mpsc::unbounded_channel();
         let ext = EthexeExternalities {
             db: db.clone(),
-            tdec_pub_ctx: None,
+            tdec_ctx: None,
+            decryption_share_notify: Arc::new(Notify::new()),
             tdec_store: TdecKeyStore::memory(),
             mempool: Arc::clone(&tracker) as Arc<dyn Mempool>,
             chain_head: Arc::new(RwLock::new(None)),
@@ -1387,7 +1404,8 @@ mod tests {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let ext = EthexeExternalities {
             db,
-            tdec_pub_ctx: None,
+            tdec_ctx: None,
+            decryption_share_notify: Arc::new(Notify::new()),
             tdec_store: TdecKeyStore::memory(),
             mempool: mempool as Arc<dyn Mempool>,
             chain_head: Arc::new(RwLock::new(None)),
@@ -2140,7 +2158,8 @@ mod tests {
         let (event_tx, _event_rx) = mpsc::unbounded_channel();
         let ext = EthexeExternalities {
             db: db.clone(),
-            tdec_pub_ctx: None,
+            tdec_ctx: None,
+            decryption_share_notify: Arc::new(Notify::new()),
             tdec_store: TdecKeyStore::memory(),
             mempool: Arc::new(EmptyMempool),
             chain_head: Arc::new(RwLock::new(Some(head))),

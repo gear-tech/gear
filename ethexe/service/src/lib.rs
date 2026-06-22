@@ -48,6 +48,7 @@ use ethexe_common::{
     db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     gear::CodeState,
     injected::{CompactPromise, InjectedTransactionAcceptance, Receipt},
+    malachite::BlockDecryptionData,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -875,6 +876,12 @@ impl Service {
                                 rpc.receive_tx_receipt(receipt);
                             }
                         }
+                        NetworkEvent::DecryptionShares(message) => {
+                            // Just route shares to malachite service.
+                            if let Some(malachite) = malachite.as_mut() {
+                                malachite.receive_decryption_shares(message);
+                            }
+                        }
                         NetworkEvent::ValidatorIdentityUpdated(_)
                         | NetworkEvent::PeerBlocked(_)
                         | NetworkEvent::PeerConnected(_) => {}
@@ -1048,7 +1055,25 @@ impl Service {
                         });
                     }
                     MalachiteEvent::DecryptionShares { mb_hash, shares } => {
-                        todo!("handle this malachite event variant")
+                        let Some(pub_key) = validator_pub_key else {
+                            // Validator key not found, can not sign shares.
+                            continue;
+                        };
+
+                        let data = BlockDecryptionData { mb_hash, shares };
+                        match signer.signed_message(pub_key, data, None) {
+                            Ok(message) => {
+                                if let Some(network) = network.as_mut() {
+                                    network.publish_decryption_shares(message);
+                                }
+                            }
+                            Err(err) => {
+                                tracing::error!(
+                                    %mb_hash,
+                                    "failed to sign decryption shares: {err}"
+                                );
+                            }
+                        }
                     }
                 },
                 Event::Prometheus(event) => match event {

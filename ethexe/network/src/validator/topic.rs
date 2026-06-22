@@ -11,6 +11,7 @@ use crate::{
 use ethexe_common::{
     Address, HashOf,
     injected::{InjectedTransaction, SignedCompactTxReceipt},
+    malachite::SignedBlockDecryptionShares,
     network::VerifiedValidatorMessage,
 };
 use lru::LruCache;
@@ -303,6 +304,26 @@ impl ValidatorTopic {
         }
     }
 
+    /// Admit a signed decryption-share message from a known validator.
+    ///
+    /// Block relevance and share correctness are intentionally left to the
+    /// future decryption-share handler.
+    pub fn verify_decryption_message(
+        &self,
+        source: PeerId,
+        message: SignedBlockDecryptionShares,
+    ) -> (MessageAcceptance, Option<SignedBlockDecryptionShares>) {
+        if self.snapshot.contains(message.address()) {
+            (MessageAcceptance::Accept, Some(message))
+        } else {
+            log::trace!(
+                "ignore decryption shares from unknown validator {} via {source}",
+                message.address()
+            );
+            (MessageAcceptance::Ignore, None)
+        }
+    }
+
     /// Retrieve the next verified message that is ready for further processing.
     pub(crate) fn next_message(&mut self) -> Option<VerifiedValidatorMessage> {
         self.verified_messages.pop_front()
@@ -317,9 +338,11 @@ mod tests {
         consensus::BatchCommitmentValidationRequest,
         ecdsa::PublicKey,
         injected::{Promise, Receipt},
+        malachite::BlockDecryptionData,
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
+    use gprimitives::H256;
     use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use nonempty::{NonEmpty, nonempty};
 
@@ -375,6 +398,22 @@ mod tests {
             .signed_message(public_key, Receipt::Promise(promise.to_compact()), None)
             .unwrap()
             .into()
+    }
+
+    fn signed_decryption_message(
+        signer: &Signer,
+        public_key: PublicKey,
+    ) -> SignedBlockDecryptionShares {
+        signer
+            .signed_message(
+                public_key,
+                BlockDecryptionData {
+                    mb_hash: H256::random(),
+                    shares: Vec::new(),
+                },
+                None,
+            )
+            .unwrap()
     }
 
     /// Buckets a message era can fall into relative to the snapshot era.
@@ -770,5 +809,24 @@ mod tests {
         let (acceptance, returned_receipt) = topic.verify_receipt(peer_id, receipt.clone());
         assert_matches!(acceptance, MessageAcceptance::Accept);
         assert_eq!(returned_receipt, Some(receipt));
+    }
+
+    #[test]
+    fn verify_decryption_message_checks_validator_membership() {
+        let (pubkey, signer) = signer_with_pubkey();
+        let message = signed_decryption_message(&signer, pubkey);
+        let peer_id = PeerId::random();
+
+        let unknown_topic = new_topic(nonempty![Address::default()]);
+        let (acceptance, returned) =
+            unknown_topic.verify_decryption_message(peer_id, message.clone());
+        assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(returned, None);
+
+        let validator_topic = new_topic(nonempty![message.address()]);
+        let (acceptance, returned) =
+            validator_topic.verify_decryption_message(peer_id, message.clone());
+        assert_matches!(acceptance, MessageAcceptance::Accept);
+        assert_eq!(returned, Some(message));
     }
 }

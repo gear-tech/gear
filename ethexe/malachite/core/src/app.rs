@@ -413,19 +413,6 @@ where
         Ok(())
     }
 
-    fn block_by_value_id(&self, value_id: ValueId) -> Result<Option<Block>> {
-        let Some(proposal) = self
-            .state
-            .store
-            .get_undecided_proposal_by_value_id(&value_id)?
-        else {
-            return Ok(None);
-        };
-        let block = Block::decode(&mut &proposal.value.block_bytes[..])
-            .map_err(|e| anyhow!("decoding Block for vote extension: {e}"))?;
-        Ok(Some(block))
-    }
-
     // TODO: #5475 add per-peer token-bucket rate limit before `ingest_proposal_part`
     //       (CPU/bandwidth bound; complements the memory bound from #5473).
     // TODO: #5480 gate `from` against a validator-peer-id allowlist so random
