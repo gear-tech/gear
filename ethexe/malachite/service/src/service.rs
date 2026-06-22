@@ -37,7 +37,8 @@ use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 use tokio::sync::{Notify, mpsc};
 
 use crate::{
-    MalachiteConfig, MalachiteEvent, Mempool, ValidatorEntry, externalities::EthexeExternalities,
+    MalachiteConfig, MalachiteEvent, Mempool, ValidatorEntry,
+    decryption_shares::DecryptionSharesStore, externalities::EthexeExternalities,
 };
 
 /// Public consensus service.
@@ -45,7 +46,6 @@ pub struct MalachiteService {
     events_rx: mpsc::UnboundedReceiver<Result<MalachiteEvent>>,
     chain_head: Arc<RwLock<Option<SimpleBlockData>>>,
     chain_head_notify: Arc<Notify>,
-    decryption_share_notify: Arc<Notify>,
     mempool: Arc<dyn Mempool>,
     /// Shared with the inner engine — held here so
     /// [`Self::receive_new_chain_head`] can release pending events
@@ -155,7 +155,7 @@ impl MalachiteService {
 
         let chain_head = Arc::new(RwLock::new(None));
         let chain_head_notify = Arc::new(Notify::new());
-        let decryption_share_notify = Arc::new(Notify::new());
+        let decryption_shares = Arc::new(DecryptionSharesStore::new());
         let (events_tx, events_rx) = mpsc::unbounded_channel();
 
         let externalities = Arc::new(EthexeExternalities {
@@ -168,7 +168,7 @@ impl MalachiteService {
             mempool: Arc::clone(&mempool),
             chain_head: Arc::clone(&chain_head),
             chain_head_notify: Arc::clone(&chain_head_notify),
-            decryption_share_notify: Arc::clone(&decryption_share_notify),
+            decryption_shares,
             event_tx: events_tx,
             pending_events: std::sync::Mutex::new(std::collections::VecDeque::new()),
             gas_allowance: config.gas_allowance,
@@ -192,7 +192,6 @@ impl MalachiteService {
             events_rx,
             chain_head,
             chain_head_notify,
-            decryption_share_notify,
             mempool,
             externalities,
             validator_pool,
@@ -279,9 +278,8 @@ impl MalachiteService {
     /// Handle signed decryption shares for [ShieldedTransaction].
     ///
     /// [ShieldedTransaction]: ethexe_common::injected::ShieldedTransaction
-    pub fn receive_decryption_shares(&self, _signed_shares: SignedBlockDecryptionShares) {
-        self.decryption_share_notify.notify_one();
-        todo!()
+    pub fn receive_decryption_shares(&self, signed_shares: SignedBlockDecryptionShares) {
+        self.externalities.receive_decryption_shares(signed_shares);
     }
 
     /// Push the on-chain validators for `head`'s era into the engine,

@@ -49,6 +49,7 @@
 //!   RocksDB locks and sockets release.
 
 mod config;
+mod decryption_shares;
 mod externalities;
 mod mempool;
 mod quarantine;

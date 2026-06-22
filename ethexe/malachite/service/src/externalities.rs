@@ -39,28 +39,35 @@
 //! back via the same key the consensus layer hands in.
 
 use crate::{
-    CommitCertificate, MalachiteEvent, Mempool, quarantine,
+    CommitCertificate, MalachiteEvent, Mempool,
+    decryption_shares::{DecryptionSharesStore, InsertOutcome},
+    quarantine,
     tx_validity::{TxValidity, TxValidityChecker, eb_touched_programs},
 };
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
 use bytes::Bytes;
 use ethexe_common::{
-    MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
+    HashOf, MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
-    injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, Transaction},
-    malachite::{MalachiteTdecContext, Operation, Operations, ShieldedTxDecryptionShare},
+    injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, ShieldedTransaction, Transaction},
+    malachite::{
+        MalachiteTdecContext, Operation, Operations, ShieldedTxDecryptionShare,
+        SignedBlockDecryptionShares,
+    },
 };
 use ethexe_db::Database;
 use ethexe_malachite_core::{
     Address as MalachiteAddress, Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES,
 };
-use gear_tdec::bls12_381::SharedSecret;
+use gear_tdec::bls12_381::{
+    DecryptionShareSimple, SharedSecret, prepare_combine_simple, share_combine_simple,
+};
 use gprimitives::H256;
 use gsigner::tdec::TdecKeyStore;
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, VecDeque},
     sync::{Arc, Mutex, RwLock},
 };
 use tokio::sync::{Notify, mpsc};
@@ -90,8 +97,8 @@ pub(crate) struct EthexeExternalities {
     /// fresh chain head arrives. Combines with the mempool's
     /// [`Mempool::wait_for_new_tx`] notify into a single select.
     pub(crate) chain_head_notify: Arc<Notify>,
-    /// ...
-    pub(crate) decryption_share_notify: Arc<Notify>,
+    /// Verified threshold-decryption shares received from validator gossip.
+    pub(crate) decryption_shares: Arc<DecryptionSharesStore>,
     /// Outbound event channel — drained by
     /// [`crate::MalachiteService::poll_next`]. We wrap each emit in
     /// [`Self::try_emit_or_queue`] so that events whose
@@ -175,6 +182,13 @@ impl Externalities for EthexeExternalities {
             meta.last_advanced_eb = last_advanced;
         });
 
+        let shielded_transactions = operations
+            .iter()
+            .filter_map(|op| op.as_shielded().map(|signed| signed.data()))
+            .collect::<Vec<_>>();
+        self.decryption_shares
+            .register_block(mb_hash, shielded_transactions.iter().map(|tx| tx.to_hash()));
+
         self.try_emit_or_queue(
             MalachiteEvent::BlockProposal {
                 height: mb.height,
@@ -188,19 +202,25 @@ impl Externalities for EthexeExternalities {
         };
         let decryption_context = &context.my_context;
 
-        let shares = operations
-            .iter()
-            .filter_map(|op| op.as_shielded().map(|tx| tx.data()))
-            .filter_map(|tx| {
-                self.tdec_store
-                    .create_share(decryption_context, &tx.ciphertext.header(), tx.aad.as_ref())
-                    .map(|share| ShieldedTxDecryptionShare {
-                        tx_hash: tx.to_hash(),
-                        share,
-                    })
-                    .ok()
-            })
-            .collect::<Vec<_>>();
+        let mut shares = Vec::with_capacity(shielded_transactions.len());
+        for tx in shielded_transactions {
+            let Ok(share) = self.tdec_store.create_share(
+                decryption_context,
+                &tx.ciphertext.header(),
+                tx.aad.as_ref(),
+            ) else {
+                continue;
+            };
+            let tx_hash = tx.to_hash();
+            let outcome = self
+                .decryption_shares
+                .insert(mb_hash, tx_hash, 0, share.clone());
+            debug_assert!(matches!(
+                outcome,
+                InsertOutcome::Inserted | InsertOutcome::Duplicate
+            ));
+            shares.push(ShieldedTxDecryptionShare { tx_hash, share });
+        }
 
         if !shares.is_empty() {
             // Channel receiver is dropped only during shutdown.
@@ -264,6 +284,7 @@ impl Externalities for EthexeExternalities {
             },
             last_advanced,
         );
+        self.decryption_shares.retain_block(mb_hash);
         Ok(())
     }
 
@@ -277,7 +298,17 @@ impl Externalities for EthexeExternalities {
             self.db.mb_meta(parent_mb_hash).last_advanced_eb
         };
 
-        // let shares = self.wait_for_proposable_content(prev_advanced_eb_hash)
+        let decryption_keys = self
+            .wait_for_shielded_tx_decryption_keys(parent_mb_hash)
+            .await?;
+        if let Some(keys) = decryption_keys.as_ref() {
+            debug!(
+                %parent_mb_hash,
+                transactions = keys.len(),
+                "build_block_above: reconstructed shielded transaction keys",
+            );
+        }
+
         let (advance, transactions) = self.wait_for_proposable_content(parent_advanced).await;
 
         info!(
@@ -759,15 +790,15 @@ impl EthexeExternalities {
         }
     }
 
-    /// ...
-    async fn wait_for_shielded_tx_decryption_key(
+    /// Wait until every shielded transaction in the parent has enough verified
+    /// shares, then reconstruct one shared secret per transaction.
+    async fn wait_for_shielded_tx_decryption_keys(
         &self,
         parent_mb_hash: H256,
-    ) -> Result<Option<SharedSecret>> {
-        let Some(ctx) = self.tdec_ctx.as_ref() else {
-            bail!("block produces has no decryption context")
-        };
-
+    ) -> Result<Option<HashMap<HashOf<ShieldedTransaction>, SharedSecret>>> {
+        if parent_mb_hash.is_zero() {
+            return Ok(None);
+        }
         let Some(compact) = self.db.mb_compact_block(parent_mb_hash) else {
             bail!("compact block not found for block with hash={parent_mb_hash}")
         };
@@ -779,24 +810,147 @@ impl EthexeExternalities {
             )
         };
 
-        // Set of shielded transactions hashes that are waiting to be decrypt.
         let shielded = operations
             .iter()
-            .filter_map(|op| op.as_shielded().map(|tx| tx.data().to_hash()))
-            .collect::<HashSet<_>>();
+            .filter_map(|op| op.as_shielded().map(|tx| tx.data()))
+            .collect::<Vec<_>>();
 
         // No shielded transactions in previous block, do not need to wait for decryption shares.
         if shielded.is_empty() {
             return Ok(None);
         }
 
-        loop {
-            // Waiting when new decryption shares will be received.
-            // self.decryption_share_notify.notified().await;
-            break;
+        let Some(ctx) = self.tdec_ctx.as_ref() else {
+            bail!("block producer has no threshold-decryption context")
+        };
+        let contexts = std::iter::once(&ctx.my_context)
+            .chain(ctx.others_contexts.iter())
+            .collect::<Vec<_>>();
+        let threshold = usize::from(ctx.threshold);
+        if threshold == 0 || threshold > contexts.len() {
+            bail!(
+                "invalid threshold-decryption context: threshold={}, participants={}",
+                threshold,
+                contexts.len()
+            );
         }
 
-        Ok(None)
+        loop {
+            let mut keys = HashMap::with_capacity(shielded.len());
+            let mut complete = true;
+
+            for tx in &shielded {
+                let tx_hash = tx.to_hash();
+                let shares = self.decryption_shares.shares(parent_mb_hash, tx_hash);
+                if shares.len() < threshold {
+                    complete = false;
+                    break;
+                }
+
+                let selected = shares.into_iter().take(threshold).collect::<Vec<_>>();
+                let domains = selected
+                    .iter()
+                    .map(|(participant, _)| contexts[*participant].domain)
+                    .collect::<Vec<_>>();
+                let shares = selected
+                    .into_iter()
+                    .map(|(_, share)| share)
+                    .collect::<Vec<DecryptionShareSimple>>();
+                let coefficients = prepare_combine_simple::<gear_tdec::bls12_381::E>(&domains);
+                keys.insert(
+                    tx_hash,
+                    share_combine_simple::<gear_tdec::bls12_381::E>(&shares, &coefficients),
+                );
+            }
+
+            if complete {
+                return Ok(Some(keys));
+            }
+
+            self.decryption_shares.notified().await;
+        }
+    }
+
+    pub(crate) fn receive_decryption_shares(&self, signed: SignedBlockDecryptionShares) {
+        let Some(context) = self.tdec_ctx.as_ref() else {
+            debug!("ignoring decryption shares without local TDEC context");
+            return;
+        };
+
+        let sender = signed.address();
+        let data = signed.data();
+        let Some(compact) = self.db.mb_compact_block(data.mb_hash) else {
+            debug!(%sender, mb_hash = %data.mb_hash, "ignoring shares for unknown MB");
+            return;
+        };
+        let Some(operations) = self.db.operations(compact.operations_hash) else {
+            warn!(
+                %sender,
+                mb_hash = %data.mb_hash,
+                operations_hash = %compact.operations_hash,
+                "ignoring decryption shares: MB operations are missing",
+            );
+            return;
+        };
+
+        let transactions = operations
+            .iter()
+            .filter_map(|op| op.as_shielded().map(|signed| signed.data()))
+            .map(|tx| (tx.to_hash(), tx))
+            .collect::<HashMap<_, _>>();
+        let contexts = std::iter::once(&context.my_context)
+            .chain(context.others_contexts.iter())
+            .collect::<Vec<_>>();
+
+        for message_share in &data.shares {
+            let Some(transaction) = transactions.get(&message_share.tx_hash) else {
+                debug!(
+                    %sender,
+                    mb_hash = %data.mb_hash,
+                    tx_hash = %message_share.tx_hash.inner(),
+                    "ignoring decryption share for transaction outside MB",
+                );
+                continue;
+            };
+            let participant = contexts.iter().position(|context| {
+                message_share.share.verify(
+                    &context.blinded_key_share.blinded_key_share,
+                    &context.validator_public_key.encryption_key,
+                    &transaction.ciphertext,
+                )
+            });
+            let Some(participant) = participant else {
+                debug!(
+                    %sender,
+                    mb_hash = %data.mb_hash,
+                    tx_hash = %message_share.tx_hash.inner(),
+                    "ignoring invalid decryption share",
+                );
+                continue;
+            };
+
+            match self.decryption_shares.insert(
+                data.mb_hash,
+                message_share.tx_hash,
+                participant,
+                message_share.share.clone(),
+            ) {
+                InsertOutcome::Inserted | InsertOutcome::Duplicate => {}
+                InsertOutcome::Equivocation => warn!(
+                    %sender,
+                    mb_hash = %data.mb_hash,
+                    tx_hash = %message_share.tx_hash.inner(),
+                    participant,
+                    "conflicting valid decryption share from the same participant",
+                ),
+                InsertOutcome::UnknownBlock | InsertOutcome::UnknownTransaction => debug!(
+                    %sender,
+                    mb_hash = %data.mb_hash,
+                    tx_hash = %message_share.tx_hash.inner(),
+                    "decryption-share storage rejected unknown MB or transaction",
+                ),
+            }
+        }
     }
 
     // Candidate EB must be anchored in the quarantine and a strict descendant of the previously advanced EB.
@@ -921,7 +1075,7 @@ mod tests {
             mempool: Arc::new(EmptyMempool),
             chain_head: Arc::new(RwLock::new(None)),
             chain_head_notify: Arc::new(Notify::new()),
-            decryption_share_notify: Arc::new(Notify::new()),
+            decryption_shares: Arc::new(DecryptionSharesStore::new()),
             event_tx,
             pending_events: Mutex::new(VecDeque::new()),
             gas_allowance: 1_000_000,
@@ -1336,7 +1490,7 @@ mod tests {
         let ext = EthexeExternalities {
             db: db.clone(),
             tdec_ctx: None,
-            decryption_share_notify: Arc::new(Notify::new()),
+            decryption_shares: Arc::new(DecryptionSharesStore::new()),
             tdec_store: TdecKeyStore::memory(),
             mempool: Arc::clone(&tracker) as Arc<dyn Mempool>,
             chain_head: Arc::new(RwLock::new(None)),
@@ -1405,7 +1559,7 @@ mod tests {
         let ext = EthexeExternalities {
             db,
             tdec_ctx: None,
-            decryption_share_notify: Arc::new(Notify::new()),
+            decryption_shares: Arc::new(DecryptionSharesStore::new()),
             tdec_store: TdecKeyStore::memory(),
             mempool: mempool as Arc<dyn Mempool>,
             chain_head: Arc::new(RwLock::new(None)),
@@ -2159,7 +2313,7 @@ mod tests {
         let ext = EthexeExternalities {
             db: db.clone(),
             tdec_ctx: None,
-            decryption_share_notify: Arc::new(Notify::new()),
+            decryption_shares: Arc::new(DecryptionSharesStore::new()),
             tdec_store: TdecKeyStore::memory(),
             mempool: Arc::new(EmptyMempool),
             chain_head: Arc::new(RwLock::new(Some(head))),
