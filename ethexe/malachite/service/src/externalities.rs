@@ -106,10 +106,17 @@ impl Externalities for EthexeExternalities {
 
         let parent = mb.parent_hash;
 
-        let parent_advanced = parent
-            .is_zero()
-            .then(H256::zero)
-            .unwrap_or_else(|| self.db.mb_meta(parent).last_advanced_eb);
+        // Propagate `last_advanced_eb` forward — the latest
+        // `AdvanceTillEthereumBlock` in this MB wins; otherwise we
+        // inherit the parent's value (zero if pre-genesis).
+        let parent_advanced = if parent.is_zero() {
+            H256::zero()
+        } else {
+            self.db
+                .mb_meta(parent)
+                .last_advanced_eb
+                .expect("proposed parent MB must have last_advanced_eb set")
+        };
         let last_advanced = payload
             .iter()
             .rev()
@@ -129,7 +136,7 @@ impl Externalities for EthexeExternalities {
             },
         );
         self.db.mutate_mb_meta(mb_hash, |meta| {
-            meta.last_advanced_eb = last_advanced;
+            meta.last_advanced_eb = Some(last_advanced);
         });
 
         self.try_emit_or_queue(
@@ -174,6 +181,12 @@ impl Externalities for EthexeExternalities {
             }
         }
 
+        // Mark this MB finalized so the batch-commitment path can gate on it
+        // directly, and advance the canonical finalized pointer downstream
+        // consumers (compute, batch commitment) walk.
+        self.db.mutate_mb_meta(mb_hash, |meta| {
+            meta.finalized = true;
+        });
         self.db
             .globals_mutate(|g| g.latest_finalized_mb_hash = mb_hash);
 
@@ -182,7 +195,14 @@ impl Externalities for EthexeExternalities {
             mb_hash,
             signatures: cert.signatures,
         };
-        let last_advanced = self.db.mb_meta(mb_hash).last_advanced_eb;
+        // Same prerequisite as the matching BlockProposal — by the
+        // time `process_mb_finalized` runs, `process_mb_proposal` has
+        // already populated `mb_meta(block_hash).last_advanced_eb`.
+        let last_advanced = self
+            .db
+            .mb_meta(mb_hash)
+            .last_advanced_eb
+            .expect("finalized MB must have last_advanced_eb set by proposal");
         self.try_emit_or_queue(
             MalachiteEvent::BlockFinalized {
                 cert: app_cert,
@@ -202,10 +222,18 @@ impl Externalities for EthexeExternalities {
             "build_block_above must not be called when node is not validator"
         );
 
-        let parent_advanced = parent_mb_hash
-            .is_zero()
-            .then(H256::zero)
-            .unwrap_or_else(|| self.db.mb_meta(parent_mb_hash).last_advanced_eb);
+        // `parent_hash` is the consensus envelope hash of the parent
+        // (zero for genesis). Use it directly to seed the producer's
+        // `last_advanced_eb` lookup.
+        let parent_advanced = if parent_mb_hash.is_zero() {
+            H256::zero()
+        } else {
+            self.db
+                .mb_meta(parent_mb_hash)
+                .last_advanced_eb
+                .expect("proposed parent MB must have last_advanced_eb set")
+        };
+
         let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await?;
 
         debug!(
@@ -406,10 +434,14 @@ impl Externalities for EthexeExternalities {
                 )));
             }
 
-            let parent_advanced = parent_hash
-                .is_zero()
-                .then(H256::zero)
-                .unwrap_or_else(|| self.db.mb_meta(parent_hash).last_advanced_eb);
+            let parent_advanced = if parent_hash.is_zero() {
+                H256::zero()
+            } else {
+                self.db
+                    .mb_meta(parent_hash)
+                    .last_advanced_eb
+                    .expect("proposed parent MB must have last_advanced_eb set")
+            };
             let start_block_hash = self.db.globals().start_block_hash;
             match quarantine::is_strict_descendant_of(
                 &self.db,
@@ -444,10 +476,19 @@ impl Externalities for EthexeExternalities {
             }
         }
 
-        let parent_advanced = parent_hash
-            .is_zero()
-            .then(H256::zero)
-            .unwrap_or_else(|| self.db.mb_meta(parent_hash).last_advanced_eb);
+        // (4) Touched-programs cap. Only enforced on the validator side — the
+        // proposer in `build_block_above` already shapes the MB to stay within
+        // the cap; this is the participant's guard against a malicious proposer.
+        // `limit = max(initial_touched.len(), MAX_*)`: the proposer can't avoid
+        // programs already touched by EB events, so those set the floor.
+        let parent_advanced = if parent_hash.is_zero() {
+            H256::zero()
+        } else {
+            self.db
+                .mb_meta(parent_hash)
+                .last_advanced_eb
+                .expect("proposed parent MB must have last_advanced_eb set")
+        };
         let mut touched = match advance {
             Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
             None => Default::default(),
@@ -839,15 +880,15 @@ mod tests {
         }
         while rx.try_recv().is_ok() {}
 
-        assert!(db.mb_meta(chain[0]).last_advanced_eb.is_zero());
+        assert_eq!(db.mb_meta(chain[0]).last_advanced_eb, Some(H256::zero()));
         assert_eq!(
             db.mb_meta(chain[1]).last_advanced_eb,
-            H256::repeat_byte(0xAB),
+            Some(H256::repeat_byte(0xAB)),
             "h2 should anchor to its own AdvanceTillEthereumBlock"
         );
         assert_eq!(
             db.mb_meta(chain[2]).last_advanced_eb,
-            H256::repeat_byte(0xAB),
+            Some(H256::repeat_byte(0xAB)),
             "h3 inherits h2's anchor"
         );
     }
@@ -1195,7 +1236,10 @@ mod tests {
             );
         }
         db.set_mb_program_states(mb_hash, program_states);
-        db.mutate_mb_meta(mb_hash, |meta| meta.computed = true);
+        db.mutate_mb_meta(mb_hash, |meta| {
+            meta.computed = true;
+            meta.last_advanced_eb = Some(H256::zero());
+        });
         mb_hash
     }
 
@@ -1740,7 +1784,7 @@ mod tests {
         db.set_mb_program_states(parent_mb, ethexe_common::ProgramStates::default());
         db.mutate_mb_meta(parent_mb, |meta| {
             meta.computed = true;
-            meta.last_advanced_eb = chain[3].0;
+            meta.last_advanced_eb = Some(chain[3].0);
         });
 
         let (ext, _rx) = make_externalities(db.clone());

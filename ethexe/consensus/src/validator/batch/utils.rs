@@ -3,8 +3,7 @@
 
 use crate::validator::batch::{filler::BatchFiller, types::BatchParts};
 
-use anyhow::{Context, Result, anyhow, bail};
-use core::num::NonZero;
+use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
     db::{
@@ -20,111 +19,6 @@ use std::{
     collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
     num::NonZero,
 };
-
-/// MBs in `(last_committed_mb, mb_hash]`, chronological order. Strict: errors
-/// if the walk doesn't reach the anchor or any MB along the way is not computed.
-/// Used on the participant path; lenient producer counterpart is
-/// [`collect_computed_uncommitted_predecessors`].
-pub fn collect_not_committed_mb_predecessors<DB: MbStorageRO>(
-    db: &DB,
-    last_committed_mb: H256,
-    mb_hash: H256,
-) -> Result<Vec<H256>> {
-    let mut mbs = Vec::new();
-    let mut current = mb_hash;
-
-    while current != last_committed_mb {
-        if current == H256::zero() {
-            bail!(
-                "MB chain walk reached genesis without finding last_committed_mb {last_committed_mb}"
-            );
-        }
-
-        let meta = db.mb_meta(current);
-        if !meta.computed {
-            bail!("MB {current} in chain is not computed");
-        }
-
-        mbs.push(current);
-        current = db
-            .mb_compact_block(current)
-            .ok_or_else(|| anyhow!("MB {current} missing compact block — DB invariant"))?
-            .parent;
-    }
-
-    Ok(mbs.into_iter().rev().collect())
-}
-
-/// Producer-path lenient counterpart: longest computed prefix anchored at
-/// `last_committed_mb`. Returns empty when the first successor isn't yet
-/// computed or the parent walk doesn't reach the anchor (e.g. fresh restart).
-pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
-    db: &DB,
-    last_committed_mb: H256,
-    mb_head: H256,
-) -> Vec<H256> {
-    // Walk the parent chain backward from `mb_head` until we either
-    // reach `last_committed_mb` or run off the local chain.
-    let mut chain = Vec::new(); // newest-first
-    let mut current = mb_head;
-    while current != last_committed_mb && current != H256::zero() {
-        let meta = db.mb_meta(current);
-        chain.push((current, meta.computed));
-        current = db
-            .mb_compact_block(current)
-            .map(|c| c.parent)
-            .unwrap_or(H256::zero());
-    }
-    if current != last_committed_mb {
-        // Walk didn't reach the anchor (fast-restart / sync-lag); caller retries.
-        tracing::warn!(
-            %last_committed_mb,
-            %mb_head,
-            walk_depth = chain.len(),
-            "parent walk did not reach last_committed_mb — chain commitment skipped",
-        );
-        return Vec::new();
-    }
-
-    chain.reverse();
-
-    // Longest contiguous computed prefix anchored at `last_committed_mb`.
-    let mut collected = Vec::with_capacity(chain.len());
-    for (hash, computed) in chain.iter().copied() {
-        if !computed {
-            break;
-        }
-        collected.push(hash);
-    }
-    collected
-}
-
-/// `true` iff `candidate` is reachable from `latest_finalized_mb` by walking
-/// `parent_mb_hash`. Sound by BFT linear-order; bounded by the height gap.
-/// `H256::zero()` is the genesis sentinel.
-pub fn is_finalized_locally<DB: MbStorageRO>(
-    db: &DB,
-    candidate: H256,
-    latest_finalized_mb: H256,
-) -> bool {
-    if candidate == H256::zero() || candidate == latest_finalized_mb {
-        return true;
-    }
-    if latest_finalized_mb == H256::zero() {
-        return false;
-    }
-    let mut current = latest_finalized_mb;
-    while current != H256::zero() {
-        if current == candidate {
-            return true;
-        }
-        current = db
-            .mb_compact_block(current)
-            .map(|c| c.parent)
-            .unwrap_or(H256::zero());
-    }
-    false
-}
 
 pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     db: &DB,
@@ -145,37 +39,46 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
         header: BlockHeader { timestamp, .. },
     } = *block;
 
-    let mut chain_commitment = None;
-    if code_commitments.is_empty()
-        && validators_commitment.is_none()
-        && rewards_commitment.is_none()
-    {
-        if let Some((commitment, len)) = chain_commitment_with_len {
-            if commitment.transitions.is_empty() && len < checkpoint_threshold {
+    let has_other_commitments = !code_commitments.is_empty()
+        || validators_commitment.is_some()
+        || rewards_commitment.is_some();
+
+    let chain_commitment = match chain_commitment_with_len {
+        Some((commitment, len)) => {
+            // A chain commitment carrying no transitions only earns its place
+            // when it advances the on-chain Ethereum anchor after a long quiet
+            // stretch (checkpoint threshold reached) or when the batch already
+            // carries other commitments.
+            if !has_other_commitments
+                && commitment.transitions.is_empty()
+                && len < checkpoint_threshold
+            {
                 tracing::debug!(
                     %block_hash,
                     %len,
                     %checkpoint_threshold,
-                    transitions_len = commitment.transitions.len(),
                     "Chain commitment is empty and checkpoint threshold not reached, skip batch commitment"
                 );
                 return Ok(None);
-            } else {
-                tracing::debug!(
-                    %block_hash,
-                    %len,
-                    %checkpoint_threshold,
-                    transitions_len = commitment.transitions.len(),
-                    "Chain commitment has transitions or checkpoint threshold reached, include chain commitment"
-                );
             }
-        } else {
+
             tracing::debug!(
                 %block_hash,
-                "Nothing to commit, skip batch commitment");
-            return Ok(None);
+                %len,
+                %checkpoint_threshold,
+                transitions_len = commitment.transitions.len(),
+                "Including chain commitment into batch"
+            );
+            Some(commitment)
         }
-    }
+        None => {
+            if !has_other_commitments {
+                tracing::debug!(%block_hash, "Nothing to commit, skip batch commitment");
+                return Ok(None);
+            }
+            None
+        }
+    };
 
     let previous_batch = db
         .block_meta(block_hash)
@@ -257,7 +160,7 @@ pub fn try_include_chain_commitment<
         .last_committed_mb
         .with_context(|| format!("at_block {at_block} must be prepared at this moment"))?;
 
-    let Some(last_committed_mb) = db.mb_compact_block(mb_hash) else {
+    let Some(last_committed_mb) = db.mb_compact_block(last_committed_mb_hash) else {
         tracing::warn!(
             %at_block,
             %latest_finalized_mb,
@@ -326,15 +229,30 @@ pub fn try_include_chain_commitment<
             .mb_outcome(cursor)
             .with_context(|| format!("computed MB {cursor} outcome not found in db"))?;
 
+        let last_advanced_eth_block = db
+            .mb_meta(cursor)
+            .last_advanced_eb
+            .with_context(|| format!("computed MB {cursor} has no last_advanced_eb in db"))?;
+
         let one_block_commitment = ChainCommitment {
             head: cursor,
             transitions,
             last_advanced_eth_block,
         };
 
-        batch_filler
+        // Producer is lenient: once an MB would push the batch past the size
+        // budget, stop here and commit what fits. The next round picks up the
+        // remainder.
+        if batch_filler
             .append_chain_commitment(one_block_commitment)
-            .with_context(|| format!("failed to include chain commitment for MB {cursor}"))?;
+            .is_err()
+        {
+            tracing::debug!(
+                %cursor,
+                "chain commitment size limit reached, committing collected MBs only"
+            );
+            break;
+        }
     }
 
     Ok(())
@@ -483,7 +401,10 @@ pub fn is_strict_descendant_eth_block<DB: OnChainStorageRO>(
     ancestor: H256,
 ) -> Result<bool> {
     if ancestor.is_zero() {
-        return Ok(!block.is_zero());
+        // The genesis/pre-genesis anchor is an ancestor-or-equal of every
+        // anchor, including the genesis anchor itself: a chain commitment is
+        // allowed even when the Eth anchor has not advanced past genesis yet.
+        return Ok(true);
     }
 
     let ancestor_height = db
@@ -508,206 +429,10 @@ pub fn is_strict_descendant_eth_block<DB: OnChainStorageRO>(
     Ok(true)
 }
 
-#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{
-        Schedule,
-        db::{CompactMb, MbStorageRW},
-        malachite::{Operation, Operations},
-    };
     use ethexe_db::Database;
-
-    /// Per-height unique CAS via `AdvanceTillEthereumBlock` salt.
-    fn empty_ops(height: u64) -> Operations {
-        Operations::new(vec![
-            Operation::AdvanceTillEthereumBlock {
-                block_hash: H256::from_low_u64_be(0xEB00 + height),
-            },
-            Operation::ProcessQueuesV3 { gas_allowance: 0 },
-        ])
-    }
-
-    /// Mimics malachite `process_mb_proposal` + executor's `meta.computed` flip.
-    fn write_mb(
-        db: &Database,
-        parent_mb: H256,
-        height: u64,
-        outcome: Vec<StateTransition>,
-    ) -> H256 {
-        let ops = empty_ops(height);
-        let operations_hash = db.set_operations(ops);
-        // Synthetic mb_hash; only uniqueness matters here.
-        let mb_hash = H256::from_low_u64_be(0x1000 + height);
-        db.set_mb_compact_block(
-            mb_hash,
-            CompactMb {
-                parent: parent_mb,
-                height,
-                operations_hash,
-            },
-        );
-        db.set_mb_outcome(mb_hash, outcome);
-        db.set_mb_schedule(mb_hash, Schedule::default());
-        db.mutate_mb_meta(mb_hash, |meta| {
-            meta.computed = true;
-            meta.last_advanced_eb = H256::zero();
-        });
-        mb_hash
-    }
-
-    #[test]
-    fn collect_predecessors_walks_chain() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        let mb2 = write_mb(&db, mb1, 2, vec![]);
-        let mb3 = write_mb(&db, mb2, 3, vec![]);
-
-        let walked = collect_not_committed_mb_predecessors(&db, H256::zero(), mb3).unwrap();
-        assert_eq!(walked, vec![mb1, mb2, mb3]);
-
-        let from_mb1 = collect_not_committed_mb_predecessors(&db, mb1, mb3).unwrap();
-        assert_eq!(from_mb1, vec![mb2, mb3]);
-    }
-
-    #[test]
-    fn collect_predecessors_returns_empty_when_at_target() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-
-        let walked = collect_not_committed_mb_predecessors(&db, mb1, mb1).unwrap();
-        assert!(walked.is_empty());
-    }
-
-    #[test]
-    fn collect_predecessors_errors_when_target_not_in_chain() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        let mb2 = write_mb(&db, mb1, 2, vec![]);
-
-        // mb2 cannot trace back to a hash that's not on the chain.
-        let bogus = H256::from_low_u64_be(0xDEAD);
-        let err = collect_not_committed_mb_predecessors(&db, bogus, mb2).unwrap_err();
-        let msg = format!("{err:#}");
-        assert!(msg.contains("genesis"), "got: {msg}");
-    }
-
-    #[test]
-    fn collect_predecessors_errors_on_uncomputed_mb() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        let mb2 = write_mb(&db, mb1, 2, vec![]);
-        // Force mb2 to look uncomputed.
-        db.mutate_mb_meta(mb2, |meta| meta.computed = false);
-
-        let err = collect_not_committed_mb_predecessors(&db, H256::zero(), mb2).unwrap_err();
-        let msg = format!("{err:#}");
-        assert!(msg.contains("not computed"), "got: {msg}");
-    }
-
-    #[test]
-    fn lenient_collect_returns_full_range_when_all_computed() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        let mb2 = write_mb(&db, mb1, 2, vec![]);
-        let mb3 = write_mb(&db, mb2, 3, vec![]);
-
-        let walked = collect_computed_uncommitted_predecessors(&db, H256::zero(), mb3);
-        assert_eq!(walked, vec![mb1, mb2, mb3]);
-
-        let from_mb1 = collect_computed_uncommitted_predecessors(&db, mb1, mb3);
-        assert_eq!(from_mb1, vec![mb2, mb3]);
-    }
-
-    #[test]
-    fn lenient_collect_truncates_at_first_uncomputed() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        let mb2 = write_mb(&db, mb1, 2, vec![]);
-        let mb3 = write_mb(&db, mb2, 3, vec![]);
-        // Compute is lagging: mb2 hasn't finished yet.
-        db.mutate_mb_meta(mb2, |meta| meta.computed = false);
-
-        // Only mb1 is contiguous-computed from anchor; mb2 gap blocks the rest.
-        let walked = collect_computed_uncommitted_predecessors(&db, H256::zero(), mb3);
-        assert_eq!(walked, vec![mb1]);
-    }
-
-    #[test]
-    fn lenient_collect_returns_empty_when_first_successor_uncomputed() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        db.mutate_mb_meta(mb1, |meta| meta.computed = false);
-
-        let walked = collect_computed_uncommitted_predecessors(&db, H256::zero(), mb1);
-        assert!(walked.is_empty());
-    }
-
-    #[test]
-    fn lenient_collect_returns_empty_when_chain_does_not_reach_anchor() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-
-        let bogus = H256::from_low_u64_be(0xDEAD);
-        // Walk doesn't hit `bogus`; producer skips silently instead of erroring.
-        let walked = collect_computed_uncommitted_predecessors(&db, bogus, mb1);
-        assert!(walked.is_empty());
-    }
-
-    #[test]
-    fn lenient_collect_returns_empty_when_at_target() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-
-        let walked = collect_computed_uncommitted_predecessors(&db, mb1, mb1);
-        assert!(walked.is_empty());
-    }
-
-    #[test]
-    fn is_finalized_zero_candidate_is_universally_finalized() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        assert!(is_finalized_locally(&db, H256::zero(), mb1));
-        // Even with no local finalization yet, zero is the genesis sentinel.
-        assert!(is_finalized_locally(&db, H256::zero(), H256::zero()));
-    }
-
-    #[test]
-    fn is_finalized_self_is_finalized() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        assert!(is_finalized_locally(&db, mb1, mb1));
-    }
-
-    #[test]
-    fn is_finalized_resolves_proper_ancestor_of_finalized_head() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        let mb2 = write_mb(&db, mb1, 2, vec![]);
-        let mb3 = write_mb(&db, mb2, 3, vec![]);
-        // Latest finalized is mb3 → mb1 and mb2 are also finalized.
-        assert!(is_finalized_locally(&db, mb1, mb3));
-        assert!(is_finalized_locally(&db, mb2, mb3));
-    }
-
-    #[test]
-    fn is_finalized_returns_false_for_descendant_of_finalized_head() {
-        // Speculative-but-not-yet-finalized candidate must fail strict check.
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        let mb2 = write_mb(&db, mb1, 2, vec![]);
-        let mb3 = write_mb(&db, mb2, 3, vec![]);
-        assert!(!is_finalized_locally(&db, mb3, mb1));
-        assert!(!is_finalized_locally(&db, mb2, mb1));
-    }
-
-    #[test]
-    fn is_finalized_returns_false_when_no_local_finalization() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        assert!(!is_finalized_locally(&db, mb1, H256::zero()));
-    }
 
     #[test]
     fn create_batch_commitment_writes_commitment_delay_limit_into_expiry() {
@@ -738,20 +463,23 @@ mod tests {
         };
 
         let parts = BatchParts {
-            chain_commitment: Some(ChainCommitment {
-                transitions: vec![StateTransition {
-                    actor_id: gprimitives::ActorId::from([0xAB; 32]),
-                    new_state_hash: H256::from_low_u64_be(0xDEAD_BEEF),
-                    exited: false,
-                    inheritor: Default::default(),
-                    value_to_receive: 0,
-                    value_to_receive_negative_sign: false,
-                    value_claims: vec![],
-                    messages: vec![],
-                }],
-                head: block_hash,
-                last_advanced_eth_block: H256::zero(),
-            }),
+            chain_commitment: Some((
+                ChainCommitment {
+                    transitions: vec![StateTransition {
+                        actor_id: gprimitives::ActorId::from([0xAB; 32]),
+                        new_state_hash: H256::from_low_u64_be(0xDEAD_BEEF),
+                        exited: false,
+                        inheritor: Default::default(),
+                        value_to_receive: 0,
+                        value_to_receive_negative_sign: false,
+                        value_claims: vec![],
+                        messages: vec![],
+                    }],
+                    head: block_hash,
+                    last_advanced_eth_block: H256::zero(),
+                },
+                NonZero::new(1).unwrap(),
+            )),
             code_commitments: vec![],
             validators_commitment: None,
             rewards_commitment: None,
@@ -767,6 +495,7 @@ mod tests {
                 &block,
                 parts.clone(),
                 NonZero::new(raw_limit).unwrap(),
+                NonZero::new(1).unwrap(),
             )
             .unwrap()
             .expect("non-empty batch commitment");
@@ -774,22 +503,6 @@ mod tests {
             assert_eq!(commitment.previous_batch, last_committed_batch);
             assert_eq!(commitment.block_hash, block_hash);
         }
-    }
-
-    #[test]
-    fn is_finalized_returns_false_on_disjoint_chain() {
-        let db = Database::memory();
-        let chain_a = write_mb(&db, H256::zero(), 1, vec![]);
-        let chain_b_root = H256::from_low_u64_be(0xB001);
-        db.set_mb_compact_block(
-            chain_b_root,
-            CompactMb {
-                parent: H256::from_low_u64_be(0xB000), // unknown parent
-                height: 1,
-                operations_hash: db.set_operations(empty_ops(99)),
-            },
-        );
-        assert!(!is_finalized_locally(&db, chain_b_root, chain_a));
     }
 
     #[test]

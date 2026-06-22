@@ -81,7 +81,8 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
     db.set_mb_program_states(mb_hash, ProgramStates::default());
     db.mutate_mb_meta(mb_hash, |meta| {
         meta.computed = true;
-        meta.last_advanced_eb = H256::zero();
+        meta.finalized = true;
+        meta.last_advanced_eb = Some(H256::zero());
     });
     mb_hash
 }
@@ -191,7 +192,7 @@ async fn rejects_duplicate_code_ids() {
         .unwrap();
     assert_eq!(
         unwrap_rejected(status),
-        ValidationRejectReason::CodesHaveDuplicates
+        ValidationRejectReason::HaveDuplicates
     );
 }
 
@@ -337,10 +338,11 @@ async fn rejects_head_mb_at_or_below_last_committed_mb() {
         .validate_batch_commitment(block, request)
         .await
         .unwrap();
-    assert_eq!(
-        unwrap_rejected(status),
-        ValidationRejectReason::HeadMbAlreadyCommitted(head)
-    );
+    // With head_mb == last_committed_mb there is nothing left to commit:
+    // the chain walk is empty, no chain/code/validators/rewards commitment
+    // is produced, so the batch is rejected as empty.
+    let _ = head;
+    assert_eq!(unwrap_rejected(status), ValidationRejectReason::EmptyBatch);
 }
 
 #[tokio::test]
@@ -421,28 +423,28 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
     let chain = test_block_chain(3).setup(&db);
     let block = chain.blocks[3].to_simple();
 
-    // Pile up a chain of MBs with many transitions each so the squashed
-    // batch easily exceeds a tight size limit.
-    let mut outcomes = Vec::new();
-    for mb_idx in 0..5u8 {
-        let mut o = Vec::new();
-        for actor in 0..40u8 {
-            // distinct actor per transition so squashing keeps them all
-            o.push(nonempty_transition(mb_idx * 50 + actor + 1));
-        }
-        outcomes.push(o);
-    }
-    setup_mb_chain(&db, outcomes);
+    // Validation tolerates batches above the local `batch_size_limit` up to
+    // the protocol-wide `MAX_BATCH_SIZE_LIMIT`. To get a rejection, the batch
+    // must exceed that hard cap — pack one transition with a payload bigger
+    // than `MAX_BATCH_SIZE_LIMIT`.
+    let mut oversize = nonempty_transition(1);
+    oversize.messages = vec![ethexe_common::gear::Message {
+        id: Default::default(),
+        destination: ActorId::zero(),
+        payload: vec![0u8; ethexe_common::consensus::MAX_BATCH_SIZE_LIMIT as usize + 1024],
+        value: 0,
+        reply_details: None,
+        call: false,
+    }];
+    setup_mb_chain(&db, vec![vec![oversize]]);
 
-    // First build under a generous limit, then validate under a tight
-    // one — that's how the manager catches an oversize batch from a
-    // misbehaving coordinator.
+    // The coordinator builds the oversize batch under a generous local limit;
+    // the validator must still reject it for breaching the hard cap.
     let big_manager = mock_batch_manager_with_limits(
         db.clone(),
         BatchLimits {
             commitment_delay_limit: std::num::NonZero::new(100).unwrap(),
-            batch_size_limit: BLOCK_GAS_LIMIT, // large
-            // Large enough that the checkpoint path doesn't fire in this size-limit scenario.
+            batch_size_limit: u64::MAX,
             checkpoint_threshold: NonZero::new(u32::MAX).unwrap(),
         },
     );
@@ -453,16 +455,8 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
         .expect("expected non-empty batch");
     let request = BatchCommitmentValidationRequest::new(&batch);
 
-    let strict_manager = mock_batch_manager_with_limits(
-        db,
-        BatchLimits {
-            commitment_delay_limit: std::num::NonZero::new(100).unwrap(),
-            batch_size_limit: 256, // intentionally tiny
-            // Large enough that the checkpoint path doesn't fire in this size-limit scenario.
-            checkpoint_threshold: NonZero::new(u32::MAX).unwrap(),
-        },
-    );
-    let status = strict_manager
+    let manager = mock_batch_manager(db);
+    let status = manager
         .validate_batch_commitment(block, request)
         .await
         .unwrap();
@@ -559,7 +553,7 @@ async fn idle_chain_below_threshold_yields_no_batch_commitment() {
     // Anchor advance lands 2 Eth heights past the last committed anchor.
     let advanced = chain.blocks[4].hash;
     let last_committed_eb = chain.blocks[2].hash;
-    db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = advanced);
+    db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = Some(advanced));
     db.mutate_block_meta(block.hash, |m| {
         m.last_committed_eb = Some(last_committed_eb)
     });
@@ -602,7 +596,7 @@ async fn idle_chain_above_threshold_emits_checkpoint_batch_commitment() {
     // gap = height(blocks[5]) - height(blocks[1]) = 4
     let advanced = chain.blocks[5].hash;
     let last_committed_eb = chain.blocks[1].hash;
-    db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = advanced);
+    db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = Some(advanced));
     db.mutate_block_meta(block.hash, |m| {
         m.last_committed_eb = Some(last_committed_eb)
     });
@@ -701,14 +695,14 @@ async fn test_aggregate_validators_commitment() {
 
     // Before election start (era 0, ts < genesis+50) → no commitment.
     let commitment = manager
-        .aggregate_validators_commitment(&chain.blocks[4].to_simple())
+        .aggregate_validators_commitment(chain.blocks[4].to_simple())
         .await
         .unwrap();
     assert!(commitment.is_none(), "expected None before election period");
 
     // Right at election start for era 1 → commits validators1.
     let commitment = manager
-        .aggregate_validators_commitment(&chain.blocks[5].to_simple())
+        .aggregate_validators_commitment(chain.blocks[5].to_simple())
         .await
         .unwrap()
         .expect("validators commitment expected");
@@ -720,7 +714,7 @@ async fn test_aggregate_validators_commitment() {
 
     // Inside era 1 election period → still validators1.
     let commitment = manager
-        .aggregate_validators_commitment(&chain.blocks[7].to_simple())
+        .aggregate_validators_commitment(chain.blocks[7].to_simple())
         .await
         .unwrap()
         .expect("validators commitment expected");
@@ -735,7 +729,7 @@ async fn test_aggregate_validators_commitment() {
         meta.latest_era_validators_committed = Some(1);
     });
     let commitment = manager
-        .aggregate_validators_commitment(&chain.blocks[7].to_simple())
+        .aggregate_validators_commitment(chain.blocks[7].to_simple())
         .await
         .unwrap();
     assert!(
@@ -749,7 +743,7 @@ async fn test_aggregate_validators_commitment() {
         meta.latest_era_validators_committed = Some(0);
     });
     let commitment = manager
-        .aggregate_validators_commitment(&chain.blocks[15].to_simple())
+        .aggregate_validators_commitment(chain.blocks[15].to_simple())
         .await
         .unwrap()
         .expect("validators commitment expected");
@@ -764,7 +758,7 @@ async fn test_aggregate_validators_commitment() {
         meta.latest_era_validators_committed = Some(3);
     });
     manager
-        .aggregate_validators_commitment(&chain.blocks[15].to_simple())
+        .aggregate_validators_commitment(chain.blocks[15].to_simple())
         .await
         .unwrap_err();
 }

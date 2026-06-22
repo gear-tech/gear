@@ -125,7 +125,8 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     db.set_mb_outcome(genesis_parent_mb_hash, Vec::new());
     db.mutate_mb_meta(genesis_parent_mb_hash, |m| {
         m.computed = true;
-        m.last_advanced_eb = H256::zero();
+        m.finalized = true;
+        m.last_advanced_eb = Some(H256::zero());
     });
 
     ethexe_common::setup_block_in_db(

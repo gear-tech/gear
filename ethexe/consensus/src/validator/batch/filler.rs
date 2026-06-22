@@ -4,12 +4,10 @@
 use std::{mem, num::NonZero};
 
 use super::{
-    types::{BatchLimits, BatchParts, BatchSizeCounter, ValidationRejectReason},
+    types::{BatchParts, BatchSizeCounter},
     utils,
 };
 
-use alloy::rlp::bytes::buf::Chain;
-use anyhow::Context;
 use ethexe_common::gear::{
     ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
 };
@@ -34,12 +32,6 @@ pub struct BatchFiller {
 pub enum BatchIncludeError {
     #[display("batch size limit exceeded")]
     SizeLimitExceeded,
-    #[display("chain commitment already included")]
-    ChainCommitmentAlreadyIncluded,
-    #[display("validators commitment already included")]
-    ValidatorsCommitmentAlreadyIncluded,
-    #[display("rewards commitment already included")]
-    RewardsCommitmentAlreadyIncluded,
 }
 
 type FillerResult = Result<(), BatchIncludeError>;
@@ -53,7 +45,7 @@ impl BatchFiller {
     }
 
     pub fn into_parts(mut self) -> BatchParts {
-        if let Some(chain) = &mut self.parts.chain_commitment {
+        if let Some((chain, _len)) = &mut self.parts.chain_commitment {
             chain.transitions =
                 utils::squash_transitions_by_actor(mem::take(&mut chain.transitions));
             utils::sort_transitions_by_value_to_receive(&mut chain.transitions);
@@ -125,7 +117,6 @@ impl BatchFiller {
     }
 }
 
-#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,24 +124,36 @@ mod tests {
     use ethexe_ethereum::abi::Gear;
     use gprimitives::{CodeId, H256};
 
-    /// Checkpoint chain commitments carry empty transitions but a
-    /// non-zero `last_advanced_eth_block` — they exist *specifically*
-    /// to push the on-chain Ethereum anchor forward when the chain has
-    /// been quiet for a long stretch. The filler must keep them.
+    const BIG_LIMIT: u64 = u64::MAX;
+
+    /// Appending a single chain commitment seeds the parts with a length of 1,
+    /// and a subsequent append extends it (head + anchor follow the newest MB).
     #[test]
-    fn include_chain_commitment_keeps_checkpoint_with_no_transitions() {
-        let mut filler = BatchFiller::new(BatchLimits::default());
-        let checkpoint = ChainCommitment {
+    fn append_chain_commitment_seeds_then_extends() {
+        let mut filler = BatchFiller::new(BIG_LIMIT);
+        let first = ChainCommitment {
             head: H256::from_low_u64_be(0xC0DE),
             transitions: Vec::new(),
             last_advanced_eth_block: H256::from_low_u64_be(0xEB),
         };
+        let second = ChainCommitment {
+            head: H256::from_low_u64_be(0xBEEF),
+            transitions: Vec::new(),
+            last_advanced_eth_block: H256::from_low_u64_be(0xEC),
+        };
 
-        filler.include_chain_commitment(checkpoint).unwrap();
-        assert!(
-            filler.has_chain_commitment(),
-            "checkpoint with empty transitions but a non-zero advanced anchor must \
-             be retained — dropping it strands the Ethereum-side anchor advance"
+        filler.append_chain_commitment(first).unwrap();
+        filler.append_chain_commitment(second.clone()).unwrap();
+
+        let (chain, len) = filler
+            .into_parts()
+            .chain_commitment
+            .expect("chain commitment must be retained");
+        assert_eq!(len.get(), 2);
+        assert_eq!(chain.head, second.head);
+        assert_eq!(
+            chain.last_advanced_eth_block,
+            second.last_advanced_eth_block
         );
     }
 
@@ -165,10 +168,7 @@ mod tests {
         };
         let encoded: Gear::CodeCommitment = first.clone().into();
         // Budget fits exactly one commitment; the second include must fail.
-        let mut filler = BatchFiller::new(BatchLimits {
-            batch_size_limit: encoded.abi_encoded_size() as u64,
-            ..BatchLimits::default()
-        });
+        let mut filler = BatchFiller::new(encoded.abi_encoded_size() as u64);
 
         filler.include_code_commitment(first.clone()).unwrap();
         assert_eq!(

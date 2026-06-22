@@ -3,33 +3,23 @@
 
 use super::{
     filler::BatchFiller,
-    types::{
-        BatchLimits, BatchParts, ChainCommitmentRejection, ValidationRejectReason, ValidationStatus,
-    },
+    types::{BatchLimits, ValidationRejectReason, ValidationStatus},
     utils,
 };
-use crate::{
-    utils, validator,
-    validator::core::{ElectionRequest, MiddlewareWrapper},
-};
-use alloy::sol_types::SolValue;
+use crate::validator::core::{ElectionRequest, MiddlewareWrapper};
 use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
     SimpleBlockData, ToDigest,
     consensus::{BatchCommitmentValidationRequest, MAX_BATCH_SIZE_LIMIT},
-    db::{
-        BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO,
-        OnChainStorageRO,
-    },
+    db::{BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, MbStorageRO, OnChainStorageRO},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
 };
 use ethexe_db::Database;
-use ethexe_ethereum::abi::Gear;
-use gprimitives::H256;
+use gprimitives::{CodeId, H256};
 use hashbrown::HashSet;
-use std::{collections::VecDeque, fmt::format, mem};
+use std::{collections::VecDeque, num::NonZeroU32};
 
 #[derive(derive_more::Debug, Clone)]
 pub struct BatchCommitmentManager {
@@ -111,7 +101,10 @@ impl BatchCommitmentManager {
         if validators {
             match self.aggregate_validators_commitment(block).await? {
                 Some(commitment) => {
-                    if let Err(_) = batch_filler.include_validators_commitment(commitment) {
+                    if batch_filler
+                        .include_validators_commitment(commitment)
+                        .is_err()
+                    {
                         return Ok(ValidationStatus::Rejected {
                             request,
                             reason: ValidationRejectReason::BatchSizeLimitExceeded,
@@ -130,7 +123,7 @@ impl BatchCommitmentManager {
         if rewards {
             match self.aggregate_rewards_commitment(block).await? {
                 Some(commitment) => {
-                    if let Err(_) = batch_filler.include_rewards_commitment(commitment) {
+                    if batch_filler.include_rewards_commitment(commitment).is_err() {
                         return Ok(ValidationStatus::Rejected {
                             request,
                             reason: ValidationRejectReason::BatchSizeLimitExceeded,
@@ -146,12 +139,11 @@ impl BatchCommitmentManager {
             }
         }
 
-        if let Some(head_mb) = head {
-            if let Some(reason) =
+        if let Some(head_mb) = head
+            && let Some(reason) =
                 self.validate_chain_commitment(block, head_mb, &mut batch_filler)?
-            {
-                return Ok(ValidationStatus::Rejected { request, reason });
-            }
+        {
+            return Ok(ValidationStatus::Rejected { request, reason });
         }
 
         if let Some(reason) = self.validate_code_commitments(block, codes, &mut batch_filler)? {
@@ -272,12 +264,12 @@ impl BatchCommitmentManager {
         // This check is not necessary, as soon as this must be guaranteed by ethexe-malachite,
         // but we still want to have it just in case, to avoid accepting invalid batch commitments.
         if !utils::is_strict_descendant_eth_block(
-            db,
+            &self.db,
             last_advanced_eth_block,
             last_committed_advanced_eth_block,
-        ) {
+        )? {
             tracing::error!(
-                %block,
+                block = %block.hash,
                 %head_mb_hash,
                 %last_committed_mb_hash,
                 %last_advanced_eth_block,
@@ -309,7 +301,10 @@ impl BatchCommitmentManager {
                 last_advanced_eth_block,
             };
 
-            if let Err(_) = batch_filler.append_chain_commitment(one_mb_commitment) {
+            if batch_filler
+                .append_chain_commitment(one_mb_commitment)
+                .is_err()
+            {
                 return Ok(Some(ValidationRejectReason::BatchSizeLimitExceeded));
             }
         }
@@ -323,8 +318,8 @@ impl BatchCommitmentManager {
         codes: &[CodeId],
         batch_filler: &mut BatchFiller,
     ) -> Result<Option<ValidationRejectReason>> {
-        if utils::has_duplicates(codes.as_slice()) {
-            return Ok(Some(ValidationRejectReason::CodesHaveDuplicates));
+        if utils::has_duplicates(codes) {
+            return Ok(Some(ValidationRejectReason::HaveDuplicates));
         }
 
         let waiting_codes = self
@@ -346,7 +341,10 @@ impl BatchCommitmentManager {
                 return Ok(Some(ValidationRejectReason::CodeIsNotProcessedYet(id)));
             };
             let code_commitment = CodeCommitment { id, valid };
-            if let Err(_) = batch_filler.include_code_commitment(code_commitment) {
+            if batch_filler
+                .include_code_commitment(code_commitment)
+                .is_err()
+            {
                 return Ok(Some(ValidationRejectReason::BatchSizeLimitExceeded));
             }
         }
@@ -354,7 +352,7 @@ impl BatchCommitmentManager {
         Ok(None)
     }
 
-    async fn aggregate_validators_commitment(
+    pub(crate) async fn aggregate_validators_commitment(
         &self,
         block: SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {

@@ -6,7 +6,9 @@ use core::num::NonZero;
 use ethexe_common::{
     DEFAULT_COMMITMENT_DELAY_LIMIT, Digest,
     consensus::{BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT},
-    gear::{ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment},
+    gear::{
+        ChainCommitment, CodeCommitment, RewardsCommitment, StateTransition, ValidatorsCommitment,
+    },
 };
 use ethexe_ethereum::abi::Gear;
 use gprimitives::{CodeId, H256};
@@ -70,10 +72,10 @@ impl BatchSizeCounter {
         self.charge_optional::<_, Gear::ChainCommitment>(Some(commitment.clone()))
     }
 
-    pub fn charge_for_transitions(&mut self, transitions: &[ChainCommitmentTransition]) -> bool {
-        self.charge_value::<_, Vec<Gear::ChainCommitmentTransition>>(
-            transitions.iter().cloned().map(Into::into).collect(),
-        )
+    pub fn charge_for_transitions(&mut self, transitions: &[StateTransition]) -> bool {
+        let encoded: Vec<Gear::StateTransition> =
+            transitions.iter().cloned().map(Into::into).collect();
+        self.charge_value(&encoded)
     }
 
     pub fn charge_for_code_commitment(&mut self, commitment: &CodeCommitment) -> bool {
@@ -144,17 +146,17 @@ pub enum ValidationRejectReason {
     // chain commitment (head MB)
     #[display("requested head MB {_0} is not finalized locally")]
     HeadMbNotFinalized(H256),
-    #[display("requested head MB {_0} is at or below last committed MB")]
-    HeadMbAlreadyCommitted(H256),
     #[display("requested head MB {_0} is not computed locally")]
     HeadMbNotComputed(H256),
-    #[display("requested head MB {_0} is not a strict descendant of the latest committed MB {_1}")]
+    #[display(
+        "requested head MB {head_mb} is not a strict descendant of the latest committed MB {latest_committed_mb}"
+    )]
     HeadMbNotStrictDescendantOfLatestCommittedMb {
         head_mb: H256,
         latest_committed_mb: H256,
     },
     #[display(
-        "last advanced EB {_0} is not on the canonical chain of the last committed advanced EB {_1}"
+        "last advanced EB {last_advanced_eb} is not on the canonical chain of the last committed advanced EB {last_committed_advanced_eb}"
     )]
     LastAdvancedEbNotOnCanonicalChain {
         last_advanced_eb: H256,

@@ -259,19 +259,20 @@ fn build_executable_data(
     operations: Operations,
     program_states: ethexe_common::ProgramStates,
     schedule: ethexe_common::Schedule,
-    advanced_block: H256,
+    advanced_block: Option<H256>,
 ) -> Result<ExecutableData> {
     let mut events: Vec<BlockRequestEvent> = Vec::new();
     let mut injected_transactions = Vec::new();
     let mut gas_allowance: Option<u64> = None;
 
-    let mut current_anchor = if advanced_block.is_zero() {
-        None
-    } else {
-        Some(
+    // `None` (MB never advanced past pre-genesis) and the zero sentinel both
+    // mean "no anchor yet" — the genesis-block fallback below stands in.
+    let mut current_anchor = match advanced_block {
+        Some(advanced_block) if !advanced_block.is_zero() => Some(
             db.block_simple_data(advanced_block)
                 .ok_or(ComputeError::AnchorBlockHeaderMissing(advanced_block))?,
-        )
+        ),
+        _ => None,
     };
     let mut mailbox_validity = ethexe_common::MAILBOX_VALIDITY_VERSION_2;
     let mut event_destinations_autoreply = false;

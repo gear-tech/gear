@@ -267,7 +267,7 @@ fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
     let Some(latest_committed_block_header) = db
         .block_meta(db.globals().latest_prepared_eb_hash)
         .last_committed_mb
-        .map(|mb_hash| db.mb_meta(mb_hash).last_advanced_eb)
+        .and_then(|mb_hash| db.mb_meta(mb_hash).last_advanced_eb)
         .and_then(|eth_block| db.block_header(eth_block))
     else {
         return;
