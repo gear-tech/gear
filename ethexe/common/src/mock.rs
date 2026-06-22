@@ -606,7 +606,7 @@ where
     db.set_mb_outcome(H256::zero(), Vec::new());
     db.mutate_mb_meta(H256::zero(), |m| {
         m.computed = true;
-        m.last_advanced_eb = H256::zero();
+        m.last_advanced_eb = Some(H256::zero());
     });
 }
 

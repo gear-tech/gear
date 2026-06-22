@@ -102,7 +102,7 @@ impl ValidatorService {
         let limits = BatchLimits {
             commitment_delay_limit: config.commitment_delay_limit,
             batch_size_limit: config.batch_size_limit,
-            uncommitted_chain_len_threshold: config.uncommitted_chain_len_threshold,
+            checkpoint_threshold: config.uncommitted_chain_len_threshold,
         };
 
         let middleware = MiddlewareWrapper::from_inner(election_provider);

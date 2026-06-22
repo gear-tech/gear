@@ -443,7 +443,7 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
             commitment_delay_limit: std::num::NonZero::new(100).unwrap(),
             batch_size_limit: BLOCK_GAS_LIMIT, // large
             // Large enough that the checkpoint path doesn't fire in this size-limit scenario.
-            uncommitted_chain_len_threshold: NonZero::new(u32::MAX).unwrap(),
+            checkpoint_threshold: NonZero::new(u32::MAX).unwrap(),
         },
     );
     let batch = big_manager
@@ -459,7 +459,7 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
             commitment_delay_limit: std::num::NonZero::new(100).unwrap(),
             batch_size_limit: 256, // intentionally tiny
             // Large enough that the checkpoint path doesn't fire in this size-limit scenario.
-            uncommitted_chain_len_threshold: NonZero::new(u32::MAX).unwrap(),
+            checkpoint_threshold: NonZero::new(u32::MAX).unwrap(),
         },
     );
     let status = strict_manager
@@ -570,7 +570,7 @@ async fn idle_chain_below_threshold_yields_no_batch_commitment() {
         BatchLimits {
             commitment_delay_limit: std::num::NonZero::new(16).unwrap(),
             batch_size_limit: BLOCK_GAS_LIMIT,
-            uncommitted_chain_len_threshold: NonZero::new(10).unwrap(),
+            checkpoint_threshold: NonZero::new(10).unwrap(),
         },
     );
 
@@ -613,7 +613,7 @@ async fn idle_chain_above_threshold_emits_checkpoint_batch_commitment() {
         BatchLimits {
             commitment_delay_limit: std::num::NonZero::new(16).unwrap(),
             batch_size_limit: BLOCK_GAS_LIMIT,
-            uncommitted_chain_len_threshold: threshold,
+            checkpoint_threshold: threshold,
         },
     );
 

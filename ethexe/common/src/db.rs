@@ -149,7 +149,8 @@ pub struct CompactMb {
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct MbMeta {
     pub computed: bool,
-    pub last_advanced_eb: H256,
+    pub finalized: bool,
+    pub last_advanced_eb: Option<H256>,
 }
 
 #[auto_impl::auto_impl(&, Box)]

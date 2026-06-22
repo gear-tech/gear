@@ -1,8 +1,15 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use super::types::{BatchLimits, BatchParts, BatchSizeCounter, ValidationRejectReason};
+use std::{mem, num::NonZero};
 
+use super::{
+    types::{BatchLimits, BatchParts, BatchSizeCounter, ValidationRejectReason},
+    utils,
+};
+
+use alloy::rlp::bytes::buf::Chain;
+use anyhow::Context;
 use ethexe_common::gear::{
     ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
 };
@@ -27,44 +34,37 @@ pub struct BatchFiller {
 pub enum BatchIncludeError {
     #[display("batch size limit exceeded")]
     SizeLimitExceeded,
-}
-
-impl From<BatchIncludeError> for ValidationRejectReason {
-    fn from(value: BatchIncludeError) -> Self {
-        match value {
-            BatchIncludeError::SizeLimitExceeded => Self::BatchSizeLimitExceeded,
-        }
-    }
+    #[display("chain commitment already included")]
+    ChainCommitmentAlreadyIncluded,
+    #[display("validators commitment already included")]
+    ValidatorsCommitmentAlreadyIncluded,
+    #[display("rewards commitment already included")]
+    RewardsCommitmentAlreadyIncluded,
 }
 
 type FillerResult = Result<(), BatchIncludeError>;
 
 impl BatchFiller {
-    pub fn new(limits: BatchLimits) -> Self {
+    pub fn new(batch_size_limit: u64) -> Self {
         Self {
             parts: BatchParts::default(),
-            size_counter: BatchSizeCounter::new(limits.batch_size_limit),
+            size_counter: BatchSizeCounter::new(batch_size_limit),
         }
     }
 
     pub fn into_parts(mut self) -> BatchParts {
         if let Some(chain) = &mut self.parts.chain_commitment {
             chain.transitions =
-                super::utils::squash_transitions_by_actor(std::mem::take(&mut chain.transitions));
-            super::utils::sort_transitions_by_value_to_receive(&mut chain.transitions);
+                utils::squash_transitions_by_actor(mem::take(&mut chain.transitions));
+            utils::sort_transitions_by_value_to_receive(&mut chain.transitions);
         }
         self.parts
-    }
-
-    pub fn has_chain_commitment(&self) -> bool {
-        self.parts.chain_commitment.is_some()
     }
 
     pub fn include_validators_commitment(
         &mut self,
         commitment: ValidatorsCommitment,
     ) -> FillerResult {
-        let commitment = Some(commitment);
         if !self
             .size_counter
             .charge_for_validators_commitment(&commitment)
@@ -72,28 +72,17 @@ impl BatchFiller {
             return Err(BatchIncludeError::SizeLimitExceeded);
         }
 
-        self.parts.validators_commitment = commitment;
+        self.parts.validators_commitment = Some(commitment);
         Ok(())
     }
 
     pub fn include_rewards_commitment(&mut self, commitment: RewardsCommitment) -> FillerResult {
-        let commitment = Some(commitment);
         if !self.size_counter.charge_for_rewards_commitment(&commitment) {
             return Err(BatchIncludeError::SizeLimitExceeded);
         }
 
-        self.parts.rewards_commitment = commitment;
+        self.parts.rewards_commitment = Some(commitment);
         Ok(())
-    }
-
-    /// Probe whether a hypothetical chain commitment with `transitions` would
-    /// still fit the remaining batch budget. Used by the producer to grow the
-    /// chain commitment one MB at a time and stop *before* the size limit is
-    /// breached, so the call to [`Self::include_chain_commitment`] is
-    /// guaranteed to succeed.
-    pub fn would_fit_chain_commitment(&self, candidate: &ChainCommitment) -> bool {
-        let mut probe = self.size_counter.clone();
-        probe.charge_for_chain_commitment(&Some(candidate.clone()))
     }
 
     pub fn include_code_commitment(&mut self, commitment: CodeCommitment) -> FillerResult {
@@ -105,28 +94,38 @@ impl BatchFiller {
         Ok(())
     }
 
-    /// Include a freshly aggregated chain commitment in the batch.
-    ///
-    /// A commitment with neither transitions nor an Ethereum-anchor
-    /// advance carries no payload and is dropped — the next coordinator
-    /// round will re-walk and pick up whatever has finalized since.
-    /// Empty-transitions checkpoints **with** a non-zero
-    /// `last_advanced_eth_block` are kept: they exist specifically to push
-    /// the on-chain Ethereum anchor forward during long quiet stretches.
-    pub fn include_chain_commitment(&mut self, commitment: ChainCommitment) -> FillerResult {
-        if commitment.transitions.is_empty() && commitment.last_advanced_eth_block.is_zero() {
-            return Ok(());
+    pub fn append_chain_commitment(&mut self, commitment: ChainCommitment) -> FillerResult {
+        if let Some((existing, len)) = &mut self.parts.chain_commitment {
+            let ChainCommitment {
+                head,
+                transitions,
+                last_advanced_eth_block,
+            } = commitment;
+
+            if !self.size_counter.charge_for_transitions(&transitions) {
+                return Err(BatchIncludeError::SizeLimitExceeded);
+            }
+
+            existing.head = head;
+            existing.transitions.extend(transitions);
+            existing.last_advanced_eth_block = last_advanced_eth_block;
+
+            *len = len
+                .checked_add(1)
+                .expect("u32 chain commitment len overflow");
+        } else {
+            if !self.size_counter.charge_for_chain_commitment(&commitment) {
+                return Err(BatchIncludeError::SizeLimitExceeded);
+            }
+
+            self.parts.chain_commitment = Some((commitment, NonZero::new(1).expect("1 != 0")));
         }
 
-        let commitment = Some(commitment);
-        if !self.size_counter.charge_for_chain_commitment(&commitment) {
-            return Err(BatchIncludeError::SizeLimitExceeded);
-        }
-        self.parts.chain_commitment = commitment;
         Ok(())
     }
 }
 
+#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;

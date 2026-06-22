@@ -3,17 +3,23 @@
 
 use crate::validator::batch::{filler::BatchFiller, types::BatchParts};
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use core::num::NonZero;
 use ethexe_common::{
-    SimpleBlockData,
-    db::{BlockMetaStorageRO, CodesStorageRO, MbStorageRO, OnChainStorageRO},
+    BlockHeader, SimpleBlockData,
+    db::{
+        BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO,
+        OnChainStorageRO,
+    },
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
     },
 };
 use gprimitives::{ActorId, H256};
-use std::collections::{HashMap, hash_map::Entry};
+use std::{
+    collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
+    num::NonZero,
+};
 
 /// MBs in `(last_committed_mb, mb_hash]`, chronological order. Strict: errors
 /// if the walk doesn't reach the anchor or any MB along the way is not computed.
@@ -124,42 +130,65 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
     batch_parts: BatchParts,
-    commitment_delay_limit: std::num::NonZero<u8>,
+    commitment_delay_limit: NonZero<u8>,
+    checkpoint_threshold: NonZero<u32>,
 ) -> Result<Option<BatchCommitment>> {
     let BatchParts {
-        chain_commitment,
+        chain_commitment: chain_commitment_with_len,
         validators_commitment,
         code_commitments,
         rewards_commitment,
     } = batch_parts;
 
-    let block_hash = block.hash;
+    let SimpleBlockData {
+        hash: block_hash,
+        header: BlockHeader { timestamp, .. },
+    } = *block;
 
-    if chain_commitment.is_none()
-        && code_commitments.is_empty()
+    let mut chain_commitment = None;
+    if code_commitments.is_empty()
         && validators_commitment.is_none()
         && rewards_commitment.is_none()
     {
-        tracing::debug!("No commitments for block {block_hash} - skip batch commitment");
-        return Ok(None);
+        if let Some((commitment, len)) = chain_commitment_with_len {
+            if commitment.transitions.is_empty() && len < checkpoint_threshold {
+                tracing::debug!(
+                    %block_hash,
+                    %len,
+                    %checkpoint_threshold,
+                    transitions_len = commitment.transitions.len(),
+                    "Chain commitment is empty and checkpoint threshold not reached, skip batch commitment"
+                );
+                return Ok(None);
+            } else {
+                tracing::debug!(
+                    %block_hash,
+                    %len,
+                    %checkpoint_threshold,
+                    transitions_len = commitment.transitions.len(),
+                    "Chain commitment has transitions or checkpoint threshold reached, include chain commitment"
+                );
+            }
+        } else {
+            tracing::debug!(
+                %block_hash,
+                "Nothing to commit, skip batch commitment");
+            return Ok(None);
+        }
     }
 
     let previous_batch = db
-        .block_meta(block.hash)
+        .block_meta(block_hash)
         .last_committed_batch
-        .ok_or_else(
-            || anyhow!("Cannot get from db last committed block for block {block_hash}",),
-        )?;
-
-    let expiry: u8 = commitment_delay_limit.get();
-
-    tracing::trace!("Batch commitment expiry for block {block_hash} is {expiry:?}",);
+        .with_context(|| {
+            format!("Cannot get from db last committed block for block {block_hash}")
+        })?;
 
     Ok(Some(BatchCommitment {
         block_hash,
-        timestamp: block.header.timestamp,
+        timestamp,
         previous_batch,
-        expiry,
+        expiry: commitment_delay_limit.get(),
         chain_commitment,
         code_commitments,
         validators_commitment,
@@ -195,140 +224,117 @@ pub fn aggregate_code_commitments_for_block<DB: CodesStorageRO + BlockMetaStorag
     Ok(())
 }
 
-/// Producer chain-commitment builder: covers `(last_committed_mb..mb_head]` up
-/// to where compute has reached, fits within the size budget, returns the
-/// head MB actually included. Returns `last_committed_mb` if nothing fits.
-pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
-    db: &DB,
-    at_block: H256,
-    mb_head: H256,
-    batch_filler: &mut BatchFiller,
-) -> Result<H256> {
-    let last_committed_mb = db
-        .block_meta(at_block)
-        .last_committed_mb
-        .unwrap_or(H256::zero());
-
-    let pending = collect_computed_uncommitted_predecessors(db, last_committed_mb, mb_head);
-
-    if pending.is_empty() {
-        // Nothing computed in range; producer skips chain commitment this round.
-        return Ok(last_committed_mb);
-    }
-
-    // Aggregate transitions incrementally; stop when the next MB blows the size budget.
-    let mut transitions: Vec<StateTransition> = Vec::new();
-    let mut last_included = last_committed_mb;
-    for mb_hash in &pending {
-        let Some(mb_transitions) = db.mb_outcome(*mb_hash) else {
-            anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
-        };
-
-        // Trial-fit this MB; bail if it pushes us past the batch size budget.
-        let len_before = transitions.len();
-        transitions.extend(mb_transitions);
-        let trial_commitment = ChainCommitment {
-            head: *mb_hash,
-            transitions,
-            last_advanced_eth_block: db.mb_meta(*mb_hash).last_advanced_eb,
-        };
-        let would_fit = batch_filler.would_fit_chain_commitment(&trial_commitment);
-        transitions = trial_commitment.transitions;
-
-        if !would_fit {
-            let _ = transitions.split_off(len_before);
-            break;
-        }
-
-        last_included = *mb_hash;
-    }
-
-    // Skip the commitment entirely when there are no state transitions
-    // to carry on-chain. Pushing the Ethereum anchor forward on every
-    // idle round would spam pointless batches; the dedicated checkpoint
-    // path ([`try_include_checkpoint_chain_commitment`]) gates that on
-    // `uncommitted_chain_len_threshold` and emits the empty-transitions
-    // commitment only after a long quiet stretch.
-    if transitions.is_empty() {
-        return Ok(last_committed_mb);
-    }
-
-    let commitment = ChainCommitment {
-        head: last_included,
-        transitions,
-        last_advanced_eth_block: db.mb_meta(last_included).last_advanced_eb,
-    };
-
-    if let Err(err) = batch_filler.include_chain_commitment(commitment) {
-        tracing::trace!(
-            "failed to include chain commitment for head MB {mb_head} because of error={err}"
-        );
-        return Ok(last_committed_mb);
-    }
-
-    Ok(last_included)
-}
-
-/// If `last_advanced_eth_block` of `mb_head` is more than `threshold` Eth blocks
-/// past `block.last_committed_eb`, force an empty chain commitment
-/// that pins the head MB and the new advanced anchor on-chain.
-pub fn try_include_checkpoint_chain_commitment<
-    DB: BlockMetaStorageRO + MbStorageRO + OnChainStorageRO,
+/// Producer chain-commitment builder.
+pub fn try_include_chain_commitment<
+    DB: ConfigStorageRO + GlobalsStorageRO + BlockMetaStorageRO + MbStorageRO + OnChainStorageRO,
 >(
     db: &DB,
     at_block: H256,
-    mb_head: H256,
-    threshold: NonZero<u32>,
     batch_filler: &mut BatchFiller,
 ) -> Result<()> {
-    let advanced = db.mb_meta(mb_head).last_advanced_eb;
-    if advanced.is_zero() {
-        return Ok(());
-    }
-    let Some(advanced_header) = db.block_header(advanced) else {
-        return Ok(());
-    };
-
-    // `at_block` is `prepared` by the time the coordinator runs (see
-    // `Idle`), so the field must be populated.
-    let last_committed_advanced = db.block_meta(at_block).last_committed_eb.ok_or_else(|| {
-        anyhow::anyhow!("block_meta({at_block}).last_committed_eb missing despite prepared==true")
-    })?;
-    let last_committed_height = if last_committed_advanced.is_zero() {
-        0
-    } else {
-        db.block_header(last_committed_advanced)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "block_header({last_committed_advanced}) missing for at_block {at_block}"
-                )
-            })?
-            .height
-    };
-
-    let gap = advanced_header.height.saturating_sub(last_committed_height);
-    if gap <= threshold.get() {
+    let latest_finalized_mb = db.globals().latest_finalized_mb_hash;
+    if latest_finalized_mb.is_zero() {
         return Ok(());
     }
 
-    let commitment = ChainCommitment {
-        head: mb_head,
-        transitions: Vec::new(),
-        last_advanced_eth_block: advanced,
+    let latest_advanced_eb_hash = db
+        .mb_meta(latest_finalized_mb)
+        .last_advanced_eb
+        .context("latest finalized mb must have latest advanced eb info")?;
+
+    if !is_strict_descendant_eth_block(db, at_block, latest_advanced_eb_hash)? {
+        tracing::error!(
+            %at_block,
+            %latest_finalized_mb,
+            %latest_advanced_eb_hash,
+            "latest advanced eth block is not strict ancestor of the current chain head, skipping chain commitment"
+        );
+        return Ok(());
+    }
+
+    let last_committed_mb_hash = db
+        .block_meta(at_block)
+        .last_committed_mb
+        .with_context(|| format!("at_block {at_block} must be prepared at this moment"))?;
+
+    let Some(last_committed_mb) = db.mb_compact_block(mb_hash) else {
+        tracing::warn!(
+            %at_block,
+            %latest_finalized_mb,
+            %last_committed_mb_hash,
+            "last committed MB {last_committed_mb_hash} is still not synced locally, skipping chain commitment"
+        );
+        return Ok(());
     };
 
-    if let Err(err) = batch_filler.include_chain_commitment(commitment) {
-        tracing::trace!(
-            "checkpoint chain commitment didn't fit (head {mb_head}, advanced {advanced}): {err}"
-        );
-    } else {
-        tracing::info!(
-            %mb_head,
-            %advanced,
-            gap,
-            threshold = threshold.get(),
-            "emitting checkpoint chain commitment"
-        );
+    let mut cursor_mb_hash = latest_finalized_mb;
+    let mut cursor_mb = db
+        .mb_compact_block(cursor_mb_hash)
+        .context("latest finalized MB must have compact block in db")?;
+
+    // Reach the latest computed MB on the chain
+    while !db.mb_meta(cursor_mb_hash).computed {
+        if cursor_mb_hash == last_committed_mb_hash {
+            tracing::debug!(
+                %at_block,
+                %latest_finalized_mb,
+                %last_committed_mb_hash,
+                "no computed MBs since latest committed MB, skipping chain commitment"
+            );
+            return Ok(());
+        }
+        if cursor_mb.height <= last_committed_mb.height {
+            tracing::error!(
+                %at_block,
+                %latest_finalized_mb,
+                %last_committed_mb_hash,
+                "latest finalized MB and last committed MB are not in the same chain, protocol violation, skipping chain commitment"
+            );
+            return Ok(());
+        }
+
+        cursor_mb_hash = cursor_mb.parent;
+        cursor_mb = db
+            .mb_compact_block(cursor_mb_hash)
+            .context("failed to fetch compact block for finalized MB")?;
+    }
+
+    // Reach the last last_committed_mb. Collect blocks on the way to build the commitment.
+    let mut computed_not_committed_mbs = VecDeque::new();
+    while cursor_mb_hash != last_committed_mb_hash {
+        if cursor_mb.height <= last_committed_mb.height {
+            tracing::error!(
+                %at_block,
+                %latest_finalized_mb,
+                %last_committed_mb_hash,
+                "latest finalized MB and last committed MB are not in the same chain, protocol violation, skipping chain commitment"
+            );
+            return Ok(());
+        }
+
+        // push_front to maintain chronological order from oldest to newest
+        computed_not_committed_mbs.push_front(cursor_mb_hash);
+        cursor_mb_hash = cursor_mb.parent;
+        cursor_mb = db
+            .mb_compact_block(cursor_mb_hash)
+            .context("failed to fetch compact block for finalized MB")?;
+    }
+
+    // Collect commitment
+    for cursor in computed_not_committed_mbs.into_iter() {
+        let transitions = db
+            .mb_outcome(cursor)
+            .with_context(|| format!("computed MB {cursor} outcome not found in db"))?;
+
+        let one_block_commitment = ChainCommitment {
+            head: cursor,
+            transitions,
+            last_advanced_eth_block,
+        };
+
+        batch_filler
+            .append_chain_commitment(one_block_commitment)
+            .with_context(|| format!("failed to include chain commitment for MB {cursor}"))?;
     }
 
     Ok(())
@@ -466,6 +472,43 @@ pub fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition])
     transitions.sort_by_key(|transition| !transition.value_to_receive_negative_sign);
 }
 
+pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
+    let mut seen = HashSet::new();
+    data.iter().any(|item| !seen.insert(item))
+}
+
+pub fn is_strict_descendant_eth_block<DB: OnChainStorageRO>(
+    db: &DB,
+    block: H256,
+    ancestor: H256,
+) -> Result<bool> {
+    if ancestor.is_zero() {
+        return Ok(!block.is_zero());
+    }
+
+    let ancestor_height = db
+        .block_header(ancestor)
+        .ok_or_else(|| anyhow!("eth chain walk: missing header for ancestor {ancestor}"))?
+        .height;
+
+    let mut current = block;
+    while current != ancestor {
+        if current.is_zero() {
+            return Ok(false);
+        }
+        let header = db
+            .block_header(current)
+            .ok_or_else(|| anyhow!("eth chain walk: missing header for {current}"))?;
+        if header.height <= ancestor_height {
+            return Ok(false);
+        }
+        current = header.parent_hash;
+    }
+
+    Ok(true)
+}
+
+#[cfg(feature = "disable-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
