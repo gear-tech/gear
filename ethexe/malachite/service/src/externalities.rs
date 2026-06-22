@@ -115,7 +115,7 @@ impl Externalities for EthexeExternalities {
             self.db
                 .mb_meta(parent)
                 .last_advanced_eb
-                .expect("proposed parent MB must have last_advanced_eb set")
+                .ok_or_else(|| anyhow!("proposed parent MB must have last_advanced_eb set"))?
         };
         let last_advanced = payload
             .iter()
@@ -198,11 +198,10 @@ impl Externalities for EthexeExternalities {
         // Same prerequisite as the matching BlockProposal — by the
         // time `process_mb_finalized` runs, `process_mb_proposal` has
         // already populated `mb_meta(block_hash).last_advanced_eb`.
-        let last_advanced = self
-            .db
-            .mb_meta(mb_hash)
-            .last_advanced_eb
-            .expect("finalized MB must have last_advanced_eb set by proposal");
+        let last_advanced =
+            self.db.mb_meta(mb_hash).last_advanced_eb.ok_or_else(|| {
+                anyhow!("finalized MB must have last_advanced_eb set by proposal")
+            })?;
         self.try_emit_or_queue(
             MalachiteEvent::BlockFinalized {
                 cert: app_cert,
@@ -231,7 +230,7 @@ impl Externalities for EthexeExternalities {
             self.db
                 .mb_meta(parent_mb_hash)
                 .last_advanced_eb
-                .expect("proposed parent MB must have last_advanced_eb set")
+                .ok_or_else(|| anyhow!("proposed parent MB must have last_advanced_eb set"))?
         };
 
         let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await?;
@@ -440,7 +439,7 @@ impl Externalities for EthexeExternalities {
                 self.db
                     .mb_meta(parent_hash)
                     .last_advanced_eb
-                    .expect("proposed parent MB must have last_advanced_eb set")
+                    .ok_or_else(|| anyhow!("proposed parent MB must have last_advanced_eb set"))?
             };
             let start_block_hash = self.db.globals().start_block_hash;
             match quarantine::is_strict_descendant_of(
@@ -487,7 +486,7 @@ impl Externalities for EthexeExternalities {
             self.db
                 .mb_meta(parent_hash)
                 .last_advanced_eb
-                .expect("proposed parent MB must have last_advanced_eb set")
+                .ok_or_else(|| anyhow!("proposed parent MB must have last_advanced_eb set"))?
         };
         let mut touched = match advance {
             Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,

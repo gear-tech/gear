@@ -817,4 +817,45 @@ mod tests {
         assert_eq!(squashed[0].value_to_receive, 0);
         assert!(!squashed[0].value_to_receive_negative_sign);
     }
+
+    #[test]
+    fn is_strict_descendant_eth_block_walks_canonical_chain() {
+        use ethexe_common::{BlockHeader, db::OnChainStorageRW};
+
+        let db = Database::memory();
+        let header = |height, parent_hash| BlockHeader {
+            height,
+            timestamp: height as u64,
+            parent_hash,
+        };
+        // Linear eth chain b1 <- b2 <- b3, plus a sibling fork at b2's height.
+        let b1 = H256::from_low_u64_be(0xE1);
+        let b2 = H256::from_low_u64_be(0xE2);
+        let b3 = H256::from_low_u64_be(0xE3);
+        let fork = H256::from_low_u64_be(0xF2);
+        db.set_block_header(b1, header(1, H256::zero()));
+        db.set_block_header(b2, header(2, b1));
+        db.set_block_header(b3, header(3, b2));
+        db.set_block_header(fork, header(2, b1));
+
+        // Genesis anchor (zero) is ancestor-or-equal of every block, itself included.
+        assert!(is_strict_descendant_eth_block(&db, H256::zero(), H256::zero()).unwrap());
+        assert!(is_strict_descendant_eth_block(&db, b3, H256::zero()).unwrap());
+
+        // Equal non-zero anchors are accepted: the anchor may stay put between commits.
+        assert!(is_strict_descendant_eth_block(&db, b2, b2).unwrap());
+
+        // Proper descendants.
+        assert!(is_strict_descendant_eth_block(&db, b3, b1).unwrap());
+        assert!(is_strict_descendant_eth_block(&db, b3, b2).unwrap());
+
+        // Non-descendants: sibling fork, or a block at/below the ancestor height.
+        assert!(!is_strict_descendant_eth_block(&db, fork, b2).unwrap());
+        assert!(!is_strict_descendant_eth_block(&db, b1, b2).unwrap());
+        assert!(!is_strict_descendant_eth_block(&db, fork, b3).unwrap());
+
+        // A missing header on the walk surfaces as an error.
+        let missing = H256::from_low_u64_be(0xDEAD);
+        assert!(is_strict_descendant_eth_block(&db, missing, b1).is_err());
+    }
 }

@@ -158,6 +158,8 @@ pub enum ComputeError {
     ParentMbStatesMissing(H256),
     #[error("parent MB {0} marked computed but schedule row missing")]
     ParentMbScheduleMissing(H256),
+    #[error("parent MB {0} has no last_advanced_eb (process_mb_proposal must set it)")]
+    ParentMbLastAdvancedEbMissing(H256),
     #[error("block events row missing for advance-chain block({0})")]
     AdvanceBlockEventsMissing(H256),
     #[error("anchor Eth block header missing for {0}")]

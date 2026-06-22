@@ -252,8 +252,8 @@ pub fn prepare_executable_for_mb(
 /// Walk the MB's `Operations` list and prepare processor input.
 ///
 /// Synthetic block height/timestamp come from `last_advanced_eb` (the latest
-/// EB pinned by this MB or any ancestor); if none, fall back to the router's
-/// genesis block from [`ConfigStorageRO::config`].
+/// EB pinned by this MB or any ancestor); the zero sentinel falls back to the
+/// router's genesis block from [`ConfigStorageRO::config`].
 fn build_executable_data(
     db: &Database,
     operations: Operations,
@@ -596,6 +596,11 @@ mod tests {
                 operations_hash,
             },
         );
+        // Mimic `process_mb_proposal`, which always populates `last_advanced_eb`
+        // before an MB is computed.
+        db.mutate_mb_meta(mb_hash, |meta| {
+            meta.last_advanced_eb = Some(H256::zero());
+        });
     }
 
     /// `seed_mb` plus the malachite-side bookkeeping: record the advanced EB

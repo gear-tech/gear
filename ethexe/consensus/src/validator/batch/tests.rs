@@ -341,7 +341,6 @@ async fn rejects_head_mb_at_or_below_last_committed_mb() {
     // With head_mb == last_committed_mb there is nothing left to commit:
     // the chain walk is empty, no chain/code/validators/rewards commitment
     // is produced, so the batch is rejected as empty.
-    let _ = head;
     assert_eq!(unwrap_rejected(status), ValidationRejectReason::EmptyBatch);
 }
 
