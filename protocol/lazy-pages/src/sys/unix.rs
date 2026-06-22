@@ -22,7 +22,7 @@ use std::{io, sync::OnceLock};
 static OLD_SIG_HANDLER: OnceLock<SigHandler> = OnceLock::new();
 
 cfg_if! {
-    if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
+    if #[cfg(all(any(target_os = "linux", target_os = "android"), target_arch = "x86_64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             let error_reg = nix::libc::REG_ERR as usize;
             let error_code = unsafe { *ucontext }.uc_mcontext.gregs[error_reg];
@@ -30,18 +30,12 @@ cfg_if! {
             // See https://wiki.osdev.org/Exceptions#Page_Fault.
             Some(error_code & 0b10 == 0b10)
         }
-    } else if #[cfg(all(target_os = "linux", target_arch = "aarch64"))] {
+    } else if #[cfg(all(any(target_os = "linux", target_os = "android"), target_arch = "aarch64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
-            let esr = unix_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
-            // Use the WNR bit to determine if it was a write access.
-            // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-?lang=en#fieldset_0-24_0_15-6_6
-            let is_wnr = (esr & 0b100_0000) != 0;
-            Some(is_wnr)
-        }
-    } else if #[cfg(all(target_os = "android", target_arch = "aarch64"))] {
-        unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
-            /// `libc::ucontext_t` is bit different on Android, it has padding.
-            /// See https://android.googlesource.com/platform/bionic/+/refs/tags/ndk-r29/libc/include/sys/ucontext.h#386
+            /// `libc::ucontext_t` is bit different on Android, it has `__padding`:
+            /// - https://github.com/rust-lang/libc/issues/5159
+            /// - https://android.googlesource.com/platform/bionic/+/refs/tags/ndk-r29/libc/include/sys/ucontext.h#102
+            #[cfg(target_os = "android")]
             #[repr(C)]
             pub struct android_ucontext_t {
                 pub uc_flags: nix::libc::c_ulong,
@@ -51,6 +45,7 @@ cfg_if! {
                 pub __padding: [u8; 128 - size_of::<nix::libc::sigset_t>()],
                 pub uc_mcontext: nix::libc::mcontext_t,
             }
+            #[cfg(target_os = "android")]
             let ucontext = ucontext as *mut android_ucontext_t;
             let esr = unix_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
             // Use the WNR bit to determine if it was a write access.
