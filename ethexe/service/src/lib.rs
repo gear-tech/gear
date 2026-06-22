@@ -781,6 +781,10 @@ impl Service {
                                 g.latest_computed_mb_hash = mb_hash;
                             }
                         });
+
+                        if let Some(rpc) = &rpc {
+                            rpc.receive_mb_computed(mb_hash);
+                        }
                     }
                     ComputeEvent::Promise(promise, _mb_hash) => {
                         // The local node always feeds its computed body

@@ -5,7 +5,7 @@ use crate::VaraEthApi;
 use alloy::rpc::types::TransactionReceipt;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use ethexe_common::{
-    Address, SimpleBlockData,
+    Address, HashOf, SimpleBlockData,
     gear_core::rpc::ReplyInfo,
     injected::{
         InjectedTransaction, InjectedTransactionAcceptance, Promise, Receipt,
@@ -19,11 +19,15 @@ use ethexe_ethereum::{
         MirrorQuery as EthereumMirrorQuery,
     },
 };
-use ethexe_rpc::{CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramClient};
-use ethexe_runtime_common::state::ProgramState;
+use ethexe_rpc::{
+    CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramBestState,
+    ProgramClient,
+};
+use ethexe_runtime_common::state::{Mailbox, ProgramState, UserMailbox};
 use futures::TryFutureExt;
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use gsigner::secp256k1::Secp256k1SignerExt;
+use jsonrpsee::core::client::Subscription;
 
 pub struct Mirror<'a> {
     pub(crate) api: &'a VaraEthApi,
@@ -75,6 +79,25 @@ impl<'a> Mirror<'a> {
         self.api
             .vara_eth_client
             .read_full_state(state_hash)
+            .map_err(Into::into)
+            .await
+    }
+
+    pub async fn mailbox(&self, mailbox_hash: HashOf<Mailbox>) -> Result<Mailbox> {
+        self.api
+            .vara_eth_client
+            .read_mailbox(mailbox_hash.inner())
+            .map_err(Into::into)
+            .await
+    }
+
+    pub async fn user_mailbox(
+        &self,
+        user_mailbox_hash: HashOf<UserMailbox>,
+    ) -> Result<UserMailbox> {
+        self.api
+            .vara_eth_client
+            .read_user_mailbox(user_mailbox_hash.inner())
             .map_err(Into::into)
             .await
     }
@@ -279,6 +302,17 @@ impl<'a> Mirror<'a> {
         };
 
         Ok((message_id, promise))
+    }
+
+    /// Subscribes to this program's best state, yielding a [`ProgramBestState`]
+    /// on every newly computed MB that produces a transition for the program.
+    pub async fn subscribe_best_state(&self) -> Result<Subscription<ProgramBestState>> {
+        let program_id = self.actor_id().to_address_lossy();
+        self.api
+            .vara_eth_client
+            .subscribe_best_state(program_id)
+            .await
+            .with_context(|| "failed to subscribe to program best state")
     }
 
     pub async fn wait_for_reply(&self, message_id: MessageId) -> Result<ReplyInfo> {

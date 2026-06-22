@@ -5,7 +5,7 @@ use crate::{
     AlloyEthereum, AlloyProvider, Eip712PermitData, Ethereum, IntoBlockId, Sender, TryGetReceipt,
     abi::{
         GearLib, IRouter,
-        utils::{uint48_to_u64, uint256_to_u256},
+        utils::{uint48_to_u64, uint256_to_u128_lossy, uint256_to_u256},
     },
     router::events::AllEventsBuilder,
     wvara::WVara,
@@ -597,6 +597,15 @@ impl RouterQuery {
 
     pub fn events(&self) -> RouterEvents<'_> {
         RouterEvents { query: self }
+    }
+
+    pub async fn balance(&self) -> Result<u128> {
+        self.instance
+            .provider()
+            .get_balance(*self.instance.address())
+            .await
+            .map(uint256_to_u128_lossy)
+            .map_err(Into::into)
     }
 
     // TODO: move StorageView into ethexe-common and export
