@@ -27,7 +27,10 @@
 //! `ethexe-malachite`) so `ethexe-processor` can accept them without
 //! depending on the consensus layer.
 
-use crate::injected::SignedInjectedTransaction;
+#[cfg(all(feature = "shielded", feature = "std"))]
+use std::num::NonZeroUsize;
+
+use crate::{Address, injected::SignedInjectedTransaction};
 #[cfg(feature = "shielded")]
 use crate::{HashOf, ToDigest, injected::ShieldedTransaction};
 use alloc::vec::Vec;
@@ -38,9 +41,11 @@ use parity_scale_codec::{Decode, Encode};
 use {
     crate::injected::SignedShieldedTransaction,
     gear_tdec::bls12_381::DecryptionShareSimple,
-    gsigner::{PublicDecryptionContext, SignedMessage},
-    sha3::Keccak256,
+    gsigner::SignedMessage,
+    sha3::{Digest as _, Keccak256},
 };
+#[cfg(all(feature = "shielded", feature = "std"))]
+use {gsigner::PublicDecryptionContext, std::collections::HashMap};
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -175,18 +180,19 @@ impl Operations {
     }
 }
 
-#[cfg(feature = "shielded")]
+#[cfg(all(feature = "shielded", feature = "std"))]
 #[derive(Debug, Clone)]
 pub struct MalachiteTdecContext {
     /// Minimal number of decryption shares required to decrypt transaction.
-    pub threshold: u8,
+    pub threshold: NonZeroUsize,
     /// Current validator's public decryption context.
     /// Private data stored in [TdecKeyStore].
     ///
     /// [TdecKeyStore]: gsigner::tdec::TdecKeyStore
     pub my_context: PublicDecryptionContext,
-    /// Public contexts of the remaining validators involved in decryption.
-    pub others_contexts: Vec<PublicDecryptionContext>,
+    /// Public decryption context of every validator involved in decryption,
+    /// including the current validator.
+    pub contexts: HashMap<Address, PublicDecryptionContext>,
 }
 
 /// One validator's decryption-share payload for one shielded transaction.
@@ -215,7 +221,7 @@ pub struct BlockDecryptionData {
 #[cfg(feature = "shielded")]
 impl ToDigest for BlockDecryptionData {
     fn update_hasher(&self, hasher: &mut Keccak256) {
-        // TODO:
+        hasher.update(self.encode());
     }
 }
 

@@ -3,7 +3,7 @@
 
 //! In-memory collection of threshold-decryption shares.
 
-use ethexe_common::{HashOf, injected::ShieldedTransaction};
+use ethexe_common::{Address, HashOf, injected::ShieldedTransaction};
 use gprimitives::H256;
 use gsigner::DecryptionShare;
 use std::{collections::HashMap, sync::Mutex};
@@ -21,17 +21,15 @@ pub(crate) enum InsertOutcome {
     UnknownTransaction,
 }
 
-/// Decryption shares grouped by MB, shielded transaction, and TDEC participant.
+/// Decryption shares grouped by MB, shielded transaction, and validator.
 ///
-/// The participant index addresses the corresponding entry in the local
-/// [`ethexe_common::malachite::MalachiteTdecContext`]. Shares are verified
-/// before reaching this store.
+/// Shares are verified before reaching this store.
 pub(crate) struct DecryptionSharesStore {
     inner: Mutex<HashMap<H256, BlockShares>>,
     changed: Notify,
 }
 
-type BlockShares = HashMap<ShieldedTxHash, HashMap<usize, DecryptionShare>>;
+type BlockShares = HashMap<ShieldedTxHash, HashMap<Address, DecryptionShare>>;
 
 impl DecryptionSharesStore {
     /// Constructs new empty decryption shares store.
@@ -65,7 +63,7 @@ impl DecryptionSharesStore {
         &self,
         mb_hash: H256,
         tx_hash: ShieldedTxHash,
-        participant: usize,
+        validator: Address,
         share: DecryptionShare,
     ) -> InsertOutcome {
         let mut blocks = self.inner.lock().expect("decryption shares poisoned");
@@ -76,11 +74,11 @@ impl DecryptionSharesStore {
             return InsertOutcome::UnknownTransaction;
         };
 
-        let outcome = match shares.get(&participant) {
+        let outcome = match shares.get(&validator) {
             Some(existing) if existing == &share => InsertOutcome::Duplicate,
             Some(_) => InsertOutcome::Equivocation,
             None => {
-                shares.insert(participant, share);
+                shares.insert(validator, share);
                 InsertOutcome::Inserted
             }
         };
@@ -92,23 +90,36 @@ impl DecryptionSharesStore {
         outcome
     }
 
-    /// Return verified shares ordered by participant index.
-    pub(crate) fn shares(
+    /// Return exactly `threshold` verified shares ordered by validator address.
+    ///
+    /// Returns `None` until enough distinct validators have provided a share.
+    pub(crate) fn threshold_shares(
         &self,
         mb_hash: H256,
         tx_hash: ShieldedTxHash,
-    ) -> Vec<(usize, DecryptionShare)> {
+        threshold: usize,
+    ) -> Option<Vec<(Address, DecryptionShare)>> {
         let blocks = self.inner.lock().expect("decryption shares poisoned");
-        let Some(shares) = blocks.get(&mb_hash).and_then(|block| block.get(&tx_hash)) else {
-            return Vec::new();
-        };
+        let shares = blocks.get(&mb_hash)?.get(&tx_hash)?;
+        if shares.len() < threshold {
+            return None;
+        }
 
-        let mut shares = shares
-            .iter()
-            .map(|(participant, share)| (*participant, share.clone()))
-            .collect::<Vec<_>>();
-        shares.sort_unstable_by_key(|(participant, _)| *participant);
-        shares
+        let mut validators = shares.keys().copied().collect::<Vec<_>>();
+        validators.sort_unstable();
+        Some(
+            validators
+                .into_iter()
+                .take(threshold)
+                .map(|validator| {
+                    let share = shares
+                        .get(&validator)
+                        .expect("validator was collected from this map")
+                        .clone();
+                    (validator, share)
+                })
+                .collect(),
+        )
     }
 
     /// Keep decryption shares only for the finalized MB.
@@ -150,6 +161,10 @@ mod tests {
         unsafe { HashOf::new(H256::random()) }
     }
 
+    fn validator(byte: u8) -> Address {
+        [byte; 20].into()
+    }
+
     #[tokio::test]
     async fn insertion_is_idempotent_and_notifies() {
         let store = DecryptionSharesStore::new();
@@ -159,17 +174,39 @@ mod tests {
         store.register_block(mb_hash, [tx_hash]);
 
         assert_eq!(
-            store.insert(mb_hash, tx_hash, 0, share.clone()),
+            store.insert(mb_hash, tx_hash, validator(1), share.clone()),
             InsertOutcome::Inserted
         );
         tokio::time::timeout(std::time::Duration::from_millis(10), store.notified())
             .await
             .expect("insert notification is retained");
         assert_eq!(
-            store.insert(mb_hash, tx_hash, 0, share),
+            store.insert(mb_hash, tx_hash, validator(1), share),
             InsertOutcome::Duplicate
         );
-        assert_eq!(store.shares(mb_hash, tx_hash).len(), 1);
+        assert_eq!(
+            store.threshold_shares(mb_hash, tx_hash, 1).unwrap().len(),
+            1
+        );
+    }
+
+    #[test]
+    fn threshold_query_is_deterministic_and_limited() {
+        let store = DecryptionSharesStore::new();
+        let mb_hash = H256::random();
+        let tx_hash = random_tx_hash();
+        let (first_share, second_share) = shares();
+        store.register_block(mb_hash, [tx_hash]);
+        store.insert(mb_hash, tx_hash, validator(2), second_share);
+
+        assert!(store.threshold_shares(mb_hash, tx_hash, 2).is_none());
+
+        store.insert(mb_hash, tx_hash, validator(1), first_share);
+        let shares = store
+            .threshold_shares(mb_hash, tx_hash, 1)
+            .expect("threshold reached");
+        assert_eq!(shares.len(), 1);
+        assert_eq!(shares[0].0, validator(1));
     }
 
     #[test]
@@ -181,20 +218,20 @@ mod tests {
         let (share, conflicting_share) = shares();
 
         assert_eq!(
-            store.insert(mb_hash, tx_hash, 0, share.clone()),
+            store.insert(mb_hash, tx_hash, validator(1), share.clone()),
             InsertOutcome::UnknownBlock
         );
         store.register_block(mb_hash, [tx_hash]);
         assert_eq!(
-            store.insert(mb_hash, other_tx_hash, 0, share.clone()),
+            store.insert(mb_hash, other_tx_hash, validator(1), share.clone()),
             InsertOutcome::UnknownTransaction
         );
         assert_eq!(
-            store.insert(mb_hash, tx_hash, 0, share),
+            store.insert(mb_hash, tx_hash, validator(1), share),
             InsertOutcome::Inserted
         );
         assert_eq!(
-            store.insert(mb_hash, tx_hash, 0, conflicting_share),
+            store.insert(mb_hash, tx_hash, validator(1), conflicting_share),
             InsertOutcome::Equivocation
         );
     }
@@ -209,14 +246,14 @@ mod tests {
         store.register_block(finalized, [tx_hash]);
         store.register_block(sibling, [tx_hash]);
         assert_eq!(
-            store.insert(sibling, tx_hash, 0, share.clone()),
+            store.insert(sibling, tx_hash, validator(1), share.clone()),
             InsertOutcome::Inserted
         );
 
         store.retain_block(finalized);
 
         assert_eq!(
-            store.insert(sibling, tx_hash, 0, share),
+            store.insert(sibling, tx_hash, validator(1), share),
             InsertOutcome::UnknownBlock
         );
     }

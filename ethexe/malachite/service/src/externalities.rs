@@ -67,7 +67,7 @@ use gprimitives::H256;
 use gsigner::tdec::TdecKeyStore;
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     sync::{Arc, Mutex, RwLock},
 };
 use tokio::sync::{Notify, mpsc};
@@ -201,6 +201,13 @@ impl Externalities for EthexeExternalities {
             return Ok(());
         };
         let decryption_context = &context.my_context;
+        let Some(local_validator) = context.contexts.iter().find_map(|(address, participant)| {
+            (participant.validator_public_key == decryption_context.validator_public_key)
+                .then_some(*address)
+        }) else {
+            warn!("local TDEC context is absent from validator contexts");
+            return Ok(());
+        };
 
         let mut shares = Vec::with_capacity(shielded_transactions.len());
         for tx in shielded_transactions {
@@ -212,9 +219,9 @@ impl Externalities for EthexeExternalities {
                 continue;
             };
             let tx_hash = tx.to_hash();
-            let outcome = self
-                .decryption_shares
-                .insert(mb_hash, tx_hash, 0, share.clone());
+            let outcome =
+                self.decryption_shares
+                    .insert(mb_hash, tx_hash, local_validator, share.clone());
             debug_assert!(matches!(
                 outcome,
                 InsertOutcome::Inserted | InsertOutcome::Duplicate
@@ -796,6 +803,10 @@ impl EthexeExternalities {
         &self,
         parent_mb_hash: H256,
     ) -> Result<Option<HashMap<HashOf<ShieldedTransaction>, SharedSecret>>> {
+        let Some(ctx) = self.tdec_ctx.as_ref() else {
+            bail!("block producer has no threshold-decryption context")
+        };
+
         if parent_mb_hash.is_zero() {
             return Ok(None);
         }
@@ -810,47 +821,42 @@ impl EthexeExternalities {
             )
         };
 
-        let shielded = operations
+        let mut pending = operations
             .iter()
-            .filter_map(|op| op.as_shielded().map(|tx| tx.data()))
-            .collect::<Vec<_>>();
+            .filter_map(|op| op.as_shielded().map(|tx| tx.data().to_hash()))
+            .collect::<HashSet<_>>();
 
         // No shielded transactions in previous block, do not need to wait for decryption shares.
-        if shielded.is_empty() {
+        if pending.is_empty() {
             return Ok(None);
         }
 
-        let Some(ctx) = self.tdec_ctx.as_ref() else {
-            bail!("block producer has no threshold-decryption context")
-        };
-        let contexts = std::iter::once(&ctx.my_context)
-            .chain(ctx.others_contexts.iter())
-            .collect::<Vec<_>>();
-        let threshold = usize::from(ctx.threshold);
-        if threshold == 0 || threshold > contexts.len() {
+        let threshold = ctx.threshold.get();
+        if threshold > ctx.contexts.len() {
             bail!(
-                "invalid threshold-decryption context: threshold={}, participants={}",
-                threshold,
-                contexts.len()
+                "invalid threshold-decryption context: threshold={threshold}, participants={}",
+                ctx.contexts.len()
             );
         }
 
-        loop {
-            let mut keys = HashMap::with_capacity(shielded.len());
-            let mut complete = true;
+        let mut keys = HashMap::with_capacity(pending.len());
+        while !pending.is_empty() {
+            pending.retain(|tx_hash| {
+                let Some(selected) =
+                    self.decryption_shares
+                        .threshold_shares(parent_mb_hash, *tx_hash, threshold)
+                else {
+                    return true;
+                };
 
-            for tx in &shielded {
-                let tx_hash = tx.to_hash();
-                let shares = self.decryption_shares.shares(parent_mb_hash, tx_hash);
-                if shares.len() < threshold {
-                    complete = false;
-                    break;
-                }
-
-                let selected = shares.into_iter().take(threshold).collect::<Vec<_>>();
                 let domains = selected
                     .iter()
-                    .map(|(participant, _)| contexts[*participant].domain)
+                    .map(|(validator, _)| {
+                        ctx.contexts
+                            .get(validator)
+                            .expect("stored share has a validator context")
+                            .domain
+                    })
                     .collect::<Vec<_>>();
                 let shares = selected
                     .into_iter()
@@ -858,17 +864,18 @@ impl EthexeExternalities {
                     .collect::<Vec<DecryptionShareSimple>>();
                 let coefficients = prepare_combine_simple::<gear_tdec::bls12_381::E>(&domains);
                 keys.insert(
-                    tx_hash,
+                    *tx_hash,
                     share_combine_simple::<gear_tdec::bls12_381::E>(&shares, &coefficients),
                 );
-            }
+                false
+            });
 
-            if complete {
-                return Ok(Some(keys));
+            if !pending.is_empty() {
+                self.decryption_shares.notified().await;
             }
-
-            self.decryption_shares.notified().await;
         }
+
+        Ok(Some(keys))
     }
 
     pub(crate) fn receive_decryption_shares(&self, signed: SignedBlockDecryptionShares) {
@@ -893,14 +900,15 @@ impl EthexeExternalities {
             return;
         };
 
+        let Some(participant_context) = context.contexts.get(&sender) else {
+            debug!(%sender, "ignoring decryption shares from unknown TDEC participant");
+            return;
+        };
         let transactions = operations
             .iter()
             .filter_map(|op| op.as_shielded().map(|signed| signed.data()))
             .map(|tx| (tx.to_hash(), tx))
             .collect::<HashMap<_, _>>();
-        let contexts = std::iter::once(&context.my_context)
-            .chain(context.others_contexts.iter())
-            .collect::<Vec<_>>();
 
         for message_share in &data.shares {
             let Some(transaction) = transactions.get(&message_share.tx_hash) else {
@@ -912,14 +920,11 @@ impl EthexeExternalities {
                 );
                 continue;
             };
-            let participant = contexts.iter().position(|context| {
-                message_share.share.verify(
-                    &context.blinded_key_share.blinded_key_share,
-                    &context.validator_public_key.encryption_key,
-                    &transaction.ciphertext,
-                )
-            });
-            let Some(participant) = participant else {
+            if !message_share.share.verify(
+                &participant_context.blinded_key_share.blinded_key_share,
+                &participant_context.validator_public_key.encryption_key,
+                &transaction.ciphertext,
+            ) {
                 debug!(
                     %sender,
                     mb_hash = %data.mb_hash,
@@ -927,12 +932,12 @@ impl EthexeExternalities {
                     "ignoring invalid decryption share",
                 );
                 continue;
-            };
+            }
 
             match self.decryption_shares.insert(
                 data.mb_hash,
                 message_share.tx_hash,
-                participant,
+                sender,
                 message_share.share.clone(),
             ) {
                 InsertOutcome::Inserted | InsertOutcome::Duplicate => {}
@@ -940,7 +945,6 @@ impl EthexeExternalities {
                     %sender,
                     mb_hash = %data.mb_hash,
                     tx_hash = %message_share.tx_hash.inner(),
-                    participant,
                     "conflicting valid decryption share from the same participant",
                 ),
                 InsertOutcome::UnknownBlock | InsertOutcome::UnknownTransaction => debug!(
