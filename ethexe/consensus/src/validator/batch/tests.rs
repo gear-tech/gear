@@ -14,7 +14,7 @@ use crate::validator::core::MiddlewareWrapper;
 use ethexe_common::{
     Address, Digest, ProgramStates, Schedule, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRW, MbStorageRW, SetConfig},
+    db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRW, MbStorageRO, MbStorageRW, SetConfig},
     gear::StateTransition,
     malachite::{Operation, Operations},
     mock::*,
@@ -302,6 +302,48 @@ async fn rejects_head_mb_not_finalized_locally() {
         unwrap_rejected(status),
         ValidationRejectReason::HeadMbNotFinalized(foreign_head)
     );
+}
+
+#[tokio::test]
+async fn accepts_head_finalized_by_reachability_when_cache_flag_unset() {
+    // A freshly-started validator (e.g. right after a validator-set handover)
+    // learns the prior chain's finality indirectly — sync / on-chain
+    // `MBCommitted` — without replaying `process_mb_finalized` for every MB, so
+    // the per-MB `finalized` cache can be unset on MBs that are nonetheless
+    // reachable from the finalized tip. Such a head MUST be accepted, otherwise
+    // the new validator set can never commit and the handover stalls.
+    let db = Database::memory();
+    let (block, batch) = prepare_canonical_batch(&db).await;
+
+    // Simulate the synced node: clear the `finalized` cache on the whole chain.
+    // `globals.latest_finalized_mb_hash` (set by `setup_mb_chain`) still points
+    // at the head, so reachability holds.
+    let head = batch
+        .chain_commitment
+        .as_ref()
+        .expect("canonical batch has a chain commitment")
+        .head;
+    let mut cursor = head;
+    while !cursor.is_zero() {
+        db.mutate_mb_meta(cursor, |m| m.finalized = false);
+        cursor = db
+            .mb_compact_block(cursor)
+            .map(|c| c.parent)
+            .unwrap_or(H256::zero());
+    }
+
+    let manager = mock_batch_manager(db);
+    let request = BatchCommitmentValidationRequest::new(&batch);
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    match status {
+        ValidationStatus::Accepted(_) => {}
+        ValidationStatus::Rejected { reason, .. } => {
+            panic!("expected acceptance via reachability, got rejection: {reason:?}")
+        }
+    }
 }
 
 #[tokio::test]

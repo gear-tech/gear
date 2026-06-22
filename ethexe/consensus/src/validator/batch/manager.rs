@@ -11,7 +11,10 @@ use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
     SimpleBlockData, ToDigest,
     consensus::{BatchCommitmentValidationRequest, MAX_BATCH_SIZE_LIMIT},
-    db::{BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, MbStorageRO, OnChainStorageRO},
+    db::{
+        BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO,
+        OnChainStorageRO,
+    },
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -189,7 +192,16 @@ impl BatchCommitmentManager {
     ) -> Result<Option<ValidationRejectReason>> {
         let head_mb_meta = self.db.mb_meta(head_mb_hash);
 
-        if !head_mb_meta.finalized {
+        // "Finalized locally" is a reachability property from the BFT-finalized
+        // tip, not just the per-MB `finalized` cache: a freshly-started
+        // validator learns the prior chain's finality indirectly (sync /
+        // on-chain `MBCommitted`) without running `process_mb_finalized` for
+        // every ancestor, so the cache bit can be unset on MBs that are in fact
+        // finalized. The flag is kept as a fast path.
+        let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
+        if !head_mb_meta.finalized
+            && !utils::is_finalized_locally(&self.db, head_mb_hash, latest_finalized_mb)
+        {
             return Ok(Some(ValidationRejectReason::HeadMbNotFinalized(
                 head_mb_hash,
             )));

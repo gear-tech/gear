@@ -429,6 +429,39 @@ pub fn is_strict_descendant_eth_block<DB: OnChainStorageRO>(
     Ok(true)
 }
 
+/// `true` iff `candidate` is BFT-finalized locally — i.e. it is `H256::zero()`
+/// (genesis sentinel) or reachable from `latest_finalized_mb` by walking
+/// `CompactMb::parent`.
+///
+/// This is the source of truth for "finalized locally": any two finalized MBs
+/// are linearly ordered by BFT, so reachability from the finalized tip is an
+/// exact membership test, and — unlike the per-MB `MbMeta::finalized` cache —
+/// it also covers MBs a node learned about indirectly (sync, on-chain
+/// `MBCommitted`) without replaying `process_mb_finalized` for each one.
+pub fn is_finalized_locally<DB: MbStorageRO>(
+    db: &DB,
+    candidate: H256,
+    latest_finalized_mb: H256,
+) -> bool {
+    if candidate.is_zero() || candidate == latest_finalized_mb {
+        return true;
+    }
+    if latest_finalized_mb.is_zero() {
+        return false;
+    }
+    let mut current = latest_finalized_mb;
+    while !current.is_zero() {
+        if current == candidate {
+            return true;
+        }
+        current = db
+            .mb_compact_block(current)
+            .map(|c| c.parent)
+            .unwrap_or(H256::zero());
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
