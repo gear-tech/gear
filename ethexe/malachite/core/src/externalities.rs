@@ -3,104 +3,52 @@
 
 //! Application callbacks the service makes to the outside world.
 
-use crate::{
-    BlockPayload,
-    types::{Block, CommitCertificate, H256},
-};
+use crate::types::{Block, BlockPayload, CommitCertificate, H256};
 use anyhow::Result;
 use async_trait::async_trait;
+use ethexe_common::Acceptance;
 
 /// Application-side callbacks the consensus service requires.
+/// The application contributes only the opaque [`BlockPayload`];
+/// everything BFT-related stays inside the service.
 ///
-/// The service is application-agnostic: it owns the BFT engine, the
-/// libp2p swarm, and the persistent BFT state. The opaque, size-capped
-/// payload byte string ([`BlockPayload`]) is the only
-/// shape the application contributes to a [`Block`] — encoding and
-/// decoding of any application-level schema lives behind this trait.
+/// Guaranteed happens-before ordering (`H256::zero()` parent = genesis):
 ///
-/// The service guarantees a strict happens-before ordering for the
-/// callbacks below — the application never has to maintain its own
-/// synchronization barrier:
-///
-/// 1. [`Self::process_mb_proposal`] for `mb_hash` is called as soon
-///    as a proposal carrying that hash has been assembled and
-///    validated locally (regardless of whether this node is the
-///    proposer, a participant that received the proposal over the
-///    network, or a full node that received a synced decided value),
-///    but **only after** every ancestor of `mb_hash` has already
-///    returned successfully from a previous `process_mb_proposal`
-///    call. Sibling proposals at the same height are possible (one
-///    per fork-causing round) and each is delivered exactly once
-///    per `mb_hash`.
-/// 2. [`Self::process_mb_finalized`] for `mb_hash` is called **only
-///    after** `process_mb_proposal` for that same `mb_hash` returned
-///    successfully **and** every ancestor has already been finalized
-///    via previous `process_mb_finalized` calls.
-/// 3. [`Self::build_block_above`] / [`Self::validate_block_above`]
-///    are called only after the parent has been finalized (or
-///    `parent_hash == H256::zero()` when building / validating the
-///    genesis block).
-///
-/// All methods are async; the service `await`s them inline.
+/// 1. [`Self::process_mb_proposal`] fires once per `mb_hash`, only after
+///    every ancestor's `process_mb_proposal` returned `Ok`. Sibling
+///    proposals at the same height are possible.
+/// 2. [`Self::process_mb_finalized`] fires only after the same hash's
+///    `process_mb_proposal` and every ancestor's finalization.
+/// 3. [`Self::build_block_above`] / [`Self::validate_block_above`] fire
+///    only after the parent has been finalized.
 #[async_trait]
 pub trait Externalities: Send + Sync + 'static {
-    /// Persist `block` indexed by `mb_hash`. Called exactly once
-    /// per `mb_hash` over the lifetime of an application instance,
-    /// at proposal-assembly time, after every ancestor's
-    /// `process_mb_proposal` has already returned `Ok`.
+    /// Persist `block` indexed by `mb_hash`; called exactly once per hash
+    /// at proposal-assembly time.
     async fn process_mb_proposal(&self, mb_hash: H256, block: Block) -> Result<()>;
 
-    /// Mark `mb_hash` as finalized and durable.
-    ///
-    /// `cert` is the BFT commit certificate for the height of
-    /// `mb_hash`. The application typically forwards `cert` to
-    /// downstream layers (on-chain commits, light clients, etc.).
+    /// Mark `mb_hash` as finalized; `cert` is the BFT commit certificate
+    /// for its height.
     async fn process_mb_finalized(&self, mb_hash: H256, cert: CommitCertificate) -> Result<()>;
 
-    /// Build a fresh block payload whose parent has hash
-    /// `parent_mb_hash`. Called only when this node has been elected
-    /// proposer. The new block's height is derivable from `parent_mb_hash`
-    /// (parent.height + 1, or 1 for genesis), so it isn't passed
-    /// explicitly here.
+    /// Build a fresh block payload on top of `parent_mb_hash`; called only
+    /// when this node is the elected proposer.
     ///
-    /// The future may take an arbitrarily long time — for example to
-    /// wait on a mempool, an external block source, or a chain head
-    /// — and the service races it against
-    /// [`crate::MalachiteConfig::propose_timeout`]. On timeout the
-    /// future is cancelled (dropped); implementations must be
-    /// cancellation-safe.
-    ///
-    /// `parent_hash == H256::zero()` is passed when building the
-    /// genesis block.
+    /// The future may wait arbitrarily long — the service races it against
+    /// [`crate::MalachiteCoreConfig::propose_timeout`] and cancels it on
+    /// timeout, so implementations must be cancellation-safe.
     async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload>;
 
-    /// Application-side validation of an incoming proposal's
-    /// **payload only**.
+    /// Application-side validation of an incoming proposal's **payload
+    /// only** — parent linkage and height are checked by the consensus
+    /// layer before this hook fires.
     ///
-    /// Parent linkage and height progression are validated inside
-    /// the consensus layer before this hook fires; the caller still
-    /// passes `parent_mb_hash` for context (e.g. to read ancestor state
-    /// from an application-side store) but is not expected to
-    /// re-check `block.parent_mb_hash`. `parent_mb_hash == H256::zero()`
-    /// signals the genesis block.
-    ///
-    /// Typical responsibilities:
-    /// - the payload bytes decode against the application's schema;
-    /// - the decoded content is well-formed against the application's
-    ///   protocol invariants (gas budget, single anchor advance,
-    ///   operation shape, etc.).
-    /// - Optionally a stronger proposer-authorization check on top
-    ///   of malachite's validator set.
-    ///
-    /// Returns `Ok(true)` to vote for the proposal, `Ok(false)` to
-    /// reject without crashing, `Err(_)` for an unexpected internal
-    /// failure (surfaces as an error event on the service stream).
-    ///
-    /// Not called on the sync path — sync values come with a quorum
-    /// commit certificate and are accepted on that basis alone.
+    /// Returns `Accepted` to vote for the proposal, `Rejected(reason)` to
+    /// vote nil, `Err(_)` for an unexpected internal failure. Not called
+    /// on the sync path (sync values carry a quorum certificate).
     async fn validate_block_above(
         &self,
         parent_mb_hash: H256,
-        payload: BlockPayload,
-    ) -> Result<bool>;
+        payload: &BlockPayload,
+    ) -> Result<Acceptance<(), String>>;
 }

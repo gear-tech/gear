@@ -11,15 +11,16 @@
 //! [`MalachiteEvent`]s.
 //!
 //! `ethexe-service` constructs the service at startup and is the sole consumer of
-//! its output `Stream` of [`MalachiteEvent`]; it calls `receive_new_chain_head`
-//! on each `ObserverEvent::BlockSynced`.
+//! its output `Stream` of [`MalachiteEvent`]; it calls `receive_new_eb` on each
+//! `ObserverEvent::Block` and `receive_eb_synced` on each
+//! `ObserverEvent::BlockSynced`.
 //!
 //! ## Public API
 //!
 //! - [`MalachiteService`] (struct) — Public facade; `Stream` + driver methods
 //! - [`MalachiteEvent`] (enum) — Output event: proposal, finalization, purged txs
 //! - [`CommitCertificate`] (struct) — BFT commit proof attached to `BlockFinalized`
-//! - [`MalachiteConfig`] (struct) — Service configuration
+//! - [`MalachiteServiceConfig`] (struct) — Service configuration
 //! - [`ValidatorEntry`] (struct) — Single entry in the validator set
 //! - [`Mempool`] (trait) — Producer-side injected-tx source
 //! - [`InjectedTxMempool`] (struct) — Real mempool implementation
@@ -27,17 +28,18 @@
 //! - [`TxValidity`] (enum) — Validity verdict: `Valid`, `Duplicate`, `Outdated`, …
 //!
 //! Driver methods on [`MalachiteService`]: `receive_injected_transaction`,
-//! `receive_new_chain_head`, `receive_eb_prepared`, `shutdown`.
+//! `receive_new_eb`, `receive_eb_synced`, `shutdown`.
 //!
 //! [`TxValidity`] gates inclusion: a producer drops any non-`Valid` tx when
 //! building an MB, and a validator rejects an entire MB that contains one.
 //!
 //! ## Caller Invariants
 //!
-//! - Construct with `MalachiteService::new(config, db, signer, validator_pub_key,
-//!   mempool)`. A `Some` key starts a `Validator` and must appear in
-//!   `config.validators`; `None` starts a gossip/sync-only `FullNode`. `new`
-//!   returns `Err` if `config.validators` is empty or the local key is absent.
+//! - Construct with `MalachiteServiceStarter::new(config, validator_config, db,
+//!   initial_chain_head)` followed by `.start()`. A `Some(validator_config)`
+//!   starts a `Validator` whose key must appear in `config.validators`; `None`
+//!   starts a gossip/sync-only `FullNode`. `new` returns `Err` if
+//!   `config.validators` is empty or the local key is absent from the signer.
 //! - `BlockProposal` is always emitted before the matching `BlockFinalized` for a
 //!   height; both series are emitted ancestor-first.
 //! - Tendermint's quorum threshold is `> 2/3` of total voting power across the
@@ -53,32 +55,32 @@ mod externalities;
 mod mempool;
 mod quarantine;
 mod service;
+mod starter;
 mod tx_validity;
-
-pub use crate::{
-    config::{MalachiteConfig, ValidatorEntry},
-    externalities::FastSyncReplayTarget,
-    mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
-    service::MalachiteService,
-    tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
-};
-pub use ethexe_common::{
-    injected::SignedInjectedTransaction,
-    malachite::{Operation, Operations},
-};
-pub use ethexe_malachite_core::{
-    MalachiteConfigEnvironment, Multiaddr, PeerId, derive_libp2p_secret,
-    libp2p_peer_id as malachite_libp2p_peer_id,
-};
-pub use gprimitives::H256;
+mod types;
 
 use ethexe_common::injected::PurgedTransaction;
+use gprimitives::H256;
 
-/// Ethexe-shaped commit certificate; `block_hash` is the Blake2b envelope hash.
+pub use crate::{
+    config::{MalachiteServiceConfig, ValidatorConfig, ValidatorEntry},
+    mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
+    service::MalachiteService,
+    starter::MalachiteServiceStarter,
+    tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
+};
+pub use ethexe_malachite_core::{
+    Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
+};
+
+/// Ethexe-shaped commit certificate.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct CommitCertificate {
+    /// Committed MB height.
     pub height: u64,
+    /// Blake2b envelope hash of the committed MB.
     pub mb_hash: H256,
+    /// Validator signatures backing the commit.
     pub signatures: Vec<Vec<u8>>,
 }
 
@@ -131,16 +133,4 @@ impl std::fmt::Display for MalachiteEvent {
             }
         }
     }
-}
-
-// Static check: the public types are stable.
-#[cfg(test)]
-#[allow(dead_code)]
-fn _api_shape(
-    _ev: MalachiteEvent,
-    _ops: Operations,
-    _cert: CommitCertificate,
-    _cfg: MalachiteConfig,
-    _tx: ethexe_common::injected::SignedInjectedTransaction,
-) {
 }

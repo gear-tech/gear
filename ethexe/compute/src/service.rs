@@ -98,6 +98,11 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
         };
 
         if let Poll::Ready(result) = self.prepare_sub_service.poll_next(cx) {
+            // A freshly prepared EB may unblock MBs that were deferred
+            // waiting for it (the gate Malachite used to own).
+            if let Ok(crate::prepare::Event::BlockPrepared(hash)) = &result {
+                self.mb_compute_sub_service.receive_prepared_block(*hash);
+            }
             return Poll::Ready(Some(result.map(ComputeEvent::from)));
         };
 
@@ -135,8 +140,8 @@ mod tests {
     use ethexe_common::{
         BlockHeader, CodeAndIdUnchecked,
         db::{
-            BlockMetaStorageRO, CodesStorageRO, CompactMb, MbStorageRO, MbStorageRW,
-            OnChainStorageRW,
+            BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, CompactMb, MbStorageRO,
+            MbStorageRW, OnChainStorageRW,
         },
         malachite::{Operation, Operations},
         mock::{Tap, seed_genesis_zero_mb},
@@ -147,16 +152,34 @@ mod tests {
     use proptest::{collection, prelude::*};
 
     fn seed_mb(db: &DB, mb_hash: H256, gas_allowance: u64) {
-        let eth_block_hash = H256::from_low_u64_be(0xEB00);
+        // Genesis Eth block (height 1) is the root of the advance chain; the
+        // genesis zero-MB is pinned to it so this MB walks a depth-1 chain.
+        let genesis_eb = H256::from_low_u64_be(0xEB00);
         db.set_block_header(
-            eth_block_hash,
+            genesis_eb,
             BlockHeader {
                 height: 1,
                 timestamp: 1,
                 parent_hash: H256::zero(),
             },
         );
+        db.set_block_events(genesis_eb, &[]);
+        db.mutate_mb_meta(H256::zero(), |m| m.last_advanced_eb = genesis_eb);
+
+        // The EB this MB advances to, chained onto the genesis Eth block.
+        let eth_block_hash = H256::from_low_u64_be(0xEB01);
+        db.set_block_header(
+            eth_block_hash,
+            BlockHeader {
+                height: 2,
+                timestamp: 2,
+                parent_hash: genesis_eb,
+            },
+        );
         db.set_block_events(eth_block_hash, &[]);
+        // Compute defers an MB until its advanced EB is prepared; mark it so the
+        // `compute_mb` test (which never pumps a `BlockPrepared`) runs immediately.
+        db.mutate_block_meta(eth_block_hash, |m| m.prepared = true);
 
         let operations_hash = db.set_operations(Operations::new(vec![
             Operation::AdvanceTillEthereumBlock {

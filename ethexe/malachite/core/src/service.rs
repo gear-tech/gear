@@ -1,12 +1,12 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! [`MalachiteService`] — the public entry point.
+//! [`MalachiteCore`] — the public entry point.
 
 use crate::{
     app,
     codec::ScaleCodec,
-    config::{Environment, MalachiteConfig, NodeRole},
+    config::{MalachiteCoreConfig, NodeRole},
     context::{MalachiteCtx, Validator, ValidatorSet},
     externalities::Externalities,
     signing::{
@@ -14,7 +14,7 @@ use crate::{
     },
     state::{SharedValidatorSet, State},
     store::Store,
-    types::{Address, H256},
+    types::Address,
 };
 use advisory_lock::{AdvisoryFileLock, FileLockMode};
 use anyhow::{Context as _, Result};
@@ -40,10 +40,7 @@ use std::{
     task::{Context as TaskContext, Poll},
     time::Duration,
 };
-use tokio::{
-    sync::{mpsc, oneshot},
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc, task::JoinHandle};
 
 /// Trait-object-friendly facade for the service. The stream carries
 /// only fatal app-task errors — successful events reach the
@@ -51,47 +48,31 @@ use tokio::{
 pub trait MService: Stream<Item = anyhow::Error> + Send + Unpin {}
 
 /// Application-agnostic Malachite BFT consensus service.
-pub struct MalachiteService<EXT: Externalities> {
-    start_tx: Option<oneshot::Sender<()>>,
+pub struct MalachiteCore<EXT: Externalities> {
+    /// Fatal errors forwarded from the app task.
     errors_rx: mpsc::UnboundedReceiver<anyhow::Error>,
+    /// Handle to the malachite engine actor tree.
     engine: EngineHandle,
+    /// Handle to the spawned app event-loop task.
     app_handle: JoinHandle<()>,
-    /// Path to the WAL file. [`Self::shutdown`] probes the advisory
-    /// lock on this path before returning so the next service
-    /// opening the same base dir does not race the WAL writer thread.
+    /// WAL file path; [`Self::shutdown`] probes its advisory lock before
+    /// returning so a restart on the same base dir doesn't race the writer.
     wal_path: PathBuf,
-    /// Shared with the inner app loop; [`Self::update_validators`]
-    /// writes here, the next `Finalized` / `ConsensusReady` reply reads.
+    /// Shared with the app loop; [`Self::update_validators`] writes here.
     validator_set: SharedValidatorSet,
-    /// Persistent app store, shared with the app task. Kept here for
-    /// startup decisions that need to inspect replay state before the
-    /// app task is released.
-    store: Store,
+    /// Keeps the externalities alive for the app task.
     _externalities: Arc<EXT>,
 }
 
-/// Upper bound on how long [`MalachiteService::shutdown`] will wait
-/// for the WAL advisory lock to be released after the engine actor
-/// has stopped. Empirically the writer thread drops the file within
-/// tens of milliseconds; this ceiling guards against pathological CI
-/// scheduling without ever blocking healthy shutdowns.
+/// Upper bound on how long [`MalachiteCore::shutdown`] waits for the WAL
+/// advisory lock to release after the engine actor has stopped.
 const WAL_LOCK_RELEASE_TIMEOUT: Duration = Duration::from_secs(10);
 const WAL_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
-/// Block until the WAL file at `wal_path` is no longer locked, or
-/// `timeout` has elapsed.
-///
-/// Malachite's WAL is owned by a [`std::thread`] (see
-/// `arc-malachitebft-engine`'s `wal::thread`); the engine actor's
-/// `post_stop` only sends a `Shutdown` message on a channel, and the
-/// thread releases its [`advisory_lock`] when it later drops the log.
-/// The actor's `JoinHandle` is therefore *not* a sufficient barrier —
-/// the writer thread can still be live (and the lock still held) after
-/// the engine task exits. We probe the lock here so callers of
-/// [`MalachiteService::shutdown`] can immediately re-open the same
-/// base dir without spurious "advisory lock held" errors.
-///
-/// A missing WAL file means we never wrote one; nothing to wait for.
+/// Block until the WAL file is no longer locked or `timeout` elapses.
+/// The WAL writer is a detached thread, so the engine actor's JoinHandle
+/// is not a sufficient barrier; probing the lock lets the caller re-open
+/// the same base dir right away. A missing WAL file passes immediately.
 async fn wait_wal_lock_released(wal_path: &Path, timeout: Duration) {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
@@ -120,43 +101,33 @@ async fn wait_wal_lock_released(wal_path: &Path, timeout: Duration) {
     }
 }
 
-impl<EXT: Externalities> Drop for MalachiteService<EXT> {
+impl<EXT: Externalities> Drop for MalachiteCore<EXT> {
     fn drop(&mut self) {
-        // Stop the engine actor so its libp2p / consensus children
-        // shut down cleanly, then abort the app and engine join handles.
-        // Note: this is a fire-and-forget shutdown — RocksDB locks
-        // and listening sockets may take a few hundred ms to release.
-        // Use [`Self::shutdown`] for tests that immediately re-open
-        // the same home directory.
+        // Fire-and-forget shutdown; locks and sockets may take a moment to
+        // release. Use [`Self::shutdown`] when re-opening the same base dir.
         self.engine.actor.kill();
         self.app_handle.abort();
         self.engine.handle.abort();
     }
 }
 
-impl<EXT: Externalities> MalachiteService<EXT> {
-    /// Block until the engine actor tree has finished shutting down
-    /// and any open file locks (RocksDB, WAL) have been released.
-    /// Use this before re-opening the same `base` to avoid
-    /// "advisory lock held" errors at the second `new()` call.
+impl<EXT: Externalities> MalachiteCore<EXT> {
+    /// Block until the engine actor tree has shut down and the file locks
+    /// (RocksDB, WAL) are released — required before re-opening the same `base`.
     pub async fn shutdown(mut self) {
         self.engine.actor.kill();
-        // `kill` is asynchronous — the actor finishes its current
-        // message and then stops, so we await the JoinHandles.
+        // `kill` is asynchronous — await the JoinHandles.
         let _ = (&mut self.engine.handle).await;
         self.app_handle.abort();
         let _ = (&mut self.app_handle).await;
-        // The engine task exiting doesn't synchronously release the
-        // WAL advisory lock — the writer is a detached std::thread.
-        // Probe the lock so callers can immediately re-open the same
-        // base dir.
+        // The WAL writer is a detached thread; probe its lock explicitly.
         wait_wal_lock_released(&self.wal_path, WAL_LOCK_RELEASE_TIMEOUT).await;
     }
 }
 
-impl<EXT: Externalities> MalachiteService<EXT> {
+impl<EXT: Externalities> MalachiteCore<EXT> {
     /// Bootstrap the service.
-    pub async fn new(config: MalachiteConfig, externalities: Arc<EXT>) -> Result<Self> {
+    pub async fn new(config: MalachiteCoreConfig, externalities: Arc<EXT>) -> Result<Self> {
         // The service owns `<base>/malachite/`. We `mkdir -p` it so
         // RocksDB and the WAL can land there.
         let svc_dir = config.base.join("malachite");
@@ -188,7 +159,7 @@ impl<EXT: Externalities> MalachiteService<EXT> {
 
         // ---- validator set from config ----
         if config.validators.is_empty() {
-            return Err(anyhow::anyhow!("MalachiteConfig::validators is empty"));
+            return Err(anyhow::anyhow!("MalachiteCoreConfig::validators is empty"));
         }
         let mut validators = Vec::with_capacity(config.validators.len());
         for entry in &config.validators {
@@ -205,7 +176,7 @@ impl<EXT: Externalities> MalachiteService<EXT> {
             NodeRole::Validator => {
                 if !in_set {
                     return Err(anyhow::anyhow!(
-                        "NodeRole::Validator: local address {address} not present in MalachiteConfig::validators"
+                        "NodeRole::Validator: local address {address} not present in MalachiteCoreConfig::validators"
                     ));
                 }
                 let peer_id_bytes = libp2p_keypair.public().to_peer_id().to_bytes();
@@ -231,7 +202,7 @@ impl<EXT: Externalities> MalachiteService<EXT> {
             NodeRole::FullNode => {
                 if in_set {
                     return Err(anyhow::anyhow!(
-                        "NodeRole::FullNode: local address {address} must NOT be in MalachiteConfig::validators"
+                        "NodeRole::FullNode: local address {address} must NOT be in MalachiteCoreConfig::validators"
                     ));
                 }
                 NetworkIdentity::new(moniker.clone(), libp2p_keypair, None)
@@ -262,17 +233,14 @@ impl<EXT: Externalities> MalachiteService<EXT> {
             signer,
             validator_set.clone(),
             address,
-            store.clone(),
+            store,
             config.propose_timeout,
         )?;
 
         // ---- spawn app task ----
-        let (start_tx, start_rx) = oneshot::channel();
         let (errors_tx, errors_rx) = mpsc::unbounded_channel();
         let externalities_for_task = Arc::clone(&externalities);
         let app_handle = tokio::spawn(async move {
-            start_rx.await.expect("start sender has been dropped");
-
             if let Err(e) = app::run::<EXT>(state, channels, externalities_for_task).await {
                 tracing::error!(target: "ethexe-malachite-core", error = %e, "app task terminated");
                 let _ = errors_tx.send(e);
@@ -280,43 +248,23 @@ impl<EXT: Externalities> MalachiteService<EXT> {
         });
 
         Ok(Self {
-            start_tx: Some(start_tx),
             errors_rx,
             engine,
             app_handle,
             wal_path,
             validator_set,
-            store,
             _externalities: externalities,
         })
     }
 
-    pub fn start_app_task(&mut self) {
-        self.start_tx
-            .take()
-            .expect("app task has been already started")
-            .send(())
-            .expect("start receiver has been dropped");
-    }
-
-    /// Whether `block_hash` is already finalized in the persistent app store.
-    pub fn is_finalized(&self, block_hash: H256) -> Result<bool> {
-        self.store.is_finalized(block_hash)
-    }
-
-    /// Swap the active validator set used at the next height start.
-    /// Malachite's `StartHeight` snapshots the set at the height
-    /// start, so the current height runs to completion with whatever
-    /// it had; the `Finalized` reply then feeds the new set as the
-    /// next-height `HeightParams`, keeping the rotation gap-free.
-    ///
-    /// Caller is responsible for keeping the local validator's pub
-    /// key in `validators` while running in [`NodeRole::Validator`]
-    /// — we don't carry the role around here. Empty input is rejected.
+    /// Swap the active validator set, taking effect at the next height start
+    /// (the current height runs to completion with the old set).
+    /// The caller must keep the local key in the set while in
+    /// [`NodeRole::Validator`]. Empty input is rejected.
     pub fn update_validators(&self, validators: Vec<crate::ValidatorEntry>) -> Result<()> {
         if validators.is_empty() {
             return Err(anyhow::anyhow!(
-                "MalachiteService::update_validators: empty validators list"
+                "MalachiteCore::update_validators: empty validators list"
             ));
         }
         let mut converted = Vec::with_capacity(validators.len());
@@ -331,24 +279,23 @@ impl<EXT: Externalities> MalachiteService<EXT> {
     }
 }
 
-impl<EXT: Externalities> Stream for MalachiteService<EXT> {
+impl<EXT: Externalities> Stream for MalachiteCore<EXT> {
     type Item = anyhow::Error;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
-        debug_assert!(self.start_tx.is_none(), "app task is not started");
         self.errors_rx.poll_recv(cx)
     }
 }
 
-impl<EXT: Externalities> FusedStream for MalachiteService<EXT> {
+impl<EXT: Externalities> FusedStream for MalachiteCore<EXT> {
     fn is_terminated(&self) -> bool {
         self.errors_rx.is_closed()
     }
 }
 
-impl<EXT: Externalities> MService for MalachiteService<EXT> {}
+impl<EXT: Externalities> MService for MalachiteCore<EXT> {}
 
-fn build_inner_config(cfg: &MalachiteConfig, moniker: &str) -> InnerNodeConfig {
+fn build_inner_config(cfg: &MalachiteCoreConfig, moniker: &str) -> InnerNodeConfig {
     let transport = TransportProtocol::Tcp;
     let listen_multiaddr = transport.multiaddr(
         &cfg.listen_addr.ip().to_string(),
@@ -369,23 +316,10 @@ fn build_inner_config(cfg: &MalachiteConfig, moniker: &str) -> InnerNodeConfig {
             ..Default::default()
         },
     };
-    let value_sync = match cfg.env {
-        Environment::Production => ValueSyncConfig::default(),
-        Environment::Test => ValueSyncConfig {
-            // Service tests do not run Malachite's application task forever, so
-            // use short value-sync waits and small batches to make missing replay
-            // data fail fast instead of blocking the event queue.
-            status_update_interval: Duration::from_millis(500),
-            request_timeout: Duration::from_secs(3),
-            parallel_requests: 16,
-            batch_size: 32,
-            ..Default::default()
-        },
-    };
     InnerNodeConfig {
         moniker: moniker.to_string(),
         consensus,
-        value_sync,
+        value_sync: ValueSyncConfig::default(),
         logging: LoggingConfig::default(),
         metrics: MetricsConfig::default(),
         runtime: RuntimeConfig::default(),

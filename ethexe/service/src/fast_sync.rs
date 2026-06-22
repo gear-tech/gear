@@ -5,12 +5,12 @@
 
 use crate::Service;
 use alloy::eips::BlockId;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
     Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
     db::{
         BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, ConfigStorageRO, GlobalsStorageRW,
-        MbStorageRW, OnChainStorageRW, PreparedBlockData,
+        MbStorageRO, MbStorageRW, OnChainStorageRW, PreparedBlockData,
     },
     events::{
         BlockEvent, RouterEvent,
@@ -29,7 +29,6 @@ use ethexe_db::{
     visitor::DatabaseVisitor,
 };
 use ethexe_ethereum::{mirror::MirrorQuery, router::RouterQuery};
-use ethexe_malachite::FastSyncReplayTarget;
 use ethexe_network::NetworkService;
 use ethexe_observer::{ObserverService, utils::BlockLoader};
 use ethexe_runtime_common::{
@@ -46,6 +45,108 @@ use std::{
     cmp::max,
     collections::{BTreeMap, BTreeSet, HashMap},
 };
+
+/// The on-chain committed anchor fast sync restores the database to: the
+/// latest committed MB (`mb_hash`) and the Ethereum block it advanced to
+/// (`eb_hash`). The service uses `mb_hash` as the boundary for its startup
+/// replay gate — Malachite events up to and including this MB are suppressed
+/// (already restored here), and live consensus resumes past it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FastSyncReplayTarget {
+    pub mb_hash: H256,
+    pub eb_hash: H256,
+}
+
+/// Startup gate that suppresses Malachite's replay of the already-restored
+/// chain after fast sync.
+///
+/// When Malachite's core starts it value-syncs from genesis and replays every
+/// historical MB as a `BlockProposal` (which is what drives compute; the
+/// matching `BlockFinalized` always follows and does no compute). Fast sync
+/// only restored the DB up to `latest_committed_mb`, so these replayed
+/// proposals must not drive compute. Malachite emits blocks in height order, so
+/// it suffices to drop proposals until the target MB is reached. Two cases:
+/// * fresh DB — Malachite replays from genesis; we wait for the target by hash;
+/// * target already finalized locally before this start — Malachite resumes
+///   from the target's child, so the target hash never reappears. The first
+///   proposal is then a descendant of the target; an ancestry walk detects that
+///   and opens the gate immediately.
+///
+/// The ancestry walk runs at most once (the first proposal); afterwards the
+/// decision is a single hash comparison.
+pub(crate) enum ReplayGate {
+    /// No fast sync this run — never gates.
+    Open,
+    /// Awaiting the first proposal to disambiguate the two cases above.
+    Pending(H256),
+    /// Genesis replay confirmed; waiting for the target MB by hash.
+    Waiting(H256),
+}
+
+impl ReplayGate {
+    pub(crate) fn new(target: Option<FastSyncReplayTarget>) -> Self {
+        match target {
+            Some(target) => Self::Pending(target.mb_hash),
+            None => Self::Open,
+        }
+    }
+
+    /// Whether the `BlockProposal` for `mb_hash` should drive compute; opens
+    /// the gate once the target boundary is reached. Only proposals are gated
+    /// because compute is triggered solely by `BlockProposal` (the matching
+    /// `BlockFinalized` always follows and does no compute).
+    pub(crate) fn allow(&mut self, db: &Database, mb_hash: H256) -> Result<bool> {
+        match *self {
+            Self::Open => Ok(true),
+            Self::Pending(target) => {
+                if mb_hash == target {
+                    // The restored boundary itself — already computed by fast sync.
+                    *self = Self::Open;
+                    Ok(false)
+                } else if target_is_ancestor(db, target, mb_hash)? {
+                    // Target was finalized before this start; this is the first
+                    // live descendant — process it and resume normally.
+                    *self = Self::Open;
+                    Ok(true)
+                } else {
+                    *self = Self::Waiting(target);
+                    Ok(false)
+                }
+            }
+            Self::Waiting(target) => {
+                if mb_hash == target {
+                    *self = Self::Open;
+                }
+                Ok(false)
+            }
+        }
+    }
+}
+
+/// Walk the MB parent chain from `mb_hash` and report whether `target` is a
+/// strict ancestor. Errors loudly on a missing `CompactMb` rather than hanging
+/// the gate on incomplete data.
+fn target_is_ancestor(db: &Database, target: H256, mb_hash: H256) -> Result<bool> {
+    let mut current = mb_hash;
+    loop {
+        let parent = db
+            .mb_compact_block(current)
+            .ok_or_else(|| {
+                anyhow!(
+                    "fast-sync replay gate: missing CompactMb for {current} while resolving \
+                     ancestry of finalized MB {mb_hash}"
+                )
+            })?
+            .parent;
+        if parent == target {
+            return Ok(true);
+        }
+        if parent.is_zero() {
+            return Ok(false);
+        }
+        current = parent;
+    }
+}
 
 struct EventData {
     latest_committed_batch: Digest,
@@ -595,12 +696,11 @@ async fn latest_era_with_committed_validators(
         .context("failed to calculate era from validators timestamp")
 }
 
-pub(crate) async fn sync(service: &mut Service) -> Result<()> {
+pub(crate) async fn sync(service: &mut Service) -> Result<Option<FastSyncReplayTarget>> {
     let Service {
         observer,
         compute,
         network,
-        malachite,
         db,
         #[cfg(test)]
         sender,
@@ -608,7 +708,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     } = service;
     let Some(network) = network else {
         log::warn!("Network service is disabled. Skipping fast synchronization...");
-        return Ok(());
+        return Ok(None);
     };
 
     log::info!("Fast synchronization is in progress...");
@@ -633,7 +733,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let block_loader = observer.block_loader();
     let Some(event_data) = EventData::collect(&block_loader, db, finalized_block).await? else {
         log::warn!("No finalized committed MB found. Skipping fast synchronization...");
-        return Ok(());
+        return Ok(None);
     };
 
     let EventData {
@@ -716,15 +816,11 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         globals.latest_computed_mb_hash = latest_committed_mb;
     });
 
-    if let Some(malachite) = malachite.as_mut() {
-        // `Service::run` performs fast sync before `run_inner().start_app_task()`,
-        // so live Malachite callbacks cannot race this startup replay gate.
-        let _ = malachite.enable_fast_sync_replay_filter(replay_target)?;
-        // Fast sync restores DB globals directly, but Malachite keeps its
-        // own in-memory chain head for proposal/validation. Seed it now; the
-        // observer will only deliver later EBs after the app task starts.
-        malachite.receive_new_chain_head(block_data.to_simple());
-    }
+    // Malachite is still a `MalachiteServiceStarter` at this point (its core
+    // only launches in `run_inner`), so no consensus callbacks can race this
+    // restoration. Once started, Malachite value-syncs from genesis and replays
+    // the chain; the service's startup gate suppresses every replayed event up
+    // to and including `latest_committed_mb`, then resumes live consensus.
 
     log::info!(
         "Fast synchronization done: synced to {latest_committed_eb:?}, height {height:?}, MB {latest_committed_mb}",
@@ -738,7 +834,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         ))
         .await;
 
-    Ok(())
+    Ok(Some(replay_target))
 }
 
 #[cfg(test)]

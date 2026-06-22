@@ -35,9 +35,8 @@ use parity_scale_codec::{Decode, Encode};
 use rocksdb::{DB, Options, WriteBatch};
 
 use crate::{
-    BlockPayload,
     context::Height,
-    types::{Block, CommitCertificate, H256},
+    types::{Block, BlockPayload, CommitCertificate, H256},
 };
 
 mod prefix {
@@ -55,20 +54,26 @@ const META_LATEST_FINALIZED: &[u8] = b"latest_finalized";
 /// Single block record kept by the service.
 #[derive(Clone, Encode, Decode)]
 pub(crate) struct BlockEntry {
+    /// Canonical block hash.
     pub block_hash: H256,
+    /// Parent block hash (zero for genesis).
     pub parent_hash: H256,
+    /// Block height.
     pub height: u64,
+    /// Opaque application payload.
     pub payload: BlockPayload,
+    /// Reserved envelope tail.
     pub reserved: [u8; 64],
+    /// `process_mb_proposal` has run for this block.
     pub saved: bool,
+    /// `process_mb_finalized` has run for this block.
     pub finalized: bool,
+    /// Quorum certificate, once known.
     pub cert: Option<CommitCertificate>,
 }
 
 impl BlockEntry {
-    /// Reconstruct the [`Block`] form expected by
-    /// [`crate::Externalities::process_mb_proposal`] /
-    /// [`crate::Externalities::validate_block_above`].
+    /// Reconstruct the [`Block`] form expected by [`crate::Externalities`].
     pub fn block(&self) -> Block {
         Block {
             parent_hash: self.parent_hash,
@@ -248,15 +253,9 @@ impl Store {
         }
     }
 
-    /// Walk back through parents from `leaf_hash` collecting every
-    /// ancestor that has not yet been saved. Returns `None` if the walk
-    /// hits a block that is not in the store (i.e. the chain is
-    /// incomplete and we must wait). Genesis (parent_hash ==
-    /// `H256::zero()`) and a previously saved ancestor are valid stop
-    /// points.
-    ///
-    /// The returned chain is in chronological order
-    /// (oldest-first), ready for sequential `process_mb_proposal` calls.
+    /// Collect every not-yet-saved ancestor of `leaf_hash`, oldest-first.
+    /// Returns `None` if the walk hits a block missing from the store
+    /// (incomplete chain — wait for it to fill).
     pub fn save_chain(&self, leaf_hash: H256) -> Result<Option<Vec<BlockEntry>>> {
         let mut chain_rev: Vec<BlockEntry> = Vec::new();
         let mut current = leaf_hash;
@@ -279,13 +278,9 @@ impl Store {
         Ok(Some(chain_rev))
     }
 
-    /// Walk back collecting every ancestor that is `saved` but not yet
-    /// `finalized` and has a quorum certificate attached. Returns
-    /// `None` if any ancestor is missing from the store, lacks a cert,
-    /// or hasn't been saved (the strict invariant: finalize requires
-    /// save first).
-    ///
-    /// The returned chain is chronological order (oldest-first).
+    /// Collect every saved-but-not-finalized ancestor with a quorum cert,
+    /// oldest-first. Returns `None` if any ancestor is missing, lacks a
+    /// cert or hasn't been saved (finalize requires save first).
     pub fn finalize_chain(&self, leaf_hash: H256) -> Result<Option<Vec<BlockEntry>>> {
         let mut chain_rev: Vec<BlockEntry> = Vec::new();
         let mut current = leaf_hash;
@@ -330,16 +325,9 @@ impl Store {
         }
     }
 
-    /// Whether `block_hash` is known and marked finalized.
-    pub fn is_finalized(&self, block_hash: H256) -> Result<bool> {
-        Ok(self.get_block(block_hash)?.is_some_and(|e| e.finalized))
-    }
-
-    /// Drive the application's `process_mb_proposal` callback over
-    /// every ancestor that is now ready, starting from each seed. Cascades
-    /// to children: when a block becomes saveable, its descendants are
-    /// re-tried so a chain that was waiting on a missing middle gets
-    /// flushed once the gap closes.
+    /// Drive `save_fn` over every ancestor that is now ready, starting from
+    /// each seed, then cascade to children so descendants waiting on a gap
+    /// get flushed once it closes.
     pub async fn cascade_save<F, Fut>(&self, seeds: Vec<H256>, mut save_fn: F) -> Result<()>
     where
         F: FnMut(H256, Block) -> Fut,
@@ -570,11 +558,9 @@ impl Store {
         k
     }
 
-    /// Persist the engine-side `CommitCertificate` keyed by height.
-    /// We keep both this rich cert (with per-signer addresses, used
-    /// for serving sync responses) and the trimmed
-    /// [`crate::CommitCertificate`] inside [`BlockEntry`] (handed to
-    /// the application via [`crate::Externalities`]).
+    /// Persist the engine-side `CommitCertificate` keyed by height —
+    /// the rich form used for serving sync responses (the trimmed
+    /// [`crate::CommitCertificate`] lives inside [`BlockEntry`]).
     pub fn store_engine_certificate(
         &self,
         height: u64,
@@ -600,10 +586,8 @@ impl Store {
         }
     }
 
-    /// Drop undecided proposals and pending parts at or below
-    /// `current_height`. We've already committed at this height, so
-    /// nothing in the engine-state columns at heights ≤ it can still be
-    /// reached.
+    /// Drop undecided proposals and pending parts at or below the already
+    /// committed `current_height` — they can no longer be reached.
     pub fn prune_engine_state(&self, current_height: u64) -> Result<()> {
         let mut to_delete: Vec<Vec<u8>> = Vec::new();
         for p in [&[prefix::UNDECIDED][..], &[prefix::PENDING_PARTS][..]] {
@@ -923,20 +907,6 @@ mod tests {
         store.insert_block(mk_entry(h(1), H256::zero(), 1)).unwrap();
         let err = store.mark_finalized(h(1), mk_cert(1, h(1))).unwrap_err();
         assert!(err.to_string().contains("not saved yet"));
-    }
-
-    #[test]
-    fn is_finalized_tracks_persistent_finalization_state() {
-        let (_d, store) = open_store();
-
-        assert!(!store.is_finalized(h(1)).unwrap());
-
-        store.insert_block(mk_entry(h(1), H256::zero(), 1)).unwrap();
-        store.mark_saved(h(1)).unwrap();
-        assert!(!store.is_finalized(h(1)).unwrap());
-
-        store.mark_finalized(h(1), mk_cert(1, h(1))).unwrap();
-        assert!(store.is_finalized(h(1)).unwrap());
     }
 
     // --- restart persistence --------------------------------------------

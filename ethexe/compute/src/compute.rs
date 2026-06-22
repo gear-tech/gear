@@ -11,8 +11,11 @@
 
 use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    PromiseEmissionMode, PromisePolicy,
-    db::{CodesStorageRW, CompactMb, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
+    PromiseEmissionMode, PromisePolicy, SimpleBlockData,
+    db::{
+        BlockMetaStorageRO, CodesStorageRW, CompactMb, ConfigStorageRO, GlobalsStorageRO,
+        MbStorageRO, MbStorageRW, OnChainStorageRO,
+    },
     events::BlockRequestEvent,
     injected::Promise,
     malachite::{Operation, Operations},
@@ -82,6 +85,13 @@ pub struct ComputeSubService<P: ProcessorExt> {
     metrics: Metrics,
 
     input: VecDeque<MbComputeRequest>,
+    /// Requests whose prerequisite EB (the block this MB advances to) is not
+    /// yet prepared in the DB. Held here instead of executing — and moved back
+    /// into `input` by [`Self::receive_prepared_block`] once the prerequisite
+    /// lands. This is the gate Malachite used to apply before emitting events;
+    /// owning it here lets replayed/early MBs flow through as events while
+    /// their execution waits for the code-validation pipeline to catch up.
+    deferred: VecDeque<MbComputeRequest>,
     /// Head of the in-flight computation, kept so [`Self::receive_mb`] can
     /// skip duplicates that would otherwise re-emit `MbComputed`.
     in_flight_mb: Option<H256>,
@@ -108,6 +118,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             promise_emission_mode,
             metrics: Metrics::default(),
             input: VecDeque::new(),
+            deferred: VecDeque::new(),
             in_flight_mb: None,
             computation: None,
             promises_stream: None,
@@ -116,12 +127,13 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     }
 
     pub fn receive_mb(&mut self, mb_hash: H256, promise_policy: PromisePolicy) {
-        // Idempotent: skip if already computed, in flight, or queued —
-        // otherwise BlockProposal+BlockFinalized for the same head emit
-        // `MbComputed` twice.
+        // Idempotent: skip if already computed, in flight, or queued
+        // (`input` or `deferred`) — otherwise BlockProposal+BlockFinalized
+        // for the same head emit `MbComputed` twice.
         if self.db.mb_meta(mb_hash).computed
             || self.in_flight_mb == Some(mb_hash)
             || self.input.iter().any(|r| r.mb_hash == mb_hash)
+            || self.deferred.iter().any(|r| r.mb_hash == mb_hash)
         {
             return;
         }
@@ -129,6 +141,32 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             mb_hash,
             promise_policy,
         });
+    }
+
+    /// An Ethereum block has been prepared: requeue every deferred request
+    /// whose prerequisite EB is now satisfied. `PrepareSubService` prepares a
+    /// whole ancestor chain but only reports the head, so we re-check all
+    /// deferred requests rather than matching the reported hash.
+    pub fn receive_prepared_block(&mut self, _eb_hash: H256) {
+        let mut still_deferred = VecDeque::with_capacity(self.deferred.len());
+        while let Some(req) = self.deferred.pop_front() {
+            if self.db.mb_meta(req.mb_hash).computed {
+                continue;
+            }
+            if self.prerequisite_ready(req.mb_hash) {
+                self.input.push_back(req);
+            } else {
+                still_deferred.push_back(req);
+            }
+        }
+        self.deferred = still_deferred;
+    }
+
+    /// Whether the EB this MB advances to is prepared (or there is none).
+    /// Execution reads that EB's events, so it must wait until then.
+    fn prerequisite_ready(&self, mb_hash: H256) -> bool {
+        let eb = self.db.mb_meta(mb_hash).last_advanced_eb;
+        eb.is_zero() || self.db.block_meta(eb).prepared
     }
 
     async fn compute(
@@ -241,15 +279,9 @@ pub fn prepare_executable_for_mb(
     let schedule = db
         .mb_schedule(parent)
         .ok_or(ComputeError::ParentMbScheduleMissing(parent))?;
-    let initial_advanced_block = db.mb_meta(parent).last_advanced_eb;
+    let advanced_block = db.mb_meta(parent).last_advanced_eb;
 
-    build_executable_data(
-        db,
-        mb_payload,
-        program_states,
-        schedule,
-        initial_advanced_block,
-    )
+    build_executable_data(db, mb_payload, program_states, schedule, advanced_block)
 }
 
 /// Walk the MB's `Operations` list and prepare processor input.
@@ -262,19 +294,30 @@ fn build_executable_data(
     operations: Operations,
     program_states: ethexe_common::ProgramStates,
     schedule: ethexe_common::Schedule,
-    initial_advanced_block: H256,
+    advanced_block: H256,
 ) -> Result<ExecutableData> {
     let mut events: Vec<BlockRequestEvent> = Vec::new();
     let mut injected_transactions = Vec::new();
     let mut gas_allowance: Option<u64> = None;
-    let mut current_anchor = initial_advanced_block;
+
+    let mut current_anchor = if advanced_block.is_zero() {
+        None
+    } else {
+        Some(
+            db.block_simple_data(advanced_block)
+                .ok_or(ComputeError::AnchorBlockHeaderMissing(advanced_block))?,
+        )
+    };
     let mut mailbox_validity = ethexe_common::MAILBOX_VALIDITY_VERSION_2;
     let mut event_destinations_autoreply = false;
 
     for op in operations {
         match op {
             Operation::AdvanceTillEthereumBlock { block_hash } => {
-                let chain = collect_advance_chain(db, block_hash, current_anchor)?;
+                let block = db
+                    .block_simple_data(block_hash)
+                    .ok_or(ComputeError::AnchorBlockHeaderMissing(block_hash))?;
+                let chain = collect_advance_chain(db, block, current_anchor)?;
                 for hash in chain {
                     let block_events = db
                         .block_events(hash)
@@ -283,7 +326,7 @@ fn build_executable_data(
                         events.push(event);
                     }
                 }
-                current_anchor = block_hash;
+                current_anchor = Some(block);
             }
             Operation::Injected(signed) => {
                 let verified = signed.into_verified();
@@ -318,16 +361,18 @@ fn build_executable_data(
         }
     }
 
-    let anchor_eth_block = if current_anchor.is_zero() {
-        db.config().genesis_block_hash
+    let (height, timestamp) = if let Some(current_anchor) = current_anchor {
+        (
+            current_anchor.header.height,
+            current_anchor.header.timestamp,
+        )
     } else {
-        current_anchor
+        db.block_header(db.config().genesis_block_hash)
+            .map(|h| (h.height, h.timestamp))
+            .ok_or(ComputeError::Other(
+                "genesis block missing from DB; invariant violation",
+            ))?
     };
-
-    let (height, timestamp) = db
-        .block_header(anchor_eth_block)
-        .map(|h| (h.height, h.timestamp))
-        .ok_or(ComputeError::AnchorBlockHeaderMissing(anchor_eth_block))?;
 
     Ok(ExecutableData {
         height,
@@ -342,31 +387,69 @@ fn build_executable_data(
     })
 }
 
-/// EBs in `(last_advanced, target]`, oldest-first; capped at 1024.
-fn collect_advance_chain(db: &Database, target: H256, last_advanced: H256) -> Result<Vec<H256>> {
-    const MAX_ADVANCE_STEPS: usize = 1024;
+/// EBs in `(last_advanced, target]`, oldest-first;
+fn collect_advance_chain(
+    db: &Database,
+    target: SimpleBlockData,
+    last_advanced: Option<SimpleBlockData>,
+) -> Result<Vec<H256>> {
+    let (last_advanced_hash, last_advanced_height) = if let Some(la) = last_advanced {
+        (la.hash, la.header.height)
+    } else {
+        let start_eb_hash = db.globals().start_block_hash;
+        let genesis_eb_hash = db.config().genesis_block_hash;
+        if start_eb_hash != genesis_eb_hash {
+            return Err(ComputeError::Other(
+                "if last advanced EB is zero, then start block must match genesis",
+            ));
+        }
+        db.block_simple_data(start_eb_hash)
+            .ok_or(ComputeError::BlockNotSynced(start_eb_hash))
+            .map(|start_eb| {
+                start_eb
+                    .header
+                    .height
+                    .checked_sub(1)
+                    .ok_or(ComputeError::Other("start block height=0 isn't expected"))
+                    .map(|h| (H256::zero(), h))
+            })??
+    };
 
-    if target == last_advanced {
-        return Ok(Vec::new());
+    let depth = target
+        .header
+        .height
+        .checked_sub(last_advanced_height)
+        .ok_or(ComputeError::Other("target EB is older than last advanced"))?;
+
+    if depth == 0 {
+        return Err(ComputeError::Other(
+            "target EB is at the same height as last advanced",
+        ));
     }
 
-    let mut chain = Vec::new();
+    let mut chain = Vec::with_capacity(depth as usize);
     let mut current = target;
-    while current != last_advanced && current != H256::zero() {
-        if chain.len() >= MAX_ADVANCE_STEPS {
-            return Err(ComputeError::AdvanceWalkTooDeep {
-                target,
-                last_advanced,
-            });
+    for step in 0..depth {
+        chain.push(current.hash);
+
+        // The deepest block's parent must connect to the last advanced EB. Its
+        // parent header is not fetched: for the genesis EB that parent is the
+        // un-seeded zero hash, so we compare the `parent_hash` field directly.
+        let parent_hash = current.header.parent_hash;
+        if step + 1 == depth {
+            if parent_hash != last_advanced_hash {
+                return Err(ComputeError::Other(
+                    "collected advancing chain does not connect to the last advanced block",
+                ));
+            }
+            break;
         }
-        // Any missing intermediate header has to surface — a silent
-        // truncation would have validators with different sync depth
-        // emit different advance chains for the same MB.
-        let header = db
-            .block_header(current)
-            .ok_or(ComputeError::AdvanceMissingHeader { hash: current })?;
-        chain.push(current);
-        current = header.parent_hash;
+
+        current = db
+            .block_simple_data(parent_hash)
+            .ok_or(ComputeError::Other(
+                "block header not found while collecting advancing chain",
+            ))?;
     }
 
     chain.reverse();
@@ -396,25 +479,37 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
     type Output = ComputeEvent;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
-        // (1) Pick up the next request whenever no work is in flight.
+        // (1) Pick up the next ready request whenever no work is in flight.
+        // Skip already-computed requests and park ones whose prerequisite EB
+        // is not prepared yet into `deferred`, scanning past them so a parked
+        // request never head-of-line blocks a ready one behind it.
         if self.computation.is_none()
             && self.promises_stream.is_none()
             && self.pending_event.is_none()
-            && let Some(req) = self.input.pop_front()
         {
-            let (sender, receiver) = mpsc::unbounded_channel();
-            self.in_flight_mb = Some(req.mb_hash);
-            self.promises_stream = Some(MbPromisesStream { receiver });
-            self.computation = Some(future_timing::timed(
-                Self::compute(
-                    self.db.clone(),
-                    self.processor.clone(),
-                    req,
-                    self.promise_emission_mode,
-                    sender,
-                )
-                .boxed(),
-            ));
+            while let Some(req) = self.input.pop_front() {
+                if self.db.mb_meta(req.mb_hash).computed {
+                    continue;
+                }
+                if !self.prerequisite_ready(req.mb_hash) {
+                    self.deferred.push_back(req);
+                    continue;
+                }
+                let (sender, receiver) = mpsc::unbounded_channel();
+                self.in_flight_mb = Some(req.mb_hash);
+                self.promises_stream = Some(MbPromisesStream { receiver });
+                self.computation = Some(future_timing::timed(
+                    Self::compute(
+                        self.db.clone(),
+                        self.processor.clone(),
+                        req,
+                        self.promise_emission_mode,
+                        sender,
+                    )
+                    .boxed(),
+                ));
+                break;
+            }
         }
 
         // (2) Forward streaming promises before anything else so the
@@ -487,21 +582,50 @@ mod tests {
     use gprimitives::{ActorId, CodeId, MessageId};
     use proptest::prelude::*;
 
-    fn dummy_ops(db: &Database, tag: u8) -> Operations {
-        // Tag-derived AdvanceTillEthereumBlock makes each block's
-        // operations list (and thus its CAS hash) unique across heights.
-        // The referenced EB also needs a header in the DB so the
-        // compute-side advance walk picks it up.
-        let eth_block_hash = H256::from_low_u64_be(0xEB00 + tag as u64);
+    fn eb_hash(height: u32) -> H256 {
+        H256::from_low_u64_be(0xEB00 + height as u64)
+    }
+
+    /// Synthetic Ethereum block at `height`, chained onto its height-1 parent
+    /// (zero parent at height 1 — the genesis Eth block). The hash is derived
+    /// from the height, so a contiguous chain builds itself.
+    fn synthetic_eb(db: &Database, height: u32, events: Vec<BlockEvent>) -> H256 {
+        let parent_hash = if height <= 1 {
+            H256::zero()
+        } else {
+            eb_hash(height - 1)
+        };
+        let hash = eb_hash(height);
         db.set_block_header(
-            eth_block_hash,
+            hash,
             BlockHeader {
-                height: tag as u32,
-                timestamp: tag as u64,
-                parent_hash: H256::zero(),
+                height,
+                timestamp: height as u64,
+                parent_hash,
             },
         );
-        db.set_block_events(eth_block_hash, &[]);
+        db.set_block_events(hash, &events);
+        // Compute now defers an MB until the EB it advances to is prepared, so
+        // these synthetic EBs (standing in for already-synced blocks) must carry
+        // the flag for the direct `ComputeSubService` tests that never pump a
+        // `BlockPrepared` notification.
+        db.mutate_block_meta(hash, |m| m.prepared = true);
+        hash
+    }
+
+    /// Seed the genesis Eth block (height 1) and point the genesis zero-MB's
+    /// `last_advanced_eb` at it, so subsequent MBs walk a real depth-1 chain
+    /// via the `Some` branch — exactly as the malachite service propagates it.
+    fn seed_genesis_eth(db: &Database) -> H256 {
+        let gen_eb = synthetic_eb(db, 1, vec![]);
+        db.mutate_mb_meta(H256::zero(), |m| m.last_advanced_eb = gen_eb);
+        gen_eb
+    }
+
+    fn dummy_ops(db: &Database, eb_height: u32) -> Operations {
+        // The unique EB height makes each MB's operations list (and thus its
+        // CAS hash) unique, and gives the advance walk a chained block to pick up.
+        let eth_block_hash = synthetic_eb(db, eb_height, vec![]);
         Operations::new(vec![
             Operation::AdvanceTillEthereumBlock {
                 block_hash: eth_block_hash,
@@ -526,6 +650,13 @@ mod tests {
         );
     }
 
+    /// `seed_mb` plus the malachite-side bookkeeping: record the advanced EB
+    /// as this MB's `last_advanced_eb`, so its child walks a depth-1 chain.
+    fn seed_mb_advancing(db: &Database, mb_hash: H256, parent: H256, height: u64, eb_height: u32) {
+        seed_mb(db, mb_hash, parent, height, dummy_ops(db, eb_height));
+        db.mutate_mb_meta(mb_hash, |m| m.last_advanced_eb = eb_hash(eb_height));
+    }
+
     /// Tail-only queue still computes all uncomputed predecessors.
     #[tokio::test]
     #[ntest::timeout(5000)]
@@ -534,16 +665,18 @@ mod tests {
 
         let db = Database::memory();
         seed_genesis_zero_mb(&db);
+        seed_genesis_eth(&db);
         let processor = MockProcessor::default();
         let mut sub = ComputeSubService::new(db.clone(), processor);
 
-        // 5-block chain; mb_hash = 0x1000 + i.
+        // 5-block chain; mb_hash = 0x1000 + i. Each MB advances one EB, so
+        // MB at height i pins the EB at height i + 1 (genesis Eth is height 1).
         const N: u64 = 5;
         let mut hashes = Vec::with_capacity(N as usize);
         let mut parent = H256::zero();
         for i in 1..=N {
             let mb_hash = H256::from_low_u64_be(0x1000 + i);
-            seed_mb(&db, mb_hash, parent, i, dummy_ops(&db, i as u8));
+            seed_mb_advancing(&db, mb_hash, parent, i, (i + 1) as u32);
             hashes.push((i, mb_hash));
             parent = mb_hash;
         }
@@ -583,7 +716,7 @@ mod tests {
 
             for i in 1..=chain_len {
                 let mb_hash = H256::from_low_u64_be(0xB000 + i);
-                seed_mb(&db, mb_hash, parent, i, dummy_ops(&db, i as u8));
+                seed_mb(&db, mb_hash, parent, i, dummy_ops(&db, (i + 1) as u32));
                 hashes.push(mb_hash);
                 parent = mb_hash;
             }
@@ -609,15 +742,22 @@ mod tests {
     #[test]
     fn collect_advance_chain_errors_on_missing_intermediate_header() {
         let db = Database::memory();
-        let last_advanced = H256::from_low_u64_be(0xA0);
+        let last_advanced = SimpleBlockData {
+            hash: H256::from_low_u64_be(0xA0),
+            header: BlockHeader {
+                height: 0,
+                timestamp: 0,
+                parent_hash: H256::zero(),
+            },
+        };
         let parent_b = H256::from_low_u64_be(0xA1);
         let parent_a = H256::from_low_u64_be(0xA2);
-        let target = H256::from_low_u64_be(0xA3);
+        let target_hash = H256::from_low_u64_be(0xA3);
 
         // target -> parent_a -> parent_b -> last_advanced
         // parent_b's header is intentionally missing.
         db.set_block_header(
-            target,
+            target_hash,
             BlockHeader {
                 height: 3,
                 timestamp: 3,
@@ -633,11 +773,16 @@ mod tests {
             },
         );
 
-        let result = collect_advance_chain(&db, target, last_advanced);
+        let target = db.block_simple_data(target_hash).unwrap();
+        let result = collect_advance_chain(&db, target, Some(last_advanced));
         match result {
-            Err(ComputeError::AdvanceMissingHeader { hash }) => assert_eq!(hash, parent_b),
+            Err(ComputeError::Other(msg)) => assert!(
+                msg.contains("block header not found"),
+                "expected a missing-header error for {parent_b:?}, got message: {msg:?} — \
+                 a silent truncation here would non-determinise event replay across peers"
+            ),
             other => panic!(
-                "expected AdvanceMissingHeader for {parent_b:?}, got {other:?} — \
+                "expected a missing-header error for {parent_b:?}, got {other:?} — \
                  a silent truncation here would non-determinise event replay across peers"
             ),
         }
@@ -656,7 +801,7 @@ mod tests {
         let mut sub = ComputeSubService::new(db.clone(), processor);
 
         let mb_hash = H256::from_low_u64_be(0xCAFE);
-        seed_mb(&db, mb_hash, H256::zero(), 1, dummy_ops(&db, 0));
+        seed_mb(&db, mb_hash, H256::zero(), 1, dummy_ops(&db, 2));
         db.mutate_mb_meta(mb_hash, |meta| {
             meta.computed = true;
         });
@@ -703,22 +848,6 @@ mod tests {
         code_id
     }
 
-    /// Synthetic Ethereum block with a zeroed parent, so the compute-side
-    /// advance walk collects exactly this single block.
-    fn synthetic_eb(db: &Database, tag: u8, events: Vec<BlockEvent>) -> H256 {
-        let hash = H256::from_low_u64_be(0xEB00 + tag as u64);
-        db.set_block_header(
-            hash,
-            BlockHeader {
-                height: tag as u32,
-                timestamp: tag as u64,
-                parent_hash: H256::zero(),
-            },
-        );
-        db.set_block_events(hash, &events);
-        hash
-    }
-
     fn ping_injected(destination: ActorId) -> SignedInjectedTransaction {
         let tx = InjectedTransaction {
             destination,
@@ -754,9 +883,11 @@ mod tests {
         // MB #0 — create + fund + initialize the ping program via an
         // Ethereum block. The canonical init message is required: an
         // injected transaction cannot target an uninitialized program.
+        // EBs are chained onto the genesis Eth block (height 1), so the
+        // create block is height 2 and each pinger advances one more EB.
         let create_eb = synthetic_eb(
             db,
-            0,
+            2,
             vec![
                 BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
                     actor_id: ping_id,
@@ -788,11 +919,13 @@ mod tests {
         }];
         ops.extend(mb_bookend());
         seed_mb(db, creator, H256::zero(), 0, Operations::new(ops));
+        db.mutate_mb_meta(creator, |m| m.last_advanced_eb = create_eb);
         mb_hashes.push(creator);
 
         // MB #1.. — each injects a single PING into the ping program.
         for i in 1..=pinger_count {
-            let eb = synthetic_eb(db, i as u8, vec![]);
+            let eb_height = 2 + i as u32;
+            let eb = synthetic_eb(db, eb_height, vec![]);
             let mb_hash = H256::from_low_u64_be(0x1000 + i);
             let mut ops = vec![
                 Operation::AdvanceTillEthereumBlock { block_hash: eb },
@@ -806,6 +939,7 @@ mod tests {
                 i,
                 Operations::new(ops),
             );
+            db.mutate_mb_meta(mb_hash, |m| m.last_advanced_eb = eb);
             mb_hashes.push(mb_hash);
         }
 
@@ -821,6 +955,7 @@ mod tests {
     ) -> (Vec<H256>, Vec<(H256, Promise)>) {
         let db = Database::memory();
         seed_genesis_zero_mb(&db);
+        seed_genesis_eth(&db);
         let mut processor = Processor::new(db.clone()).expect("failed to create processor");
         let mb_hashes = build_ping_mb_chain(&db, &mut processor, pinger_count).await;
 
