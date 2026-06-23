@@ -247,6 +247,17 @@ impl BatchCommitmentManager {
                 cursor_mb_hash = parent_hash;
                 break;
             }
+            if parent_hash.is_zero() {
+                // Genesis sentinel (zero MB, seeded with a self-parent in db
+                // init) reached without hitting the committed anchor: the head
+                // is not a local descendant of it. Stop instead of spinning.
+                return Ok(Some(
+                    ValidationRejectReason::HeadMbNotStrictDescendantOfLatestCommittedMb {
+                        head_mb: head_mb_hash,
+                        latest_committed_mb: last_committed_mb_hash,
+                    },
+                ));
+            }
             let Some(parent_mb) = self.db.mb_compact_block(parent_hash) else {
                 return Ok(Some(
                     ValidationRejectReason::HeadMbNotStrictDescendantOfLatestCommittedMb {

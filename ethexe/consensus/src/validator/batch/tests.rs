@@ -433,6 +433,55 @@ async fn validates_chain_commitment_when_committed_anchor_compact_absent() {
 }
 
 #[tokio::test]
+async fn does_not_hang_when_finalized_chain_does_not_reach_committed_anchor() {
+    // Reproduces the validator-set handover stall: the new set's finalized MB
+    // chain is rooted at the seeded genesis sentinel (the zero MB, which db init
+    // gives a SELF-parent), while `last_committed_mb` still points at the old
+    // set's on-chain committed MB that is NOT on this chain. The producer walk
+    // must stop at the zero sentinel and skip — not spin forever dereferencing
+    // its self-parent (which would wedge the single-threaded runtime).
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    // Seed the zero MB exactly like db init: a computed MB whose parent is itself.
+    db.set_mb_compact_block(
+        H256::zero(),
+        CompactMb {
+            parent: H256::zero(),
+            height: 0,
+            operations_hash: db.set_operations(Operations::default()),
+        },
+    );
+    db.mutate_mb_meta(H256::zero(), |m| {
+        m.computed = true;
+        m.finalized = true;
+        m.last_advanced_eb = Some(H256::zero());
+    });
+
+    // Finalized chain rooted at the zero sentinel (mb1.parent == zero).
+    setup_mb_chain(
+        &db,
+        vec![vec![nonempty_transition(1)], vec![nonempty_transition(2)]],
+    );
+
+    // Committed anchor is a nonzero MB that is NOT on the finalized chain.
+    let foreign_anchor = H256::from([0xDE; 32]);
+    db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_mb = Some(foreign_anchor);
+    });
+
+    // Must return promptly (no hang) and produce no batch — the finalized chain
+    // does not descend from the committed anchor, so there is nothing to commit.
+    let manager = mock_batch_manager(db.clone());
+    let batch = manager.create_batch_commitment(block).await.unwrap();
+    assert!(
+        batch.is_none(),
+        "a finalized chain disconnected from the committed anchor must skip, not hang"
+    );
+}
+
+#[tokio::test]
 async fn rejects_head_mb_at_or_below_last_committed_mb() {
     // The coordinator must always advance past `last_committed_mb`. If
     // its `head_mb` lands at or below that height, the participant rejects

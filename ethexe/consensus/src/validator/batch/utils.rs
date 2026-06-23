@@ -46,30 +46,36 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     let chain_commitment = match chain_commitment_with_len {
         Some((commitment, len)) => {
             // A chain commitment carrying no transitions only earns its place
-            // when it advances the on-chain Ethereum anchor after a long quiet
-            // stretch (checkpoint threshold reached) or when the batch already
-            // carries other commitments.
-            if !has_other_commitments
-                && commitment.transitions.is_empty()
-                && len < checkpoint_threshold
-            {
+            // at a genuine checkpoint — advancing the on-chain Ethereum anchor
+            // after a long quiet stretch (`len >= checkpoint_threshold`). It
+            // must NOT ride along merely because the batch carries other
+            // commitments: emitting an empty chain commitment fires
+            // `MBCommitted`, pinning `last_committed_mb` to an MB that a freshly
+            // re-synced validator set (e.g. after a validator-set handover) may
+            // not have on its locally rebuilt chain — after which it can never
+            // produce a descendant chain commitment and stalls.
+            if commitment.transitions.is_empty() && len < checkpoint_threshold {
                 tracing::debug!(
                     %block_hash,
                     %len,
                     %checkpoint_threshold,
-                    "Chain commitment is empty and checkpoint threshold not reached, skip batch commitment"
+                    has_other_commitments,
+                    "Chain commitment is empty and checkpoint threshold not reached, dropping it"
                 );
-                return Ok(None);
+                if !has_other_commitments {
+                    return Ok(None);
+                }
+                None
+            } else {
+                tracing::debug!(
+                    %block_hash,
+                    %len,
+                    %checkpoint_threshold,
+                    transitions_len = commitment.transitions.len(),
+                    "Including chain commitment into batch"
+                );
+                Some(commitment)
             }
-
-            tracing::debug!(
-                %block_hash,
-                %len,
-                %checkpoint_threshold,
-                transitions_len = commitment.transitions.len(),
-                "Including chain commitment into batch"
-            );
-            Some(commitment)
         }
         None => {
             if !has_other_commitments {
@@ -185,6 +191,19 @@ pub fn try_include_chain_commitment<
             );
             return Ok(());
         }
+        if parent_hash.is_zero() {
+            // The genesis sentinel (zero MB) is seeded with a self-parent (see
+            // db init), so reaching it means the finalized chain does not
+            // descend from the nonzero committed anchor — stop instead of
+            // spinning on the self-loop.
+            tracing::warn!(
+                %at_block,
+                %latest_finalized_mb,
+                %last_committed_mb_hash,
+                "chain walk reached genesis without finding last committed MB, skipping chain commitment"
+            );
+            return Ok(());
+        }
         let Some(parent_mb) = db.mb_compact_block(parent_hash) else {
             tracing::warn!(
                 %at_block,
@@ -206,6 +225,18 @@ pub fn try_include_chain_commitment<
         let parent_hash = cursor_mb.parent;
         if parent_hash == last_committed_mb_hash {
             break;
+        }
+        if parent_hash.is_zero() {
+            // Genesis sentinel reached without hitting the committed anchor: the
+            // finalized chain is not a descendant of it. The zero MB is seeded
+            // with a self-parent (see db init), so stop here rather than spin.
+            tracing::warn!(
+                %at_block,
+                %latest_finalized_mb,
+                %last_committed_mb_hash,
+                "chain walk reached genesis without finding last committed MB, skipping chain commitment"
+            );
+            return Ok(());
         }
         let Some(parent_mb) = db.mb_compact_block(parent_hash) else {
             tracing::warn!(
