@@ -64,5 +64,5 @@ std = [
     "gsigner/keyring",
     "shielded"
 ]
-shielded = ["dep:gear-tdec", "dep:ark-serialize"]
+shielded = ["gsigner/tdec", "dep:gear-tdec", "dep:ark-serialize"]
 mock = ["std", "itertools/use_std", "tap", "proptest"]

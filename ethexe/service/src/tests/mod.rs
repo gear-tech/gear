@@ -2862,7 +2862,7 @@ async fn program_subscribe_best_state() {
         .unwrap();
 
     let mut tx_subscription = rpc_client
-        .send_transaction_and_watch(rpc_tx)
+        .send_transaction_and_watch(rpc_tx.into())
         .await
         .expect("successfully subscribe for injected transaction promise");
 
@@ -3054,6 +3054,114 @@ async fn injected_tx_fungible_token_over_network() {
     assert_eq!(promise.reply.value, 0);
 
     stop_nodes([alice_node, bob_node]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn shielded_tx_fungible_token() {
+    init_logger();
+
+    let env_config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(env_config).await.unwrap();
+
+    let pubkey = env.validators[0].public_key;
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(8090)
+                .validator(env.validators[0]),
+        )
+        .await;
+    node.start_service().await;
+    let rpc_client = node
+        .rpc_ws_client()
+        .await
+        .expect("RPC client provide by node");
+
+    // 1. Create Fungible token config
+    let token_config = demo_fungible_token::InitConfig {
+        name: "USD Tether".to_string(),
+        symbol: "USDT".to_string(),
+        decimals: 10,
+        initial_capacity: None,
+    };
+
+    // 2. Uploading code and creating program
+    let res = env
+        .upload_code(demo_fungible_token::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let usdt_actor_id = res.program_id;
+
+    // 3. Initialize program
+    let init_reply = env
+        .send_message(usdt_actor_id, &token_config.encode())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(init_reply.program_id, usdt_actor_id);
+    assert_eq!(init_reply.value, 0);
+    assert_eq!(
+        init_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Auto)
+    );
+    assert!(
+        init_reply.payload.is_empty(),
+        "Expect empty payload, because of initializing Fungible Token returns nothing"
+    );
+
+    tracing::info!("✅ Fungible token successfully initialized");
+
+    let shielding_key = rpc_client.shielding_key().await.unwrap().unwrap();
+
+    let amount: u128 = 5_000_000_000;
+    let mint_action = demo_fungible_token::FTAction::Mint(amount);
+
+    let mint_tx = InjectedTransaction {
+        destination: usdt_actor_id,
+        payload: mint_action.encode().try_into().unwrap(),
+        value: 0,
+        reference_block: node.db.globals().latest_prepared_eb_hash,
+        salt: vec![1].try_into().unwrap(),
+    };
+    let shielded = mint_tx
+        .shield(&shielding_key, &mut rand::thread_rng())
+        .unwrap();
+    let signed_shielded_tx = env.signer.signed_message(pubkey, shielded, None).unwrap();
+    let mut subscription = rpc_client
+        .send_transaction_and_watch(signed_shielded_tx.into())
+        .await
+        .unwrap();
+
+    let receipt = subscription.next().await.unwrap().unwrap();
+    let promise = receipt.0.into_data().unwrap_promise();
+
+    let expected_event = demo_fungible_token::FTEvent::Transfer {
+        from: ActorId::new([0u8; 32]),
+        to: pubkey.to_address().into(),
+        amount,
+    };
+
+    assert_eq!(promise.reply.payload, expected_event.encode());
 }
 
 #[tokio::test]

@@ -8,6 +8,7 @@ use ethexe_common::{
         SignedTxReceipt, Transaction,
     },
 };
+use gear_tdec::bls12_381::DkgPublicKey;
 use jsonrpsee::proc_macros::rpc;
 
 #[cfg_attr(
@@ -23,6 +24,9 @@ use jsonrpsee::proc_macros::rpc;
     rpc(client, namespace = "injected")
 )]
 pub trait Injected {
+    #[method(name = "getShieldingKey")]
+    async fn shielding_key(&self) -> jsonrpsee::core::RpcResult<Option<DkgPublicKey>>;
+
     /// Just sends an injected transaction.
     #[method(name = "sendTransaction")]
     async fn send_transaction(

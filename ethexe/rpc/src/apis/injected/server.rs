@@ -16,6 +16,7 @@ use ethexe_common::{
     },
 };
 use ethexe_db::Database;
+use gear_tdec::bls12_381::DkgPublicKey;
 use jsonrpsee::{
     core::{RpcResult, SubscriptionResult, async_trait},
     server::PendingSubscriptionSink,
@@ -37,6 +38,11 @@ pub struct InjectedApi {
 // TODO: Issue #5387
 #[async_trait]
 impl InjectedServer for InjectedApi {
+    async fn shielding_key(&self) -> RpcResult<Option<DkgPublicKey>> {
+        // TODO: Implement me
+        Ok(None)
+    }
+
     async fn send_transaction(
         &self,
         transaction: Transaction,

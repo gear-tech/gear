@@ -41,6 +41,7 @@ pub const MAX_INJECTED_TX_SALT_SIZE: usize = 32;
 /// always admissible.
 pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB: usize = 127 * 1024;
 
+// TODO: rename this type to just `TransactionAcceptance`
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 pub enum InjectedTransactionAcceptance {
@@ -298,7 +299,7 @@ impl<P: ToDigest> ToDigest for Receipt<P> {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Deref)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(transparent))]
-pub struct SignedTxReceipt(SignedMessage<Receipt<Promise>>);
+pub struct SignedTxReceipt(pub SignedMessage<Receipt<Promise>>);
 
 /// Signed [Receipt] with a [CompactPromise] generic.
 /// It is used as a lightweight transfer type
