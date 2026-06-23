@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 #[cfg(feature = "server")]
-use crate::{errors, utils};
+use crate::{
+    apis::program_best_state::{BestStateManager, spawn_best_state_subscriber},
+    errors, utils,
+};
 use ethexe_common::gear::Message;
 #[cfg(feature = "server")]
 use ethexe_common::{
@@ -20,9 +23,12 @@ use ethexe_runtime_common::state::{
 use ethexe_runtime_common::state::{QueryableStorage, Storage};
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};
-#[cfg(feature = "server")]
-use jsonrpsee::core::async_trait;
 use jsonrpsee::proc_macros::rpc;
+#[cfg(feature = "server")]
+use jsonrpsee::{
+    core::{SubscriptionResult, async_trait},
+    server::PendingSubscriptionSink,
+};
 #[cfg(feature = "server")]
 use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
@@ -43,6 +49,13 @@ pub struct FullProgramState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalculateReplyForHandleResult {
     pub reply: ReplyInfo,
+    pub messages: Vec<Message>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgramBestState {
+    pub mb_hash: H256,
+    pub new_state_hash: H256,
     pub messages: Vec<Message>,
 }
 
@@ -90,6 +103,14 @@ pub trait Program {
 
     #[method(name = "program_readPageData")]
     async fn read_page_data(&self, hash: H256) -> jsonrpsee::core::RpcResult<Bytes>;
+
+    /// Subscribes to the program's best state, emitted on every newly computed MB.
+    #[subscription(
+        name = "program_subscribeBestState",
+        unsubscribe = "program_unsubscribeBestState",
+        item = ProgramBestState
+    )]
+    async fn subscribe_best_state(&self, program_id: H160) -> jsonrpsee::core::SubscriptionResult;
 }
 
 #[cfg(feature = "server")]
@@ -97,16 +118,24 @@ pub struct ProgramApi {
     db: Database,
     processor: OverlaidProcessor,
     gas_allowance: u64,
+    best_state: BestStateManager,
 }
 
 #[cfg(feature = "server")]
 impl ProgramApi {
     pub fn new(db: Database, processor: OverlaidProcessor, gas_allowance: u64) -> Self {
+        let best_state = BestStateManager::new(db.clone());
         Self {
             db,
             processor,
             gas_allowance,
+            best_state,
         }
+    }
+
+    /// Cloneable handle used by the service to push computed MBs into subscriptions.
+    pub fn best_state(&self) -> BestStateManager {
+        self.best_state.clone()
     }
 
     fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
@@ -258,5 +287,15 @@ impl ProgramServer for ProgramApi {
             .page_data(unsafe { HashOf::new(hash) })
             .map(|buf| buf.encode().into())
             .ok_or_else(|| errors::db("Failed to read page data by hash"))
+    }
+
+    async fn subscribe_best_state(
+        &self,
+        pending: PendingSubscriptionSink,
+        program_id: H160,
+    ) -> SubscriptionResult {
+        let sink = pending.accept().await?;
+        spawn_best_state_subscriber(sink, self.best_state(), program_id);
+        Ok(())
     }
 }

@@ -3,7 +3,7 @@
 
 #![allow(clippy::double_parens)] // produced by `derive_more::TryUnwrap`
 
-use crate::Event;
+use crate::{Event, fast_sync::FastSyncReplayTarget};
 use alloy::providers::{RootProvider, ext::AnvilApi};
 use async_broadcast::{Receiver, RecvError, Sender};
 use ethexe_blob_loader::BlobLoaderEvent;
@@ -20,7 +20,7 @@ use ethexe_common::{
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_malachite::{FastSyncReplayTarget, MalachiteEvent};
+use ethexe_malachite::MalachiteEvent;
 use ethexe_network::{NetworkEvent, NetworkInjectedEvent, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_rpc::RpcEvent;

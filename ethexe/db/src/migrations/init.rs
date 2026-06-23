@@ -85,7 +85,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     let genesis_eb = SimpleBlockData {
         hash: genesis.hash,
         header: BlockHeader {
-            // genesis block header is not important in any way for ethexe
+            // IMPORTANT: set parent to zero is protocol invariant
             parent_hash: H256::zero(),
             height: genesis.number,
             timestamp: genesis.timestamp,

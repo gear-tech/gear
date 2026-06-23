@@ -29,7 +29,6 @@ use ethexe_db::{
     visitor::DatabaseVisitor,
 };
 use ethexe_ethereum::{mirror::MirrorQuery, router::RouterQuery};
-use ethexe_malachite::FastSyncReplayTarget;
 use ethexe_network::NetworkService;
 use ethexe_observer::{ObserverService, utils::BlockLoader};
 use ethexe_runtime_common::{
@@ -46,6 +45,17 @@ use std::{
     cmp::max,
     collections::{BTreeMap, BTreeSet, HashMap},
 };
+
+/// The on-chain committed anchor fast sync restores the database to: the
+/// latest committed MB (`mb_hash`) and the Ethereum block it advanced to
+/// (`eb_hash`). The service uses `mb_hash` as the boundary for its startup
+/// replay gate — Malachite events up to and including this MB are suppressed
+/// (already restored here), and live consensus resumes past it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FastSyncReplayTarget {
+    pub mb_hash: H256,
+    pub eb_hash: H256,
+}
 
 struct EventData {
     latest_committed_batch: Digest,
@@ -600,7 +610,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         observer,
         compute,
         network,
-        malachite,
         db,
         #[cfg(test)]
         sender,
@@ -716,15 +725,11 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         globals.latest_computed_mb_hash = latest_committed_mb;
     });
 
-    if let Some(malachite) = malachite.as_mut() {
-        // `Service::run` performs fast sync before `run_inner().start_app_task()`,
-        // so live Malachite callbacks cannot race this startup replay gate.
-        let _ = malachite.enable_fast_sync_replay_filter(replay_target)?;
-        // Fast sync restores DB globals directly, but Malachite keeps its
-        // own in-memory chain head for proposal/validation. Seed it now; the
-        // observer will only deliver later EBs after the app task starts.
-        malachite.receive_new_chain_head(block_data.to_simple());
-    }
+    // Malachite is still a `MalachiteServiceStarter` at this point (its core
+    // only launches in `run_inner`), so no consensus callbacks can race this
+    // restoration. Once started, Malachite value-syncs from genesis and replays
+    // the chain; the service's startup gate suppresses every replayed event up
+    // to and including `latest_committed_mb`, then resumes live consensus.
 
     log::info!(
         "Fast synchronization done: synced to {latest_committed_eb:?}, height {height:?}, MB {latest_committed_mb}",
