@@ -30,8 +30,9 @@
 
 use crate::{
     codec::{decode_value, encode_value},
-    context::{Height, MalachiteCtx, ProposalPart, ValueId},
+    context::{Height, MalachiteCtx, ProposalPart, Validator, ValidatorSet, ValueId},
     externalities::Externalities,
+    signing::public_key_from_gsigner,
     state::State,
     store::BlockEntry,
     streaming::ProposalParts,
@@ -251,7 +252,7 @@ where
                         Next::Start(
                             h,
                             HeightParams::new(
-                                self.state.get_validator_set(h),
+                                self.validator_set_for_height(h),
                                 self.state.get_timeouts(h),
                                 None,
                             ),
@@ -263,7 +264,7 @@ where
                         Next::Restart(
                             h,
                             HeightParams::new(
-                                self.state.get_validator_set(h),
+                                self.validator_set_for_height(h),
                                 self.state.get_timeouts(h),
                                 None,
                             ),
@@ -339,11 +340,62 @@ where
     /// Infallible: the start height was resolved at [`State::new`]
     /// and lives in `self.state.current_height`. Nothing here touches
     /// the store, so this can never fail at message-handling time.
+    /// Validator set governing `height`, resolved from the era its parent MB
+    /// advanced into (the `AdvanceTillEthereumBlock` rule). This makes
+    /// certificate verification era-correct on the sync path — a node replaying
+    /// historical heights checks each against that height's era set, not the
+    /// live shared set. Falls back to the live shared set if the era data isn't
+    /// resolvable yet (logged), so a transient gap can't wedge the engine.
+    fn validator_set_for_height(&self, height: Height) -> ValidatorSet {
+        match self.try_validator_set_for_height(height) {
+            Ok(set) => set,
+            Err(e) => {
+                warn!(
+                    %height,
+                    error = ?e,
+                    "validator_set_for_height: era resolver failed, falling back to live shared set",
+                );
+                self.state.get_validator_set(height)
+            }
+        }
+    }
+
+    fn try_validator_set_for_height(&self, height: Height) -> Result<ValidatorSet> {
+        // height h is governed by the era its parent MB (h-1) advanced into;
+        // `H256::zero()` (genesis parent) resolves to era 0.
+        let parent_mb_hash = if height.as_u64() <= 1 {
+            H256::zero()
+        } else {
+            self.state
+                .store
+                .finalized_block_at(height.as_u64() - 1)?
+                .ok_or_else(|| {
+                    anyhow!(
+                        "no finalized MB at height {} to resolve validators",
+                        height.as_u64() - 1,
+                    )
+                })?
+        };
+
+        let entries = self.externalities.validators_for_child_of(parent_mb_hash)?;
+        if entries.is_empty() {
+            anyhow::bail!("empty validator set resolved for height {height}");
+        }
+
+        let mut validators = Vec::with_capacity(entries.len());
+        for entry in &entries {
+            let pk = public_key_from_gsigner(&entry.public_key)
+                .context("converting gsigner pub key to malachite key")?;
+            validators.push(Validator::new(pk, entry.voting_power));
+        }
+        Ok(ValidatorSet::new(validators))
+    }
+
     fn process_consensus_ready(&self) -> (Height, HeightParams<MalachiteCtx>) {
         let start_height = self.state.current_height;
         info!(%start_height, "Consensus ready");
         let params = HeightParams::new(
-            self.state.get_validator_set(start_height),
+            self.validator_set_for_height(start_height),
             self.state.get_timeouts(start_height),
             None,
         );
@@ -806,6 +858,9 @@ mod tests {
         ) -> Result<Acceptance<(), String>> {
             Ok(Acceptance::Accepted(()))
         }
+        fn validators_for_child_of(&self, _: H256) -> Result<Vec<crate::config::ValidatorEntry>> {
+            Err(anyhow!("test mock does not resolve era validators"))
+        }
     }
 
     fn test_signer(byte: u8) -> MalachiteSigner {
@@ -992,6 +1047,9 @@ mod tests {
             _: &BlockPayload,
         ) -> Result<Acceptance<(), String>> {
             Ok(Acceptance::Accepted(()))
+        }
+        fn validators_for_child_of(&self, _: H256) -> Result<Vec<crate::config::ValidatorEntry>> {
+            Err(anyhow!("test mock does not resolve era validators"))
         }
     }
 

@@ -96,6 +96,13 @@ impl MalachiteServiceStarter {
 
         let (event_tx, events_rx) = mpsc::unbounded_channel();
 
+        // On-chain addresses → pub keys, so era rotations resolve back without an out-of-band lookup.
+        let validators: HashMap<Address, PublicKey> = config
+            .validators
+            .iter()
+            .map(|v| (v.public_key.to_address(), v.public_key))
+            .collect();
+
         let externalities = Arc::new(EthexeExternalities {
             db,
             cfg: ExternalitiesConfig {
@@ -107,14 +114,8 @@ impl MalachiteServiceStarter {
             chain_head: chain_head.clone(),
             pending_events: Default::default(),
             event_tx,
+            validators: validators.clone(),
         });
-
-        // On-chain addresses → pub keys, so era rotations resolve back without an out-of-band lookup.
-        let validators = config
-            .validators
-            .iter()
-            .map(|v| (v.public_key.to_address(), v.public_key))
-            .collect();
 
         Ok(Self {
             events_rx,

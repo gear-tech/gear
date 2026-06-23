@@ -98,6 +98,11 @@ impl ChainSync {
         let blocks_data = self.pre_load_data(&block.header).await?;
         let chain = self.load_chain(&block, blocks_data).await?;
         self.ensure_validators(block).await?;
+        // Backfill on-chain validators for every era spanned by the freshly
+        // loaded chain — a node joining mid-chain must hold the validator set
+        // of each historical era so the consensus resolver can verify the
+        // certificates of MBs anchored to those eras' Ethereum blocks.
+        self.ensure_validators_for_chain(&chain).await?;
         self.mark_chain_as_synced(chain.into_iter().rev());
 
         Ok(block.hash)
@@ -224,6 +229,27 @@ impl ChainSync {
                 .set_validators(chain_head_era + 1, next_era_validators);
         }
 
+        Ok(())
+    }
+
+    /// Ensure the on-chain validator set is stored for every era spanned by
+    /// `chain`. Unlike [`Self::ensure_validators`] (which only covers the head's
+    /// era and the next one), this walks the whole freshly synced range so a
+    /// node that joins mid-chain — and thus loads historical eras in one sync —
+    /// holds each era's validators for certificate verification.
+    async fn ensure_validators_for_chain(&self, chain: &[SimpleBlockData]) -> Result<()> {
+        let mut ensured = std::collections::HashSet::new();
+        for block in chain {
+            let Some(era) = self.config.timelines.era_from_ts(block.header.timestamp) else {
+                continue;
+            };
+            // One query per distinct era, and only when missing.
+            if !ensured.insert(era) || self.db.validators(era).is_some() {
+                continue;
+            }
+            let validators = self.router_query.validators_at(block.hash).await?;
+            self.db.set_validators(era, validators);
+        }
         Ok(())
     }
 

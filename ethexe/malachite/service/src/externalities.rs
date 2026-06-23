@@ -46,18 +46,25 @@ use crate::{
 use anyhow::{Context, Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
-    Acceptance, MAX_TOUCHED_PROGRAMS_PER_MB,
+    Acceptance, Address, MAX_TOUCHED_PROGRAMS_PER_MB,
     db::{
-        CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRO,
+        CompactMb, ConfigStorageRO, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW,
+        OnChainStorageRO,
     },
     injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, SignedInjectedTransaction},
     malachite::{Operation, Operations},
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
+use ethexe_malachite_core::{
+    Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES, ValidatorEntry,
+};
 use gprimitives::H256;
+use gsigner::schemes::secp256k1::PublicKey;
 use parity_scale_codec::{DecodeAll, Encode};
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 use tokio::sync::{RwLock, mpsc::UnboundedSender};
 use tracing::{debug, error, trace, warn};
 
@@ -86,6 +93,10 @@ pub(crate) struct EthexeExternalities {
     pub pending_events: RwLock<VecDeque<PendingEvent>>,
     /// Channel to poll events in MalachiteService.
     pub event_tx: UnboundedSender<Result<MalachiteEvent>>,
+    /// On-chain address → pub key for every validator across all eras this node
+    /// knows. Lets [`Externalities::validators_for_child_of`] turn a stored era
+    /// validator set (addresses) back into engine [`ValidatorEntry`]s.
+    pub validators: HashMap<Address, PublicKey>,
 }
 
 /// One outbound [`MalachiteEvent`] that can't be released until its
@@ -507,6 +518,51 @@ impl Externalities for EthexeExternalities {
 
         Ok(Acceptance::Accepted(()))
     }
+
+    fn validators_for_child_of(&self, parent_mb_hash: H256) -> Result<Vec<ValidatorEntry>> {
+        // The child MB is governed by the era the parent advanced into. Zero
+        // parent or a parent that never advanced past pre-genesis ⇒ era 0.
+        let era = if parent_mb_hash.is_zero() {
+            0
+        } else {
+            let advanced = self
+                .db
+                .mb_meta(parent_mb_hash)
+                .last_advanced_eb
+                .ok_or_else(|| anyhow!("parent MB {parent_mb_hash} has no last_advanced_eb"))?;
+            if advanced.is_zero() {
+                0
+            } else {
+                let header = self
+                    .db
+                    .block_header(advanced)
+                    .ok_or_else(|| anyhow!("missing eth header for last_advanced_eb {advanced}"))?;
+                self.db
+                    .config()
+                    .timelines
+                    .era_from_ts(header.timestamp)
+                    .ok_or_else(|| anyhow!("eb {advanced} timestamp before genesis"))?
+            }
+        };
+
+        let addrs = self
+            .db
+            .validators(era)
+            .ok_or_else(|| anyhow!("no validators stored for era {era}"))?;
+
+        addrs
+            .iter()
+            .map(|addr| {
+                self.validators
+                    .get(addr)
+                    .map(|pk| ValidatorEntry {
+                        public_key: *pk,
+                        voting_power: 1,
+                    })
+                    .ok_or_else(|| anyhow!("validator pool missing pub key for {addr}"))
+            })
+            .collect()
+    }
 }
 
 impl EthexeExternalities {
@@ -680,6 +736,7 @@ mod tests {
             mempool: Some(Arc::new(EmptyMempool)),
             chain_head: make_chain_head(),
             event_tx,
+            validators: Default::default(),
             pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
@@ -1095,6 +1152,7 @@ mod tests {
             mempool: Some(Arc::clone(&tracker) as Arc<dyn Mempool>),
             chain_head: make_chain_head(),
             event_tx,
+            validators: Default::default(),
             pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
@@ -1162,6 +1220,7 @@ mod tests {
             mempool: Some(mempool as Arc<dyn Mempool>),
             chain_head: make_chain_head(),
             event_tx,
+            validators: Default::default(),
             pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
@@ -1919,6 +1978,7 @@ mod tests {
             mempool: Some(Arc::new(EmptyMempool)),
             chain_head: make_chain_head(),
             event_tx,
+            validators: Default::default(),
             pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,

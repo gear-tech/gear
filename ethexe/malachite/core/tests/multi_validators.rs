@@ -190,6 +190,12 @@ impl Externalities for TestExt {
         }
         Ok(Acceptance::Accepted(()))
     }
+
+    fn validators_for_child_of(&self, _parent_hash: H256) -> Result<Vec<ValidatorEntry>> {
+        // Tests drive consensus off the shared validator set configured at
+        // engine start; the resolver falls back to it when this returns Err.
+        Err(anyhow::anyhow!("test ext does not resolve era validators"))
+    }
 }
 
 // --------------------------------------------------------------------
