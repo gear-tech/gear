@@ -97,6 +97,7 @@ async fn constructor() {
         },
         rpc: None,
         prometheus: None,
+        tdec: None,
     };
 
     let service = Service::new(&config).await.unwrap();

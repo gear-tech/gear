@@ -5544,7 +5544,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5591,6 +5591,7 @@ dependencies = [
  "ethexe-runtime-common",
  "ethexe-sdk",
  "ethexe-service",
+ "ferveo-gear-tdec",
  "gear-workspace-hack",
  "gprimitives",
  "gsigner",
@@ -5791,6 +5792,7 @@ dependencies = [
  "arc-malachitebft-test",
  "async-trait",
  "bytes",
+ "derive_more 2.1.1",
  "futures",
  "gear-core",
  "gear-workspace-hack",
@@ -6233,7 +6235,7 @@ dependencies = [
 [[package]]
 name = "ferveo-gear-common"
 version = "0.5.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#4ec5f2ee169ce14af865fd1fb34d79b5e72881c5"
+source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#76a41689d406724dad41dcff1cc62b383150fa31"
 dependencies = [
  "ark-ec 0.5.0",
  "ark-serialize 0.5.0",
@@ -6250,7 +6252,7 @@ dependencies = [
 [[package]]
 name = "ferveo-gear-tdec"
 version = "0.5.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#4ec5f2ee169ce14af865fd1fb34d79b5e72881c5"
+source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#76a41689d406724dad41dcff1cc62b383150fa31"
 dependencies = [
  "ark-bls12-381 0.5.0",
  "ark-ec 0.5.0",
@@ -6262,6 +6264,7 @@ dependencies = [
  "chacha20poly1305",
  "const-hex",
  "ferveo-gear-common",
+ "hex",
  "itertools 0.10.5",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -9671,7 +9674,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi 0.5.2",
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -15631,7 +15634,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -15644,7 +15647,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -15747,7 +15750,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs 0.26.11",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -15768,7 +15771,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs 1.0.5",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -18879,7 +18882,7 @@ dependencies = [
 [[package]]
 name = "subproductdomain-gear"
 version = "0.5.0"
-source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#4ec5f2ee169ce14af865fd1fb34d79b5e72881c5"
+source = "git+https://github.com/gear-tech/ferveo-nucypher.git?branch=more-codec#76a41689d406724dad41dcff1cc62b383150fa31"
 dependencies = [
  "anyhow",
  "ark-ec 0.5.0",
@@ -19355,7 +19358,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.3",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

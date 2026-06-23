@@ -33,7 +33,7 @@ pub struct ValidatorEntry {
 /// [`crate::Externalities::process_mb_finalized`] just like a
 /// validator would. Use this for read-only observers,
 /// quarantine workers, light clients, etc.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::IsVariant)]
 pub enum NodeRole {
     /// Sign votes and proposals; broadcast a validator proof on
     /// connect; the local address must appear in [`MalachiteConfig::validators`].

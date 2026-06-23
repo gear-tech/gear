@@ -209,19 +209,13 @@ fn build_validator_tdec_setups(
             key_store
                 .import_decryption_key(private_context.validator_decryption_key)
                 .expect("dealer TDEC key must be importable");
-            let my_context = public_contexts
-                .get(private_context.index)
-                .expect("private context index must reference a public context")
-                .clone();
 
             (
                 validator.public_key,
                 ValidatorTdecSetup {
-                    context: ethexe_common::malachite::MalachiteTdecContext {
-                        threshold,
-                        my_context,
-                        contexts: contexts.clone(),
-                    },
+                    threshold,
+                    dkg_public_key: public_key,
+                    validators_contexts: Some(contexts.clone()),
                     key_store,
                 },
             )
@@ -237,11 +231,12 @@ impl TestEnv {
             self.validator_tdec_setups
                 .get(&validator.public_key)
                 .is_some_and(|setup| {
-                    setup.context.contexts.len() == self.validators.len()
+                    setup.validators_contexts.as_ref().unwrap().len() == self.validators.len()
                         && self.validators.iter().all(|validator| {
                             setup
-                                .context
-                                .contexts
+                                .validators_contexts
+                                .as_ref()
+                                .unwrap()
                                 .contains_key(&validator.public_key.to_address())
                         })
                 })
@@ -1711,16 +1706,13 @@ fn validator_tdec_setups_create_decryption_shares() {
         let setup = setups
             .get(&validator.public_key)
             .expect("each validator must have a TDEC setup");
-        assert_eq!(setup.context.contexts.len(), setups.len());
-        assert!(
-            setup
-                .context
-                .contexts
-                .contains_key(&validator.public_key.to_address())
-        );
+        let contexts = setup.validators_contexts.clone().unwrap();
+        assert_eq!(contexts.len(), setups.len());
+        assert!(contexts.contains_key(&validator.public_key.to_address()));
+        let my_context = contexts.get(&validator.public_key.to_address()).unwrap();
         setup
             .key_store
-            .create_share(&setup.context.my_context, &ciphertext.header(), b"aad")
+            .create_share(my_context, &ciphertext.header(), b"aad")
             .expect("validator must create a decryption share");
     }
 }

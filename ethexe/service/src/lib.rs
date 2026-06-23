@@ -59,6 +59,7 @@ use ethexe_db::{
 use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_malachite::{
     InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService, ValidatorEntry,
+    ValidatorTdecSetup,
 };
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
@@ -73,7 +74,10 @@ use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{FutureExt, StreamExt};
 use gprimitives::{ActorId, CodeId, H256};
-use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer};
+use gsigner::{
+    TdecKeyStore,
+    secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer},
+};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     num::NonZero,
@@ -410,9 +414,17 @@ impl Service {
         );
 
         let signer = Signer::fs(config.node.key_path.clone())?;
+        let tdec_store = TdecKeyStore::fs(config.node.key_path.clone())?;
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
+
+        let validator_tdec_setup = config.tdec.clone().map(|config| ValidatorTdecSetup {
+            threshold: config.threshold,
+            dkg_public_key: config.dkg_public_key,
+            validators_contexts: config.validators_contexts,
+            key_store: tdec_store,
+        });
 
         // TODO #4642: use validator session key
         let _validator_pub_key_session =
@@ -535,7 +547,7 @@ impl Service {
                     db.clone(),
                     signer.clone(),
                     validator_pub_key,
-                    None,
+                    validator_tdec_setup,
                     std::sync::Arc::new(InjectedTxMempool::new(db.clone())),
                 )
                 .await

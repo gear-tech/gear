@@ -191,6 +191,7 @@ impl Operations {
     }
 }
 
+/// Validator's context for shielded transactions decryption.
 #[cfg(all(feature = "shielded", feature = "std"))]
 #[derive(Debug, Clone)]
 pub struct MalachiteTdecContext {

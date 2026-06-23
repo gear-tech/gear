@@ -18,12 +18,13 @@
 
 use std::{
     collections::HashMap,
+    num::NonZeroUsize,
     pin::Pin,
     sync::{Arc, RwLock},
     task::{Context, Poll},
 };
 
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
     Address, SimpleBlockData,
     db::{ConfigStorageRO, OnChainStorageRO},
@@ -32,8 +33,9 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
+use gear_tdec::bls12_381::DkgPublicKey;
 use gprimitives::H256;
-use gsigner::{Signer, TdecKeyStore, schemes::secp256k1::Secp256k1};
+use gsigner::{PublicDecryptionContext, Signer, TdecKeyStore, schemes::secp256k1::Secp256k1};
 use tokio::sync::{Notify, mpsc};
 
 use crate::{
@@ -44,8 +46,12 @@ use crate::{
 /// Public threshold-decryption context and local private-key storage for one validator.
 #[derive(Clone, Debug)]
 pub struct ValidatorTdecSetup {
+    /// Minimal number of shares for transaction decryption.
+    pub threshold: NonZeroUsize,
+    /// Dkg public key for transactions shielding.
+    pub dkg_public_key: DkgPublicKey,
     /// Public contexts used to create and verify validator decryption shares.
-    pub context: MalachiteTdecContext,
+    pub validators_contexts: Option<HashMap<Address, PublicDecryptionContext>>,
     /// Store containing this validator's private threshold-decryption key.
     pub key_store: TdecKeyStore,
 }
@@ -147,6 +153,29 @@ impl MalachiteService {
             ),
         };
 
+        let (tdec_ctx, tdec_store) = match validator_tdec_setup {
+            Some(setup) if setup.validators_contexts.is_none() && role.is_validator() => {
+                bail!("validator must have other validators decryption contexts")
+            }
+            Some(setup) => {
+                let contexts = setup.validators_contexts.expect("infallible");
+                let my_address = validator_pub_key.map(|key| key.to_address()).unwrap();
+                let my_context = contexts
+                    .get(&my_address)
+                    .cloned()
+                    .context("current validator decryption context not found")?;
+                let context = MalachiteTdecContext {
+                    threshold: setup.threshold,
+                    my_context,
+                    contexts,
+                };
+
+                (Some(context), setup.key_store)
+            }
+            None if role.is_validator() => bail!("validator must have a tdec context"),
+            None => (None, TdecKeyStore::memory()),
+        };
+
         // Build the ethexe-malachite-core-side config. Application-side knobs
         // (gas allowance, quarantine depth) stay in [`MalachiteConfig`]
         // and travel into the externalities; they never reach
@@ -166,9 +195,6 @@ impl MalachiteService {
         let chain_head_notify = Arc::new(Notify::new());
         let decryption_shares = Arc::new(DecryptionSharesStore::new());
         let (events_tx, events_rx) = mpsc::unbounded_channel();
-        let (tdec_ctx, tdec_store) = validator_tdec_setup
-            .map(|setup| (Some(setup.context), setup.key_store))
-            .unwrap_or_else(|| (None, TdecKeyStore::memory()));
 
         let externalities = Arc::new(EthexeExternalities {
             db,

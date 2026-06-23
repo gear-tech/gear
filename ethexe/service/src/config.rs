@@ -8,8 +8,18 @@ use ethexe_malachite::Multiaddr;
 use ethexe_network::NetworkConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
-use gsigner::secp256k1::{Address, PublicKey};
-use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
+use gear_tdec::bls12_381::DkgPublicKey;
+use gsigner::{
+    PublicDecryptionContext,
+    secp256k1::{Address, PublicKey},
+};
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::SocketAddr,
+    path::PathBuf,
+    str::FromStr,
+    time::Duration,
+};
 
 #[derive(Debug)]
 pub struct Config {
@@ -19,6 +29,7 @@ pub struct Config {
     pub malachite: MalachiteCliConfig,
     pub rpc: Option<RpcConfig>,
     pub prometheus: Option<PrometheusConfig>,
+    pub tdec: Option<ThresholdDecryptionCliConfig>,
 }
 
 /// User-facing subset of [`ethexe_malachite::MalachiteConfig`],
@@ -155,4 +166,14 @@ pub struct EthereumConfig {
     pub eip1559_fee_increase_percentage: u64,
     pub eip1559_max_fee_per_gas_in_gwei: u128,
     pub blob_gas_multiplier: u128,
+}
+
+#[derive(Clone, Debug)]
+pub struct ThresholdDecryptionCliConfig {
+    /// Decryption threshold parameter.
+    pub threshold: std::num::NonZeroUsize,
+    /// Validator's dkg public key.
+    pub dkg_public_key: DkgPublicKey,
+    /// Other validators public decryption contexts.
+    pub validators_contexts: Option<HashMap<Address, PublicDecryptionContext>>,
 }
