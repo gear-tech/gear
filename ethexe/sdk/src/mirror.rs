@@ -77,7 +77,7 @@ impl<'a> Mirror<'a> {
             .vara_eth_client()
             .read_state(state_hash)
             .await
-            .map_err(anyhow::Error::from)
+            .map_err(Into::into)
     }
 
     pub async fn full_state(&self) -> Result<FullProgramState> {
@@ -408,14 +408,7 @@ impl<'a> Mirror<'a> {
     }
 
     pub async fn wait_for_value_claim(&self, message_id: MessageId) -> Result<ValueClaim> {
-        self.mirror_client
-            .wait_for_value_claim(message_id)
-            .await
-            .map(|claim_info| ValueClaim {
-                message_id: claim_info.message_id,
-                destination: claim_info.actor_id,
-                value: claim_info.value,
-            })
+        self.mirror_client.wait_for_value_claim(message_id).await
     }
 
     pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
