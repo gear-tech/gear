@@ -35,7 +35,7 @@
 //! ## Caller Invariants
 //!
 //! - Construct with `MalachiteService::new(config, db, signer, validator_pub_key,
-//!   mempool)`. A `Some` key starts a `Validator` and must appear in
+//!   validator_tdec_setup, mempool)`. A `Some` key starts a `Validator` and must appear in
 //!   `config.validators`; `None` starts a gossip/sync-only `FullNode`. `new`
 //!   returns `Err` if `config.validators` is empty or the local key is absent.
 //! - `BlockProposal` is always emitted before the matching `BlockFinalized` for a
@@ -59,7 +59,7 @@ mod tx_validity;
 pub use crate::{
     config::{MalachiteConfig, ValidatorEntry},
     mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
-    service::MalachiteService,
+    service::{MalachiteService, ValidatorTdecSetup},
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
 pub use ethexe_common::{

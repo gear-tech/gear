@@ -73,6 +73,8 @@ async-broadcast.workspace = true
 wat.workspace = true
 tempfile.workspace = true
 rand.workspace = true
+gear-tdec.workspace = true
+gsigner = { workspace = true, features = ["tdec"] }
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-value-sender-ethexe = { workspace = true, features = ["debug", "ethexe"] }

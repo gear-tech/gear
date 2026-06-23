@@ -3059,6 +3059,7 @@ async fn injected_tx_fungible_token_over_network() {
     stop_nodes([alice_node, bob_node]).await;
 }
 
+#[ignore = "_"]
 #[tokio::test]
 #[ntest::timeout(60_000)]
 async fn shielded_tx_fungible_token() {

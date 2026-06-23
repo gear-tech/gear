@@ -6085,6 +6085,7 @@ dependencies = [
  "ethexe-rpc",
  "ethexe-runtime-common",
  "ethexe-service-utils",
+ "ferveo-gear-tdec",
  "futures",
  "gear-core",
  "gear-core-errors",

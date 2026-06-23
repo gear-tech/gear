@@ -33,13 +33,22 @@ use ethexe_common::{
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
-use gsigner::{Signer, schemes::secp256k1::Secp256k1};
+use gsigner::{Signer, TdecKeyStore, schemes::secp256k1::Secp256k1};
 use tokio::sync::{Notify, mpsc};
 
 use crate::{
     MalachiteConfig, MalachiteEvent, Mempool, ValidatorEntry,
     decryption_shares::DecryptionSharesStore, externalities::EthexeExternalities,
 };
+
+/// Public threshold-decryption context and local private-key storage for one validator.
+#[derive(Clone, Debug)]
+pub struct ValidatorTdecSetup {
+    /// Public contexts used to create and verify validator decryption shares.
+    pub context: MalachiteTdecContext,
+    /// Store containing this validator's private threshold-decryption key.
+    pub key_store: TdecKeyStore,
+}
 
 /// Public consensus service.
 pub struct MalachiteService {
@@ -99,7 +108,7 @@ impl MalachiteService {
         db: Database,
         signer: Signer<Secp256k1>,
         validator_pub_key: Option<gsigner::schemes::secp256k1::PublicKey>,
-        validator_tdec_ctx: Option<MalachiteTdecContext>,
+        validator_tdec_setup: Option<ValidatorTdecSetup>,
         mempool: Arc<dyn Mempool>,
     ) -> Result<Self> {
         tracing::info!(
@@ -157,13 +166,15 @@ impl MalachiteService {
         let chain_head_notify = Arc::new(Notify::new());
         let decryption_shares = Arc::new(DecryptionSharesStore::new());
         let (events_tx, events_rx) = mpsc::unbounded_channel();
+        let (tdec_ctx, tdec_store) = validator_tdec_setup
+            .map(|setup| (Some(setup.context), setup.key_store))
+            .unwrap_or_else(|| (None, TdecKeyStore::memory()));
 
         let externalities = Arc::new(EthexeExternalities {
             db,
 
-            // TODO: FIXME (temporary solution)
-            tdec_ctx: validator_tdec_ctx,
-            tdec_store: gsigner::TdecKeyStore::memory(),
+            tdec_ctx,
+            tdec_store,
 
             mempool: Arc::clone(&mempool),
             chain_head: Arc::clone(&chain_head),
