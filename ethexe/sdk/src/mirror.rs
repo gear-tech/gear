@@ -5,7 +5,7 @@ use crate::{VaraEthApi, types::InjectedMessageResult};
 use alloy::rpc::types::TransactionReceipt;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use ethexe_common::{
-    Address, BlockHeader, SimpleBlockData,
+    Address, BlockHeader, HashOf, SimpleBlockData,
     gear::ValueClaim,
     gear_core::rpc::ReplyInfo,
     injected::{
@@ -20,11 +20,15 @@ use ethexe_ethereum::{
         MirrorQuery as EthereumMirrorQuery,
     },
 };
-use ethexe_rpc::{CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramClient};
-use ethexe_runtime_common::state::ProgramState;
+use ethexe_rpc::{
+    CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramBestState,
+    ProgramClient,
+};
+use ethexe_runtime_common::state::{Mailbox, ProgramState, UserMailbox};
 use futures::TryFutureExt;
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use gsigner::secp256k1::Secp256k1SignerExt;
+use jsonrpsee::core::client::Subscription;
 
 pub struct Mirror<'a> {
     pub(crate) api: &'a VaraEthApi,
@@ -85,6 +89,25 @@ impl<'a> Mirror<'a> {
             .await
     }
 
+    pub async fn mailbox(&self, mailbox_hash: HashOf<Mailbox>) -> Result<Mailbox> {
+        self.api
+            .vara_eth_client
+            .read_mailbox(mailbox_hash.inner())
+            .map_err(Into::into)
+            .await
+    }
+
+    pub async fn user_mailbox(
+        &self,
+        user_mailbox_hash: HashOf<UserMailbox>,
+    ) -> Result<UserMailbox> {
+        self.api
+            .vara_eth_client
+            .read_user_mailbox(user_mailbox_hash.inner())
+            .map_err(Into::into)
+            .await
+    }
+
     pub async fn state_hash(&self) -> Result<H256> {
         self.mirror_query_client.state_hash().await
     }
@@ -118,11 +141,32 @@ impl<'a> Mirror<'a> {
             .await
     }
 
+    pub async fn calculate_reply_for_handle_with_top_up(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        top_up: u128,
+    ) -> Result<CalculateReplyForHandleResult> {
+        self.calculate_reply_for_handle_at_with_top_up(payload, value, None, Some(top_up))
+            .await
+    }
+
     pub async fn calculate_reply_for_handle_at(
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
         at: Option<H256>,
+    ) -> Result<CalculateReplyForHandleResult> {
+        self.calculate_reply_for_handle_at_with_top_up(payload, value, at, None)
+            .await
+    }
+
+    pub async fn calculate_reply_for_handle_at_with_top_up(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        at: Option<H256>,
+        top_up: Option<u128>,
     ) -> Result<CalculateReplyForHandleResult> {
         let sender_address = self.api.ethereum_client.sender_address();
         let source: ActorId = sender_address.into();
@@ -135,6 +179,7 @@ impl<'a> Mirror<'a> {
                 destination.to_address_lossy(),
                 payload.as_ref().to_vec().into(),
                 value,
+                top_up,
             )
             .map_err(Into::into)
             .await
@@ -162,7 +207,7 @@ impl<'a> Mirror<'a> {
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<(SignedInjectedTransaction, u64, H256)> {
+    ) -> Result<(SignedInjectedTransaction, u32, H256)> {
         // TODO: check existence of deposit in Router contract
         ensure!(
             value == 0,
@@ -208,7 +253,7 @@ impl<'a> Mirror<'a> {
         signer
             .signed_message(public_key, injected_transaction, None)
             .with_context(|| "failed to create signed injected transaction")
-            .map(|transaction| (transaction, reference_block_number as u64, reference_block))
+            .map(|transaction| (transaction, reference_block_number, reference_block))
     }
 
     pub async fn send_message_injected(
@@ -310,6 +355,17 @@ impl<'a> Mirror<'a> {
             reference_block_hash,
             promise: Some(promise),
         })
+    }
+
+    /// Subscribes to this program's best state, yielding a [`ProgramBestState`]
+    /// on every newly computed MB that produces a transition for the program.
+    pub async fn subscribe_best_state(&self) -> Result<Subscription<ProgramBestState>> {
+        let program_id = self.actor_id().to_address_lossy();
+        self.api
+            .vara_eth_client
+            .subscribe_best_state(program_id)
+            .await
+            .with_context(|| "failed to subscribe to program best state")
     }
 
     pub async fn wait_for_reply(&self, message_id: MessageId) -> Result<ReplyInfo> {

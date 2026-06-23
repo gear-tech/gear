@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition,
+    FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition, TransitionsConfig,
     state::{
         ActiveProgram, Allocations, Dispatch, DispatchStash, Expiring, Mailbox, MailboxMessage,
         MemStorage, MemoryPages, MemoryPagesRegion, MessageQueue, MessageQueueHashWithSize,
@@ -379,8 +379,12 @@ fn in_block_transitions_strategy() -> BoxedStrategy<InBlockTransitions> {
                     }
                 }
 
-                InBlockTransitions::from_parts(
+                let cfg = TransitionsConfig {
                     block_height,
+                    ..Default::default()
+                };
+                InBlockTransitions::from_parts(
+                    cfg,
                     states,
                     schedule,
                     modifications,
@@ -481,8 +485,12 @@ fn in_block_transitions_with_model_strategy()
                             schedule: schedule.clone(),
                             program_creations: program_creations.clone(),
                         };
-                        let transitions = InBlockTransitions::from_parts(
+                        let cfg = TransitionsConfig {
                             block_height,
+                            ..Default::default()
+                        };
+                        let transitions = InBlockTransitions::from_parts(
+                            cfg,
                             states,
                             schedule,
                             modifications,

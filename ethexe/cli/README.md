@@ -65,6 +65,7 @@ port = 9944
 external = false
 cors = ["http://localhost:*", "http://127.0.0.1:*"]
 gas_limit_multiplier = 3
+vara-eth-rpc = "ws://127.0.0.1:9944" # client endpoint used by `ethexe tx`
 
 [prometheus]
 name = "validator-1"

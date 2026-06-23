@@ -11,7 +11,7 @@ pub use ethexe_ethereum::router::CodeValidationResult;
 pub struct InjectedMessageResult {
     pub message_id: MessageId,
     pub tx_hash: H256,
-    pub reference_block_number: u64,
+    pub reference_block_number: u32,
     pub reference_block_hash: H256,
     pub promise: Option<Promise>,
 }

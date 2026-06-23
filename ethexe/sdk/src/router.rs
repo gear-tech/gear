@@ -30,6 +30,10 @@ impl<'a> Router<'a> {
         self.router_query_client.events()
     }
 
+    pub async fn balance(&self) -> Result<u128> {
+        self.router_query_client.balance().await
+    }
+
     // TODO: move StorageView into ethexe-common and export
 
     pub async fn storage_view(&self) -> Result<StorageView> {

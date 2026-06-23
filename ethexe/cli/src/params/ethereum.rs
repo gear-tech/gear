@@ -7,12 +7,7 @@ use super::MergeParams;
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use ethexe_common::Address;
-use ethexe_sdk::{
-    DEFAULT_BLOB_GAS_MULTIPLIER as SDK_DEFAULT_BLOB_GAS_MULTIPLIER,
-    DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE as SDK_DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE,
-    DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI as SDK_DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI,
-    DEFAULT_ETHEREUM_RPC as SDK_DEFAULT_ETHEREUM_RPC,
-};
+use ethexe_sdk::Ethereum;
 use ethexe_service::config::EthereumConfig;
 use serde::Deserialize;
 use std::time::Duration;
@@ -25,11 +20,6 @@ pub struct EthereumParams {
     #[arg(long, alias = "eth-rpc")]
     #[serde(rename = "rpc")]
     pub ethereum_rpc: Option<String>,
-
-    /// Vara.eth RPC endpoint.
-    #[arg(long, alias = "vara-eth-rpc")]
-    #[serde(rename = "vara-eth-rpc")]
-    pub vara_eth_rpc: Option<String>,
 
     /// Ethereum Beacon RPC endpoint.
     #[arg(long, alias = "eth-beacon-rpc")]
@@ -67,21 +57,21 @@ impl EthereumParams {
     pub const BLOCK_TIME: u64 = 12;
 
     /// Default Ethereum RPC.
-    pub const DEFAULT_ETHEREUM_RPC: &str = SDK_DEFAULT_ETHEREUM_RPC;
+    pub const DEFAULT_ETHEREUM_RPC: &str = Ethereum::DEFAULT_ETHEREUM_RPC;
 
     /// Default Ethereum Beacon RPC.
     pub const DEFAULT_ETHEREUM_BEACON_RPC: &str = "http://localhost:8545";
 
     /// Default EIP-1559 fee increase percentage.
     pub const DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE: u64 =
-        SDK_DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE;
+        Ethereum::INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE;
 
     /// Default EIP-1559 max fee per gas in gwei for transaction fee estimation (for batch commitments).
     pub const DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI: u64 =
-        SDK_DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI;
+        Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI as u64;
 
     /// Default blob gas multiplier.
-    pub const DEFAULT_BLOB_GAS_MULTIPLIER: u64 = SDK_DEFAULT_BLOB_GAS_MULTIPLIER;
+    pub const DEFAULT_BLOB_GAS_MULTIPLIER: u64 = Ethereum::INCREASED_BLOB_GAS_MULTIPLIER as u64;
 
     /// Converts Ethereum-facing CLI/TOML parameters into [`EthereumConfig`].
     ///
@@ -118,7 +108,6 @@ impl MergeParams for EthereumParams {
     fn merge(self, with: Self) -> Self {
         Self {
             ethereum_rpc: self.ethereum_rpc.or(with.ethereum_rpc),
-            vara_eth_rpc: self.vara_eth_rpc.or(with.vara_eth_rpc),
             ethereum_beacon_rpc: self.ethereum_beacon_rpc.or(with.ethereum_beacon_rpc),
             ethereum_router: self.ethereum_router.or(with.ethereum_router),
             block_time: self.block_time.or(with.block_time),

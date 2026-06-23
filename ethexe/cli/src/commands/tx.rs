@@ -138,7 +138,7 @@ enum SendMessageResult {
     },
     Injected {
         tx_hash: H256,
-        reference_block_number: u64,
+        reference_block_number: u32,
         reference_block_hash: H256,
 
         #[serde(flatten)]
@@ -254,12 +254,10 @@ impl TxCommand {
                 .and_then(|p| p.ethereum_rpc.clone())
         });
 
-        self.vara_eth_rpc = self.vara_eth_rpc.take().or_else(|| {
-            params
-                .ethereum
-                .as_ref()
-                .and_then(|p| p.vara_eth_rpc.clone())
-        });
+        self.vara_eth_rpc = self
+            .vara_eth_rpc
+            .take()
+            .or_else(|| params.rpc.as_ref().and_then(|p| p.vara_eth_rpc.clone()));
 
         self.ethereum_router = self
             .ethereum_router

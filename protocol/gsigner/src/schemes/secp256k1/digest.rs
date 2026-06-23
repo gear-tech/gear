@@ -31,6 +31,8 @@ use sha3::Digest as _;
         scale_info::TypeInfo
     )
 )]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 #[repr(transparent)]
 #[as_ref(forward)]
 #[debug("0x{}", hex::encode(self.0))]

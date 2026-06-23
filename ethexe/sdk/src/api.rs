@@ -9,17 +9,6 @@ use gprimitives::ActorId;
 use gsigner::secp256k1::Signer;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 
-/// Default Ethereum RPC URL used by the underlying Ethereum client.
-pub const DEFAULT_ETHEREUM_RPC: &str = Ethereum::DEFAULT_ETHEREUM_RPC;
-/// Default EIP-1559 fee increase percentage for transaction fee estimation.
-pub const DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE: u64 =
-    Ethereum::INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE;
-/// Default EIP-1559 max fee per gas in gwei for transaction fee estimation.
-pub const DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI: u64 =
-    Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI as u64;
-/// Default blob gas multiplier used by CLI-style transaction clients.
-pub const DEFAULT_BLOB_GAS_MULTIPLIER: u64 = Ethereum::INCREASED_BLOB_GAS_MULTIPLIER as u64;
-
 pub struct VaraEthApi {
     pub(crate) vara_eth_client: WsClient,
     pub(crate) ethereum_client: Ethereum,
