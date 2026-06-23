@@ -2667,7 +2667,10 @@ async fn injected_tx_fungible_token() {
         .await
         .expect("subscription produce value")
         .expect("no errors for correct injected transaction");
-    assert_eq!(subscription_receipt.data().tx_hash(), mint_tx.to_hash());
+    assert_eq!(
+        subscription_receipt.data().tx_hash(),
+        TransactionHash::Left(mint_tx.to_hash())
+    );
     let subscription_promise = subscription_receipt.data().clone().unwrap_promise();
     assert_eq!(subscription_promise.reply.value, 0);
     assert_eq!(

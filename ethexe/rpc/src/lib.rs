@@ -48,8 +48,11 @@ use apis::{
     InfoServer, InjectedApi, InjectedServer, ProgramApi, ProgramServer,
 };
 #[cfg(feature = "server")]
+use ethexe_common::HashOf;
+#[cfg(feature = "server")]
 use ethexe_common::injected::{
-    InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt, Transaction,
+    InjectedTransaction, InjectedTransactionAcceptance, Promise, ShieldedTransaction,
+    SignedCompactTxReceipt, Transaction,
 };
 #[cfg(feature = "server")]
 use ethexe_db::Database;
@@ -228,6 +231,13 @@ impl RpcService {
 
     pub fn receive_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
         self.injected_api.on_tx_receipt(receipt);
+    }
+
+    pub fn receive_unshielded_transactions(
+        &self,
+        hash_mapping: Vec<(HashOf<ShieldedTransaction>, HashOf<InjectedTransaction>)>,
+    ) {
+        self.injected_api.on_unshielded_transactions(hash_mapping);
     }
 
     pub fn receive_mb_computed(&self, mb_hash: H256) {

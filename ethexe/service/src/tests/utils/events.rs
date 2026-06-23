@@ -8,11 +8,11 @@ use alloy::providers::{RootProvider, ext::AnvilApi};
 use async_broadcast::{Receiver, RecvError, Sender};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Address, HashOf, SimpleBlockData,
+    Address, SimpleBlockData,
     db::*,
     events::BlockEvent,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, SignedCompactTxReceipt, Transaction,
+        InjectedTransactionAcceptance, SignedCompactTxReceipt, Transaction, TransactionHash,
     },
     malachite::SignedBlockDecryptionShares,
     network::VerifiedValidatorMessage,
@@ -48,7 +48,7 @@ pub enum TestingNetworkInjectedEvent {
         transaction: Transaction,
     },
     OutboundAcceptance {
-        transaction_hash: HashOf<InjectedTransaction>,
+        transaction_hash: TransactionHash,
         acceptance: InjectedTransactionAcceptance,
     },
 }

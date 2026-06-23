@@ -11,8 +11,8 @@ use ethexe_common::{
     HashOf,
     db::InjectedStorageRO,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
-        SignedTxReceipt, Transaction,
+        InjectedTransaction, InjectedTransactionAcceptance, ShieldedTransaction,
+        SignedInjectedTransaction, SignedTxReceipt, Transaction,
     },
 };
 use ethexe_db::Database;
@@ -138,6 +138,13 @@ impl InjectedApi {
             metrics.injected_tx_active_subscriptions.decrement(1);
         });
         Ok(())
+    }
+
+    pub fn on_unshielded_transactions(
+        &self,
+        hash_mapping: Vec<(HashOf<ShieldedTransaction>, HashOf<InjectedTransaction>)>,
+    ) {
+        self.manager.on_unshielded_transactions(hash_mapping);
     }
 
     async fn get_transaction_receipt(

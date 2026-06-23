@@ -21,7 +21,7 @@ use ethexe_common::{
     gear::StateTransition,
     injected::{
         InjectedTransaction, Promise, ShieldedTransaction, SignedInjectedTransaction,
-        SignedShieldedTransaction, SignedTxReceipt,
+        SignedShieldedTransaction, SignedTxReceipt, TransactionHash,
     },
     malachite::Operations,
 };
@@ -748,7 +748,9 @@ impl InjectedStorageRW for RawDatabase {
     }
 
     fn set_receipt(&self, receipt: &SignedTxReceipt) {
-        let tx_hash = receipt.data().tx_hash();
+        let TransactionHash::Left(tx_hash) = receipt.data().tx_hash() else {
+            panic!("only injected transaction receipts can be stored");
+        };
         tracing::trace!(?receipt, "Set receipt for injected transaction");
 
         self.kv

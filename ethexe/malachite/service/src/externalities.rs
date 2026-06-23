@@ -1074,11 +1074,9 @@ mod tests {
     use crate::{MalachiteEvent, mempool::EmptyMempool};
     use anyhow::Context;
     use ethexe_common::{
-        BlockHeader, HashOf,
+        BlockHeader,
         db::{BlockMetaStorageRW, OnChainStorageRW},
-        injected::{
-            InjectedTransaction, PurgedTransaction, SignedInjectedTransaction, TransactionRef,
-        },
+        injected::{PurgedTransaction, SignedInjectedTransaction, TransactionRef},
     };
 
     fn to_payload(bytes: Vec<u8>) -> BlockPayload {
@@ -1464,7 +1462,7 @@ mod tests {
     /// can assert which txs reached the mempool eviction path.
     #[derive(Default)]
     struct ForgetTracker {
-        seen: tokio::sync::Mutex<Vec<HashOf<InjectedTransaction>>>,
+        seen: tokio::sync::Mutex<Vec<TransactionHash>>,
     }
 
     #[async_trait::async_trait]
@@ -1582,8 +1580,8 @@ mod tests {
             2,
             "exactly two injected txs should be forgotten"
         );
-        assert!(seen_hashes.contains(&tx_a.data().to_hash()));
-        assert!(seen_hashes.contains(&tx_b.data().to_hash()));
+        assert!(seen_hashes.contains(&TransactionHash::Left(tx_a.data().to_hash())));
+        assert!(seen_hashes.contains(&TransactionHash::Left(tx_b.data().to_hash())));
     }
 
     // ------------------------------------------------------------------

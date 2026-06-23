@@ -1084,7 +1084,36 @@ impl Service {
                         unshielded_hash_mapping,
                         not_unshielded,
                     } => {
-                        // TODO: handle  `unshielded_hash_mapping` and `not_unshielded` in RPC
+                        let Some(rpc) = rpc.as_ref() else {
+                            tracing::trace!(
+                                %mb_hash,
+                                "can not handle unshielding output without RPC service"
+                            );
+                            continue;
+                        };
+
+                        rpc.receive_unshielded_transactions(unshielded_hash_mapping);
+
+                        let Some(pub_key) = validator_pub_key else {
+                            tracing::trace!(
+                                %mb_hash,
+                                "validator public key not found, can not sign failed unshielding receipts"
+                            );
+                            continue;
+                        };
+
+                        not_unshielded.into_iter().for_each(|purged_tx| {
+                            let receipt = Receipt::<CompactPromise>::Purged(purged_tx);
+                            match signer.signed_message(pub_key, receipt, None) {
+                                Ok(signed_receipt) => rpc.receive_tx_receipt(signed_receipt.into()),
+                                Err(err) => {
+                                    tracing::error!(
+                                        %mb_hash,
+                                        "failed to sign unshielding receipt: {err}"
+                                    );
+                                }
+                            }
+                        });
                     }
                 },
                 Event::Prometheus(event) => match event {

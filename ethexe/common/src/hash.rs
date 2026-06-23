@@ -203,7 +203,7 @@ impl<T> From<HashOf<T>> for MaybeHashOf<T> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, derive_more::Display)]
+#[derive(Debug, PartialEq, Eq, Hash, Encode, Decode, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum EitherHashOf<Left: 'static, Right: 'static> {
     #[display("Left({_0})")]
@@ -211,6 +211,14 @@ pub enum EitherHashOf<Left: 'static, Right: 'static> {
     #[display("Right({_0})")]
     Right(HashOf<Right>),
 }
+
+impl<L, R> Clone for EitherHashOf<L, R> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<L, R> Copy for EitherHashOf<L, R> {}
 
 impl<L, R> EitherHashOf<L, R> {
     pub fn inner(&self) -> H256 {

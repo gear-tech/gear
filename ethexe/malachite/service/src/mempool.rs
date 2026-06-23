@@ -807,14 +807,7 @@ mod tests {
         let head = chain[2];
         let fetched = futures::executor::block_on(pool.fetch(head));
         assert_eq!(fetched.len(), 1);
-        assert_eq!(
-            fetched[0]
-                .as_injected()
-                .expect("injected transaction")
-                .data()
-                .to_hash(),
-            tx_hash
-        );
+        assert_eq!(fetched[0].as_ref().hash(), tx_hash);
     }
 
     #[test]

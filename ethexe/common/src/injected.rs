@@ -264,15 +264,10 @@ pub enum Receipt<P> {
 
 #[cfg(feature = "shielded")]
 impl<P: PromiseKind> Receipt<P> {
-    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
+    pub fn tx_hash(&self) -> TransactionHash {
         match self {
-            Self::Promise(promise) => promise.tx_hash(),
-            Self::Purged(purged) => {
-                let TransactionHash::Left(tx_hash) = purged.tx_hash else {
-                    todo!()
-                };
-                tx_hash
-            }
+            Self::Promise(promise) => TransactionHash::Left(promise.tx_hash()),
+            Self::Purged(purged) => purged.tx_hash,
         }
     }
 }
@@ -399,8 +394,8 @@ pub enum TransactionPurgedReason {
     /// The transaction references a block that is not known locally.
     #[display("transaction reference block is unknown")]
     UnknownReferenceBlock = 2,
-    /// 
-    #[display("failed to decryption shielded transaction")]
+    /// The shielded transaction could not be decrypted.
+    #[display("failed to decrypt shielded transaction")]
     DecryptionFailed = 3,
 
     /// The transaction has a non-zero value, which is not supported yet.
@@ -572,10 +567,10 @@ pub enum TransactionRef<'op> {
 
 #[cfg(feature = "shielded")]
 impl<'t> TransactionRef<'t> {
-    pub fn hash(&self) -> HashOf<InjectedTransaction> {
+    pub fn hash(&self) -> TransactionHash {
         match self {
-            Self::Injected(tx) => tx.data().to_hash(),
-            Self::Shielded(_) => todo!("Shielded transaction hash"),
+            Self::Injected(tx) => TransactionHash::Left(tx.data().to_hash()),
+            Self::Shielded(tx) => TransactionHash::Right(tx.data().to_hash()),
         }
     }
 

@@ -7,8 +7,8 @@ use crate::{
     validator::discovery::ValidatorIdentities,
 };
 use ethexe_common::{
-    Address, HashOf,
-    injected::{InjectedTransaction, InjectedTransactionAcceptance, Transaction},
+    Address,
+    injected::{InjectedTransactionAcceptance, Transaction, TransactionHash},
 };
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use libp2p::{
@@ -82,7 +82,7 @@ pub enum Event {
     },
     /// We got a response from a validator we sent transaction to
     OutboundAcceptance {
-        transaction_hash: HashOf<InjectedTransaction>,
+        transaction_hash: TransactionHash,
         acceptance: InjectedTransactionAcceptance,
     },
 }
@@ -108,7 +108,7 @@ impl Event {
 
     fn unwrap_injected_transaction_acceptance(
         self,
-    ) -> (HashOf<InjectedTransaction>, InjectedTransactionAcceptance) {
+    ) -> (TransactionHash, InjectedTransactionAcceptance) {
         match self {
             Event::OutboundAcceptance {
                 transaction_hash,
@@ -134,9 +134,9 @@ type PendingResponseFuture = BoxFuture<'static, (ResponseChannel<InnerResponse>,
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    pending_requests: HashMap<OutboundRequestId, HashOf<InjectedTransaction>>,
+    pending_requests: HashMap<OutboundRequestId, TransactionHash>,
     pending_responses: FuturesUnordered<PendingResponseFuture>,
-    transaction_cache: LruCache<HashOf<InjectedTransaction>, LruCache<Address, ()>>,
+    transaction_cache: LruCache<TransactionHash, LruCache<Address, ()>>,
     metrics: Metrics,
 }
 
