@@ -16,7 +16,7 @@
 //!    `globals.latest_finalized_mb_hash` is gap-free across the
 //!    restart boundary, and the latest pointer never rewinds.
 
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{collections::HashMap, num::NonZeroUsize, path::Path, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use ethexe_common::{
@@ -27,10 +27,12 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_malachite::{
     MalachiteConfig, MalachiteEvent, MalachiteService, Mempool, TxInsertionStatus, ValidatorEntry,
+    ValidatorTdecSetup,
 };
 use futures::StreamExt as _;
+use gear_tdec::bls12_381::E as Bls12_381;
 use gprimitives::H256;
-use gsigner::{Signer, schemes::secp256k1::Secp256k1};
+use gsigner::{Signer, TdecKeyStore, schemes::secp256k1::Secp256k1};
 
 /// Test-local no-op mempool. The crate's own [`EmptyMempool`] is not part
 /// of the public API on purpose — production should never assemble a
@@ -112,6 +114,40 @@ fn build_signer(home: &Path) -> (Signer<Secp256k1>, gsigner::schemes::secp256k1:
     let signer = Signer::<Secp256k1>::fs(key_dir).expect("open keystore");
     let pub_key = signer.generate().expect("generate keypair");
     (signer, pub_key)
+}
+
+fn build_tdec_setup(pub_key: gsigner::schemes::secp256k1::PublicKey) -> ValidatorTdecSetup {
+    let dealer = gear_tdec::deal::<Bls12_381>(1, 1, &mut gear_tdec::rand_utils::test_rng());
+    let private_context = dealer
+        .private_contexts
+        .into_iter()
+        .next()
+        .expect("single-validator dealer output must contain a private context");
+    let public_context = private_context
+        .public_decryption_contexts
+        .first()
+        .cloned()
+        .expect("single-validator dealer output must contain a public context");
+
+    let key_store = TdecKeyStore::memory();
+    key_store
+        .import_decryption_key(private_context.validator_decryption_key)
+        .expect("dealer TDEC key must be importable");
+
+    ValidatorTdecSetup {
+        threshold: NonZeroUsize::new(1).expect("threshold is non-zero"),
+        dkg_public_key: dealer.public_key,
+        validators_contexts: Some(HashMap::from([(pub_key.to_address(), public_context)])),
+        key_store,
+    }
+}
+
+fn free_tcp_port() -> u16 {
+    std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+        .expect("bind ephemeral test port")
+        .local_addr()
+        .expect("read ephemeral test port")
+        .port()
 }
 
 /// Build the MalachiteConfig used by the resilience tests:
@@ -217,13 +253,15 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     let chain = seed_chain(&db, 64, 0xDEAD_BEEF);
 
     let (signer, pub_key) = build_signer(home.path());
+    let tdec_setup = build_tdec_setup(pub_key);
+    let listen_port = free_tcp_port();
     // ---- first run -------------------------------------------------
     let mut svc = MalachiteService::new(
-        build_config(home.path(), 0, pub_key),
+        build_config(home.path(), listen_port, pub_key),
         db.clone(),
         signer.clone(),
         Some(pub_key),
-        None,
+        Some(tdec_setup.clone()),
         Arc::new(EmptyMempool),
     )
     .await
@@ -262,11 +300,11 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
 
     // ---- second run on the SAME home dir + DB ----------------------
     let mut svc2 = MalachiteService::new(
-        build_config(home.path(), 0, pub_key),
+        build_config(home.path(), listen_port, pub_key),
         db.clone(),
         signer,
         Some(pub_key),
-        None,
+        Some(tdec_setup),
         Arc::new(EmptyMempool),
     )
     .await
