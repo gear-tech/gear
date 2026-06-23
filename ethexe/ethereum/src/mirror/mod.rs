@@ -18,6 +18,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address,
     events::mirror::{ReplyEvent, StateChangedEvent, ValueClaimedEvent},
+    gear::ValueClaim,
 };
 pub use events::signatures;
 use events::{
@@ -31,16 +32,8 @@ use events::{
 use futures::StreamExt;
 use gear_core::{ids::prelude::MessageIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId, U256};
-use serde::Serialize;
 
 pub mod events;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ClaimInfo {
-    pub message_id: MessageId,
-    pub actor_id: ActorId,
-    pub value: u128,
-}
 
 type Instance = IMirror::IMirrorInstance<AlloyProvider>;
 type QueryInstance = IMirror::IMirrorInstance<RootProvider>;
@@ -223,18 +216,18 @@ impl Mirror {
         Ok(receipt)
     }
 
-    pub async fn wait_for_value_claim(&self, message_id: MessageId) -> Result<ClaimInfo> {
+    pub async fn wait_for_value_claim(&self, message_id: MessageId) -> Result<ValueClaim> {
         let mut stream = self.query().events().value_claimed().subscribe().await?;
 
         while let Some(result) = stream.next().await {
             if let Ok((ValueClaimedEvent { claimed_id, value }, _)) = result
                 && claimed_id == message_id
             {
-                let actor_id =
+                let destination =
                     Address::from(self.instance.provider().default_signer_address()).into();
-                return Ok(ClaimInfo {
+                return Ok(ValueClaim {
                     message_id: claimed_id,
-                    actor_id,
+                    destination,
                     value,
                 });
             }
