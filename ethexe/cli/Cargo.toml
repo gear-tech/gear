@@ -21,6 +21,7 @@ ethexe-network.workspace = true
 ethexe-malachite.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc = { workspace = true, features = ["client"] }
+ethexe-sdk.workspace = true
 ethexe-service.workspace = true
 gsigner = { workspace = true, features = [
     "std",
@@ -30,7 +31,6 @@ gsigner = { workspace = true, features = [
     "keyring",
     "serde",
 ] }
-ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
 ethexe-processor.workspace = true
 ethexe-runtime-common.workspace = true
@@ -43,7 +43,6 @@ clap = { workspace = true, features = ["derive"] }
 directories.workspace = true
 tracing-subscriber.workspace = true
 hex.workspace = true
-jsonrpsee = { workspace = true, features = ["client"] }
 log.workspace = true
 serde.workspace = true
 serde_json.workspace = true
