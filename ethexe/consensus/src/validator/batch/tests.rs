@@ -347,6 +347,92 @@ async fn accepts_head_finalized_by_reachability_when_cache_flag_unset() {
 }
 
 #[tokio::test]
+async fn builds_chain_commitment_when_committed_anchor_compact_absent() {
+    // Regression for the validator-set handover stall: a freshly joined
+    // validator learns `last_committed_mb` only from the on-chain `MBCommitted`
+    // event (propagated into `BlockMeta.last_committed_mb`) and never computed
+    // that MB, so it has no `mb_compact_block` for the anchor. The producer must
+    // still build a chain commitment for the computed MBs descending from the
+    // anchor — terminating the parent walk on the anchor hash — instead of
+    // bailing with "last committed MB is still not synced locally".
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    // The committed anchor is known only by hash: no compact block, no meta.
+    let anchor = H256::from([0x87; 32]);
+    let mb2 = append_mb(&db, anchor, 2, vec![nonempty_transition(2)]);
+    let mb3 = append_mb(&db, mb2, 3, vec![nonempty_transition(3)]);
+    db.globals_mutate(|g| g.latest_finalized_mb_hash = mb3);
+    db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_mb = Some(anchor);
+    });
+    // Sanity: the anchor genuinely has no local compact block.
+    assert!(db.mb_compact_block(anchor).is_none());
+
+    let manager = mock_batch_manager(db.clone());
+    let batch = manager
+        .create_batch_commitment(block)
+        .await
+        .expect("must not error when the committed anchor compact block is absent")
+        .expect("expected a non-empty batch");
+
+    let chain_commitment = batch
+        .chain_commitment
+        .expect("computed MBs descend from the anchor → chain commitment expected");
+    assert_eq!(
+        chain_commitment.head, mb3,
+        "chain commitment head must be the finalized tip"
+    );
+    assert!(
+        !chain_commitment.transitions.is_empty(),
+        "transitions from the MBs after the anchor must be committed"
+    );
+}
+
+#[tokio::test]
+async fn validates_chain_commitment_when_committed_anchor_compact_absent() {
+    // Validator-side counterpart: a participant that knows the committed anchor
+    // only by hash (no local compact block) must still accept a well-formed
+    // request whose head descends from that anchor, rather than hard-erroring.
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    let anchor = H256::from([0x87; 32]);
+    let mb2 = append_mb(&db, anchor, 2, vec![nonempty_transition(2)]);
+    let mb3 = append_mb(&db, mb2, 3, vec![nonempty_transition(3)]);
+    db.globals_mutate(|g| g.latest_finalized_mb_hash = mb3);
+    db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_mb = Some(anchor);
+    });
+    assert!(db.mb_compact_block(anchor).is_none());
+
+    // Build the request from a node that did produce the batch.
+    let request = {
+        let manager = mock_batch_manager(db.clone());
+        let batch = manager
+            .create_batch_commitment(block)
+            .await
+            .unwrap()
+            .expect("expected a non-empty batch");
+        BatchCommitmentValidationRequest::new(&batch)
+    };
+
+    let manager = mock_batch_manager(db);
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    match status {
+        ValidationStatus::Accepted(_) => {}
+        ValidationStatus::Rejected { reason, .. } => {
+            panic!("expected acceptance with anchor compact absent, got rejection: {reason:?}")
+        }
+    }
+}
+
+#[tokio::test]
 async fn rejects_head_mb_at_or_below_last_committed_mb() {
     // The coordinator must always advance past `last_committed_mb`. If
     // its `head_mb` lands at or below that height, the participant rejects

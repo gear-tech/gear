@@ -228,24 +228,35 @@ impl BatchCommitmentManager {
                     block.hash
                 )
             })?;
-        let last_committed_mb = self
-            .db
-            .mb_compact_block(last_committed_mb_hash)
-            .with_context(|| {
-                format!("committed MB {last_committed_mb_hash} has no compact block in db")
-            })?;
 
-        // check that head_mb is a strict descendant of last_committed_mb
+        // Walk the parent chain from `head_mb` down to (exclusive) the on-chain
+        // committed anchor, terminating on its hash. The anchor's own compact
+        // block is intentionally never dereferenced: a freshly joined validator
+        // may know `last_committed_mb_hash` only from the on-chain `MBCommitted`
+        // event and never have computed that MB. If the walk leaves the
+        // locally-known chain before reaching the anchor, `head_mb` is not a
+        // local descendant of it — reject rather than hard-error.
         let mut cursor_mb_hash = head_mb_hash;
         let mut cursor_mb = head_mb;
         let mut not_committed_mbs_chain = VecDeque::new();
-        while cursor_mb.height > last_committed_mb.height {
+        while cursor_mb_hash != last_committed_mb_hash {
             // push_front to keep the order from oldest to newest
             not_committed_mbs_chain.push_front(cursor_mb_hash);
-            cursor_mb_hash = cursor_mb.parent;
-            cursor_mb = self.db.mb_compact_block(cursor_mb_hash).with_context(|| {
-                format!("finalized MB {cursor_mb_hash} has no compact block in db")
-            })?;
+            let parent_hash = cursor_mb.parent;
+            if parent_hash == last_committed_mb_hash {
+                cursor_mb_hash = parent_hash;
+                break;
+            }
+            let Some(parent_mb) = self.db.mb_compact_block(parent_hash) else {
+                return Ok(Some(
+                    ValidationRejectReason::HeadMbNotStrictDescendantOfLatestCommittedMb {
+                        head_mb: head_mb_hash,
+                        latest_committed_mb: last_committed_mb_hash,
+                    },
+                ));
+            };
+            cursor_mb_hash = parent_hash;
+            cursor_mb = parent_mb;
         }
 
         if cursor_mb_hash != last_committed_mb_hash {
@@ -265,13 +276,16 @@ impl BatchCommitmentManager {
                 format!("finalized MB {head_mb_hash} has no last_advanced_eb in db")
             })?;
 
+        // The committed MB's advanced-EB anchor equals `BlockMeta.last_committed_eb`:
+        // the Router emits `MBCommitted(head)` and `EBCommitted(lastAdvancedEthBlock)`
+        // from the same `ChainCommitment` (Router.sol). Unlike `mb_meta` of the
+        // committed MB, this is available to a freshly joined validator. `None`
+        // means no EB has been committed yet (genesis anchor → zero).
         let last_committed_advanced_eth_block = self
             .db
-            .mb_meta(last_committed_mb_hash)
-            .last_advanced_eb
-            .with_context(|| {
-                format!("committed MB {last_committed_mb_hash} has no last_advanced_eb in db")
-            })?;
+            .block_meta(block.hash)
+            .last_committed_eb
+            .unwrap_or_default();
 
         // This check is not necessary, as soon as this must be guaranteed by ethexe-malachite,
         // but we still want to have it just in case, to avoid accepting invalid batch commitments.

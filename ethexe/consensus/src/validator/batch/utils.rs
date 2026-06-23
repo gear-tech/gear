@@ -160,24 +160,23 @@ pub fn try_include_chain_commitment<
         .last_committed_mb
         .with_context(|| format!("at_block {at_block} must be prepared at this moment"))?;
 
-    let Some(last_committed_mb) = db.mb_compact_block(last_committed_mb_hash) else {
-        tracing::warn!(
-            %at_block,
-            %latest_finalized_mb,
-            %last_committed_mb_hash,
-            "last committed MB {last_committed_mb_hash} is still not synced locally, skipping chain commitment"
-        );
-        return Ok(());
-    };
-
+    // `last_committed_mb_hash` is the MB last committed on-chain. A freshly
+    // joined validator may know it only from the on-chain `MBCommitted` event
+    // (propagated into `BlockMeta.last_committed_mb`) and never have computed
+    // that MB, so its compact block can be absent locally. We must therefore
+    // never dereference the anchor itself: the parent walk below terminates on
+    // its hash, and running off the locally-known chain before reaching it is a
+    // lenient skip (sync lag / not yet a local ancestor), retried later.
     let mut cursor_mb_hash = latest_finalized_mb;
     let mut cursor_mb = db
         .mb_compact_block(cursor_mb_hash)
         .context("latest finalized MB must have compact block in db")?;
 
-    // Reach the latest computed MB on the chain
+    // Skip the finalized-but-not-yet-computed suffix at the tip, stopping at the
+    // latest computed MB.
     while !db.mb_meta(cursor_mb_hash).computed {
-        if cursor_mb_hash == last_committed_mb_hash {
+        let parent_hash = cursor_mb.parent;
+        if cursor_mb_hash == last_committed_mb_hash || parent_hash == last_committed_mb_hash {
             tracing::debug!(
                 %at_block,
                 %latest_finalized_mb,
@@ -186,41 +185,39 @@ pub fn try_include_chain_commitment<
             );
             return Ok(());
         }
-        if cursor_mb.height <= last_committed_mb.height {
-            tracing::error!(
+        let Some(parent_mb) = db.mb_compact_block(parent_hash) else {
+            tracing::warn!(
                 %at_block,
                 %latest_finalized_mb,
                 %last_committed_mb_hash,
-                "latest finalized MB and last committed MB are not in the same chain, protocol violation, skipping chain commitment"
+                "chain walk left the local chain before reaching last committed MB, skipping chain commitment"
             );
             return Ok(());
-        }
-
-        cursor_mb_hash = cursor_mb.parent;
-        cursor_mb = db
-            .mb_compact_block(cursor_mb_hash)
-            .context("failed to fetch compact block for finalized MB")?;
+        };
+        cursor_mb_hash = parent_hash;
+        cursor_mb = parent_mb;
     }
 
-    // Reach the last last_committed_mb. Collect blocks on the way to build the commitment.
+    // Collect computed-but-not-committed MBs down to (exclusive) the committed anchor.
     let mut computed_not_committed_mbs = VecDeque::new();
     while cursor_mb_hash != last_committed_mb_hash {
-        if cursor_mb.height <= last_committed_mb.height {
-            tracing::error!(
+        // push_front to maintain chronological order from oldest to newest
+        computed_not_committed_mbs.push_front(cursor_mb_hash);
+        let parent_hash = cursor_mb.parent;
+        if parent_hash == last_committed_mb_hash {
+            break;
+        }
+        let Some(parent_mb) = db.mb_compact_block(parent_hash) else {
+            tracing::warn!(
                 %at_block,
                 %latest_finalized_mb,
                 %last_committed_mb_hash,
-                "latest finalized MB and last committed MB are not in the same chain, protocol violation, skipping chain commitment"
+                "chain walk left the local chain before reaching last committed MB, skipping chain commitment"
             );
             return Ok(());
-        }
-
-        // push_front to maintain chronological order from oldest to newest
-        computed_not_committed_mbs.push_front(cursor_mb_hash);
-        cursor_mb_hash = cursor_mb.parent;
-        cursor_mb = db
-            .mb_compact_block(cursor_mb_hash)
-            .context("failed to fetch compact block for finalized MB")?;
+        };
+        cursor_mb_hash = parent_hash;
+        cursor_mb = parent_mb;
     }
 
     // Collect commitment
