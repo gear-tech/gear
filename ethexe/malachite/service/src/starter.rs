@@ -105,7 +105,6 @@ impl MalachiteServiceStarter {
             },
             mempool: mempool.clone(),
             chain_head: chain_head.clone(),
-            pending_events: Default::default(),
             event_tx,
         };
 

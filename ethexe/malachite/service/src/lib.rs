@@ -28,7 +28,7 @@
 //! - [`TxValidity`] (enum) — Validity verdict: `Valid`, `Duplicate`, `Outdated`, …
 //!
 //! Driver methods on [`MalachiteService`]: `receive_injected_transaction`,
-//! `receive_new_eb`, `receive_eb_synced`, `receive_eb_prepared`, `shutdown`.
+//! `receive_new_eb`, `receive_eb_synced`, `shutdown`.
 //!
 //! [`TxValidity`] gates inclusion: a producer drops any non-`Valid` tx when
 //! building an MB, and a validator rejects an entire MB that contains one.
