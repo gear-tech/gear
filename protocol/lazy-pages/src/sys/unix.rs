@@ -32,18 +32,19 @@ cfg_if! {
         }
     } else if #[cfg(all(any(target_os = "linux", target_os = "android"), target_arch = "aarch64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
+            /// TODO: remove once https://github.com/rust-lang/libc/pull/5189 lands in `libc-0.2`
             /// `libc::ucontext_t` is bit different on Android, it has `__padding`:
             /// - https://github.com/rust-lang/libc/issues/5159
             /// - https://android.googlesource.com/platform/bionic/+/refs/tags/ndk-r29/libc/include/sys/ucontext.h#102
             #[cfg(target_os = "android")]
             #[repr(C)]
-            pub struct android_ucontext_t {
-                pub uc_flags: nix::libc::c_ulong,
-                pub uc_link: *mut nix::libc::ucontext_t,
-                pub uc_stack: nix::libc::stack_t,
-                pub uc_sigmask: nix::libc::sigset_t,
-                pub __padding: [u8; 128 - size_of::<nix::libc::sigset_t>()],
-                pub uc_mcontext: nix::libc::mcontext_t,
+            struct android_ucontext_t {
+                uc_flags: nix::libc::c_ulong,
+                uc_link: *mut nix::libc::ucontext_t,
+                uc_stack: nix::libc::stack_t,
+                uc_sigmask: nix::libc::sigset_t,
+                __padding: [u8; 128 - size_of::<nix::libc::sigset_t>()],
+                uc_mcontext: nix::libc::mcontext_t,
             }
             #[cfg(target_os = "android")]
             let ucontext = ucontext as *mut android_ucontext_t;
