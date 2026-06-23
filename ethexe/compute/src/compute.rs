@@ -14,7 +14,7 @@ use ethexe_common::{
     PromiseEmissionMode, PromisePolicy,
     db::{CodesStorageRW, CompactMb, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
     events::BlockRequestEvent,
-    injected::{Promise, SignedShieldedTransaction},
+    injected::Promise,
     malachite::{Operation, Operations},
 };
 use ethexe_db::Database;
@@ -245,7 +245,7 @@ pub fn prepare_executable_for_mb(
 
     build_executable_data(
         db,
-        parent,
+        mb_hash,
         operations,
         program_states,
         schedule,
@@ -260,14 +260,15 @@ pub fn prepare_executable_for_mb(
 /// genesis block from [`ConfigStorageRO::config`].
 fn build_executable_data(
     db: &Database,
-    parent_mb: H256,
+    mb_hash: H256,
     operations: Operations,
     program_states: ethexe_common::ProgramStates,
     schedule: ethexe_common::Schedule,
     initial_advanced_block: H256,
 ) -> Result<ExecutableData> {
     let mut events: Vec<BlockRequestEvent> = Vec::new();
-    let mut injected_transactions = Vec::new();
+    // Initialize injected transactions with already unshielded txs.
+    let mut injected_transactions = db.mb_unshielded_txs(mb_hash);
     let mut gas_allowance: Option<u64> = None;
     let mut current_anchor = initial_advanced_block;
     let mut mailbox_validity = ethexe_common::MAILBOX_VALIDITY_VERSION_2;
@@ -287,22 +288,8 @@ fn build_executable_data(
                 }
                 current_anchor = block_hash;
             }
-            Operation::DecryptionKeys(keys) => {
-                let transactions = collect_parent_mb_shielded_txs(db, parent_mb)?;
-
-                for tx in transactions {
-                    match keys.get(&tx.data().to_hash()) {
-                        Some(shared_secret) => {
-                            match tx.into_verified().try_map(|tx| tx.unshield(shared_secret)) {
-                                Ok(injected_tx) => injected_transactions.push(injected_tx),
-                                Err(_err) => {
-                                    todo!("emit event about invalid transaction decryption")
-                                }
-                            }
-                        }
-                        None => {}
-                    }
-                }
+            Operation::DecryptionKeys(_) => {
+                // ignored
             }
             Operation::Injected(signed) => {
                 let verified = signed.into_verified();
@@ -362,34 +349,6 @@ fn build_executable_data(
         mailbox_validity,
         event_destinations_autoreply,
     })
-}
-
-fn collect_parent_mb_shielded_txs(
-    db: &Database,
-    parent_mb: H256,
-) -> Result<Vec<SignedShieldedTransaction>> {
-    if parent_mb.is_zero() {
-        return Ok(Default::default());
-    }
-
-    let parent_compact = db
-        .mb_compact_block(parent_mb)
-        .ok_or_else(|| ComputeError::MbCompactNotFound(parent_mb))?;
-
-    let operations = db
-        .operations(parent_compact.operations_hash)
-        .ok_or_else(|| ComputeError::MbPayloadNotFound {
-            mb_hash: parent_mb,
-            payload_hash: parent_compact.operations_hash,
-        })?;
-
-    Ok(operations
-        .into_iter()
-        .filter_map(|op| match op {
-            Operation::Shielded(tx) => Some(tx),
-            _ => None,
-        })
-        .collect())
 }
 
 /// EBs in `(last_advanced, target]`, oldest-first; capped at 1024.

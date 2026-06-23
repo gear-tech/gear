@@ -62,10 +62,14 @@ pub use crate::{
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
-use ethexe_common::{injected::PurgedTransaction, malachite::ShieldedTxDecryptionShare};
 pub use ethexe_common::{
+    HashOf,
     injected::Transaction,
     malachite::{Operation, Operations},
+};
+use ethexe_common::{
+    injected::{InjectedTransaction, PurgedTransaction, ShieldedTransaction},
+    malachite::ShieldedTxDecryptionShare,
 };
 pub use ethexe_malachite_core::{
     Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
@@ -97,6 +101,15 @@ pub enum MalachiteEvent {
     PurgedTransactions {
         eb_hash: H256,
         transactions: Vec<PurgedTransaction>,
+    },
+
+    /// Output of unshielding transactions in MB.
+    UnshieldingOutput {
+        mb_hash: H256,
+        /// Mapping from shielded transaction hashes to unshielded transaction hashes.
+        unshielded_hash_mapping: Vec<(HashOf<ShieldedTransaction>, HashOf<InjectedTransaction>)>,
+        /// Transactions that could not be unshielded.
+        not_unshielded: Vec<PurgedTransaction>,
     },
 
     /// Decryption shares for shielded transaction in a concrete malachite block.
@@ -131,6 +144,18 @@ impl std::fmt::Display for MalachiteEvent {
                     f,
                     "PurgedTransactions(eb_hash: {eb_hash}, transactions_len: {})",
                     transactions.len()
+                )
+            }
+            Self::UnshieldingOutput {
+                mb_hash,
+                unshielded_hash_mapping,
+                not_unshielded,
+            } => {
+                write!(
+                    f,
+                    "UnshieldingOutput(mb_hash: {mb_hash}, unshielded_len: {}, not_unshielded_len: {})",
+                    unshielded_hash_mapping.len(),
+                    not_unshielded.len()
                 )
             }
             Self::DecryptionShares { mb_hash, shares } => {

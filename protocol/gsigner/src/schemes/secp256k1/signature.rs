@@ -375,7 +375,7 @@ where
 }
 
 /// A signature verified data structure with the data and recovered public key.
-#[derive(Clone, PartialEq, Eq, Debug, Display, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug, Display, Hash, Encode, Decode)]
 #[display("ValidatedData({data}, {public_key})")]
 pub struct VerifiedData<T> {
     data: T,

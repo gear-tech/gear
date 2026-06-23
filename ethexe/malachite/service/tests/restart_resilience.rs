@@ -191,6 +191,9 @@ async fn collect_until_finalized(
             Ok(Some(Ok(MalachiteEvent::DecryptionShares { .. }))) => {
                 // ignore
             }
+            Ok(Some(Ok(MalachiteEvent::UnshieldingOutput { .. }))) => {
+                // ignore
+            }
             Ok(Some(Err(e))) => panic!("service error: {e}"),
             Ok(None) | Err(_) => break,
         }

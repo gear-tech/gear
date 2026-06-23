@@ -108,6 +108,14 @@ impl Operation {
             _ => None,
         }
     }
+
+    #[cfg(feature = "shielded")]
+    pub fn into_shielded(self) -> Option<SignedShieldedTransaction> {
+        match self {
+            Self::Shielded(tx) => Some(tx),
+            _ => None,
+        }
+    }
 }
 
 // Custom encoder/decoder so the discriminant is always a fixed-width `u32`

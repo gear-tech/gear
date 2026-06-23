@@ -1079,6 +1079,13 @@ impl Service {
                             }
                         }
                     }
+                    MalachiteEvent::UnshieldingOutput {
+                        mb_hash,
+                        unshielded_hash_mapping,
+                        not_unshielded,
+                    } => {
+                        // TODO: handle  `unshielded_hash_mapping` and `not_unshielded` in RPC
+                    }
                 },
                 Event::Prometheus(event) => match event {
                     PrometheusEvent::CollectMetrics { libp2p_metrics } => {

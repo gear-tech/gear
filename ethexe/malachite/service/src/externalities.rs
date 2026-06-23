@@ -50,7 +50,10 @@ use bytes::Bytes;
 use ethexe_common::{
     HashOf, MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
-    injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, ShieldedTransaction, Transaction},
+    injected::{
+        MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, PurgedTransaction, ShieldedTransaction, Transaction,
+        TransactionHash, TransactionPurgedReason,
+    },
     malachite::{
         MalachiteTdecContext, Operation, Operations, ShieldedTxDecryptionShare,
         SignedBlockDecryptionShares,
@@ -250,7 +253,7 @@ impl Externalities for EthexeExternalities {
                  (process_mb_proposal must run first)"
             )
         })?;
-        let payload = self.db.operations(compact.operations_hash).ok_or_else(|| {
+        let operations = self.db.operations(compact.operations_hash).ok_or_else(|| {
             anyhow!(
                 "mark_finalized: operations blob {} missing for block {mb_hash}",
                 compact.operations_hash
@@ -260,13 +263,14 @@ impl Externalities for EthexeExternalities {
         // Flush the committed injected txs from the mempool and add
         // their hashes to the seen-set so a re-gossip can't slip them
         // back in before they age out.
-        let transactions = payload
+        let transactions = operations
             .iter()
             .filter_map(utils::operation_to_transaction)
             .collect::<Vec<_>>();
         if !transactions.is_empty() {
             self.mempool.forget(&transactions).await;
         }
+        drop(transactions);
 
         // Advance the canonical pointer downstream consumers
         // (compute, batch commitment) walk to find the last
@@ -291,7 +295,51 @@ impl Externalities for EthexeExternalities {
             },
             last_advanced,
         );
+
+        // Retain shares belonging to another block
         self.decryption_shares.retain_block(mb_hash);
+
+        let Some(decryption_keys) = operations.iter().find_map(|op| match op {
+            Operation::DecryptionKeys(keys) => Some(keys.clone()),
+            _ => None,
+        }) else {
+            // No need to find shielded transaction, because decryption keys wasn't provided.
+            return Ok(());
+        };
+
+        let mut not_unshielded = Vec::new();
+        let mut unshielded = Vec::new();
+        let mut unshielded_hash_mapping = Vec::new();
+
+        for tx in operations.into_iter().filter_map(|op| op.into_shielded()) {
+            let tx_hash = tx.data().to_hash();
+            match decryption_keys.get(&tx_hash) {
+                Some(shared_key) => {
+                    match tx.into_verified().try_map(|tx| tx.unshield(shared_key)) {
+                        Ok(injected_tx) => {
+                            unshielded_hash_mapping.push((tx_hash, injected_tx.data().to_hash()));
+                            unshielded.push(injected_tx);
+                        }
+                        Err(_err) => {
+                            not_unshielded.push(PurgedTransaction {
+                                tx_hash: TransactionHash::Right(tx_hash),
+                                reason: TransactionPurgedReason::DecryptionFailed,
+                            });
+                        }
+                    }
+                }
+                None => {
+                    // unreachable case, because in `validate_block_above` we check, that all decryption keys was provided
+                }
+            }
+        }
+        let _ = self.event_tx.send(Ok(MalachiteEvent::UnshieldingOutput {
+            mb_hash,
+            unshielded_hash_mapping,
+            not_unshielded,
+        }));
+        self.db.set_mb_unshielded_txs(mb_hash, unshielded);
+
         Ok(())
     }
 

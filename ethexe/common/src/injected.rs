@@ -400,6 +400,8 @@ pub enum TransactionPurgedReason {
     #[display("transaction reference block is unknown")]
     UnknownReferenceBlock = 2,
     /// 
+    #[display("failed to decryption shielded transaction")]
+    DecryptionFailed = 3,
 
     /// The transaction has a non-zero value, which is not supported yet.
     ///

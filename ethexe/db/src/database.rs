@@ -10,7 +10,7 @@ use crate::{
 use anyhow::{Context, Result};
 use delegate::delegate;
 use ethexe_common::{
-    BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
+    BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec, VerifiedData,
     db::{
         BlockMeta, BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, CodesStorageRW,
         CompactMb, ConfigStorageRO, DBConfig, DBGlobals, GlobalsStorageRO, GlobalsStorageRW,
@@ -71,6 +71,8 @@ enum Key {
     Promise(HashOf<InjectedTransaction>) = 26,
     TxReceipt(HashOf<InjectedTransaction>) = 27,
     ShieldedTransaction(HashOf<ShieldedTransaction>) = 28,
+
+    MbUnshieldedTxs(H256) = 29,
 }
 
 impl Key {
@@ -98,7 +100,8 @@ impl Key {
             | Self::MbOutcome(hash)
             | Self::MbSchedule(hash)
             | Self::MbMeta(hash)
-            | Self::MbCompactBlock(hash) => bytes.extend(hash.as_ref()),
+            | Self::MbCompactBlock(hash)
+            | Self::MbUnshieldedTxs(hash) => bytes.extend(hash.as_ref()),
 
             Self::InjectedTransaction(hash) | Self::Promise(hash) | Self::TxReceipt(hash) => {
                 bytes.extend(hash.as_ref())
@@ -410,6 +413,16 @@ impl MbStorageRO for RawDatabase {
             })
     }
 
+    fn mb_unshielded_txs(&self, mb_hash: H256) -> Vec<VerifiedData<InjectedTransaction>> {
+        self.kv
+            .get(&Key::MbUnshieldedTxs(mb_hash).to_bytes())
+            .map(|data| {
+                Vec::<_>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<VerifiedData<InjectedTransaction>>`")
+            })
+            .unwrap_or_default()
+    }
+
     fn mb_meta(&self, mb_hash: H256) -> MbMeta {
         self.kv
             .get(&Key::MbMeta(mb_hash).to_bytes())
@@ -449,6 +462,12 @@ impl MbStorageRW for RawDatabase {
         tracing::trace!(mb_hash = %mb_hash, "Set MB schedule");
         self.kv
             .put(&Key::MbSchedule(mb_hash).to_bytes(), schedule.encode());
+    }
+
+    fn set_mb_unshielded_txs(&self, mb_hash: H256, txs: Vec<VerifiedData<InjectedTransaction>>) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB unshielded transactions");
+        self.kv
+            .put(&Key::MbUnshieldedTxs(mb_hash).to_bytes(), txs.encode());
     }
 
     fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta)) {
@@ -999,6 +1018,7 @@ impl MbStorageRO for Database {
         fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
         fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
         fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
+            fn mb_unshielded_txs(&self, mb_hash: H256) -> Vec<VerifiedData<InjectedTransaction>>;
         fn mb_meta(&self, mb_hash: H256) -> MbMeta;
     });
 }
@@ -1010,6 +1030,7 @@ impl MbStorageRW for Database {
         fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
         fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
         fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
+        fn set_mb_unshielded_txs(&self, mb_hash: H256, txs: Vec<VerifiedData<InjectedTransaction>>);
         fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
     });
 }

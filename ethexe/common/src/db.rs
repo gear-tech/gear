@@ -22,6 +22,7 @@ use gear_core::{
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
+use gsigner::VerifiedData;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -178,6 +179,7 @@ pub trait MbStorageRO {
     fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
     fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
     fn mb_meta(&self, mb_hash: H256) -> MbMeta;
+    fn mb_unshielded_txs(&self, mb_hash: H256) -> Vec<VerifiedData<InjectedTransaction>>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -189,6 +191,7 @@ pub trait MbStorageRW: MbStorageRO {
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
     fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
+    fn set_mb_unshielded_txs(&self, mb_hash: H256, txs: Vec<VerifiedData<InjectedTransaction>>);
     fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
 }
 
