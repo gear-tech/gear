@@ -27,7 +27,7 @@ use std::{
 use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
     Address, SimpleBlockData,
-    db::{ConfigStorageRO, OnChainStorageRO},
+    db::{ConfigStorageRO, OnChainStorageRO, TdecStorageRW},
     injected::Transaction,
     malachite::{MalachiteTdecContext, SignedBlockDecryptionShares},
 };
@@ -152,6 +152,10 @@ impl MalachiteService {
                 gsigner::schemes::secp256k1::PrivateKey::random(),
             ),
         };
+
+        if let Some(setup) = &validator_tdec_setup {
+            db.set_shielding_key(setup.dkg_public_key.clone());
+        }
 
         let (tdec_ctx, tdec_store) = match validator_tdec_setup {
             Some(setup) if setup.validators_contexts.is_none() && role.is_validator() => {

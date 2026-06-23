@@ -42,7 +42,7 @@ impl TransactionsRelayer {
                 ));
             }
             Transaction::Injected(_) => {}
-            Transaction::Shielded(_) => todo!("Shielded transaction relay validation"),
+            Transaction::Shielded(_) => {}
         }
 
         let (response_sender, response_receiver) = oneshot::channel();

@@ -21,6 +21,8 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
 };
+#[cfg(feature = "shielded")]
+use gear_tdec::bls12_381::DkgPublicKey;
 use gprimitives::H256;
 use gsigner::VerifiedData;
 use parity_scale_codec::{Decode, Encode};
@@ -144,6 +146,18 @@ pub trait InjectedStorageRW: InjectedStorageRO {
 
     #[cfg(feature = "shielded")]
     fn set_receipt(&self, receipt: &SignedTxReceipt);
+}
+
+#[cfg(feature = "shielded")]
+#[auto_impl::auto_impl(&)]
+pub trait TdecStorageRO {
+    fn shielding_key(&self) -> Option<DkgPublicKey>;
+}
+
+#[cfg(feature = "shielded")]
+#[auto_impl::auto_impl(&)]
+pub trait TdecStorageRW: TdecStorageRO {
+    fn set_shielding_key(&self, key: DkgPublicKey);
 }
 
 /// MB static identity. Keyed by the Blake2b envelope hash; existence implies

@@ -9,7 +9,7 @@ use super::{
 };
 use ethexe_common::{
     HashOf,
-    db::InjectedStorageRO,
+    db::{InjectedStorageRO, TdecStorageRO},
     injected::{
         InjectedTransaction, InjectedTransactionAcceptance, ShieldedTransaction,
         SignedInjectedTransaction, SignedTxReceipt, Transaction,
@@ -39,8 +39,7 @@ pub struct InjectedApi {
 #[async_trait]
 impl InjectedServer for InjectedApi {
     async fn shielding_key(&self) -> RpcResult<Option<DkgPublicKey>> {
-        // TODO: Implement me
-        Ok(None)
+        Ok(self.db.shielding_key())
     }
 
     async fn send_transaction(
@@ -186,7 +185,7 @@ mod tests {
     use super::*;
     use ethexe_common::{
         Address, PrivateKey, SignedMessage, ValidatorsVec,
-        db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRW, SetGlobals},
+        db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRW, SetGlobals, TdecStorageRW},
         injected::{Promise, Receipt},
         mock::Mock,
     };
@@ -281,6 +280,21 @@ mod tests {
 
         let result = api.get_transactions(ids).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_shielding_key_returns_stored_key() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+        let dealer = gear_tdec::deal::<gear_tdec::bls12_381::E>(
+            3,
+            2,
+            &mut gear_tdec::rand_utils::test_rng(),
+        );
+
+        db.set_shielding_key(dealer.public_key);
+
+        assert_eq!(api.shielding_key().await.unwrap(), Some(dealer.public_key));
     }
 
     #[tokio::test]

@@ -15,7 +15,7 @@ use ethexe_common::{
         BlockMeta, BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, CodesStorageRW,
         CompactMb, ConfigStorageRO, DBConfig, DBGlobals, GlobalsStorageRO, GlobalsStorageRW,
         HashStorageRO, InjectedStorageRO, InjectedStorageRW, MbMeta, MbStorageRO, MbStorageRW,
-        OnChainStorageRO, OnChainStorageRW,
+        OnChainStorageRO, OnChainStorageRW, TdecStorageRO, TdecStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -35,6 +35,7 @@ use gear_core::{
     ids::{ActorId, CodeId, prelude::CodeIdExt as _},
     memory::PageBuf,
 };
+use gear_tdec::bls12_381::DkgPublicKey;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -73,6 +74,8 @@ enum Key {
     ShieldedTransaction(HashOf<ShieldedTransaction>) = 28,
 
     MbUnshieldedTxs(H256) = 29,
+
+    ShieldingKey = 30,
 }
 
 impl Key {
@@ -118,7 +121,7 @@ impl Key {
                 bytes.extend(runtime_id.to_le_bytes());
                 bytes.extend(code_id.as_ref());
             }
-            Self::Globals | Self::Config => {
+            Self::Globals | Self::Config | Self::ShieldingKey => {
                 // append additional zero bytes to avoid intersection with CAS
                 bytes.extend([0; 8])
             }
@@ -758,6 +761,25 @@ impl InjectedStorageRW for RawDatabase {
     }
 }
 
+impl TdecStorageRO for RawDatabase {
+    fn shielding_key(&self) -> Option<DkgPublicKey> {
+        self.kv.get(&Key::ShieldingKey.to_bytes()).map(|data| {
+            String::from_utf8(data)
+                .expect("Failed to decode shielding key as UTF-8")
+                .parse()
+                .expect("Failed to parse DkgPublicKey")
+        })
+    }
+}
+
+impl TdecStorageRW for RawDatabase {
+    fn set_shielding_key(&self, key: DkgPublicKey) {
+        tracing::trace!("Set shielding key");
+        self.kv
+            .put(&Key::ShieldingKey.to_bytes(), key.to_string().into_bytes());
+    }
+}
+
 #[derive(derive_more::Debug, Clone)]
 #[debug("Database(CAS + KV)")]
 pub struct Database {
@@ -1046,6 +1068,18 @@ impl InjectedStorageRW for Database {
     });
 }
 
+impl TdecStorageRO for Database {
+    delegate!(to self.raw {
+        fn shielding_key(&self) -> Option<DkgPublicKey>;
+    });
+}
+
+impl TdecStorageRW for Database {
+    delegate!(to self.raw {
+        fn set_shielding_key(&self, key: DkgPublicKey);
+    });
+}
+
 impl CodesStorageRO for Database {
     delegate!(to self.raw {
         fn original_code_exists(&self, code_id: CodeId) -> bool;
@@ -1161,6 +1195,20 @@ mod tests {
         db.set_shielded_transaction(tx.clone());
 
         assert_eq!(db.shielded_transaction(tx_hash), Some(tx));
+    }
+
+    #[test]
+    fn test_shielding_key() {
+        let db = Database::memory();
+
+        let mut rng = gear_tdec::rand_utils::test_rng();
+        let dealer_out = gear_tdec::deal::<gear_tdec::bls12_381::E>(3, 2, &mut rng);
+
+        assert_eq!(db.shielding_key(), None);
+
+        db.set_shielding_key(dealer_out.public_key);
+
+        assert_eq!(db.shielding_key(), Some(dealer_out.public_key));
     }
 
     #[test]

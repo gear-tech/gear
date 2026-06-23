@@ -3059,7 +3059,6 @@ async fn injected_tx_fungible_token_over_network() {
     stop_nodes([alice_node, bob_node]).await;
 }
 
-#[ignore = "_"]
 #[tokio::test]
 #[ntest::timeout(60_000)]
 async fn shielded_tx_fungible_token() {
@@ -3151,13 +3150,39 @@ async fn shielded_tx_fungible_token() {
         .shield(&shielding_key, &mut rand::thread_rng())
         .unwrap();
     let signed_shielded_tx = env.signer.signed_message(pubkey, shielded, None).unwrap();
-    let mut subscription = rpc_client
+    let mut shielded_subscription = rpc_client
         .send_transaction_and_watch(signed_shielded_tx.into())
         .await
         .unwrap();
 
-    let receipt = subscription.next().await.unwrap().unwrap();
-    let promise = receipt.0.into_data().unwrap_promise();
+    // Also send another transaction to trigger block creation.
+    let random_actor = ActorId::new(H256::random().0);
+    let transfer_amount = 100_000;
+    let transfer_action = demo_fungible_token::FTAction::Transfer {
+        from: pubkey.to_address().into(),
+        to: random_actor,
+        amount: transfer_amount,
+    };
+    let transfer_tx = InjectedTransaction {
+        destination: usdt_actor_id,
+        payload: transfer_action.encode().try_into().unwrap(),
+        value: 0,
+        reference_block: node.db.globals().latest_prepared_eb_hash,
+        salt: vec![1].try_into().unwrap(),
+    };
+
+    let signed_transfer_tx = env
+        .signer
+        .signed_message(pubkey, transfer_tx.clone(), None)
+        .unwrap();
+
+    let mut transfer_subscription = rpc_client
+        .send_transaction_and_watch(signed_transfer_tx.into())
+        .await
+        .unwrap();
+
+    let shielded_receipt = shielded_subscription.next().await.unwrap().unwrap();
+    let shielded_promise = shielded_receipt.0.into_data().unwrap_promise();
 
     let expected_event = demo_fungible_token::FTEvent::Transfer {
         from: ActorId::new([0u8; 32]),
@@ -3165,7 +3190,18 @@ async fn shielded_tx_fungible_token() {
         amount,
     };
 
-    assert_eq!(promise.reply.payload, expected_event.encode());
+    assert_eq!(shielded_promise.reply.payload, expected_event.encode());
+
+    let transfer_receipt = transfer_subscription.next().await.unwrap().unwrap();
+    let transfer_promise = transfer_receipt.0.into_data().unwrap_promise();
+
+    let expected_transfer = demo_fungible_token::FTEvent::Transfer {
+        from: pubkey.to_address().into(),
+        to: random_actor,
+        amount: transfer_amount,
+    };
+
+    assert_eq!(transfer_promise.reply.payload, expected_transfer.encode());
 }
 
 #[tokio::test]
