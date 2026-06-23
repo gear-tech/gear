@@ -48,11 +48,11 @@ use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
 use bytes::Bytes;
 use ethexe_common::{
-    HashOf, MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
+    HashOf, MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData, VerifiedData,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
     injected::{
-        MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, PurgedTransaction, ShieldedTransaction, Transaction,
-        TransactionHash, TransactionPurgedReason,
+        InjectedTransaction, MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, PurgedTransaction,
+        ShieldedTransaction, Transaction, TransactionHash, TransactionPurgedReason,
     },
     malachite::{
         MalachiteTdecContext, Operation, Operations, ShieldedTxDecryptionShare,
@@ -278,6 +278,31 @@ impl Externalities for EthexeExternalities {
         self.db
             .globals_mutate(|g| g.latest_finalized_mb_hash = mb_hash);
 
+        // Retain shares belonging to another block
+        self.decryption_shares.retain_block(mb_hash);
+
+        if let Some(decryption_keys) = operations.iter().find_map(|op| match op {
+            Operation::DecryptionKeys(keys) => Some(keys.clone()),
+            _ => None,
+        }) {
+            let (unshielded_with_hashes, not_unshielded) =
+                self.unshield_parent_transactions(compact.parent, &decryption_keys)?;
+            let unshielded_hash_mapping = unshielded_with_hashes
+                .iter()
+                .map(|(tx_hash, tx)| (*tx_hash, tx.data().to_hash()))
+                .collect();
+            let unshielded = unshielded_with_hashes
+                .into_iter()
+                .map(|(_, tx)| tx)
+                .collect();
+            self.db.set_mb_unshielded_txs(mb_hash, unshielded);
+            let _ = self.event_tx.send(Ok(MalachiteEvent::UnshieldingOutput {
+                mb_hash,
+                unshielded_hash_mapping,
+                not_unshielded,
+            }));
+        }
+
         let app_cert = CommitCertificate {
             height: cert.height,
             mb_hash,
@@ -295,50 +320,6 @@ impl Externalities for EthexeExternalities {
             },
             last_advanced,
         );
-
-        // Retain shares belonging to another block
-        self.decryption_shares.retain_block(mb_hash);
-
-        let Some(decryption_keys) = operations.iter().find_map(|op| match op {
-            Operation::DecryptionKeys(keys) => Some(keys.clone()),
-            _ => None,
-        }) else {
-            // No need to find shielded transaction, because decryption keys wasn't provided.
-            return Ok(());
-        };
-
-        let mut not_unshielded = Vec::new();
-        let mut unshielded = Vec::new();
-        let mut unshielded_hash_mapping = Vec::new();
-
-        for tx in operations.into_iter().filter_map(|op| op.into_shielded()) {
-            let tx_hash = tx.data().to_hash();
-            match decryption_keys.get(&tx_hash) {
-                Some(shared_key) => {
-                    match tx.into_verified().try_map(|tx| tx.unshield(shared_key)) {
-                        Ok(injected_tx) => {
-                            unshielded_hash_mapping.push((tx_hash, injected_tx.data().to_hash()));
-                            unshielded.push(injected_tx);
-                        }
-                        Err(_err) => {
-                            not_unshielded.push(PurgedTransaction {
-                                tx_hash: TransactionHash::Right(tx_hash),
-                                reason: TransactionPurgedReason::DecryptionFailed,
-                            });
-                        }
-                    }
-                }
-                None => {
-                    // unreachable case, because in `validate_block_above` we check, that all decryption keys was provided
-                }
-            }
-        }
-        let _ = self.event_tx.send(Ok(MalachiteEvent::UnshieldingOutput {
-            mb_hash,
-            unshielded_hash_mapping,
-            not_unshielded,
-        }));
-        self.db.set_mb_unshielded_txs(mb_hash, unshielded);
 
         Ok(())
     }
@@ -419,6 +400,14 @@ impl Externalities for EthexeExternalities {
             Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
             None => std::collections::HashSet::new(),
         };
+        if let Some(keys) = &decryption_keys {
+            let (unshielded, _) = self.unshield_parent_transactions(parent_mb_hash, keys)?;
+            touched.extend(
+                unshielded
+                    .iter()
+                    .map(|(_, injected_tx)| injected_tx.data().destination),
+            );
+        }
         let initial_touched_count = touched.len();
         if initial_touched_count > MAX_TOUCHED_PROGRAMS_PER_MB as usize {
             // Producer can't shrink this — the EB events themselves
@@ -449,17 +438,20 @@ impl Externalities for EthexeExternalities {
             }
 
             let destination = match &tx {
-                Transaction::Injected(tx) => tx.data().destination,
-                Transaction::Shielded(_) => todo!("Shielded transaction touched-program cap"),
+                Transaction::Injected(tx) => Some(tx.data().destination),
+                Transaction::Shielded(_) => None,
             };
-            if !touched.contains(&destination)
-                && touched.len() >= MAX_TOUCHED_PROGRAMS_PER_MB as usize
-            {
-                // Adding this destination would breach the cap; skip.
-                continue;
+            if let Some(destination) = destination {
+                if !touched.contains(&destination)
+                    && touched.len() >= MAX_TOUCHED_PROGRAMS_PER_MB as usize
+                {
+                    // Adding this destination would breach the cap; skip.
+                    continue;
+                }
+
+                touched.insert(destination);
             }
 
-            touched.insert(destination);
             size_counter += tx_size;
             capped.push(tx);
         }
@@ -512,7 +504,8 @@ impl Externalities for EthexeExternalities {
                 | Operation::ProgressTasks
                 | Operation::ProcessQueuesV3 { .. }
                 | Operation::Injected(_)
-                | Operation::Shielded(_) => {
+                | Operation::Shielded(_)
+                | Operation::DecryptionKeys(_) => {
                     // Known and allowed.
                 }
                 op => {
@@ -524,7 +517,7 @@ impl Externalities for EthexeExternalities {
 
         // (1) Shape + ordering. Every honest MB has exactly the form:
         //
-        //   [AdvanceTillEthereumBlock]?  Injected*  ProgressTasks  ProcessQueuesV3
+        //   [AdvanceTillEthereumBlock]?  [DecryptionKeys]?  (Injected|Shielded)*  ProgressTasks  ProcessQueuesV3
         //
         // This single walk catches: missing bookend, extra bookend,
         // out-of-order op, more than one Advance, and the
@@ -543,7 +536,15 @@ impl Externalities for EthexeExternalities {
                 None
             };
 
-        while matches!(next, Some(Operation::Injected(_))) {
+        let decryption_keys = if let Some(Operation::DecryptionKeys(keys)) = next {
+            let keys = Some(keys);
+            next = iter.next();
+            keys
+        } else {
+            None
+        };
+
+        while matches!(next, Some(Operation::Injected(_) | Operation::Shielded(_))) {
             next = iter.next();
         }
 
@@ -732,13 +733,21 @@ impl Externalities for EthexeExternalities {
             Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
             None => std::collections::HashSet::new(),
         };
+        if let Some(keys) = decryption_keys {
+            let (unshielded, _) = self.unshield_parent_transactions(parent_hash, keys)?;
+            touched.extend(
+                unshielded
+                    .iter()
+                    .map(|(_, injected_tx)| injected_tx.data().destination),
+            );
+        }
         let limit = touched.len().max(MAX_TOUCHED_PROGRAMS_PER_MB as usize);
         for op in operations.iter() {
             match op {
                 Operation::Injected(signed) => {
                     touched.insert(signed.data().destination);
                 }
-                Operation::Shielded(_shielded) => todo!("implement me"),
+                Operation::Shielded(_) => {}
                 _ => {}
             }
         }
@@ -755,6 +764,55 @@ impl Externalities for EthexeExternalities {
 }
 
 impl EthexeExternalities {
+    fn unshield_parent_transactions(
+        &self,
+        parent_mb_hash: H256,
+        decryption_keys: &BTreeMap<HashOf<ShieldedTransaction>, SharedSecret>,
+    ) -> Result<(
+        Vec<(
+            HashOf<ShieldedTransaction>,
+            VerifiedData<InjectedTransaction>,
+        )>,
+        Vec<PurgedTransaction>,
+    )> {
+        if parent_mb_hash.is_zero() || decryption_keys.is_empty() {
+            return Ok((Vec::new(), Vec::new()));
+        }
+
+        let compact = self.db.mb_compact_block(parent_mb_hash).ok_or_else(|| {
+            anyhow!("unshield_parent_transactions: no CompactMb for parent {parent_mb_hash}")
+        })?;
+        let operations = self.db.operations(compact.operations_hash).ok_or_else(|| {
+            anyhow!(
+                "unshield_parent_transactions: operations blob {} missing for parent {parent_mb_hash}",
+                compact.operations_hash
+            )
+        })?;
+
+        let mut not_unshielded = Vec::new();
+        let mut unshielded = Vec::new();
+        for tx in operations.into_iter().filter_map(Operation::into_shielded) {
+            let tx_hash = tx.data().to_hash();
+            match decryption_keys.get(&tx_hash) {
+                Some(shared_key) => {
+                    match tx.into_verified().try_map(|tx| tx.unshield(shared_key)) {
+                        Ok(injected_tx) => unshielded.push((tx_hash, injected_tx)),
+                        Err(_err) => not_unshielded.push(PurgedTransaction {
+                            tx_hash: TransactionHash::Right(tx_hash),
+                            reason: TransactionPurgedReason::DecryptionFailed,
+                        }),
+                    }
+                }
+                None => not_unshielded.push(PurgedTransaction {
+                    tx_hash: TransactionHash::Right(tx_hash),
+                    reason: TransactionPurgedReason::DecryptionFailed,
+                }),
+            }
+        }
+
+        Ok((unshielded, not_unshielded))
+    }
+
     /// True iff `prerequisite.is_zero()` (no prerequisite — genesis
     /// or pre-advance) or the prerequisite Eth block has been fully
     /// **prepared** locally.
@@ -1063,7 +1121,7 @@ mod utils {
     pub(crate) fn transaction_to_operation(transaction: Transaction) -> Operation {
         match transaction {
             Transaction::Injected(tx) => Operation::Injected(tx),
-            Transaction::Shielded(_) => todo!("Shielded transaction block inclusion"),
+            Transaction::Shielded(tx) => Operation::Shielded(tx),
         }
     }
 }

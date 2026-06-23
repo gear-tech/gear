@@ -3060,7 +3060,7 @@ async fn injected_tx_fungible_token_over_network() {
 }
 
 #[tokio::test]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(30_000)]
 async fn shielded_tx_fungible_token() {
     init_logger();
 
@@ -3202,6 +3202,7 @@ async fn shielded_tx_fungible_token() {
     };
 
     assert_eq!(transfer_promise.reply.payload, expected_transfer.encode());
+    stop_nodes([node]).await;
 }
 
 #[tokio::test]

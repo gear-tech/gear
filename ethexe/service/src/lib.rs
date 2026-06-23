@@ -1011,7 +1011,10 @@ impl Service {
                         // promises so they can gossip them; the
                         // service's `PromiseEmissionMode` can still
                         // force the policy to `Enabled` regardless.
-                        compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
+
+                        // TODO: fix RPC, now it waits for `UnshieldingOutput` event from malachite,
+                        // but emiting this event costs time.
+                        //compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                     MalachiteEvent::BlockFinalized {
                         cert,
