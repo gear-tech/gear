@@ -3074,7 +3074,7 @@ async fn shielded_tx_fungible_token() {
     let mut node = env
         .new_node(
             NodeConfig::default()
-                .service_rpc(8090)
+                .service_rpc(8097)
                 .validator(env.validators[0]),
         )
         .await;
@@ -3149,13 +3149,35 @@ async fn shielded_tx_fungible_token() {
     let shielded = mint_tx
         .shield(&shielding_key, &mut rand::thread_rng())
         .unwrap();
+    let shielded_hash = shielded.to_hash();
     let signed_shielded_tx = env.signer.signed_message(pubkey, shielded, None).unwrap();
     let mut shielded_subscription = rpc_client
         .send_transaction_and_watch(signed_shielded_tx.into())
         .await
         .unwrap();
+    let mut node_events = node.events();
 
-    // Also send another transaction to trigger block creation.
+    node_events
+        .find_map_with_db(|db, event| {
+            let TestingEvent::Malachite(ethexe_malachite::MalachiteEvent::BlockFinalized {
+                mb_hash,
+                ..
+            }) = event
+            else {
+                return None;
+            };
+            let compact = db.mb_compact_block(mb_hash)?;
+            let operations = db.operations(compact.operations_hash)?;
+            operations
+                .iter()
+                .filter_map(|op| op.as_shielded())
+                .any(|tx| tx.data().to_hash() == shielded_hash)
+                .then_some(())
+        })
+        .await;
+
+    // Send another transaction after the shielded tx is committed to trigger
+    // the child block that carries decryption keys and executes it.
     let random_actor = ActorId::new(H256::random().0);
     let transfer_amount = 100_000;
     let transfer_action = demo_fungible_token::FTAction::Transfer {
