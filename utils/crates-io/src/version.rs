@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Crate verifier
+//! Crate verifier.
 
 use crate::{EXPECTED_OWNERS, Simulator, handler};
 use anyhow::{Result, anyhow};

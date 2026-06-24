@@ -1,15 +1,17 @@
 [package]
 name = "galloc"
-description = "Gear Wasm allocator"
-documentation = "https://docs.rs/galloc"
-keywords = ["gear", "allocator", "wasm"]
-edition.workspace = true
 version.workspace = true
 authors.workspace = true
-license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Gear Wasm allocator"
+documentation = "https://docs.rs/galloc"
+readme = "README.md"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "allocator", "wasm", "dlmalloc", "no-std"]
+categories = ["memory-management", "wasm", "no-std"]
 
 [dependencies]
 # add "checks" feature to enable hard checks in allocator

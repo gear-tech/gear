@@ -1,16 +1,22 @@
 [package]
 name = "crates-io"
-version.workspace = true
+description = "Utility for managing Gear packages on crates.io"
 edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
 cargo-http-registry.workspace = true
 cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
-serde = { workspace = true, features = ["derive"] }
+gear-workspace-hack.workspace = true
 reqwest = { workspace = true, features = ["json", "default-tls"] }
+serde = { workspace = true, features = ["derive"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 toml_edit.workspace = true
-gear-workspace-hack.workspace = true

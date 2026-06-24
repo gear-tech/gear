@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Manifest utils for crates-io-manager
+//! Manifest utils for crates.io manager.
 
 use crate::{CARGO_REGISTRY_NAME, handler, version};
 use anyhow::{Result, anyhow};

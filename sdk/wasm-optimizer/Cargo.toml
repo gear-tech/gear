@@ -1,15 +1,16 @@
 [package]
 name = "gear-wasm-optimizer"
-description = "Utility for optimizing Gear programs"
-documentation = "https://docs.rs/gear-wasm-optimizer"
-keywords = ["gear", "wasm"]
-edition.workspace = true
 version.workspace = true
 authors.workspace = true
-license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Utility for optimizing Gear programs"
+documentation = "https://docs.rs/gear-wasm-optimizer"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "wasm", "optimizer", "tooling", "programs"]
+categories = ["wasm", "development-tools::build-utils"]
 
 [dependencies]
 anyhow = { workspace = true, features = ["std"] }

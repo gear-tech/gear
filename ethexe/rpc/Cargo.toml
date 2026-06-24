@@ -1,14 +1,16 @@
 [package]
 name = "ethexe-rpc"
-description = "JSON-RPC server and client APIs for ethexe"
-documentation = "https://docs.rs/ethexe-rpc"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "JSON-RPC server and client APIs for ethexe"
+documentation = "https://docs.rs/ethexe-rpc"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["ethexe", "json-rpc", "rpc", "server", "client"]
+categories = ["api-bindings", "network-programming", "asynchronous"]
 
 [dependencies]
 tokio = { workspace = true, features = ["sync"] }
@@ -34,7 +36,7 @@ metrics-derive.workspace = true
 gear-workspace-hack.workspace = true
 thiserror.workspace = true
 scopeguard.workspace = true
-moka = {workspace = true, features = ["sync"]}
+moka = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["client"] }

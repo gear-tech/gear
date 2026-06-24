@@ -1,14 +1,16 @@
 [package]
 name = "gtest"
-description = "Testing utils for developing Gear programs."
-documentation = "https://docs.rs/gtest"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Testing utils for developing Gear programs."
+documentation = "https://docs.rs/gtest"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "testing", "wasm", "smart-contracts", "simulation"]
+categories = ["development-tools::testing", "wasm"]
 
 [dependencies]
 # Gear related dependencies

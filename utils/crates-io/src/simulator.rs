@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Packages publishing simulator
+//! Packages publishing simulator.
 
 use crate::{CARGO_REGISTRY_NAME, Workspace};
 use anyhow::Result;

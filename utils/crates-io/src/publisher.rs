@@ -1,11 +1,11 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Packages publisher
+//! Packages publisher.
 
 use crate::{
-    GEAR_SUBSTRATE_DEPENDENCIES, Manifest, PACKAGES, PackageStatus, SAFE_DEPENDENCIES,
-    STACKED_DEPENDENCIES, Simulator, TEAM_OWNER, Workspace, handler,
+    CRATES_IO_CATEGORIES, GEAR_SUBSTRATE_DEPENDENCIES, Manifest, PACKAGES, PackageStatus,
+    SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator, TEAM_OWNER, Workspace, handler,
 };
 use anyhow::{Result, bail};
 use cargo_metadata::{Metadata, MetadataCommand};
@@ -57,8 +57,7 @@ impl Publisher {
 
         for name in self.index.iter() {
             let Some(pkg) = self.metadata.packages.iter().find(|pkg| *pkg.name == *name) else {
-                println!("Package {name}@{workspace_version} not found in cargo metadata!");
-                continue;
+                bail!("Package {name}@{workspace_version} not found in cargo metadata!");
             };
 
             if pkg.authors.is_empty() {
@@ -78,7 +77,53 @@ impl Publisher {
                 bail!("Package {name} has empty license!");
             }
 
-            // TODO #4125: disallow empty categories, keywords
+            // https://doc.rust-lang.org/cargo/reference/manifest.html#the-categories-field
+            if pkg.categories.is_empty() {
+                bail!("Package {name} has empty categories!");
+            }
+
+            if pkg.categories.len() > 5 {
+                bail!("Package {name} has more than 5 categories!");
+            }
+
+            for category in &pkg.categories {
+                if !CRATES_IO_CATEGORIES.contains(&category.as_str()) {
+                    bail!("Package {name} has invalid category `{category}`!");
+                }
+            }
+
+            // https://doc.rust-lang.org/cargo/reference/manifest.html#the-keywords-field
+            if pkg.keywords.is_empty() {
+                bail!("Package {name} has empty keywords!");
+            }
+
+            if pkg.keywords.len() > 5 {
+                bail!("Package {name} has more than 5 keywords!");
+            }
+
+            for keyword in &pkg.keywords {
+                if keyword.len() > 20 {
+                    bail!("Package {name} has keyword `{keyword}` longer than 20 characters!");
+                }
+
+                if !keyword
+                    .chars()
+                    .next()
+                    .is_some_and(|ch| ch.is_ascii_alphanumeric())
+                {
+                    bail!(
+                        "Package {name} has keyword `{keyword}` that does not start with an \
+                        alphanumeric character!"
+                    );
+                }
+
+                if !keyword
+                    .chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '+'))
+                {
+                    bail!("Package {name} has keyword `{keyword}` with disallowed characters!");
+                }
+            }
 
             if pkg.repository.is_none() {
                 bail!("Package {name} has empty repository!");
@@ -223,6 +268,9 @@ impl Publisher {
                     bail!("Failed to add owner to package {name} ...");
                 }
             }
+
+            // TODO: impl here rate-limit check for crates.io
+            if self.simulator.is_none() {}
         }
 
         Ok(())

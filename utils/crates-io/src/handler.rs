@@ -7,9 +7,6 @@ use crate::Manifest;
 use anyhow::Result;
 use cargo_metadata::Package;
 
-/// The working version of sp-wasm-interface.
-pub const GP_RUNTIME_INTERFACE_VERSION: &str = "18.0.0";
-
 /// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
     match pkg {
@@ -46,7 +43,6 @@ pub fn patch_publish(name: &str, doc: &mut toml_edit::DocumentMut) {
         local_name if crate::GEAR_SUBSTRATE_DEPENDENCIES.contains(&local_name) => {
             substrate_fork::patch_manifest(local_name, doc)
         }
-        "ethexe-rpc" => ethexe_rpc::patch(doc),
         "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-interface" => sandbox_interface::patch(doc),
@@ -152,36 +148,6 @@ mod substrate_fork {
     }
 }
 
-/// ethexe-rpc handler.
-mod ethexe_rpc {
-    use toml_edit::{Array, DocumentMut};
-
-    /// Remove the `ethexe-processor` dependency from the crates.io manifest,
-    /// because it is not part of the crates.io set.
-    pub fn patch(manifest: &mut DocumentMut) {
-        if let Some(deps) = manifest["dependencies"].as_table_like_mut() {
-            deps.remove("ethexe-processor");
-        }
-
-        let Some(features) = manifest["features"].as_table_like_mut() else {
-            return;
-        };
-
-        let mut default_features = Array::default();
-        default_features.push("client");
-
-        features.insert("default", toml_edit::value(default_features));
-
-        let Some(server_features) = features
-            .get_mut("server")
-            .and_then(toml_edit::Item::as_array_mut)
-        else {
-            return;
-        };
-        server_features.retain(|feature| feature.as_str() != Some("dep:ethexe-processor"));
-    }
-}
-
 /// gear-core-processor handler.
 mod core_processor {
     use toml_edit::{DocumentMut, InlineTable};
@@ -228,7 +194,6 @@ mod sandbox {
 
 /// sandbox interface handler
 mod sandbox_interface {
-    use super::GP_RUNTIME_INTERFACE_VERSION;
     use toml_edit::DocumentMut;
 
     /// Patch the manifest of runtime-interface.
@@ -256,13 +221,6 @@ mod sandbox_interface {
                 host_api_features.retain(|feature| feature.as_str() != Some("sc-executor"));
             }
         }
-
-        let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_like_mut() else {
-            return;
-        };
-        wi.insert("version", toml_edit::value(GP_RUNTIME_INTERFACE_VERSION));
-        wi.insert("package", toml_edit::value("gp-runtime-interface"));
-        wi.remove("workspace");
 
         let Some(wi) = manifest["dependencies"]["sp-wasm-interface"].as_table_like_mut() else {
             return;
@@ -295,7 +253,6 @@ mod substrate_wasm_builder {
 
 /// substrate handler.
 mod substrate {
-    use super::GP_RUNTIME_INTERFACE_VERSION;
     use toml_edit::InlineTable;
 
     /// Patch the substrate packages in the manifest of workspace.
@@ -321,15 +278,6 @@ mod substrate {
             // no ref bcz we own this package.
             "sp-wasm-interface-common" => {
                 table.insert("version", "15.0.0".into());
-            }
-            // Related to sp-wasm-interface.
-            //
-            // ref:
-            // - sp-runtime-interface-18.0.0
-            // - sp-runtime-interface-proc-macro-12.0.0
-            "sp-runtime-interface" => {
-                table.insert("version", GP_RUNTIME_INTERFACE_VERSION.into());
-                table.insert("package", "gp-runtime-interface".into());
             }
             _ => return,
         }

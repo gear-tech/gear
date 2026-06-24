@@ -1,7 +1,18 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! mini-program for publishing packages to crates.io.
+//! Utility for managing Gear packages on crates.io.
+//!
+//! Management includes:
+//! - workspace patching (`build` sub-command)
+//! - publishing packages (`publish` sub-command)
+//!   - simulate publishing to crates.io using local registry (`--simulate` option)
+//!   - real publishing to crates.io
+//!
+//! If you are looking for examples of how to run it, take a look at `.github/workflows/crates-io.yml`.
+//!
+//! WARNING: Before running, please ensure you use `--simulate`.
+//! Otherwise, this could result in packages being published on your behalf!
 
 use anyhow::Result;
 use clap::Parser;
@@ -12,7 +23,11 @@ use std::path::PathBuf;
 #[derive(Clone, Debug, Parser)]
 enum Command {
     /// Build manifests for packages that to be published.
-    Build,
+    Build {
+        /// The version to publish.
+        #[clap(long, short)]
+        version: Option<String>,
+    },
     /// Publish packages.
     Publish {
         /// The version to publish.
@@ -50,15 +65,14 @@ async fn main() -> Result<()> {
             let mut publisher = Publisher::with_simulation(simulate, registry_path)?
                 .build(true, version)
                 .await?;
-            let result = publisher.check().and_then(|()| {
-                publisher.prepare_publish()?;
-                publisher.publish()
-            });
+            publisher.prepare_publish()?;
+            // publisher.check()?;
+            let result = publisher.publish();
             publisher.restore()?;
             result
         }
-        Command::Build => {
-            let mut publisher = Publisher::new()?.build(false, None).await?;
+        Command::Build { version } => {
+            let mut publisher = Publisher::new()?.build(false, version).await?;
             publisher.prepare_publish()?;
             Ok(())
         }

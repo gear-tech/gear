@@ -1,16 +1,16 @@
 [package]
 name = "ethexe-sdk"
-description = "Rust SDK for the Vara Ethereum execution layer"
-documentation = "https://docs.rs/ethexe-sdk"
-categories = ["wasm", "api-bindings"]
-keywords = ["gear", "actor-model", "api", "sdk"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Rust SDK for the Vara.ETH execution layer"
+documentation = "https://docs.rs/ethexe-sdk"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["ethexe", "ethereum", "gear", "sdk", "rpc"]
+categories = ["api-bindings", "cryptography::cryptocurrencies", "asynchronous"]
 
 [dependencies]
 ethexe-node-wrapper.workspace = true
