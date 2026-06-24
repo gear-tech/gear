@@ -1002,10 +1002,15 @@ impl Service {
                     }
                 },
                 Event::Malachite(event) => match event {
-                    MalachiteEvent::BlockProposal { height, mb_hash } => {
+                    MalachiteEvent::BlockProposal {
+                        height,
+                        mb_hash,
+                        can_speculatively_execute,
+                    } => {
                         tracing::info!(
                             height,
                             mb_hash = %mb_hash,
+                            can_speculatively_execute,
                             "Malachite: BlockProposal",
                         );
                         // Validators are interested in this MB's
@@ -1013,9 +1018,9 @@ impl Service {
                         // service's `PromiseEmissionMode` can still
                         // force the policy to `Enabled` regardless.
 
-                        // TODO: fix RPC, now it waits for `UnshieldingOutput` event from malachite,
-                        // but emitting this event costs time.
-                        //compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
+                        if can_speculatively_execute {
+                            compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
+                        }
                     }
                     MalachiteEvent::BlockFinalized {
                         cert,

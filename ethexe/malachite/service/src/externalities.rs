@@ -182,6 +182,9 @@ impl Externalities for EthexeExternalities {
         // CompactMb exists, operations are reachable" — holds
         // unconditionally.
         let operations_hash = self.db.set_operations(operations.clone());
+        let contains_shielded = operations
+            .iter()
+            .any(|op| matches!(op, Operation::Shielded(_)));
         self.db.set_mb_compact_block(
             mb_hash,
             CompactMb {
@@ -192,6 +195,7 @@ impl Externalities for EthexeExternalities {
         );
         self.db.mutate_mb_meta(mb_hash, |meta| {
             meta.last_advanced_eb = last_advanced;
+            meta.contains_shielded = contains_shielded;
         });
 
         let shielded_transactions = operations
@@ -201,10 +205,12 @@ impl Externalities for EthexeExternalities {
         self.decryption_shares
             .register_block(mb_hash, shielded_transactions.iter().map(|tx| tx.to_hash()));
 
+        let can_speculatively_execute = self.can_speculatively_execute(parent)?;
         self.try_emit_or_queue(
             MalachiteEvent::BlockProposal {
                 height: mb.height,
                 mb_hash,
+                can_speculatively_execute,
             },
             last_advanced,
         );
@@ -783,6 +789,17 @@ impl Externalities for EthexeExternalities {
 }
 
 impl EthexeExternalities {
+    fn can_speculatively_execute(&self, parent_mb_hash: H256) -> Result<bool> {
+        if parent_mb_hash.is_zero() {
+            return Ok(true);
+        }
+
+        self.db.mb_compact_block(parent_mb_hash).ok_or_else(|| {
+            anyhow!("can_speculatively_execute: no CompactMb for parent {parent_mb_hash}")
+        })?;
+        Ok(!self.db.mb_meta(parent_mb_hash).contains_shielded)
+    }
+
     fn unshield_parent_transactions(
         &self,
         parent_mb_hash: H256,
@@ -1286,6 +1303,27 @@ mod tests {
         }
     }
 
+    fn shielded_operation() -> Operation {
+        use ethexe_common::{SignedMessage, injected::InjectedTransaction};
+        use gprimitives::ActorId;
+
+        let dkg_public_key = gear_tdec::deal::<Bls12_381>(1, 1, &mut test_rng()).public_key;
+        let injected = InjectedTransaction {
+            destination: ActorId::from([1; 32]),
+            payload: vec![1, 2, 3].try_into().unwrap(),
+            value: 0,
+            reference_block: H256::zero(),
+            salt: vec![7; 32].try_into().unwrap(),
+        };
+        let shielded = injected
+            .shield(&dkg_public_key, &mut test_rng())
+            .expect("test shielding must succeed");
+        Operation::Shielded(
+            SignedMessage::create(ethexe_common::PrivateKey::random(), shielded)
+                .expect("test signature must be valid"),
+        )
+    }
+
     /// `process_mb_proposal` populates `mb_block`, `mb_meta` (height,
     /// parent_mb_hash, last_advanced_eb, synced=true) and the
     /// height index, then emits a `BlockProposal`.
@@ -1311,9 +1349,11 @@ mod tests {
             MalachiteEvent::BlockProposal {
                 height,
                 mb_hash: proposed,
+                can_speculatively_execute,
             } => {
                 assert_eq!(height, 1);
                 assert_eq!(proposed, mb_hash);
+                assert!(can_speculatively_execute);
                 let _ = p;
             }
             other => panic!("expected BlockProposal, got {other:?}"),
@@ -1321,6 +1361,40 @@ mod tests {
 
         // Globals not advanced by save — finalize is what does that.
         assert!(db.globals().latest_finalized_mb_hash.is_zero());
+    }
+
+    #[tokio::test]
+    async fn block_proposal_for_parent_with_shielded_tx_disables_speculative_execution() {
+        let db = Database::memory();
+        let (ext, mut rx) = make_externalities(db);
+
+        let parent_payload = Operations::new(vec![
+            shielded_operation(),
+            Operation::ProgressTasks,
+            Operation::ProcessQueuesV3 { gas_allowance: 0 },
+        ]);
+        let parent = wrap(parent_payload, 1, H256::zero());
+        let parent_hash = parent.hash();
+        ext.process_mb_proposal(parent_hash, parent).await.unwrap();
+        let _ = rx.recv().await.expect("parent proposal").expect("ok");
+
+        let child_payload = payload(None, 2);
+        let child = wrap(child_payload, 2, parent_hash);
+        let child_hash = child.hash();
+        ext.process_mb_proposal(child_hash, child).await.unwrap();
+
+        match rx.try_recv().expect("child event").expect("ok") {
+            MalachiteEvent::BlockProposal {
+                height,
+                mb_hash,
+                can_speculatively_execute,
+            } => {
+                assert_eq!(height, 2);
+                assert_eq!(mb_hash, child_hash);
+                assert!(!can_speculatively_execute);
+            }
+            other => panic!("expected BlockProposal, got {other:?}"),
+        }
     }
 
     /// `process_mb_finalized` reads the [`CompactMb`] +
