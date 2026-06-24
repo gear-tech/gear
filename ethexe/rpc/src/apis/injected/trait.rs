@@ -4,8 +4,8 @@
 use ethexe_common::{
     HashOf,
     injected::{
-        InjectedTransaction, TransactionAcceptance, SignedInjectedTransaction,
-        SignedTxReceipt, Transaction,
+        InjectedTransaction, SignedInjectedTransaction, SignedTxReceipt, Transaction,
+        TransactionAcceptance,
     },
 };
 use gear_tdec::bls12_381::DkgPublicKey;

@@ -11,9 +11,7 @@ use ethexe_common::{
     Address, SimpleBlockData,
     db::*,
     events::BlockEvent,
-    injected::{
-        TransactionAcceptance, SignedCompactTxReceipt, Transaction, TransactionHash,
-    },
+    injected::{SignedCompactTxReceipt, Transaction, TransactionAcceptance, TransactionHash},
     malachite::SignedBlockDecryptionShares,
     network::VerifiedValidatorMessage,
 };

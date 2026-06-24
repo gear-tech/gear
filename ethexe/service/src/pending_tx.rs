@@ -35,9 +35,7 @@ impl PendingNetworkInjectedTx {
         self.response_senders.push(response_sender);
     }
 
-    pub(super) fn into_response_senders(
-        self,
-    ) -> Vec<oneshot::Sender<TransactionAcceptance>> {
+    pub(super) fn into_response_senders(self) -> Vec<oneshot::Sender<TransactionAcceptance>> {
         self.response_senders
     }
 

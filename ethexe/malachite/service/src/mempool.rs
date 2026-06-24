@@ -40,8 +40,8 @@ use ethexe_common::{
     HashOf, SimpleBlockData,
     db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO},
     injected::{
-        InjectedTransaction, TransactionAcceptance, PurgedTransaction, ShieldedTransaction,
-        SignedInjectedTransaction, SignedShieldedTransaction, Transaction, TransactionHash,
+        InjectedTransaction, PurgedTransaction, ShieldedTransaction, SignedInjectedTransaction,
+        SignedShieldedTransaction, Transaction, TransactionAcceptance, TransactionHash,
         TransactionPurgedReason, TransactionRef, VALIDITY_WINDOW,
     },
 };
@@ -575,8 +575,8 @@ mod tests {
         BlockHeader, PrivateKey, SignedMessage, SimpleBlockData,
         db::{BlockMetaStorageRW, GlobalsStorageRW, OnChainStorageRW},
         injected::{
-            InjectedTransaction, TransactionAcceptance, SignedInjectedTransaction,
-            SignedShieldedTransaction,
+            InjectedTransaction, SignedInjectedTransaction, SignedShieldedTransaction,
+            TransactionAcceptance,
         },
     };
     use gprimitives::ActorId;

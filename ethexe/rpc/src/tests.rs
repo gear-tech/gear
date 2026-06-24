@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    CodeClient, InjectedApi, InjectedClient, TransactionAcceptance, RpcConfig, RpcEvent,
-    RpcServer, RpcService, test_utils::wasm_with_custom_section,
+    CodeClient, InjectedApi, InjectedClient, RpcConfig, RpcEvent, RpcServer, RpcService,
+    TransactionAcceptance, test_utils::wasm_with_custom_section,
 };
 use ethexe_common::{
     SignedMessage, ValidatorsVec,

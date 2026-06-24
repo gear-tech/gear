@@ -88,12 +88,7 @@ pub struct CommitCertificate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MalachiteEvent {
     /// New sequencer block persisted; `mb_hash` is the Blake2b envelope hash.
-    BlockProposal {
-        height: u64,
-        mb_hash: H256,
-        /// Whether this MB can be executed before finalization.
-        can_speculatively_execute: bool,
-    },
+    BlockProposal { height: u64, mb_hash: H256 },
 
     /// BFT-committed block; `globals.latest_finalized_mb_hash` now points at it.
     BlockFinalized {
@@ -127,15 +122,8 @@ pub enum MalachiteEvent {
 impl std::fmt::Display for MalachiteEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BlockProposal {
-                height,
-                mb_hash,
-                can_speculatively_execute,
-            } => {
-                write!(
-                    f,
-                    "BlockProposal(height: {height}, mb_hash: {mb_hash}, can_speculatively_execute: {can_speculatively_execute})"
-                )
+            Self::BlockProposal { height, mb_hash } => {
+                write!(f, "BlockProposal(height: {height}, mb_hash: {mb_hash})")
             }
             Self::BlockFinalized {
                 cert,

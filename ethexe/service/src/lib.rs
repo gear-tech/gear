@@ -47,7 +47,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     gear::CodeState,
-    injected::{CompactPromise, TransactionAcceptance, Receipt},
+    injected::{CompactPromise, Receipt, TransactionAcceptance},
     malachite::BlockDecryptionData,
     network::VerifiedValidatorMessage,
 };
@@ -916,8 +916,7 @@ impl Service {
 
                             if let Some(malachite) = malachite.as_mut() {
                                 let status = malachite.receive_transaction(transaction.clone());
-                                local_acceptance =
-                                    Some(TransactionAcceptance::from(status));
+                                local_acceptance = Some(TransactionAcceptance::from(status));
                             }
 
                             match network.as_mut() {
@@ -958,10 +957,9 @@ impl Service {
                                                 network_injected_txs.insert(tx_hash, pending);
                                             }
                                             Err(err) => {
-                                                let acceptance =
-                                                    TransactionAcceptance::Reject {
-                                                        reason: err.to_string(),
-                                                    };
+                                                let acceptance = TransactionAcceptance::Reject {
+                                                    reason: err.to_string(),
+                                                };
 
                                                 if let Err(err) = response_sender.send(acceptance) {
                                                     tracing::error!(
@@ -1002,15 +1000,10 @@ impl Service {
                     }
                 },
                 Event::Malachite(event) => match event {
-                    MalachiteEvent::BlockProposal {
-                        height,
-                        mb_hash,
-                        can_speculatively_execute,
-                    } => {
+                    MalachiteEvent::BlockProposal { height, mb_hash } => {
                         tracing::info!(
                             height,
                             mb_hash = %mb_hash,
-                            can_speculatively_execute,
                             "Malachite: BlockProposal",
                         );
                         // Validators are interested in this MB's
@@ -1018,9 +1011,7 @@ impl Service {
                         // service's `PromiseEmissionMode` can still
                         // force the policy to `Enabled` regardless.
 
-                        if can_speculatively_execute {
-                            compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
-                        }
+                        compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                     MalachiteEvent::BlockFinalized {
                         cert,

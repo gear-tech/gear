@@ -9,8 +9,7 @@ use ethexe_common::{
     gear::ValueClaim,
     gear_core::rpc::ReplyInfo,
     injected::{
-        InjectedTransaction, TransactionAcceptance, Promise, Receipt,
-        SignedInjectedTransaction,
+        InjectedTransaction, Promise, Receipt, SignedInjectedTransaction, TransactionAcceptance,
     },
 };
 use ethexe_ethereum::{

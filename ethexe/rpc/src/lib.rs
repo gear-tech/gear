@@ -51,8 +51,8 @@ use apis::{
 use ethexe_common::HashOf;
 #[cfg(feature = "server")]
 use ethexe_common::injected::{
-    InjectedTransaction, TransactionAcceptance, Promise, ShieldedTransaction,
-    SignedCompactTxReceipt, Transaction,
+    InjectedTransaction, Promise, ShieldedTransaction, SignedCompactTxReceipt, Transaction,
+    TransactionAcceptance,
 };
 #[cfg(feature = "server")]
 use ethexe_db::Database;

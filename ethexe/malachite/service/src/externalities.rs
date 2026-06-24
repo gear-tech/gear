@@ -44,7 +44,7 @@ use crate::{
     quarantine,
     tx_validity::{TxValidity, TxValidityChecker, eb_touched_programs},
 };
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use bytes::Bytes;
 use ethexe_common::{
@@ -67,7 +67,7 @@ use gear_tdec::bls12_381::{
     DecryptionShareSimple, SharedSecret, prepare_combine_simple, share_combine_simple,
 };
 use gprimitives::H256;
-use gsigner::tdec::TdecKeyStore;
+use gsigner::{Address, PublicDecryptionContext, tdec::TdecKeyStore};
 use parity_scale_codec::{DecodeAll, Encode};
 use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
@@ -75,6 +75,9 @@ use std::{
 };
 use tokio::sync::{Notify, mpsc};
 use tracing::{debug, error, info, warn};
+
+/// Type alias for decryption keys provided in [Operation].
+pub(crate) type DecryptionKeys = BTreeMap<HashOf<ShieldedTransaction>, SharedSecret>;
 
 /// Inputs the externalities need to satisfy the [`ethexe_malachite_core::Externalities`]
 /// contract. Constructed by [`crate::MalachiteService::new`] and
@@ -182,9 +185,6 @@ impl Externalities for EthexeExternalities {
         // CompactMb exists, operations are reachable" — holds
         // unconditionally.
         let operations_hash = self.db.set_operations(operations.clone());
-        let contains_shielded = operations
-            .iter()
-            .any(|op| matches!(op, Operation::Shielded(_)));
         self.db.set_mb_compact_block(
             mb_hash,
             CompactMb {
@@ -195,7 +195,6 @@ impl Externalities for EthexeExternalities {
         );
         self.db.mutate_mb_meta(mb_hash, |meta| {
             meta.last_advanced_eb = last_advanced;
-            meta.contains_shielded = contains_shielded;
         });
 
         let shielded_transactions = operations
@@ -205,54 +204,40 @@ impl Externalities for EthexeExternalities {
         self.decryption_shares
             .register_block(mb_hash, shielded_transactions.iter().map(|tx| tx.to_hash()));
 
-        let can_speculatively_execute = self.can_speculatively_execute(parent)?;
+        if let Some(context) = self.tdec_ctx.as_ref() {
+            // If this node have TDEC context - try provide shares for shielded transaction in this block.
+            let tdec_ctx = &context.my_context;
+
+            let maybe_my_address = context.contexts.iter().find_map(|(address, participant)| {
+                (participant.validator_public_key == tdec_ctx.validator_public_key)
+                    .then_some(*address)
+            });
+            match maybe_my_address {
+                Some(my_address) => self.provide_decryption_shares(
+                    mb_hash,
+                    tdec_ctx,
+                    my_address,
+                    &shielded_transactions,
+                ),
+                None => warn!("local TDEC context is absent from validator contexts"),
+            }
+        }
+
+        // If decryption keys provided - decrypt shielded transactions and save them to database.
+        if let Some(decryption_keys) = operations.iter().find_map(|op| match op {
+            Operation::DecryptionKeys(keys) => Some(keys.clone()),
+            _ => None,
+        }) {
+            self.process_unshielding(mb_hash, &decryption_keys)?;
+        }
+
         self.try_emit_or_queue(
             MalachiteEvent::BlockProposal {
                 height: mb.height,
                 mb_hash,
-                can_speculatively_execute,
             },
             last_advanced,
         );
-
-        let Some(context) = self.tdec_ctx.as_ref() else {
-            return Ok(());
-        };
-        let decryption_context = &context.my_context;
-        let Some(local_validator) = context.contexts.iter().find_map(|(address, participant)| {
-            (participant.validator_public_key == decryption_context.validator_public_key)
-                .then_some(*address)
-        }) else {
-            warn!("local TDEC context is absent from validator contexts");
-            return Ok(());
-        };
-
-        let mut shares = Vec::with_capacity(shielded_transactions.len());
-        for tx in shielded_transactions {
-            let Ok(share) = self.tdec_store.create_share(
-                decryption_context,
-                &tx.ciphertext.header(),
-                tx.aad.as_ref(),
-            ) else {
-                continue;
-            };
-            let tx_hash = tx.to_hash();
-            let outcome =
-                self.decryption_shares
-                    .insert(mb_hash, tx_hash, local_validator, share.clone());
-            debug_assert!(matches!(
-                outcome,
-                InsertOutcome::Inserted | InsertOutcome::Duplicate
-            ));
-            shares.push(ShieldedTxDecryptionShare { tx_hash, share });
-        }
-
-        if !shares.is_empty() {
-            // Channel receiver is dropped only during shutdown.
-            let _ = self
-                .event_tx
-                .send(Ok(MalachiteEvent::DecryptionShares { mb_hash, shares }));
-        }
         Ok(())
     }
 
@@ -295,30 +280,6 @@ impl Externalities for EthexeExternalities {
 
         // Retain shares belonging to another block
         self.decryption_shares.retain_block(mb_hash);
-
-        if let Some(decryption_keys) = operations.iter().find_map(|op| match op {
-            Operation::DecryptionKeys(keys) => Some(keys.clone()),
-            _ => None,
-        }) {
-            let UnshieldingOutput {
-                unshielded: unshielded_with_hashes,
-                not_unshielded,
-            } = self.unshield_parent_transactions(compact.parent, &decryption_keys)?;
-            let unshielded_hash_mapping = unshielded_with_hashes
-                .iter()
-                .map(|(tx_hash, tx)| (*tx_hash, tx.data().to_hash()))
-                .collect();
-            let unshielded = unshielded_with_hashes
-                .into_iter()
-                .map(|(_, tx)| tx)
-                .collect();
-            self.db.set_mb_unshielded_txs(mb_hash, unshielded);
-            let _ = self.event_tx.send(Ok(MalachiteEvent::UnshieldingOutput {
-                mb_hash,
-                unshielded_hash_mapping,
-                not_unshielded,
-            }));
-        }
 
         let app_cert = CommitCertificate {
             height: cert.height,
@@ -789,59 +750,6 @@ impl Externalities for EthexeExternalities {
 }
 
 impl EthexeExternalities {
-    fn can_speculatively_execute(&self, parent_mb_hash: H256) -> Result<bool> {
-        if parent_mb_hash.is_zero() {
-            return Ok(true);
-        }
-
-        self.db.mb_compact_block(parent_mb_hash).ok_or_else(|| {
-            anyhow!("can_speculatively_execute: no CompactMb for parent {parent_mb_hash}")
-        })?;
-        Ok(!self.db.mb_meta(parent_mb_hash).contains_shielded)
-    }
-
-    fn unshield_parent_transactions(
-        &self,
-        parent_mb_hash: H256,
-        decryption_keys: &BTreeMap<HashOf<ShieldedTransaction>, SharedSecret>,
-    ) -> Result<UnshieldingOutput> {
-        if parent_mb_hash.is_zero() || decryption_keys.is_empty() {
-            return Ok(UnshieldingOutput::default());
-        }
-
-        let compact = self.db.mb_compact_block(parent_mb_hash).ok_or_else(|| {
-            anyhow!("unshield_parent_transactions: no CompactMb for parent {parent_mb_hash}")
-        })?;
-        let operations = self.db.operations(compact.operations_hash).ok_or_else(|| {
-            anyhow!(
-                "unshield_parent_transactions: operations blob {} missing for parent {parent_mb_hash}",
-                compact.operations_hash
-            )
-        })?;
-
-        let mut output = UnshieldingOutput::default();
-        for tx in operations.into_iter().filter_map(Operation::into_shielded) {
-            let tx_hash = tx.data().to_hash();
-            match decryption_keys.get(&tx_hash) {
-                Some(shared_key) => {
-                    match tx.into_verified().try_map(|tx| tx.unshield(shared_key)) {
-                        Ok(injected_tx) => output.unshielded.push((tx_hash, injected_tx)),
-                        Err(_err) => output.not_unshielded.push(PurgedTransaction {
-                            tx_hash: TransactionHash::Right(tx_hash),
-                            reason: TransactionPurgedReason::DecryptionFailed,
-                        }),
-                    }
-                }
-                None => output.not_unshielded.push(PurgedTransaction {
-                    tx_hash: TransactionHash::Right(tx_hash),
-                    reason: TransactionPurgedReason::DecryptionFailed,
-                }),
-            }
-        }
-
-        Ok(output)
-    }
-
     /// True iff `prerequisite.is_zero()` (no prerequisite — genesis
     /// or pre-advance) or the prerequisite Eth block has been fully
     /// **prepared** locally.
@@ -948,7 +856,7 @@ impl EthexeExternalities {
     async fn wait_for_shielded_tx_decryption_keys(
         &self,
         parent_mb_hash: H256,
-    ) -> Result<Option<BTreeMap<HashOf<ShieldedTransaction>, SharedSecret>>> {
+    ) -> Result<Option<DecryptionKeys>> {
         if parent_mb_hash.is_zero() {
             return Ok(None);
         }
@@ -985,7 +893,7 @@ impl EthexeExternalities {
             );
         }
 
-        let mut keys = BTreeMap::new();
+        let mut keys = DecryptionKeys::default();
         while !pending.is_empty() {
             pending.retain(|tx_hash| {
                 let Some(selected) =
@@ -1101,6 +1009,114 @@ impl EthexeExternalities {
                 ),
             }
         }
+    }
+
+    fn provide_decryption_shares(
+        &self,
+        mb_hash: H256,
+        tdec_ctx: &PublicDecryptionContext,
+        my_address: Address,
+        transactions: &[&ShieldedTransaction],
+    ) {
+        let mut shares = Vec::with_capacity(transactions.len());
+        for tx in transactions {
+            let Ok(share) =
+                self.tdec_store
+                    .create_share(tdec_ctx, &tx.ciphertext.header(), tx.aad.as_ref())
+            else {
+                continue;
+            };
+            let tx_hash = tx.to_hash();
+            let outcome =
+                self.decryption_shares
+                    .insert(mb_hash, tx_hash, my_address, share.clone());
+            debug_assert!(matches!(
+                outcome,
+                InsertOutcome::Inserted | InsertOutcome::Duplicate
+            ));
+            shares.push(ShieldedTxDecryptionShare { tx_hash, share });
+        }
+
+        if !shares.is_empty() {
+            // Channel receiver is dropped only during shutdown.
+            let _ = self
+                .event_tx
+                .send(Ok(MalachiteEvent::DecryptionShares { mb_hash, shares }));
+        }
+    }
+
+    fn process_unshielding(&self, mb_hash: H256, decryption_keys: &DecryptionKeys) -> Result<()> {
+        let compact = self
+            .db
+            .mb_compact_block(mb_hash)
+            .context("process_unshielding: no compact for {mb_hash}")?;
+
+        let UnshieldingOutput {
+            unshielded: unshielded_with_hashes,
+            not_unshielded,
+        } = self.unshield_parent_transactions(compact.parent, decryption_keys)?;
+
+        let unshielded_hash_mapping = unshielded_with_hashes
+            .iter()
+            .map(|(tx_hash, tx)| (*tx_hash, tx.data().to_hash()))
+            .collect();
+
+        let unshielded = unshielded_with_hashes
+            .into_iter()
+            .map(|(_, tx)| tx)
+            .collect();
+
+        self.db.set_mb_unshielded_txs(mb_hash, unshielded);
+
+        let _ = self.event_tx.send(Ok(MalachiteEvent::UnshieldingOutput {
+            mb_hash,
+            unshielded_hash_mapping,
+            not_unshielded,
+        }));
+
+        Ok(())
+    }
+
+    fn unshield_parent_transactions(
+        &self,
+        parent_mb_hash: H256,
+        decryption_keys: &DecryptionKeys,
+    ) -> Result<UnshieldingOutput> {
+        if parent_mb_hash.is_zero() || decryption_keys.is_empty() {
+            return Ok(UnshieldingOutput::default());
+        }
+
+        let compact = self.db.mb_compact_block(parent_mb_hash).ok_or_else(|| {
+            anyhow!("unshield_parent_transactions: no CompactMb for parent {parent_mb_hash}")
+        })?;
+        let operations = self.db.operations(compact.operations_hash).ok_or_else(|| {
+            anyhow!(
+                "unshield_parent_transactions: operations blob {} missing for parent {parent_mb_hash}",
+                compact.operations_hash
+            )
+        })?;
+
+        let mut output = UnshieldingOutput::default();
+        for tx in operations.into_iter().filter_map(Operation::into_shielded) {
+            let tx_hash = tx.data().to_hash();
+            match decryption_keys.get(&tx_hash) {
+                Some(shared_key) => {
+                    match tx.into_verified().try_map(|tx| tx.unshield(shared_key)) {
+                        Ok(injected_tx) => output.unshielded.push((tx_hash, injected_tx)),
+                        Err(_err) => output.not_unshielded.push(PurgedTransaction {
+                            tx_hash: TransactionHash::Right(tx_hash),
+                            reason: TransactionPurgedReason::DecryptionFailed,
+                        }),
+                    }
+                }
+                None => output.not_unshielded.push(PurgedTransaction {
+                    tx_hash: TransactionHash::Right(tx_hash),
+                    reason: TransactionPurgedReason::DecryptionFailed,
+                }),
+            }
+        }
+
+        Ok(output)
     }
 
     // Candidate EB must be anchored in the quarantine and a strict descendant of the previously advanced EB.
@@ -1303,27 +1319,6 @@ mod tests {
         }
     }
 
-    fn shielded_operation() -> Operation {
-        use ethexe_common::{SignedMessage, injected::InjectedTransaction};
-        use gprimitives::ActorId;
-
-        let dkg_public_key = gear_tdec::deal::<Bls12_381>(1, 1, &mut test_rng()).public_key;
-        let injected = InjectedTransaction {
-            destination: ActorId::from([1; 32]),
-            payload: vec![1, 2, 3].try_into().unwrap(),
-            value: 0,
-            reference_block: H256::zero(),
-            salt: vec![7; 32].try_into().unwrap(),
-        };
-        let shielded = injected
-            .shield(&dkg_public_key, &mut test_rng())
-            .expect("test shielding must succeed");
-        Operation::Shielded(
-            SignedMessage::create(ethexe_common::PrivateKey::random(), shielded)
-                .expect("test signature must be valid"),
-        )
-    }
-
     /// `process_mb_proposal` populates `mb_block`, `mb_meta` (height,
     /// parent_mb_hash, last_advanced_eb, synced=true) and the
     /// height index, then emits a `BlockProposal`.
@@ -1349,11 +1344,9 @@ mod tests {
             MalachiteEvent::BlockProposal {
                 height,
                 mb_hash: proposed,
-                can_speculatively_execute,
             } => {
                 assert_eq!(height, 1);
                 assert_eq!(proposed, mb_hash);
-                assert!(can_speculatively_execute);
                 let _ = p;
             }
             other => panic!("expected BlockProposal, got {other:?}"),
@@ -1364,37 +1357,78 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn block_proposal_for_parent_with_shielded_tx_disables_speculative_execution() {
+    async fn process_mb_proposal_unshields_parent_transactions() {
+        use ethexe_common::{
+            SignedMessage,
+            db::MbStorageRO,
+            injected::{InjectedTransaction, TransactionHash},
+        };
+        use gprimitives::ActorId;
+
         let db = Database::memory();
-        let (ext, mut rx) = make_externalities(db);
+        let (mut ext, mut rx) = make_externalities(db.clone());
+        let (tdec_ctx, tdec_store, dkg_public_key) = single_validator_tdec_setup();
+        ext.tdec_ctx = Some(tdec_ctx);
+        ext.tdec_store = tdec_store;
+
+        let injected = InjectedTransaction {
+            destination: ActorId::from([1; 32]),
+            payload: vec![1, 2, 3].try_into().unwrap(),
+            value: 0,
+            reference_block: H256::zero(),
+            salt: vec![7; 32].try_into().unwrap(),
+        };
+        let shielded = injected
+            .clone()
+            .shield(&dkg_public_key, &mut test_rng())
+            .expect("test shielding must succeed");
+        let shielded_hash = shielded.to_hash();
+        let signed_shielded =
+            SignedMessage::create(ethexe_common::PrivateKey::random(), shielded).unwrap();
 
         let parent_payload = Operations::new(vec![
-            shielded_operation(),
+            Operation::Shielded(signed_shielded),
             Operation::ProgressTasks,
             Operation::ProcessQueuesV3 { gas_allowance: 0 },
         ]);
         let parent = wrap(parent_payload, 1, H256::zero());
         let parent_hash = parent.hash();
         ext.process_mb_proposal(parent_hash, parent).await.unwrap();
+        let _ = rx.recv().await.expect("decryption shares").expect("ok");
         let _ = rx.recv().await.expect("parent proposal").expect("ok");
 
-        let child_payload = payload(None, 2);
+        let child_payload = ext
+            .build_operations(parent_hash)
+            .await
+            .expect("single-validator shares should produce decryption keys");
         let child = wrap(child_payload, 2, parent_hash);
         let child_hash = child.hash();
         ext.process_mb_proposal(child_hash, child).await.unwrap();
 
-        match rx.try_recv().expect("child event").expect("ok") {
-            MalachiteEvent::BlockProposal {
-                height,
+        let unshielded = db.mb_unshielded_txs(child_hash);
+        assert_eq!(unshielded.len(), 1);
+        assert_eq!(unshielded[0].data(), &injected);
+
+        match rx.try_recv().expect("unshielding event").expect("ok") {
+            MalachiteEvent::UnshieldingOutput {
                 mb_hash,
-                can_speculatively_execute,
+                unshielded_hash_mapping,
+                not_unshielded,
             } => {
-                assert_eq!(height, 2);
                 assert_eq!(mb_hash, child_hash);
-                assert!(!can_speculatively_execute);
+                assert_eq!(
+                    unshielded_hash_mapping,
+                    vec![(shielded_hash, injected.to_hash())]
+                );
+                assert!(not_unshielded.is_empty());
             }
-            other => panic!("expected BlockProposal, got {other:?}"),
+            other => panic!("expected UnshieldingOutput, got {other:?}"),
         }
+
+        assert_eq!(
+            TransactionHash::Left(unshielded[0].data().to_hash()),
+            TransactionHash::Left(injected.to_hash())
+        );
     }
 
     /// `process_mb_finalized` reads the [`CompactMb`] +
@@ -1686,12 +1720,18 @@ mod tests {
         let parent = Block::new(H256::zero(), 1, to_payload(parent_payload.encode()));
         let parent_hash = parent.hash();
         ext.process_mb_proposal(parent_hash, parent).await.unwrap();
-        let _ = rx.recv().await; // BlockProposal
-        let shares_event = rx.recv().await.expect("shares event").expect("ok");
-        assert!(matches!(
-            shares_event,
-            MalachiteEvent::DecryptionShares { .. }
-        ));
+        let first = rx.recv().await.expect("first event").expect("ok");
+        let second = rx.recv().await.expect("second event").expect("ok");
+        assert!(
+            [&first, &second]
+                .iter()
+                .any(|event| matches!(event, MalachiteEvent::BlockProposal { .. }))
+        );
+        assert!(
+            [&first, &second]
+                .iter()
+                .any(|event| matches!(event, MalachiteEvent::DecryptionShares { .. }))
+        );
 
         let operations = tokio::time::timeout(
             std::time::Duration::from_millis(50),

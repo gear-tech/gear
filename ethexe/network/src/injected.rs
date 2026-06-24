@@ -8,7 +8,7 @@ use crate::{
 };
 use ethexe_common::{
     Address,
-    injected::{TransactionAcceptance, Transaction, TransactionHash},
+    injected::{Transaction, TransactionAcceptance, TransactionHash},
 };
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use libp2p::{
@@ -91,11 +91,7 @@ pub enum Event {
 impl Event {
     fn unwrap_new_injected_transaction(
         self,
-    ) -> (
-        PeerId,
-        Transaction,
-        oneshot::Sender<TransactionAcceptance>,
-    ) {
+    ) -> (PeerId, Transaction, oneshot::Sender<TransactionAcceptance>) {
         match self {
             Event::InboundTransaction {
                 peer,
@@ -106,9 +102,7 @@ impl Event {
         }
     }
 
-    fn unwrap_injected_transaction_acceptance(
-        self,
-    ) -> (TransactionHash, TransactionAcceptance) {
+    fn unwrap_injected_transaction_acceptance(self) -> (TransactionHash, TransactionAcceptance) {
         match self {
             Event::OutboundAcceptance {
                 transaction_hash,

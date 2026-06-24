@@ -12,7 +12,7 @@ use crate::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
     },
     injected::{InjectedTransaction, Promise},
-    malachite::{Operation, Operations},
+    malachite::Operations,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
@@ -653,12 +653,6 @@ impl BlockChain {
                     operations_hash,
                 },
             );
-            db.mutate_mb_meta(mb.hash, |meta| {
-                meta.contains_shielded = mb
-                    .operations
-                    .iter()
-                    .any(|op| matches!(op, Operation::Shielded(_)));
-            });
             if let Some(computed) = &mb.computed {
                 db.set_mb_program_states(mb.hash, computed.program_states.clone());
                 db.mutate_mb_meta(mb.hash, |meta| {
