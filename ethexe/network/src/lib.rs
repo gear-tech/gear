@@ -1194,9 +1194,8 @@ impl Behaviour {
 
         let injected = injected::Behaviour::new();
 
-        let malachite =
-            malachite::behaviour::Behaviour::new(keypair.clone(), malachite_config, None, registry)
-                .context("failed to create malachite lane behaviour")?;
+        let malachite = malachite::behaviour::Behaviour::new(malachite_config, registry)
+            .context("failed to create malachite lane behaviour")?;
 
         let validator_discovery = validator::discovery::Config {
             kad: kad_handle,

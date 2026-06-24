@@ -156,3 +156,14 @@ async fn malachite_behaviour_does_not_own_gossipsub() {
     let _shared_gossipsub = &behaviour.gossipsub;
     let _malachite = &behaviour.malachite;
 }
+
+#[tokio::test]
+async fn malachite_lane_components_are_always_enabled() {
+    let service = new_service().await;
+
+    let malachite = &service.swarm.behaviour().malachite;
+    let _broadcast: &libp2p_broadcast::Behaviour = &malachite.broadcast;
+    let _sync: &malachitebft_sync::Behaviour = &malachite.sync;
+    let _validator_proof: &malachitebft_network::validator_proof::Behaviour =
+        &malachite.validator_proof;
+}
