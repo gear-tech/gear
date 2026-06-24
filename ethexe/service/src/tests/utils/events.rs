@@ -12,7 +12,7 @@ use ethexe_common::{
     db::*,
     events::BlockEvent,
     injected::{
-        InjectedTransactionAcceptance, SignedCompactTxReceipt, Transaction, TransactionHash,
+        TransactionAcceptance, SignedCompactTxReceipt, Transaction, TransactionHash,
     },
     malachite::SignedBlockDecryptionShares,
     network::VerifiedValidatorMessage,
@@ -50,7 +50,7 @@ pub enum TestingNetworkInjectedEvent {
     },
     OutboundAcceptance {
         transaction_hash: TransactionHash,
-        acceptance: InjectedTransactionAcceptance,
+        acceptance: TransactionAcceptance,
     },
 }
 

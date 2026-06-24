@@ -8,7 +8,7 @@ use crate::{
 };
 use ethexe_common::{
     Address,
-    injected::{InjectedTransactionAcceptance, Transaction, TransactionHash},
+    injected::{TransactionAcceptance, Transaction, TransactionHash},
 };
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use libp2p::{
@@ -70,7 +70,7 @@ pub(crate) struct InnerRequest(Transaction);
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Encode, Decode)]
-pub(crate) struct InnerResponse(InjectedTransactionAcceptance);
+pub(crate) struct InnerResponse(TransactionAcceptance);
 
 #[derive(Debug)]
 pub enum Event {
@@ -78,12 +78,12 @@ pub enum Event {
     InboundTransaction {
         peer: PeerId,
         transaction: Box<Transaction>,
-        channel: oneshot::Sender<InjectedTransactionAcceptance>,
+        channel: oneshot::Sender<TransactionAcceptance>,
     },
     /// We got a response from a validator we sent transaction to
     OutboundAcceptance {
         transaction_hash: TransactionHash,
-        acceptance: InjectedTransactionAcceptance,
+        acceptance: TransactionAcceptance,
     },
 }
 
@@ -94,7 +94,7 @@ impl Event {
     ) -> (
         PeerId,
         Transaction,
-        oneshot::Sender<InjectedTransactionAcceptance>,
+        oneshot::Sender<TransactionAcceptance>,
     ) {
         match self {
             Event::InboundTransaction {
@@ -108,7 +108,7 @@ impl Event {
 
     fn unwrap_injected_transaction_acceptance(
         self,
-    ) -> (TransactionHash, InjectedTransactionAcceptance) {
+    ) -> (TransactionHash, TransactionAcceptance) {
         match self {
             Event::OutboundAcceptance {
                 transaction_hash,
@@ -472,7 +472,7 @@ mod tests {
                 .next_behaviour_event()
                 .await
                 .unwrap_injected_transaction_acceptance();
-            assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
+            assert_eq!(acceptance, TransactionAcceptance::Accept);
         });
 
         let (peer, new_tx, channel) = bob
@@ -481,7 +481,7 @@ mod tests {
             .unwrap_new_injected_transaction();
         assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction);
-        channel.send(InjectedTransactionAcceptance::Accept).unwrap();
+        channel.send(TransactionAcceptance::Accept).unwrap();
         tokio::spawn(bob.loop_on_next());
 
         alice_handle.await.unwrap();
@@ -513,7 +513,7 @@ mod tests {
                     .next_behaviour_event()
                     .await
                     .unwrap_injected_transaction_acceptance();
-                assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
+                assert_eq!(acceptance, TransactionAcceptance::Accept);
             }
         });
 
@@ -523,7 +523,7 @@ mod tests {
             .unwrap_new_injected_transaction();
         assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction);
-        channel.send(InjectedTransactionAcceptance::Accept).unwrap();
+        channel.send(TransactionAcceptance::Accept).unwrap();
         tokio::spawn(bob.loop_on_next());
 
         let (peer, new_tx, channel) = carol
@@ -532,7 +532,7 @@ mod tests {
             .unwrap_new_injected_transaction();
         assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction);
-        channel.send(InjectedTransactionAcceptance::Accept).unwrap();
+        channel.send(TransactionAcceptance::Accept).unwrap();
         tokio::spawn(carol.loop_on_next());
 
         alice_handle.await.unwrap();
@@ -560,7 +560,7 @@ mod tests {
                 .unwrap_injected_transaction_acceptance();
             assert_eq!(
                 acceptance,
-                InjectedTransactionAcceptance::Reject {
+                TransactionAcceptance::Reject {
                     reason: REJECT_REASON.to_string(),
                 }
             );
@@ -573,7 +573,7 @@ mod tests {
         assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction);
         channel
-            .send(InjectedTransactionAcceptance::Reject {
+            .send(TransactionAcceptance::Reject {
                 reason: REJECT_REASON.to_string(),
             })
             .unwrap();
@@ -602,7 +602,7 @@ mod tests {
                 .unwrap_injected_transaction_acceptance();
             assert_eq!(
                 acceptance,
-                InjectedTransactionAcceptance::Reject {
+                TransactionAcceptance::Reject {
                     reason: OutboundFailure::ConnectionClosed.to_string(),
                 }
             );

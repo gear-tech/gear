@@ -4,7 +4,7 @@
 use ethexe_common::{
     HashOf,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
+        InjectedTransaction, TransactionAcceptance, SignedInjectedTransaction,
         SignedTxReceipt, Transaction,
     },
 };
@@ -32,7 +32,7 @@ pub trait Injected {
     async fn send_transaction(
         &self,
         transaction: Transaction,
-    ) -> jsonrpsee::core::RpcResult<InjectedTransactionAcceptance>;
+    ) -> jsonrpsee::core::RpcResult<TransactionAcceptance>;
 
     /// Sends an injected transaction and subscribes to its promise.
     #[subscription(

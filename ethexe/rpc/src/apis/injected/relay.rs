@@ -7,7 +7,7 @@
 //! validator in the current era and returns the first acceptance.
 
 use crate::{RpcEvent, errors};
-use ethexe_common::injected::{InjectedTransactionAcceptance, Transaction};
+use ethexe_common::injected::{TransactionAcceptance, Transaction};
 use jsonrpsee::core::RpcResult;
 use tokio::sync::{mpsc, oneshot};
 
@@ -26,7 +26,7 @@ impl TransactionsRelayer {
     pub async fn relay(
         &self,
         transaction: Transaction,
-    ) -> RpcResult<InjectedTransactionAcceptance> {
+    ) -> RpcResult<TransactionAcceptance> {
         let tx_hash = transaction.as_ref().hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
 

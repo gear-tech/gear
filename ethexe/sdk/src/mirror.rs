@@ -9,7 +9,7 @@ use ethexe_common::{
     gear::ValueClaim,
     gear_core::rpc::ReplyInfo,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, Promise, Receipt,
+        InjectedTransaction, TransactionAcceptance, Promise, Receipt,
         SignedInjectedTransaction,
     },
 };
@@ -293,7 +293,7 @@ impl<'a> Mirror<'a> {
         let message_id = injected_transaction.to_message_id();
         let tx_hash = injected_transaction.to_hash().into();
 
-        let result: InjectedTransactionAcceptance = self
+        let result: TransactionAcceptance = self
             .api
             .vara_eth_client()
             .send_transaction(transaction.into())
@@ -301,14 +301,14 @@ impl<'a> Mirror<'a> {
             .with_context(|| "failed to send injected transaction")?;
 
         match result {
-            InjectedTransactionAcceptance::Accept => Ok(InjectedMessageResult {
+            TransactionAcceptance::Accept => Ok(InjectedMessageResult {
                 message_id,
                 tx_hash,
                 reference_block_number,
                 reference_block_hash,
                 promise: None,
             }),
-            InjectedTransactionAcceptance::Reject { reason } => {
+            TransactionAcceptance::Reject { reason } => {
                 Err(anyhow!("injected transaction was rejected: {reason}"))
             }
         }

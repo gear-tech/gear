@@ -47,7 +47,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     gear::CodeState,
-    injected::{CompactPromise, InjectedTransactionAcceptance, Receipt},
+    injected::{CompactPromise, TransactionAcceptance, Receipt},
     malachite::BlockDecryptionData,
     network::VerifiedValidatorMessage,
 };
@@ -864,7 +864,7 @@ impl Service {
                                     Some(malachite) => {
                                         malachite.receive_transaction(*transaction).into()
                                     }
-                                    None => InjectedTransactionAcceptance::Reject {
+                                    None => TransactionAcceptance::Reject {
                                         reason: "no malachite service to handle transaction".into(),
                                     },
                                 };
@@ -917,12 +917,12 @@ impl Service {
                             if let Some(malachite) = malachite.as_mut() {
                                 let status = malachite.receive_transaction(transaction.clone());
                                 local_acceptance =
-                                    Some(InjectedTransactionAcceptance::from(status));
+                                    Some(TransactionAcceptance::from(status));
                             }
 
                             match network.as_mut() {
                                 Some(network) => match local_acceptance {
-                                    Some(acceptance @ InjectedTransactionAcceptance::Accept) => {
+                                    Some(acceptance @ TransactionAcceptance::Accept) => {
                                         // local consensus handle transaction, no need to wait for other acceptances
                                         if let Err(err) =
                                             network.broadcast_injected_transaction(transaction)
@@ -959,7 +959,7 @@ impl Service {
                                             }
                                             Err(err) => {
                                                 let acceptance =
-                                                    InjectedTransactionAcceptance::Reject {
+                                                    TransactionAcceptance::Reject {
                                                         reason: err.to_string(),
                                                     };
 
@@ -976,7 +976,7 @@ impl Service {
                                 None => {
                                     // No network, send local_acceptance to RPC
                                     let acceptance = local_acceptance.unwrap_or_else(|| {
-                                        InjectedTransactionAcceptance::Reject {
+                                        TransactionAcceptance::Reject {
                                             reason: "RPC not a validator and do not connect to P2P network".into(),
                                         }
                                     });

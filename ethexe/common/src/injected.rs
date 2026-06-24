@@ -44,12 +44,12 @@ pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB: usize = 127 * 1024;
 // TODO: rename this type to just `TransactionAcceptance`
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
-pub enum InjectedTransactionAcceptance {
+pub enum TransactionAcceptance {
     Accept,
     Reject { reason: String },
 }
 
-impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
+impl<E: ToString> From<Result<(), E>> for TransactionAcceptance {
     fn from(value: Result<(), E>) -> Self {
         match value {
             Ok(()) => Self::Accept,

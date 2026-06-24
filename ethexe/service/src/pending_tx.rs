@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use ethexe_common::injected::InjectedTransactionAcceptance;
+use ethexe_common::injected::TransactionAcceptance;
 use std::num::NonZeroUsize;
 use tokio::sync::oneshot;
 
@@ -10,16 +10,16 @@ use tokio::sync::oneshot;
 /// Transaction senders waits for acceptance/reject from other validators in
 /// network.
 pub(super) struct PendingNetworkInjectedTx {
-    response_senders: Vec<oneshot::Sender<InjectedTransactionAcceptance>>,
+    response_senders: Vec<oneshot::Sender<TransactionAcceptance>>,
     pending_responses: usize,
-    last_reject: Option<InjectedTransactionAcceptance>,
+    last_reject: Option<TransactionAcceptance>,
 }
 
 impl PendingNetworkInjectedTx {
     pub(super) fn new(
-        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
+        response_sender: oneshot::Sender<TransactionAcceptance>,
         pending_responses: NonZeroUsize,
-        last_reject: Option<InjectedTransactionAcceptance>,
+        last_reject: Option<TransactionAcceptance>,
     ) -> Self {
         Self {
             response_senders: vec![response_sender],
@@ -30,24 +30,24 @@ impl PendingNetworkInjectedTx {
 
     pub(super) fn add_response_sender(
         &mut self,
-        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
+        response_sender: oneshot::Sender<TransactionAcceptance>,
     ) {
         self.response_senders.push(response_sender);
     }
 
     pub(super) fn into_response_senders(
         self,
-    ) -> Vec<oneshot::Sender<InjectedTransactionAcceptance>> {
+    ) -> Vec<oneshot::Sender<TransactionAcceptance>> {
         self.response_senders
     }
 
     pub(super) fn record_response(
         &mut self,
-        acceptance: InjectedTransactionAcceptance,
-    ) -> Option<InjectedTransactionAcceptance> {
+        acceptance: TransactionAcceptance,
+    ) -> Option<TransactionAcceptance> {
         match acceptance {
-            InjectedTransactionAcceptance::Accept => Some(InjectedTransactionAcceptance::Accept),
-            rejection @ InjectedTransactionAcceptance::Reject { .. } => {
+            TransactionAcceptance::Accept => Some(TransactionAcceptance::Accept),
+            rejection @ TransactionAcceptance::Reject { .. } => {
                 // Infallible because in case of `self.pending_responses == 0` returns `Some`.
                 self.pending_responses = self.pending_responses.checked_sub(1).expect("infallible");
                 self.last_reject = Some(rejection);
@@ -67,7 +67,7 @@ impl PendingNetworkInjectedTx {
 mod tests {
     use super::*;
 
-    fn response_sender() -> oneshot::Sender<InjectedTransactionAcceptance> {
+    fn response_sender() -> oneshot::Sender<TransactionAcceptance> {
         oneshot::channel().0
     }
 
@@ -79,9 +79,9 @@ mod tests {
             None,
         );
 
-        let acceptance = pending.record_response(InjectedTransactionAcceptance::Accept);
+        let acceptance = pending.record_response(TransactionAcceptance::Accept);
 
-        assert_eq!(acceptance, Some(InjectedTransactionAcceptance::Accept));
+        assert_eq!(acceptance, Some(TransactionAcceptance::Accept));
     }
 
     #[test]
@@ -89,24 +89,24 @@ mod tests {
         let mut pending = PendingNetworkInjectedTx::new(
             response_sender(),
             NonZeroUsize::new(2).expect("non-zero"),
-            Some(InjectedTransactionAcceptance::Reject {
+            Some(TransactionAcceptance::Reject {
                 reason: "local".into(),
             }),
         );
 
-        let acceptance = pending.record_response(InjectedTransactionAcceptance::Reject {
+        let acceptance = pending.record_response(TransactionAcceptance::Reject {
             reason: "remote-1".into(),
         });
 
         assert_eq!(acceptance, None);
 
-        let acceptance = pending.record_response(InjectedTransactionAcceptance::Reject {
+        let acceptance = pending.record_response(TransactionAcceptance::Reject {
             reason: "remote-2".into(),
         });
 
         assert_eq!(
             acceptance,
-            Some(InjectedTransactionAcceptance::Reject {
+            Some(TransactionAcceptance::Reject {
                 reason: "remote-2".into()
             })
         );
@@ -120,13 +120,13 @@ mod tests {
             None,
         );
 
-        let acceptance = pending.record_response(InjectedTransactionAcceptance::Reject {
+        let acceptance = pending.record_response(TransactionAcceptance::Reject {
             reason: "remote".into(),
         });
 
         assert_eq!(
             acceptance,
-            Some(InjectedTransactionAcceptance::Reject {
+            Some(TransactionAcceptance::Reject {
                 reason: "remote".into()
             })
         );

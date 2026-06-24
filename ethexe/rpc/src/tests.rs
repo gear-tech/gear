@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    CodeClient, InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent,
+    CodeClient, InjectedApi, InjectedClient, TransactionAcceptance, RpcConfig, RpcEvent,
     RpcServer, RpcService, test_utils::wasm_with_custom_section,
 };
 use ethexe_common::{
@@ -79,7 +79,7 @@ impl MockService {
                     event = self.rpc.next() => {
                         let RpcEvent::Transaction {transaction, response_sender} = event.expect("RPC event will be valid");
 
-                        response_sender.send(InjectedTransactionAcceptance::Accept).expect("Response sender will be valid");
+                        response_sender.send(TransactionAcceptance::Accept).expect("Response sender will be valid");
                         match transaction {
                             Transaction::Injected(transaction) => tx_batch.push(transaction),
                             Transaction::Shielded(_) => todo!("Shielded transaction execution"),

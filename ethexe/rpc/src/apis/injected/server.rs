@@ -11,7 +11,7 @@ use ethexe_common::{
     HashOf,
     db::{InjectedStorageRO, TdecStorageRO},
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, ShieldedTransaction,
+        InjectedTransaction, TransactionAcceptance, ShieldedTransaction,
         SignedInjectedTransaction, SignedTxReceipt, Transaction,
     },
 };
@@ -45,7 +45,7 @@ impl InjectedServer for InjectedApi {
     async fn send_transaction(
         &self,
         transaction: Transaction,
-    ) -> RpcResult<InjectedTransactionAcceptance> {
+    ) -> RpcResult<TransactionAcceptance> {
         self.send_transaction(transaction).await
     }
 
@@ -96,7 +96,7 @@ impl InjectedApi {
     async fn send_transaction(
         &self,
         transaction: Transaction,
-    ) -> RpcResult<InjectedTransactionAcceptance> {
+    ) -> RpcResult<TransactionAcceptance> {
         self.relayer.relay(transaction).await
     }
 
@@ -119,12 +119,12 @@ impl InjectedApi {
             self.manager.cancel_registration(tx_hash);
         })?;
         let sink = match acceptance {
-            InjectedTransactionAcceptance::Accept => {
+            TransactionAcceptance::Accept => {
                 pending.accept().await.inspect_err(|_err| {
                     self.manager.cancel_registration(tx_hash);
                 })?
             }
-            InjectedTransactionAcceptance::Reject { reason } => {
+            TransactionAcceptance::Reject { reason } => {
                 self.manager.cancel_registration(tx_hash);
                 return Err(reason.into());
             }

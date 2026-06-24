@@ -23,7 +23,7 @@ use ethexe_common::{
     },
     gear::BatchCommitment,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, Receipt, TransactionHash,
+        InjectedTransaction, TransactionAcceptance, Receipt, TransactionHash,
         TransactionPurgedReason,
     },
     mock::*,
@@ -1885,7 +1885,7 @@ async fn send_injected_tx() {
         .send_transaction(signed_tx.clone().into())
         .await
         .expect("rpc server is set");
-    assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
+    assert_eq!(acceptance, TransactionAcceptance::Accept);
 
     // Tx executable validation takes time, so wait for event.
     node1

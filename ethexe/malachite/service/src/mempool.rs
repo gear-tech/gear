@@ -40,7 +40,7 @@ use ethexe_common::{
     HashOf, SimpleBlockData,
     db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO},
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, PurgedTransaction, ShieldedTransaction,
+        InjectedTransaction, TransactionAcceptance, PurgedTransaction, ShieldedTransaction,
         SignedInjectedTransaction, SignedShieldedTransaction, Transaction, TransactionHash,
         TransactionPurgedReason, TransactionRef, VALIDITY_WINDOW,
     },
@@ -58,7 +58,7 @@ use tracing::{info, trace};
 ///   the caller should treat it as terminal.
 ///
 /// Group membership is queried via [`Self::is_accepted`]; the
-/// `From<TxInsertionStatus> for InjectedTransactionAcceptance` impl uses
+/// `From<TxInsertionStatus> for TransactionAcceptance` impl uses
 /// that to project into the RPC-facing acceptance type.
 #[derive(Clone, Debug, PartialEq, Eq, derive_more::Display)]
 pub enum TxInsertionStatus {
@@ -100,7 +100,7 @@ impl TxInsertionStatus {
     }
 }
 
-impl From<TxInsertionStatus> for InjectedTransactionAcceptance {
+impl From<TxInsertionStatus> for TransactionAcceptance {
     fn from(status: TxInsertionStatus) -> Self {
         if status.is_accepted() {
             Self::Accept
@@ -575,14 +575,14 @@ mod tests {
         BlockHeader, PrivateKey, SignedMessage, SimpleBlockData,
         db::{BlockMetaStorageRW, GlobalsStorageRW, OnChainStorageRW},
         injected::{
-            InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
+            InjectedTransaction, TransactionAcceptance, SignedInjectedTransaction,
             SignedShieldedTransaction,
         },
     };
     use gprimitives::ActorId;
     use std::time::Duration;
 
-    /// Pins the `TxInsertionStatus -> InjectedTransactionAcceptance` split.
+    /// Pins the `TxInsertionStatus -> TransactionAcceptance` split.
     /// Adding a variant without updating [`TxInsertionStatus::is_accepted`]
     /// will be caught here.
     #[test]
@@ -594,8 +594,8 @@ mod tests {
         ] {
             assert!(status.is_accepted(), "{status:?} must classify as accepted");
             assert_eq!(
-                InjectedTransactionAcceptance::from(status),
-                InjectedTransactionAcceptance::Accept,
+                TransactionAcceptance::from(status),
+                TransactionAcceptance::Accept,
             );
         }
         for status in [
@@ -609,8 +609,8 @@ mod tests {
             );
             let reason = status.to_string();
             assert_eq!(
-                InjectedTransactionAcceptance::from(status),
-                InjectedTransactionAcceptance::Reject { reason },
+                TransactionAcceptance::from(status),
+                TransactionAcceptance::Reject { reason },
             );
         }
     }
