@@ -56,6 +56,11 @@ pub struct CalculateReplyForHandleResult {
 pub struct ProgramBestState {
     pub mb_hash: H256,
     pub new_state_hash: H256,
+    // PoC: this concatenates on-chain (canonical) and off-chain (Injected
+    // `local_outcome`) messages into a single list to avoid breaking the API
+    // shape. It MUST be split into separate `messages` / `local_messages`
+    // fields once consumers are ready, since only the former is committed on
+    // Ethereum.
     pub messages: Vec<Message>,
 }
 

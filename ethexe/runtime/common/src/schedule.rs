@@ -3,6 +3,7 @@
 
 use crate::{
     TransitionController,
+    journal::push_outgoing,
     state::{
         Dispatch, DispatchStash, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
         ProgramState, QueryableStorage, Storage, UserMailbox, Waitlist,
@@ -97,11 +98,11 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 if event_destinations && is_event_destination(user_id) {
                     let value = dispatch.value;
                     let message_type = dispatch.message_type;
+                    let is_local = message_type.is_injected();
 
                     transitions.modify_transition(program_id, |transition| {
-                        transition
-                            .messages
-                            .push(dispatch.clone().into_message(storage, user_id));
+                        let message = dispatch.clone().into_message(storage, user_id);
+                        push_outgoing(transition, message, is_local);
                         transition.claims.push(ValueClaim {
                             message_id: stashed_message_id,
                             destination: user_id,
@@ -125,6 +126,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                     return;
                 }
 
+                let is_local = dispatch.message_type.is_injected();
+
                 let expiry = transitions.schedule_task(
                     mailbox_validity,
                     ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
@@ -141,9 +144,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 });
 
                 transitions.modify_transition(program_id, |transition| {
-                    transition
-                        .messages
-                        .push(dispatch.into_message(storage, user_id))
+                    let message = dispatch.into_message(storage, user_id);
+                    push_outgoing(transition, message, is_local);
                 })
             });
 

@@ -7,7 +7,7 @@ use crate::{
         ActiveProgram, Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
         Program, ProgramState, Storage,
     },
-    transitions::is_event_destination,
+    transitions::{NonFinalTransition, is_event_destination},
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -34,6 +34,16 @@ use gsys::GasMultiplier;
 /// Maximum duration for gr_wait_up_to in blocks,
 /// when not enough gas was provided for the requested duration.
 pub const WAIT_UP_TO_SAFE_DURATION: u32 = 64;
+
+/// Routes an outgoing user-bound message into the committed (`messages`) or the
+/// off-chain (`local_messages`) bucket depending on the producing dispatch type.
+pub(crate) fn push_outgoing(transition: &mut NonFinalTransition, message: Message, local: bool) {
+    if local {
+        transition.local_messages.push(message);
+    } else {
+        transition.messages.push(message);
+    }
+}
 
 // Handles unprocessed journal notes during chunk processing.
 pub struct NativeJournalHandler<'a, S: Storage + ?Sized> {
@@ -111,6 +121,8 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
             *self.call_reply_limiter = self.call_reply_limiter.saturating_sub(1);
         }
 
+        let is_local = self.message_type.is_injected();
+
         if dispatch.is_reply() {
             self.controller
                 .update_state(dispatch.source(), |state, _, transitions| {
@@ -122,10 +134,9 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
 
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
+                        let message = Message::from_stored(stored, self.call_reply);
 
-                        transition
-                            .messages
-                            .push(Message::from_stored(stored, self.call_reply))
+                        push_outgoing(transition, message, is_local);
                     });
                 });
 
@@ -182,9 +193,7 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
 
-                        transition
-                            .messages
-                            .push(Message::from_stored(stored, false));
+                        push_outgoing(transition, Message::from_stored(stored, false), is_local);
                         transition.claims.push(ethexe_common::gear::ValueClaim {
                             message_id,
                             destination,
@@ -233,9 +242,7 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
 
-                        transition
-                            .messages
-                            .push(Message::from_stored(stored, false))
+                        push_outgoing(transition, Message::from_stored(stored, false), is_local);
                     });
                 }
             });

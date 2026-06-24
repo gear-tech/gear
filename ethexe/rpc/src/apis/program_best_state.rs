@@ -12,7 +12,10 @@
 //! cache only avoids repeated reads when many subscribers share an MB.
 
 use super::program::ProgramBestState;
-use ethexe_common::{db::MbStorageRO, gear::StateTransition};
+use ethexe_common::{
+    db::MbStorageRO,
+    gear::{Message, StateTransition},
+};
 use ethexe_db::Database;
 use gprimitives::{ActorId, H160, H256};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
@@ -27,6 +30,7 @@ const BROADCAST_CAPACITY: usize = 1024;
 const CACHE_CAPACITY: u64 = 128;
 
 type StateTransitionsCache = moka::sync::Cache<H256, Arc<Vec<StateTransition>>>;
+type LocalOutcomeCache = moka::sync::Cache<H256, Arc<Vec<(ActorId, Vec<Message>)>>>;
 
 /// Cloneable handle shared between [`ProgramApi`](super::ProgramApi) (creates
 /// subscribers) and [`RpcService`](crate::RpcService) (pushes `mb_hash`es).
@@ -35,6 +39,7 @@ pub struct BestStateManager {
     db: Database,
     sender: broadcast::Sender<H256>,
     cache: StateTransitionsCache,
+    local_cache: LocalOutcomeCache,
 }
 
 impl BestStateManager {
@@ -43,7 +48,15 @@ impl BestStateManager {
         let cache = moka::sync::Cache::builder()
             .max_capacity(CACHE_CAPACITY)
             .build();
-        Self { db, sender, cache }
+        let local_cache = moka::sync::Cache::builder()
+            .max_capacity(CACHE_CAPACITY)
+            .build();
+        Self {
+            db,
+            sender,
+            cache,
+            local_cache,
+        }
     }
 
     /// Fan a freshly computed MB out to all active subscribers.
@@ -62,6 +75,14 @@ impl BestStateManager {
         self.cache
             .try_get_with(mb_hash, || {
                 self.db.mb_outcome(mb_hash).map(Arc::new).ok_or(())
+            })
+            .ok()
+    }
+
+    fn local_outcome(&self, mb_hash: H256) -> Option<Arc<Vec<(ActorId, Vec<Message>)>>> {
+        self.local_cache
+            .try_get_with(mb_hash, || {
+                self.db.mb_local_outcome(mb_hash).map(Arc::new).ok_or(())
             })
             .ok()
     }
@@ -103,10 +124,25 @@ pub fn spawn_best_state_subscriber(
                 continue;
             };
 
+            // PoC: off-chain (Injected) messages for this program, concatenated
+            // into the single `messages` list below. Should be a separate field.
+            let local_messages = manager
+                .local_outcome(mb_hash)
+                .and_then(|local| {
+                    local
+                        .iter()
+                        .find(|(id, _)| *id == actor_id)
+                        .map(|(_, messages)| messages.clone())
+                })
+                .unwrap_or_default();
+
+            let mut messages = transition.messages.clone();
+            messages.extend(local_messages);
+
             let best_state = ProgramBestState {
                 mb_hash,
                 new_state_hash: transition.new_state_hash,
-                messages: transition.messages.clone(),
+                messages,
             };
 
             match SubscriptionMessage::from_json(&best_state) {

@@ -7,7 +7,7 @@ use crate::{
     Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
     SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
-    gear::StateTransition,
+    gear::{Message, StateTransition},
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
     malachite::Operations,
 };
@@ -162,6 +162,9 @@ pub trait MbStorageRO {
     fn operations(&self, operations_hash: H256) -> Option<Operations>;
     fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
     fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
+    /// Outgoing messages from Injected dispatches, per program. Not committed
+    /// on-chain; served off-Ethereum (e.g. over RPC subscription).
+    fn mb_local_outcome(&self, mb_hash: H256) -> Option<Vec<(ActorId, Vec<Message>)>>;
     fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
     fn mb_meta(&self, mb_hash: H256) -> MbMeta;
 }
@@ -174,6 +177,7 @@ pub trait MbStorageRW: MbStorageRO {
     fn set_operations(&self, operations: Operations) -> H256;
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
+    fn set_mb_local_outcome(&self, mb_hash: H256, local_outcome: Vec<(ActorId, Vec<Message>)>);
     fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
     fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
 }

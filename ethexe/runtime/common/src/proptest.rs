@@ -1047,13 +1047,20 @@ impl Arbitrary for FinalizedBlockTransitions {
             program_states_strategy(),
             common_schedule_strategy(),
             collection::vec((actor_id_strategy(), code_id_strategy()), 0..=4),
+            collection::vec(
+                (actor_id_strategy(), collection::vec(message_strategy(), 0..=4)),
+                0..=4,
+            ),
         )
-            .prop_map(|(transitions, states, schedule, program_creations)| Self {
-                transitions,
-                states,
-                schedule,
-                program_creations,
-            })
+            .prop_map(
+                |(transitions, states, schedule, program_creations, local_outcome)| Self {
+                    transitions,
+                    states,
+                    schedule,
+                    program_creations,
+                    local_outcome,
+                },
+            )
             .boxed()
     }
 }

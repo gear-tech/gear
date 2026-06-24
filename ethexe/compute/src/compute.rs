@@ -193,6 +193,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             states,
             schedule,
             program_creations,
+            local_outcome,
         } = processing_result;
 
         program_creations
@@ -202,6 +203,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             });
 
         db.set_mb_outcome(mb_hash, transitions);
+        db.set_mb_local_outcome(mb_hash, local_outcome);
         db.set_mb_program_states(mb_hash, states);
         db.set_mb_schedule(mb_hash, schedule);
         db.mutate_mb_meta(mb_hash, |meta| {

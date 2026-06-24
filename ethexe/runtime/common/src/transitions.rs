@@ -67,6 +67,9 @@ pub struct FinalizedBlockTransitions {
     pub states: ProgramStates,
     pub schedule: Schedule,
     pub program_creations: Vec<(ActorId, CodeId)>,
+    /// Outgoing messages produced by Injected dispatches. Not committed
+    /// on-chain; persisted and served off-Ethereum instead.
+    pub local_outcome: Vec<(ActorId, Vec<Message>)>,
 }
 
 impl InBlockTransitions {
@@ -225,12 +228,19 @@ impl InBlockTransitions {
         } = self;
 
         let mut transitions = Vec::with_capacity(modifications.len());
+        let mut local_outcome = Vec::new();
 
-        for (actor_id, modification) in modifications {
+        for (actor_id, mut modification) in modifications {
             let new_state = states
                 .get(&actor_id)
                 .cloned()
                 .expect("failed to find state record for modified state");
+
+            // Local (Injected) messages are collected regardless of the noop
+            // filter: they aren't committed but must still be served off-chain.
+            if !modification.local_messages.is_empty() {
+                local_outcome.push((actor_id, core::mem::take(&mut modification.local_messages)));
+            }
 
             if !modification.is_noop(new_state.hash) {
                 transitions.push(StateTransition {
@@ -251,6 +261,7 @@ impl InBlockTransitions {
             states,
             schedule,
             program_creations: program_creations.into_iter().collect(),
+            local_outcome,
         }
     }
 
@@ -293,6 +304,9 @@ pub struct NonFinalTransition {
     pub value_to_receive: i128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
+    /// Outgoing messages from Injected dispatches. Kept off the on-chain
+    /// commitment; drained into `FinalizedBlockTransitions::local_outcome`.
+    pub local_messages: Vec<Message>,
 }
 
 impl NonFinalTransition {
@@ -324,6 +338,7 @@ impl NonFinalTransition {
             value_to_receive,
             claims,
             messages,
+            local_messages: Vec::new(),
         }
     }
 }
