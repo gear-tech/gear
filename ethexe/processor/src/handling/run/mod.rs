@@ -688,7 +688,8 @@ mod tests {
                 },
             ),
         ]);
-        let transitions = InBlockTransitions::new(0, states, Default::default());
+        let transitions =
+            InBlockTransitions::new(TransitionsConfig::default(), states, Default::default());
         let mut ctx = CommonRunContext::new(
             db.clone(),
             InstanceCreator::new(db.clone(), host::runtime()).unwrap(),
@@ -750,7 +751,8 @@ mod tests {
                 },
             ),
         ]);
-        let transitions = InBlockTransitions::new(0, states, Default::default());
+        let transitions =
+            InBlockTransitions::new(TransitionsConfig::default(), states, Default::default());
         let mut ctx = CommonRunContext::new(
             db.clone(),
             InstanceCreator::new(db.clone(), host::runtime()).unwrap(),
