@@ -179,6 +179,10 @@ impl ProgramApi {
     fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
         self.db.mailbox(unsafe { HashOf::new(hash) })
     }
+
+    fn read_user_mailbox(&self, hash: H256) -> Option<UserMailbox> {
+        self.db.user_mailbox(unsafe { HashOf::new(hash) })
+    }
 }
 
 #[cfg(feature = "server")]
@@ -270,8 +274,7 @@ impl ProgramServer for ProgramApi {
     }
 
     async fn read_user_mailbox(&self, hash: H256) -> jsonrpsee::core::RpcResult<UserMailbox> {
-        self.db
-            .user_mailbox(unsafe { HashOf::new(hash) })
+        self.read_user_mailbox(hash)
             .ok_or_else(|| errors::db("Failed to read user mailbox by hash"))
     }
 

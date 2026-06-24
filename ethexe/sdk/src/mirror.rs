@@ -1,11 +1,11 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::VaraEthApi;
+use crate::{VaraEthApi, types::InjectedMessageResult};
 use alloy::rpc::types::TransactionReceipt;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use ethexe_common::{
-    Address, HashOf, OutgoingAction, OutgoingActions, SimpleBlockData,
+    Address, BlockHeader, HashOf, OutgoingAction, OutgoingActions, SimpleBlockData,
     events::mirror::StateChangedEvent,
     gear::ValueClaim,
     gear_core::rpc::ReplyInfo,
@@ -53,7 +53,7 @@ impl<'a> Mirror<'a> {
     pub async fn code_id(&self) -> Result<CodeId> {
         let code_id = self
             .api
-            .vara_eth_client
+            .vara_eth_client()
             .code_id(self.actor_id().to_address_lossy())
             .await?;
         Ok(code_id.into())
@@ -67,19 +67,24 @@ impl<'a> Mirror<'a> {
         self.mirror_query_client.router().await
     }
 
-    pub async fn state(&self) -> Result<ProgramState> {
+    pub async fn state(&self) -> Result<(H256, ProgramState)> {
         let state_hash = self.state_hash().await?;
+        let state = self.state_at_hash(state_hash).await?;
+        Ok((state_hash, state))
+    }
+
+    pub async fn state_at_hash(&self, state_hash: H256) -> Result<ProgramState> {
         self.api
-            .vara_eth_client
+            .vara_eth_client()
             .read_state(state_hash)
-            .map_err(Into::into)
             .await
+            .map_err(Into::into)
     }
 
     pub async fn full_state(&self) -> Result<FullProgramState> {
         let state_hash = self.state_hash().await?;
         self.api
-            .vara_eth_client
+            .vara_eth_client()
             .read_full_state(state_hash)
             .map_err(Into::into)
             .await
@@ -188,7 +193,7 @@ impl<'a> Mirror<'a> {
         let source: ActorId = sender_address.into();
         let destination = self.actor_id();
         self.api
-            .vara_eth_client
+            .vara_eth_client()
             .calculate_reply_for_handle(
                 at,
                 source.to_address_lossy(),
@@ -219,11 +224,11 @@ impl<'a> Mirror<'a> {
             .await
     }
 
-    async fn prepare_injected_transaction(
+    async fn prepare_injected_transaction_with_reference(
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<SignedInjectedTransaction> {
+    ) -> Result<(SignedInjectedTransaction, u32, H256)> {
         // TODO: check existence of deposit in Router contract
         ensure!(
             value == 0,
@@ -246,7 +251,11 @@ impl<'a> Mirror<'a> {
 
         let SimpleBlockData {
             hash: reference_block,
-            ..
+            header:
+                BlockHeader {
+                    height: reference_block_number,
+                    ..
+                },
         } = self.api.ethereum_client.get_latest_block().await?;
         let salt = H256::random()
             .0
@@ -265,6 +274,7 @@ impl<'a> Mirror<'a> {
         signer
             .signed_message(public_key, injected_transaction, None)
             .with_context(|| "failed to create signed injected transaction")
+            .map(|transaction| (transaction, reference_block_number, reference_block))
     }
 
     pub async fn send_message_injected(
@@ -272,24 +282,9 @@ impl<'a> Mirror<'a> {
         payload: impl AsRef<[u8]>,
         value: u128,
     ) -> Result<MessageId> {
-        let transaction = self.prepare_injected_transaction(payload, value).await?;
-        let injected_transaction = transaction.data();
-
-        let message_id = injected_transaction.to_message_id();
-
-        let result: InjectedTransactionAcceptance = self
-            .api
-            .vara_eth_client
-            .send_transaction(transaction)
+        self.send_message_injected_with_details(payload, value)
             .await
-            .with_context(|| "failed to send injected transaction")?;
-
-        match result {
-            InjectedTransactionAcceptance::Accept => Ok(message_id),
-            InjectedTransactionAcceptance::Reject { reason } => {
-                Err(anyhow!("injected transaction was rejected: {reason}"))
-            }
-        }
+            .map(|result| result.message_id)
     }
 
     pub async fn send_message_injected_and_watch(
@@ -297,14 +292,65 @@ impl<'a> Mirror<'a> {
         payload: impl AsRef<[u8]>,
         value: u128,
     ) -> Result<(MessageId, Promise)> {
-        let transaction = self.prepare_injected_transaction(payload, value).await?;
+        let result = self
+            .send_message_injected_with_details_and_watch(payload, value)
+            .await?;
+        let promise = result
+            .promise
+            .expect("invariant: watch result always contains a promise");
+        Ok((result.message_id, promise))
+    }
+
+    pub async fn send_message_injected_with_details(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+    ) -> Result<InjectedMessageResult> {
+        let (transaction, reference_block_number, reference_block_hash) = self
+            .prepare_injected_transaction_with_reference(payload, value)
+            .await?;
         let injected_transaction = transaction.data();
 
         let message_id = injected_transaction.to_message_id();
+        let tx_hash = injected_transaction.to_hash().into();
+
+        let result: InjectedTransactionAcceptance = self
+            .api
+            .vara_eth_client()
+            .send_transaction(transaction)
+            .await
+            .with_context(|| "failed to send injected transaction")?;
+
+        match result {
+            InjectedTransactionAcceptance::Accept => Ok(InjectedMessageResult {
+                message_id,
+                tx_hash,
+                reference_block_number,
+                reference_block_hash,
+                promise: None,
+            }),
+            InjectedTransactionAcceptance::Reject { reason } => {
+                Err(anyhow!("injected transaction was rejected: {reason}"))
+            }
+        }
+    }
+
+    pub async fn send_message_injected_with_details_and_watch(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+    ) -> Result<InjectedMessageResult> {
+        let (transaction, reference_block_number, reference_block_hash) = self
+            .prepare_injected_transaction_with_reference(payload, value)
+            .await?;
+        let injected_transaction = transaction.data();
+
+        let message_id = injected_transaction.to_message_id();
+        let tx_hash = injected_transaction.to_hash().into();
 
         let mut subscription = self
             .api
-            .vara_eth_client
+            .vara_eth_client()
             .send_transaction_and_watch(transaction)
             .await
             .with_context(|| "failed to send injected transaction and subscribe to it's promise")?;
@@ -323,7 +369,13 @@ impl<'a> Mirror<'a> {
             }
         };
 
-        Ok((message_id, promise))
+        Ok(InjectedMessageResult {
+            message_id,
+            tx_hash,
+            reference_block_number,
+            reference_block_hash,
+            promise: Some(promise),
+        })
     }
 
     /// Subscribes to this program's best state, yielding a [`ProgramBestState`]

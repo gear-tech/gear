@@ -315,6 +315,11 @@ impl Ethereum {
     /// Default offset for permit deadline from the current block timestamp.
     pub const PERMIT_DEADLINE_OFFSET: u64 = 300; // 5 minutes
 
+    /// Builds a new Ethereum client builder.
+    pub fn builder() -> EthereumBuilder {
+        EthereumBuilder::default()
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
         ethereum_rpc_url: &str,

@@ -40,6 +40,11 @@ pub struct RpcParams {
     /// Multiplier applied to the node block gas limit to derive RPC gas allowance.
     #[arg(long)]
     pub gas_limit_multiplier: Option<u64>,
+
+    /// Vara.eth RPC endpoint used by client commands.
+    #[arg(long, alias = "vara-eth-rpc")]
+    #[serde(rename = "vara-eth-rpc")]
+    pub vara_eth_rpc: Option<String>,
 }
 
 impl RpcParams {
@@ -102,6 +107,7 @@ impl MergeParams for RpcParams {
             rpc_cors: self.rpc_cors.or(with.rpc_cors),
             no_rpc: self.no_rpc || with.no_rpc,
             gas_limit_multiplier: self.gas_limit_multiplier.or(with.gas_limit_multiplier),
+            vara_eth_rpc: self.vara_eth_rpc.or(with.vara_eth_rpc),
         }
     }
 }
