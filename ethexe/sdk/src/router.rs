@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::VaraEthApi;
+use crate::{VaraEthApi, types::CodeValidationResult};
 use alloy::rpc::types::TransactionReceipt;
 use anyhow::Result;
 use ethexe_common::{
@@ -12,7 +12,7 @@ use ethexe_ethereum::{
     IntoBlockId,
     abi::IRouter::StorageView,
     router::{
-        CodeValidationResult, Router as EthereumRouter, RouterEvents as EthereumRouterEvents,
+        Router as EthereumRouter, RouterEvents as EthereumRouterEvents,
         RouterQuery as EthereumRouterQuery,
     },
 };
@@ -28,6 +28,10 @@ pub struct Router<'a> {
 impl<'a> Router<'a> {
     pub fn events(&self) -> EthereumRouterEvents<'_> {
         self.router_query_client.events()
+    }
+
+    pub async fn balance(&self) -> Result<u128> {
+        self.router_query_client.balance().await
     }
 
     // TODO: move StorageView into ethexe-common and export
@@ -137,7 +141,7 @@ impl<'a> Router<'a> {
     }
 
     pub async fn program_ids(&self) -> Result<Vec<ActorId>> {
-        let program_ids = self.api.vara_eth_client.ids().await?;
+        let program_ids = self.api.vara_eth_client().ids().await?;
         Ok(program_ids.into_iter().map(ActorId::from).collect())
     }
 
