@@ -19,7 +19,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use gprimitives::{ActorId, H160, H256};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::broadcast;
 use tracing::{error, trace, warn};
 
@@ -30,7 +30,9 @@ const BROADCAST_CAPACITY: usize = 1024;
 const CACHE_CAPACITY: u64 = 128;
 
 type StateTransitionsCache = moka::sync::Cache<H256, Arc<Vec<StateTransition>>>;
-type LocalOutcomeCache = moka::sync::Cache<H256, Arc<Vec<(ActorId, Vec<Message>)>>>;
+/// Local outcome pre-squashed into a per-program index so each subscriber does
+/// a single `BTreeMap` lookup instead of scanning the `Vec` on every MB.
+type LocalOutcomeCache = moka::sync::Cache<H256, Arc<BTreeMap<ActorId, Vec<Message>>>>;
 
 /// Cloneable handle shared between [`ProgramApi`](super::ProgramApi) (creates
 /// subscribers) and [`RpcService`](crate::RpcService) (pushes `mb_hash`es).
@@ -79,10 +81,15 @@ impl BestStateManager {
             .ok()
     }
 
-    fn local_outcome(&self, mb_hash: H256) -> Option<Arc<Vec<(ActorId, Vec<Message>)>>> {
+    fn local_outcome(&self, mb_hash: H256) -> Option<Arc<BTreeMap<ActorId, Vec<Message>>>> {
+        // Squash the DB `Vec<(ActorId, _)>` into a per-program map once per MB,
+        // so each subscriber just does `get(&actor_id)` rather than a linear scan.
         self.local_cache
             .try_get_with(mb_hash, || {
-                self.db.mb_local_outcome(mb_hash).map(Arc::new).ok_or(())
+                self.db
+                    .mb_local_outcome(mb_hash)
+                    .map(|local| Arc::new(local.into_iter().collect()))
+                    .ok_or(())
             })
             .ok()
     }
@@ -128,12 +135,7 @@ pub fn spawn_best_state_subscriber(
             // into the single `messages` list below. Should be a separate field.
             let local_messages = manager
                 .local_outcome(mb_hash)
-                .and_then(|local| {
-                    local
-                        .iter()
-                        .find(|(id, _)| *id == actor_id)
-                        .map(|(_, messages)| messages.clone())
-                })
+                .and_then(|local| local.get(&actor_id).cloned())
                 .unwrap_or_default();
 
             let mut messages = transition.messages.clone();

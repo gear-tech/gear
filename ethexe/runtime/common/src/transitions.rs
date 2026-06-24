@@ -109,6 +109,22 @@ impl InBlockTransitions {
             .collect()
     }
 
+    /// Off-chain (Injected) outgoing messages currently accumulated, per program.
+    /// These are excluded from the on-chain commitment (see
+    /// [`NonFinalTransition::local_messages`]) and surface via
+    /// [`FinalizedBlockTransitions::local_outcome`] / `mb_local_outcome`.
+    pub fn current_local_messages(&self) -> Vec<(ActorId, Message)> {
+        self.modifications
+            .iter()
+            .flat_map(|(id, trans)| {
+                trans
+                    .local_messages
+                    .iter()
+                    .map(|message| (*id, message.clone()))
+            })
+            .collect()
+    }
+
     pub fn modifications_len(&self) -> usize {
         self.modifications.len()
     }

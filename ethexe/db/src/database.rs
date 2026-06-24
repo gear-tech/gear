@@ -14,11 +14,11 @@ use ethexe_common::{
     db::{
         BlockMeta, BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, CodesStorageRW,
         CompactMb, ConfigStorageRO, DBConfig, DBGlobals, GlobalsStorageRO, GlobalsStorageRW,
-        HashStorageRO, InjectedStorageRO, InjectedStorageRW, MbMeta, MbStorageRO, MbStorageRW,
-        OnChainStorageRO, OnChainStorageRW,
+        HashStorageRO, InjectedStorageRO, InjectedStorageRW, LocalOutcome, MbMeta, MbStorageRO,
+        MbStorageRW, OnChainStorageRO, OnChainStorageRW,
     },
     events::BlockEvent,
-    gear::{Message, StateTransition},
+    gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
     malachite::Operations,
 };
@@ -399,12 +399,12 @@ impl MbStorageRO for RawDatabase {
             })
     }
 
-    fn mb_local_outcome(&self, mb_hash: H256) -> Option<Vec<(ActorId, Vec<Message>)>> {
+    fn mb_local_outcome(&self, mb_hash: H256) -> Option<LocalOutcome> {
         self.kv
             .get(&Key::MbLocalOutcome(mb_hash).to_bytes())
             .map(|data| {
-                Vec::<(ActorId, Vec<Message>)>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<(ActorId, Vec<Message>)>`")
+                LocalOutcome::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `LocalOutcome`")
             })
     }
 
@@ -452,7 +452,7 @@ impl MbStorageRW for RawDatabase {
             .put(&Key::MbOutcome(mb_hash).to_bytes(), outcome.encode());
     }
 
-    fn set_mb_local_outcome(&self, mb_hash: H256, local_outcome: Vec<(ActorId, Vec<Message>)>) {
+    fn set_mb_local_outcome(&self, mb_hash: H256, local_outcome: LocalOutcome) {
         tracing::trace!(mb_hash = %mb_hash, "Set MB local outcome");
         self.kv.put(
             &Key::MbLocalOutcome(mb_hash).to_bytes(),
@@ -992,7 +992,7 @@ impl MbStorageRO for Database {
         fn operations(&self, operations_hash: H256) -> Option<Operations>;
         fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
         fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
-        fn mb_local_outcome(&self, mb_hash: H256) -> Option<Vec<(ActorId, Vec<Message>)>>;
+        fn mb_local_outcome(&self, mb_hash: H256) -> Option<LocalOutcome>;
         fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
         fn mb_meta(&self, mb_hash: H256) -> MbMeta;
     });
@@ -1004,7 +1004,7 @@ impl MbStorageRW for Database {
         fn set_operations(&self, operations: Operations) -> H256;
         fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
         fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
-        fn set_mb_local_outcome(&self, mb_hash: H256, local_outcome: Vec<(ActorId, Vec<Message>)>);
+        fn set_mb_local_outcome(&self, mb_hash: H256, local_outcome: LocalOutcome);
         fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
         fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
     });
