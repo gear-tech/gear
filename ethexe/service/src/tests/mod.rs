@@ -1911,7 +1911,7 @@ async fn send_injected_tx() {
 }
 
 #[tokio::test]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn injected_tx_purged_receipt() {
     init_logger();
 
@@ -1951,7 +1951,9 @@ async fn injected_tx_purged_receipt() {
         .await
         .expect("successfully subscribe for transaction receipt");
 
-    env.force_new_block().await;
+    for _ in 0..=ethexe_common::injected::VALIDITY_WINDOW {
+        env.force_new_block().await;
+    }
 
     let subscription_receipt = subscription
         .next()
