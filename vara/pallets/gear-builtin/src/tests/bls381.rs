@@ -7,7 +7,7 @@ use builtins_common::bls12_381::{
     Request, Response,
     ark_bls12_381::{self, Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2},
     ark_ec::{
-        Group, ScalarMul, VariableBaseMSM,
+        PrimeGroup as Group, ScalarMul, VariableBaseMSM,
         bls12::Bls12Config,
         hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
         pairing::Pairing,
