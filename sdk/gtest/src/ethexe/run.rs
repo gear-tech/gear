@@ -14,8 +14,8 @@ use ethexe_common::{
 use ethexe_runtime_common::{
     BlockInfo, InBlockTransitions, JournalHandler, MAX_CALL_REPLIES_PER_RUN,
     MAX_OUTGOING_MESSAGES_BYTES_PER_RUN, MAX_OUTGOING_MESSAGES_PER_RUN, ProcessQueueContext,
-    RuntimeQueueReport, ScheduleHandler, TransitionController, process_queue_with_report,
-    state::Storage,
+    RuntimeQueueReport, ScheduleHandler, TransitionController, TransitionsConfig,
+    process_queue_with_report, state::Storage,
 };
 use gear_core::{gas::GasAllowanceCounter, ids::ActorId};
 
@@ -30,8 +30,12 @@ impl EthexeBackend {
         allowance: Gas,
     ) -> BlockRunResult {
         let block_info = BlockInfo { height, timestamp };
+        let cfg = TransitionsConfig {
+            block_height: height,
+            ..Default::default()
+        };
         let mut transitions =
-            InBlockTransitions::new(height, self.states.clone(), self.schedule.clone());
+            InBlockTransitions::new(cfg, self.states.clone(), self.schedule.clone());
         let mut gas_allowance = GasAllowanceCounter::new(allowance);
         let mut result = BlockRunResult {
             block_info,
@@ -74,8 +78,12 @@ impl EthexeBackend {
 
     pub(crate) fn run_scheduled_block(&mut self, height: u32, timestamp: u64) -> BlockRunResult {
         let block_info = BlockInfo { height, timestamp };
+        let cfg = TransitionsConfig {
+            block_height: height,
+            ..Default::default()
+        };
         let mut transitions =
-            InBlockTransitions::new(height, self.states.clone(), self.schedule.clone());
+            InBlockTransitions::new(cfg, self.states.clone(), self.schedule.clone());
         let mut result = BlockRunResult {
             block_info,
             ..Default::default()

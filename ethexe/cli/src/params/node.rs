@@ -131,6 +131,12 @@ pub struct NodeParams {
     #[arg(long)]
     #[serde(default, rename = "genesis-state-dump")]
     pub genesis_state_dump: Option<PathBuf>,
+
+    /// Prune old MB schedules on startup, right after the database is
+    /// opened. Temporary hot fix knob (#5585).
+    #[arg(long)]
+    #[serde(default, rename = "db-cleanup")]
+    pub db_cleanup: bool,
 }
 
 impl NodeParams {
@@ -195,6 +201,7 @@ impl NodeParams {
                 .commitment_delay_limit
                 .unwrap_or(ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT),
             genesis_state_dump: self.genesis_state_dump,
+            db_cleanup: self.db_cleanup,
         })
     }
 
@@ -286,6 +293,8 @@ impl MergeParams for NodeParams {
             commitment_delay_limit: self.commitment_delay_limit.or(with.commitment_delay_limit),
 
             genesis_state_dump: self.genesis_state_dump.or(with.genesis_state_dump),
+
+            db_cleanup: self.db_cleanup || with.db_cleanup,
         }
     }
 }

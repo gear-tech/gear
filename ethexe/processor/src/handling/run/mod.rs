@@ -562,8 +562,11 @@ mod tests {
     use super::*;
     use crate::{handling::overlaid::OverlaidRunContext, host};
     use ethexe_common::{MaybeHashOf, StateHashWithQueueSize, gear::MessageType};
-    use ethexe_runtime_common::state::{
-        ActiveProgram, Dispatch, MessageQueueHashWithSize, Program, ProgramState, Storage,
+    use ethexe_runtime_common::{
+        TransitionsConfig,
+        state::{
+            ActiveProgram, Dispatch, MessageQueueHashWithSize, Program, ProgramState, Storage,
+        },
     };
     use gprimitives::{ActorId, MessageId};
     use std::collections::{BTreeMap, HashMap};
@@ -599,7 +602,12 @@ mod tests {
         .take(STATE_SIZE)
         .collect();
 
-        let transitions = InBlockTransitions::new(0, states, Default::default());
+        let cfg = TransitionsConfig {
+            block_height: 0,
+            ..Default::default()
+        };
+        let transitions = InBlockTransitions::new(cfg, states, Default::default());
+        let db = Database::memory();
         let mut ctx = CommonRunContext::new(
             db.clone(),
             InstanceCreator::new(db.clone(), host::runtime()).unwrap(),
@@ -863,7 +871,11 @@ mod tests {
             (pid2, pid2_state_hash_with_queue_size),
         ]);
 
-        let mut in_block_transitions = InBlockTransitions::new(3, states, Default::default());
+        let cfg = TransitionsConfig {
+            block_height: 3,
+            ..Default::default()
+        };
+        let mut in_block_transitions = InBlockTransitions::new(cfg, states, Default::default());
 
         let base_program = pid2;
 

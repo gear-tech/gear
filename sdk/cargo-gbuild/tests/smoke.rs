@@ -81,12 +81,20 @@ fn test_program_tests() {
         }
     }
 
-    assert!(
-        Command::new("cargo")
-            .current_dir("test-program")
-            .args(["+stable", "test", "--manifest-path", "Cargo.toml"])
-            .status()
-            .expect("Failed to run the tests of cargo-gbuild/test-program")
-            .success()
-    );
+    // Capture the spawned cargo's output so CI failures are diagnosable
+    // (the nextest ci profile suppresses test output otherwise).
+    let output = Command::new("cargo")
+        .current_dir("test-program")
+        .args(["+stable", "test", "--manifest-path", "Cargo.toml"])
+        .output()
+        .expect("Failed to run the tests of cargo-gbuild/test-program");
+
+    if !output.status.success() {
+        panic!(
+            "cargo-gbuild/test-program tests failed ({})\n=== STDOUT ===\n{}\n=== STDERR ===\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
 }
