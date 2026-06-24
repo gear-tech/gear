@@ -337,12 +337,18 @@ impl Externalities for EthexeExternalities {
         let decryption_keys = self
             .wait_for_shielded_tx_decryption_keys(parent_mb_hash)
             .await?;
-        let (advance, transactions) = self.wait_for_proposable_content(parent_advanced).await;
+        let (advance, transactions) = if decryption_keys.is_some() {
+            // Fast snapshot of proposable content. If no content propose block with decryption keys only.
+            self.proposable_content_snapshot(parent_advanced).await
+        } else {
+            self.wait_for_proposable_content(parent_advanced).await
+        };
 
         info!(
             %parent_mb_hash,
             %parent_advanced,
             advance = ?advance,
+            has_decryption_keys = decryption_keys.is_some(),
             transactions_count = transactions.len(),
             "build_block_above: proposable content resolved",
         );
@@ -878,13 +884,9 @@ impl EthexeExternalities {
             tokio::pin!(chain_head_notified);
             chain_head_notified.as_mut().enable();
 
-            let advance = self.find_eb_candidate_for_advancing(prev_advanced_eb_hash);
-
-            let head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
-            let transactions = match head_snapshot {
-                Some(head) => self.mempool.fetch(head).await,
-                None => Vec::new(),
-            };
+            let (advance, transactions) = self
+                .proposable_content_snapshot(prev_advanced_eb_hash)
+                .await;
 
             if advance.is_some() || !transactions.is_empty() {
                 return (advance, transactions);
@@ -896,6 +898,26 @@ impl EthexeExternalities {
                 _ = self.mempool.wait_for_new_tx() => {}
             }
         }
+    }
+
+    /// Read currently available producer inputs without waiting for
+    /// any of them to appear.
+    ///
+    /// This function called in [`Self::wait_for_proposable_content`] on each poll
+    /// iteration, and from [`Self::build_block_above`] when decryption keys are already ready.
+    async fn proposable_content_snapshot(
+        &self,
+        prev_advanced_eb_hash: H256,
+    ) -> (Option<H256>, Vec<Transaction>) {
+        let advance = self.find_eb_candidate_for_advancing(prev_advanced_eb_hash);
+
+        let head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
+        let transactions = match head_snapshot {
+            Some(head) => self.mempool.fetch(head).await,
+            None => Vec::new(),
+        };
+
+        (advance, transactions)
     }
 
     /// Wait until every shielded transaction in the parent has enough verified
@@ -1136,6 +1158,10 @@ mod tests {
         db::{BlockMetaStorageRW, OnChainStorageRW},
         injected::{PurgedTransaction, SignedInjectedTransaction, TransactionRef},
     };
+    use gear_tdec::{
+        bls12_381::{DkgPublicKey, E as Bls12_381},
+        rand_utils::test_rng,
+    };
 
     fn to_payload(bytes: Vec<u8>) -> BlockPayload {
         BlockPayload::try_from(bytes).expect("test payload within size cap")
@@ -1186,6 +1212,38 @@ mod tests {
             post_quarantine_delay: 0,
         };
         (ext, event_rx)
+    }
+
+    /// Do threshold decryption setup for a single validator.
+    fn single_validator_tdec_setup() -> (MalachiteTdecContext, TdecKeyStore, DkgPublicKey) {
+        let validator_key = ethexe_common::PrivateKey::random();
+        let validator_public_key = validator_key.public_key();
+        let dealer = gear_tdec::deal::<Bls12_381>(1, 1, &mut test_rng());
+        let private_context = dealer
+            .private_contexts
+            .into_iter()
+            .next()
+            .expect("single-validator dealer output must contain a private context");
+        let public_context = private_context
+            .public_decryption_contexts
+            .first()
+            .cloned()
+            .expect("single-validator dealer output must contain a public context");
+
+        let key_store = TdecKeyStore::memory();
+        key_store
+            .import_decryption_key(private_context.validator_decryption_key)
+            .expect("dealer TDEC key must be importable");
+
+        (
+            MalachiteTdecContext {
+                threshold: std::num::NonZeroUsize::new(1).expect("threshold is non-zero"),
+                my_context: public_context.clone(),
+                contexts: HashMap::from([(validator_public_key.to_address(), public_context)]),
+            },
+            key_store,
+            dealer.public_key,
+        )
     }
 
     /// Build an [`Operations`] list for unit tests.
@@ -1514,6 +1572,66 @@ mod tests {
                 .await
                 .unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn build_emits_decryption_keys_without_other_proposable_content() {
+        use ethexe_common::{SignedMessage, injected::InjectedTransaction};
+        use gprimitives::ActorId;
+
+        let db = Database::memory();
+        let (mut ext, mut rx) = make_externalities(db);
+        let (tdec_ctx, tdec_store, dkg_public_key) = single_validator_tdec_setup();
+        ext.tdec_ctx = Some(tdec_ctx);
+        ext.tdec_store = tdec_store;
+
+        let injected = InjectedTransaction {
+            destination: ActorId::from([1; 32]),
+            payload: vec![1, 2, 3].try_into().unwrap(),
+            value: 0,
+            reference_block: H256::zero(),
+            salt: vec![7; 32].try_into().unwrap(),
+        };
+        let mut rng = gear_tdec::rand_utils::test_rng();
+        let shielded = injected.shield(&dkg_public_key, &mut rng).unwrap();
+        let signed_shielded =
+            SignedMessage::create(ethexe_common::PrivateKey::random(), shielded).unwrap();
+        let shielded_hash = signed_shielded.data().to_hash();
+
+        let parent_payload = Operations::new(vec![
+            Operation::Shielded(signed_shielded),
+            Operation::ProgressTasks,
+            Operation::ProcessQueuesV3 { gas_allowance: 0 },
+        ]);
+        let parent = Block::new(H256::zero(), 1, to_payload(parent_payload.encode()));
+        let parent_hash = parent.hash();
+        ext.process_mb_proposal(parent_hash, parent).await.unwrap();
+        let _ = rx.recv().await; // BlockProposal
+        let shares_event = rx.recv().await.expect("shares event").expect("ok");
+        assert!(matches!(
+            shares_event,
+            MalachiteEvent::DecryptionShares { .. }
+        ));
+
+        let operations = tokio::time::timeout(
+            std::time::Duration::from_millis(50),
+            ext.build_operations(parent_hash),
+        )
+        .await
+        .expect("decryption keys alone must be enough to build a block")
+        .unwrap();
+
+        let mut iter = operations.iter();
+        let Some(Operation::DecryptionKeys(keys)) = iter.next() else {
+            panic!("first operation must carry decryption keys");
+        };
+        assert!(keys.contains_key(&shielded_hash));
+        assert!(matches!(iter.next(), Some(Operation::ProgressTasks)));
+        assert!(matches!(
+            iter.next(),
+            Some(Operation::ProcessQueuesV3 { gas_allowance }) if *gas_allowance == ext.gas_allowance
+        ));
+        assert!(iter.next().is_none());
     }
 
     /// Stub mempool that records every `forget` argument so the test

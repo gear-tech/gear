@@ -3155,8 +3155,8 @@ async fn shielded_tx_fungible_token() {
         .send_transaction_and_watch(signed_shielded_tx.into())
         .await
         .unwrap();
-    let mut node_events = node.events();
 
+    let mut node_events = node.events();
     node_events
         .find_map_with_db(|db, event| {
             let TestingEvent::Malachite(ethexe_malachite::MalachiteEvent::BlockFinalized {
@@ -3176,8 +3176,17 @@ async fn shielded_tx_fungible_token() {
         })
         .await;
 
-    // Send another transaction after the shielded tx is committed to trigger
-    // the child block that carries decryption keys and executes it.
+    let shielded_receipt = shielded_subscription.next().await.unwrap().unwrap();
+    let shielded_promise = shielded_receipt.0.into_data().unwrap_promise();
+
+    let expected_event = demo_fungible_token::FTEvent::Transfer {
+        from: ActorId::new([0u8; 32]),
+        to: pubkey.to_address().into(),
+        amount,
+    };
+    assert_eq!(shielded_promise.reply.payload, expected_event.encode());
+
+    // Send transfer transaction.
     let random_actor = ActorId::new(H256::random().0);
     let transfer_amount = 100_000;
     let transfer_action = demo_fungible_token::FTAction::Transfer {
@@ -3202,17 +3211,6 @@ async fn shielded_tx_fungible_token() {
         .send_transaction_and_watch(signed_transfer_tx.into())
         .await
         .unwrap();
-
-    let shielded_receipt = shielded_subscription.next().await.unwrap().unwrap();
-    let shielded_promise = shielded_receipt.0.into_data().unwrap_promise();
-
-    let expected_event = demo_fungible_token::FTEvent::Transfer {
-        from: ActorId::new([0u8; 32]),
-        to: pubkey.to_address().into(),
-        amount,
-    };
-
-    assert_eq!(shielded_promise.reply.payload, expected_event.encode());
 
     let transfer_receipt = transfer_subscription.next().await.unwrap().unwrap();
     let transfer_promise = transfer_receipt.0.into_data().unwrap_promise();
