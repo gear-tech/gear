@@ -142,14 +142,6 @@ fn build_tdec_setup(pub_key: gsigner::schemes::secp256k1::PublicKey) -> Validato
     }
 }
 
-fn free_tcp_port() -> u16 {
-    std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
-        .expect("bind ephemeral test port")
-        .local_addr()
-        .expect("read ephemeral test port")
-        .port()
-}
-
 /// Build the MalachiteConfig used by the resilience tests:
 /// quarantine-off (so the producer can advance immediately on each
 /// new chain head), ephemeral listen port, no persistent peers,
@@ -254,10 +246,9 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
 
     let (signer, pub_key) = build_signer(home.path());
     let tdec_setup = build_tdec_setup(pub_key);
-    let listen_port = free_tcp_port();
     // ---- first run -------------------------------------------------
     let mut svc = MalachiteService::new(
-        build_config(home.path(), listen_port, pub_key),
+        build_config(home.path(), 30_001, pub_key),
         db.clone(),
         signer.clone(),
         Some(pub_key),
@@ -300,7 +291,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
 
     // ---- second run on the SAME home dir + DB ----------------------
     let mut svc2 = MalachiteService::new(
-        build_config(home.path(), listen_port, pub_key),
+        build_config(home.path(), 30_001, pub_key),
         db.clone(),
         signer,
         Some(pub_key),

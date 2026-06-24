@@ -46,7 +46,6 @@ use crate::{
 };
 use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
-use bytes::Bytes;
 use ethexe_common::{
     HashOf, MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData, VerifiedData,
     db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
@@ -60,9 +59,7 @@ use ethexe_common::{
     },
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{
-    Address as MalachiteAddress, Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES,
-};
+use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
 use gear_tdec::bls12_381::{
     DecryptionShareSimple, SharedSecret, prepare_combine_simple, share_combine_simple,
 };
@@ -245,7 +242,6 @@ impl Externalities for EthexeExternalities {
         &self,
         mb_hash: H256,
         cert: ethexe_malachite_core::CommitCertificate,
-        _extensions: Vec<(MalachiteAddress, Bytes)>,
     ) -> Result<()> {
         let compact = self.db.mb_compact_block(mb_hash).ok_or_else(|| {
             anyhow!(
@@ -1445,7 +1441,7 @@ mod tests {
         let mb_hash = block.hash();
         ext.process_mb_proposal(mb_hash, block).await.unwrap();
         let _ = rx.recv().await; // BlockProposal
-        ext.process_mb_finalized(mb_hash, fake_cert(1), Vec::new())
+        ext.process_mb_finalized(mb_hash, fake_cert(1))
             .await
             .unwrap();
         assert_eq!(db.globals().latest_finalized_mb_hash, mb_hash);
@@ -1483,7 +1479,7 @@ mod tests {
             let mb_hash = block.hash();
             ext_a.process_mb_proposal(mb_hash, block).await.unwrap();
             ext_a
-                .process_mb_finalized(mb_hash, fake_cert(i), Vec::new())
+                .process_mb_finalized(mb_hash, fake_cert(i))
                 .await
                 .unwrap();
             chain.push((mb_hash, p));
@@ -1515,10 +1511,7 @@ mod tests {
         let mb4 = block4.hash();
         ext_b.process_mb_proposal(mb4, block4).await.unwrap();
         let _ = rx_b.recv().await; // proposal
-        ext_b
-            .process_mb_finalized(mb4, fake_cert(4), Vec::new())
-            .await
-            .unwrap();
+        ext_b.process_mb_finalized(mb4, fake_cert(4)).await.unwrap();
         assert_eq!(db.mb_compact_block(mb4).unwrap().parent, last_pre);
         assert_eq!(db.globals().latest_finalized_mb_hash, mb4);
     }
@@ -1544,7 +1537,7 @@ mod tests {
             let block = wrap(p.clone(), height, parent);
             let mb_hash = block.hash();
             ext.process_mb_proposal(mb_hash, block).await.unwrap();
-            ext.process_mb_finalized(mb_hash, fake_cert(height), Vec::new())
+            ext.process_mb_finalized(mb_hash, fake_cert(height))
                 .await
                 .unwrap();
             chain.push(mb_hash);
@@ -1865,7 +1858,6 @@ mod tests {
                 block_hash: mb_hash,
                 signatures: vec![],
             },
-            Vec::new(),
         )
         .await
         .unwrap();

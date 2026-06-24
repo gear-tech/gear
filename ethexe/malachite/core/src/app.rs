@@ -52,7 +52,7 @@ use malachitebft_app_channel::{
         },
     },
 };
-use malachitebft_core_types::{Height as _, VoteExtensions};
+use malachitebft_core_types::Height as _;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::RangeInclusive, sync::Arc};
 use tracing::{error, info};
@@ -209,7 +209,7 @@ where
             // Finalized (commit + cascade).
             AppMsg::Finalized {
                 certificate,
-                extensions,
+                extensions: _,
                 evidence,
                 reply,
             } => {
@@ -221,7 +221,7 @@ where
                     evidence = ?evidence,
                     "Finalized"
                 );
-                let next = match self.process_finalized(certificate, extensions).await {
+                let next = match self.process_finalized(certificate).await {
                     Ok(()) => {
                         let h = self.state.current_height;
                         Next::Start(
@@ -467,13 +467,12 @@ where
     async fn process_finalized(
         &mut self,
         certificate: EngineCert,
-        extensions: VoteExtensions<MalachiteCtx>,
     ) -> Result<(), FinalizationError> {
         let (block_bytes, _cert) = self
             .state
             .commit(certificate.clone())
             .map_err(FinalizationError::NonFatal)?;
-        self.ingest_finalized(certificate, block_bytes, extensions)
+        self.ingest_finalized(certificate, block_bytes)
             .await
             .context("ingest finalized")
             .map_err(FinalizationError::Fatal)
@@ -669,21 +668,11 @@ where
     /// [`Store::cascade_finalize`] silently no-ops on an unsaved
     /// ancestor (the `finalize_chain` walk returns `None`), and the
     /// `errors_tx` channel surfaces the contract breach upstream.
-    async fn ingest_finalized(
-        &self,
-        cert: EngineCert,
-        block_bytes: Vec<u8>,
-        extensions: VoteExtensions<MalachiteCtx>,
-    ) -> Result<()> {
+    async fn ingest_finalized(&self, cert: EngineCert, block_bytes: Vec<u8>) -> Result<()> {
         let block = Block::decode(&mut &block_bytes[..])
             .map_err(|e| anyhow!("decoding Block at finalize: {e}"))?;
         let block_hash = block.hash();
         let height = cert.height.as_u64();
-        let finalized_extensions: Vec<_> = extensions
-            .extensions
-            .into_iter()
-            .map(|(address, extension)| (address, extension.message))
-            .collect();
 
         let app_cert = CommitCertificate {
             height,
@@ -727,12 +716,7 @@ where
             .store
             .cascade_finalize(vec![block_hash], |hash, cert| {
                 let ext = Arc::clone(&self.externalities);
-                let extensions = if hash == block_hash {
-                    finalized_extensions.clone()
-                } else {
-                    Vec::new()
-                };
-                async move { ext.process_mb_finalized(hash, cert, extensions).await }
+                async move { ext.process_mb_finalized(hash, cert).await }
             })
             .await?;
         Ok(())
@@ -804,12 +788,7 @@ mod tests {
         async fn process_mb_proposal(&self, _: H256, _: Block) -> Result<()> {
             Ok(())
         }
-        async fn process_mb_finalized(
-            &self,
-            _: H256,
-            _: CommitCertificate,
-            _: Vec<(Address, Bytes)>,
-        ) -> Result<()> {
+        async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Ok(())
         }
         async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
@@ -992,12 +971,7 @@ mod tests {
         async fn process_mb_proposal(&self, _: H256, _: Block) -> Result<()> {
             Ok(())
         }
-        async fn process_mb_finalized(
-            &self,
-            _: H256,
-            _: CommitCertificate,
-            _: Vec<(Address, Bytes)>,
-        ) -> Result<()> {
+        async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Err(anyhow!("application: finalize-side store write failed"))
         }
         async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
@@ -1104,10 +1078,7 @@ mod tests {
             commit_signatures: Vec::new(),
         };
 
-        match handler
-            .process_finalized(cert, VoteExtensions::default())
-            .await
-        {
+        match handler.process_finalized(cert).await {
             Err(FinalizationError::Fatal(_)) => {
                 // Expected: app::run propagates the error and the
                 // service tears down rather than silently moving on.
@@ -1189,10 +1160,7 @@ mod tests {
             value_id,
             commit_signatures: Vec::new(),
         };
-        match handler
-            .process_finalized(cert, VoteExtensions::default())
-            .await
-        {
+        match handler.process_finalized(cert).await {
             Ok(()) => {}
             Err(FinalizationError::Fatal(e)) => panic!("Fatal: {e:?}"),
             Err(FinalizationError::NonFatal(e)) => panic!("NonFatal: {e:?}"),

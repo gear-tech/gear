@@ -3,11 +3,9 @@
 
 //! Application callbacks the service makes to the outside world.
 
+use crate::types::{Block, BlockPayload, CommitCertificate, H256};
 use anyhow::Result;
 use async_trait::async_trait;
-use bytes::Bytes;
-
-use crate::types::{Address, Block, BlockPayload, CommitCertificate, H256};
 
 /// Application-side callbacks the consensus service requires.
 ///
@@ -54,12 +52,7 @@ pub trait Externalities: Send + Sync + 'static {
     /// `cert` is the BFT commit certificate for the height of
     /// `mb_hash`. The application typically forwards `cert` to
     /// downstream layers (on-chain commits, light clients, etc.).
-    async fn process_mb_finalized(
-        &self,
-        mb_hash: H256,
-        cert: CommitCertificate,
-        extensions: Vec<(Address, Bytes)>,
-    ) -> Result<()>;
+    async fn process_mb_finalized(&self, mb_hash: H256, cert: CommitCertificate) -> Result<()>;
 
     /// Build a fresh block payload whose parent has hash
     /// `parent_mb_hash`. Called only when this node has been elected

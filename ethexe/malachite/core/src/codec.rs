@@ -25,8 +25,8 @@ use malachitebft_codec::{Codec, HasEncodedLen};
 use malachitebft_core_consensus::{LivenessMsg, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
-    RoundCertificate, RoundCertificateType, RoundSignature, SignedExtension, SignedMessage,
-    SignedProposal, SignedVote, ValidatorProof, Validity, VoteType,
+    RoundCertificate, RoundCertificateType, RoundSignature, SignedProposal, SignedVote,
+    ValidatorProof, Validity, VoteType,
 };
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
 use malachitebft_sync::{
@@ -229,56 +229,18 @@ struct RawSignedMessage {
 }
 
 #[derive(Encode, Decode)]
-struct RawSignedVote {
-    message: Vec<u8>,
-    signature: RawSignature,
-    extension: Option<RawSignedExtension>,
-}
-
-#[derive(Encode, Decode)]
-struct RawSignedExtension {
-    message: Vec<u8>,
-    signature: RawSignature,
-}
-
-impl From<SignedExtension<MalachiteCtx>> for RawSignedExtension {
-    fn from(value: SignedExtension<MalachiteCtx>) -> Self {
-        Self {
-            message: value.message.to_vec(),
-            signature: RawSignature::from(&value.signature),
-        }
-    }
-}
-
-impl TryFrom<RawSignedExtension> for SignedExtension<MalachiteCtx> {
-    type Error = CodecError;
-
-    fn try_from(value: RawSignedExtension) -> Result<Self, Self::Error> {
-        Ok(SignedMessage::new(
-            Bytes::from(value.message),
-            Signature::try_from(value.signature)?,
-        ))
-    }
-}
-
-#[derive(Encode, Decode)]
 enum RawSignedConsensusMsg {
-    Vote(RawSignedVote),
+    Vote(RawSignedMessage),
     Proposal(RawSignedMessage),
 }
 
 impl From<SignedConsensusMsg<MalachiteCtx>> for RawSignedConsensusMsg {
     fn from(value: SignedConsensusMsg<MalachiteCtx>) -> Self {
         match value {
-            SignedConsensusMsg::Vote(vote) => {
-                let mut message = vote.message;
-                let extension = message.extension.take().map(RawSignedExtension::from);
-                Self::Vote(RawSignedVote {
-                    message: message.to_sign_bytes().to_vec(),
-                    signature: RawSignature::from(&vote.signature),
-                    extension,
-                })
-            }
+            SignedConsensusMsg::Vote(vote) => Self::Vote(RawSignedMessage {
+                message: vote.message.to_sign_bytes().to_vec(),
+                signature: RawSignature::from(&vote.signature),
+            }),
             SignedConsensusMsg::Proposal(proposal) => Self::Proposal(RawSignedMessage {
                 message: proposal.message.to_sign_bytes().to_vec(),
                 signature: RawSignature::from(&proposal.signature),
@@ -291,14 +253,10 @@ impl TryFrom<RawSignedConsensusMsg> for SignedConsensusMsg<MalachiteCtx> {
     type Error = CodecError;
     fn try_from(value: RawSignedConsensusMsg) -> Result<Self, Self::Error> {
         match value {
-            RawSignedConsensusMsg::Vote(raw) => {
-                let mut message = Vote::from_sign_bytes(&raw.message)?;
-                message.extension = raw.extension.map(SignedExtension::try_from).transpose()?;
-                Ok(SignedConsensusMsg::Vote(SignedVote {
-                    message,
-                    signature: Signature::try_from(raw.signature)?,
-                }))
-            }
+            RawSignedConsensusMsg::Vote(raw) => Ok(SignedConsensusMsg::Vote(SignedVote {
+                message: Vote::from_sign_bytes(&raw.message)?,
+                signature: Signature::try_from(raw.signature)?,
+            })),
             RawSignedConsensusMsg::Proposal(raw) => {
                 Ok(SignedConsensusMsg::Proposal(SignedProposal {
                     message: Proposal::from_sign_bytes(&raw.message)?,
@@ -586,7 +544,7 @@ struct RawRoundCertificate {
 
 #[derive(Encode, Decode)]
 enum RawLivenessMsg {
-    Vote(RawSignedVote),
+    Vote(RawSignedMessage),
     PolkaCertificate(RawPolkaCertificate),
     SkipRoundCertificate(RawRoundCertificate),
 }
@@ -594,15 +552,10 @@ enum RawLivenessMsg {
 impl From<LivenessMsg<MalachiteCtx>> for RawLivenessMsg {
     fn from(value: LivenessMsg<MalachiteCtx>) -> Self {
         match value {
-            LivenessMsg::Vote(vote) => {
-                let mut message = vote.message;
-                let extension = message.extension.take().map(RawSignedExtension::from);
-                Self::Vote(RawSignedVote {
-                    message: message.to_sign_bytes().to_vec(),
-                    signature: RawSignature::from(&vote.signature),
-                    extension,
-                })
-            }
+            LivenessMsg::Vote(vote) => Self::Vote(RawSignedMessage {
+                message: vote.message.to_sign_bytes().to_vec(),
+                signature: RawSignature::from(&vote.signature),
+            }),
             LivenessMsg::PolkaCertificate(polka) => Self::PolkaCertificate(RawPolkaCertificate {
                 height: polka.height.as_u64(),
                 round: round_to_i64(polka.round),
@@ -641,14 +594,10 @@ impl TryFrom<RawLivenessMsg> for LivenessMsg<MalachiteCtx> {
     type Error = CodecError;
     fn try_from(value: RawLivenessMsg) -> Result<Self, Self::Error> {
         Ok(match value {
-            RawLivenessMsg::Vote(raw) => {
-                let mut message = Vote::from_sign_bytes(&raw.message)?;
-                message.extension = raw.extension.map(SignedExtension::try_from).transpose()?;
-                LivenessMsg::Vote(SignedVote {
-                    message,
-                    signature: Signature::try_from(raw.signature)?,
-                })
-            }
+            RawLivenessMsg::Vote(raw) => LivenessMsg::Vote(SignedVote {
+                message: Vote::from_sign_bytes(&raw.message)?,
+                signature: Signature::try_from(raw.signature)?,
+            }),
             RawLivenessMsg::PolkaCertificate(cert) => {
                 let mut polka_signatures = Vec::with_capacity(cert.polka_signatures.len());
                 for s in cert.polka_signatures {
