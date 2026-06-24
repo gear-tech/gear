@@ -3227,6 +3227,282 @@ async fn shielded_tx_fungible_token() {
 
 #[tokio::test]
 #[ntest::timeout(120_000)]
+async fn shielded_tx_threshold_network_batch() {
+    init_logger();
+
+    // #1. Start a three-validator network so shielded transactions require threshold decryption.
+    let env_config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(3),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(env_config).await.unwrap();
+    assert_eq!(env.threshold, 2);
+
+    // #2. Run all validators, exposing RPC on Alice for user-submitted shielded txs.
+    let user_pubkey = env.signer.generate().unwrap();
+    let validator_keys = env.validators.clone();
+    let mut alice = env
+        .new_node(
+            NodeConfig::named("Alice")
+                .service_rpc(8098)
+                .validator(validator_keys[0]),
+        )
+        .await;
+    alice.start_service().await;
+    let rpc_client = alice
+        .rpc_ws_client()
+        .await
+        .expect("RPC client provided by node");
+    let mut bob = env
+        .new_node(NodeConfig::named("Bob").validator(validator_keys[1]))
+        .await;
+    bob.start_service().await;
+    let mut charlie = env
+        .new_node(NodeConfig::named("Charlie").validator(validator_keys[2]))
+        .await;
+    charlie.start_service().await;
+
+    // #3. Deploy and initialize the fungible-token program through Ethereum events.
+    let token_config = demo_fungible_token::InitConfig {
+        name: "USD Tether".to_string(),
+        symbol: "USDT".to_string(),
+        decimals: 10,
+        initial_capacity: None,
+    };
+
+    let res = env
+        .upload_code(demo_fungible_token::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let res = env
+        .create_program(res.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let token_actor_id = res.program_id;
+
+    let init_reply = env
+        .send_message(token_actor_id, &token_config.encode())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(
+        init_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Auto)
+    );
+
+    // #4. Fetch the public shielding key published by the validator service.
+    let shielding_key = rpc_client
+        .shielding_key()
+        .await
+        .unwrap()
+        .expect("validator RPC exposes threshold-decryption public key");
+    assert_eq!(shielding_key, env.tdec_public_key);
+
+    let sender = user_pubkey.to_address().into();
+    let mint_amount: u128 = 5_000_000_000;
+    let bonus_mint_amount: u128 = 125_000;
+    let reference_block = alice.db.globals().latest_prepared_eb_hash;
+
+    // #5. Build two independent token mints, then shield and sign both transactions.
+    let mint_tx = InjectedTransaction {
+        destination: token_actor_id,
+        payload: demo_fungible_token::FTAction::Mint(mint_amount)
+            .encode()
+            .try_into()
+            .unwrap(),
+        value: 0,
+        reference_block,
+        salt: b"shielded-batch-mint".to_vec().try_into().unwrap(),
+    };
+    let bonus_mint_tx = InjectedTransaction {
+        destination: token_actor_id,
+        payload: demo_fungible_token::FTAction::Mint(bonus_mint_amount)
+            .encode()
+            .try_into()
+            .unwrap(),
+        value: 0,
+        reference_block,
+        salt: b"shielded-batch-bonus".to_vec().try_into().unwrap(),
+    };
+
+    let mint_hash = mint_tx.to_hash();
+    let bonus_mint_hash = bonus_mint_tx.to_hash();
+    let shielded_mint = mint_tx
+        .shield(&shielding_key, &mut rand::thread_rng())
+        .unwrap();
+    let shielded_bonus_mint = bonus_mint_tx
+        .shield(&shielding_key, &mut rand::thread_rng())
+        .unwrap();
+    let shielded_mint_hash = shielded_mint.to_hash();
+    let shielded_bonus_mint_hash = shielded_bonus_mint.to_hash();
+
+    let signed_mint = env
+        .signer
+        .signed_message(user_pubkey, shielded_mint, None)
+        .unwrap();
+    let signed_bonus_mint = env
+        .signer
+        .signed_message(user_pubkey, shielded_bonus_mint, None)
+        .unwrap();
+
+    // #6. Submit both shielded transactions through RPC and keep receipt subscriptions open.
+    let mut mint_subscription = rpc_client
+        .send_transaction_and_watch(signed_mint.into())
+        .await
+        .expect("successfully subscribe for shielded mint");
+    let mut bonus_mint_subscription = rpc_client
+        .send_transaction_and_watch(signed_bonus_mint.into())
+        .await
+        .expect("successfully subscribe for second shielded mint");
+
+    // #7. Wait until one finalized MB includes both shielded transactions.
+    let mut alice_events = alice.events();
+    let shielded_mb_hash = alice_events
+        .find_map_with_db(|db, event| {
+            let TestingEvent::Malachite(ethexe_malachite::MalachiteEvent::BlockFinalized {
+                mb_hash,
+                ..
+            }) = event
+            else {
+                return None;
+            };
+
+            let compact = db.mb_compact_block(mb_hash)?;
+            let operations = db.operations(compact.operations_hash)?;
+            let mut has_mint = false;
+            let mut has_bonus_mint = false;
+            for op in operations.iter().filter_map(|op| op.as_shielded()) {
+                has_mint |= op.data().to_hash() == shielded_mint_hash;
+                has_bonus_mint |= op.data().to_hash() == shielded_bonus_mint_hash;
+            }
+
+            (has_mint && has_bonus_mint).then_some(mb_hash)
+        })
+        .await;
+
+    // #8. Wait for a later finalized MB to carry decryption keys and unshielded txs.
+    let decryption_keys_mb_hash = alice_events
+        .find_map_with_db(|db, event| {
+            let TestingEvent::Malachite(ethexe_malachite::MalachiteEvent::BlockFinalized {
+                mb_hash,
+                ..
+            }) = event
+            else {
+                return None;
+            };
+
+            let compact = db.mb_compact_block(mb_hash)?;
+            let operations = db.operations(compact.operations_hash)?;
+            let has_keys = operations.iter().any(|op| {
+                matches!(
+                    op,
+                    ethexe_common::malachite::Operation::DecryptionKeys(keys)
+                        if keys.contains_key(&shielded_mint_hash)
+                            && keys.contains_key(&shielded_bonus_mint_hash)
+                )
+            });
+            if !has_keys {
+                return None;
+            }
+
+            let unshielded = db.mb_unshielded_txs(mb_hash);
+            let unshielded_hashes = unshielded
+                .iter()
+                .map(|tx| tx.data().to_hash())
+                .collect::<HashSet<_>>();
+            assert!(unshielded_hashes.contains(&mint_hash));
+            assert!(unshielded_hashes.contains(&bonus_mint_hash));
+
+            Some(mb_hash)
+        })
+        .await;
+    assert_ne!(shielded_mb_hash, decryption_keys_mb_hash);
+
+    // #9. Check that both RPC subscriptions resolve under their unshielded hashes.
+    let mint_receipt = mint_subscription
+        .next()
+        .await
+        .expect("mint subscription produces receipt")
+        .expect("shielded mint succeeds");
+    let mint_promise = mint_receipt.data().clone().unwrap_promise();
+    assert_eq!(
+        mint_receipt.data().tx_hash(),
+        TransactionHash::Left(mint_hash)
+    );
+    assert_eq!(mint_promise.tx_hash, mint_hash);
+    assert_eq!(
+        mint_promise.reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(
+        mint_promise.reply.payload,
+        demo_fungible_token::FTEvent::Transfer {
+            from: ActorId::new([0u8; 32]),
+            to: sender,
+            amount: mint_amount,
+        }
+        .encode()
+    );
+
+    let bonus_mint_receipt = bonus_mint_subscription
+        .next()
+        .await
+        .expect("second mint subscription produces receipt")
+        .expect("second shielded mint succeeds");
+    let bonus_mint_promise = bonus_mint_receipt.data().clone().unwrap_promise();
+    assert_eq!(
+        bonus_mint_receipt.data().tx_hash(),
+        TransactionHash::Left(bonus_mint_hash)
+    );
+    assert_eq!(bonus_mint_promise.tx_hash, bonus_mint_hash);
+    assert_eq!(
+        bonus_mint_promise.reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(
+        bonus_mint_promise.reply.payload,
+        demo_fungible_token::FTEvent::Transfer {
+            from: ActorId::new([0u8; 32]),
+            to: sender,
+            amount: bonus_mint_amount,
+        }
+        .encode()
+    );
+
+    // #10. Verify computed promises and full receipts are persisted and queryable.
+    assert!(alice.db.promise(mint_hash).is_some());
+    assert!(alice.db.promise(bonus_mint_hash).is_some());
+    assert!(alice.db.receipt(mint_hash).is_some());
+    assert!(alice.db.receipt(bonus_mint_hash).is_some());
+    assert!(
+        rpc_client
+            .get_transaction_receipt(mint_hash)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        rpc_client
+            .get_transaction_receipt(bonus_mint_hash)
+            .await
+            .unwrap()
+            .is_some()
+    );
+
+    stop_nodes([alice, bob, charlie]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
 async fn whole_network_restore() {
     init_logger();
 
