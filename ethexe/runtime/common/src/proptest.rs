@@ -1048,7 +1048,10 @@ impl Arbitrary for FinalizedBlockTransitions {
             common_schedule_strategy(),
             collection::vec((actor_id_strategy(), code_id_strategy()), 0..=4),
             collection::vec(
-                (actor_id_strategy(), collection::vec(message_strategy(), 0..=4)),
+                (
+                    actor_id_strategy(),
+                    collection::vec(message_strategy(), 0..=4),
+                ),
                 0..=4,
             ),
         )

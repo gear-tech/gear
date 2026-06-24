@@ -2623,20 +2623,26 @@ async fn injected_and_events_then_tasks_then_queues() {
     );
 
     // --- ASSERT: Injected queue processed (off-chain output present) ---
-    // The injected message produces exactly one off-chain reply.
+    // The injected message produces exactly one off-chain reply. The tuple key
+    // is the producing program; the reply's destination is the injected user.
     assert_eq!(
         to_users_local.len(),
         1,
         "Injected message must produce exactly one off-chain reply"
     );
-    assert_eq!(*to_users_local[0].0, injected_user);
+    assert_eq!(*to_users_local[0].0, actor_id);
+    assert_eq!(to_users_local[0].1.destination, injected_user);
     assert_eq!(to_users_local[0].1.payload, b"DONE");
 
     // --- ASSERT: Events (phase 1) ran BEFORE tasks (phase 2) ---
     // Canonical queue is FIFO. The event message was queued in phase 1 and the woken
     // dispatch was queued in phase 2. So the event reply MUST appear before the task reply.
     // If tasks ran first, task_user reply would appear at position 0, not position 1.
-    assert_eq!(to_users.len(), 2, "two committed (canonical) replies expected");
+    assert_eq!(
+        to_users.len(),
+        2,
+        "two committed (canonical) replies expected"
+    );
     assert_eq!(
         to_users[0].1.destination, canonical_user,
         "Canonical event reply must come before task-woken reply: \
