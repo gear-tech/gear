@@ -235,7 +235,7 @@ impl<L, R> ToDigest for EitherHashOf<L, R> {
             Self::Left(_) => 0u8,
             Self::Right(_) => 1u8,
         };
-        hasher.update(&[prefix]);
+        hasher.update([prefix]);
         hasher.update(self.inner().as_ref());
     }
 }

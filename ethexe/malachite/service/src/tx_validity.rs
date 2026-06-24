@@ -86,9 +86,14 @@ pub struct TxValidityChecker {
     db: Database,
     chain_head: SimpleBlockData,
     start_block_hash: H256,
-    recent_included_injected_txs: HashSet<HashOf<InjectedTransaction>>,
-    recent_included_shielded_txs: HashSet<HashOf<ShieldedTransaction>>,
+    recent_included_txs: RecentlyIncludedTransactions,
     latest_states: ProgramStates,
+}
+
+#[derive(Clone, Default)]
+pub struct RecentlyIncludedTransactions {
+    pub injected: HashSet<HashOf<InjectedTransaction>>,
+    pub shielded: HashSet<HashOf<ShieldedTransaction>>,
 }
 
 impl TxValidityChecker {
@@ -121,16 +126,14 @@ impl TxValidityChecker {
             anyhow!("MB {cursor} marked computed but has no program_states row — DB invariant")
         })?;
 
-        let (recent_included_injected_txs, recent_included_shielded_txs) =
-            Self::collect_recent_included_txs(&db, parent_mb_hash)?;
+        let recent_included_txs = Self::collect_recent_included_txs(&db, parent_mb_hash)?;
         let start_block_hash = db.globals().start_block_hash;
 
         Ok(Self {
             db,
             chain_head,
             start_block_hash,
-            recent_included_injected_txs,
-            recent_included_shielded_txs,
+            recent_included_txs,
             latest_states,
         })
     }
@@ -159,7 +162,7 @@ impl TxValidityChecker {
         }
 
         let tx_hash = tx.data().to_hash();
-        if self.recent_included_injected_txs.contains(&tx_hash) {
+        if self.recent_included_txs.injected.contains(&tx_hash) {
             return Ok(TxValidity::Duplicate);
         }
 
@@ -198,7 +201,7 @@ impl TxValidityChecker {
         }
 
         let tx_hash = tx.data().to_hash();
-        if self.recent_included_shielded_txs.contains(&tx_hash) {
+        if self.recent_included_txs.shielded.contains(&tx_hash) {
             return Ok(TxValidity::Duplicate);
         }
 
@@ -253,12 +256,8 @@ impl TxValidityChecker {
     pub fn collect_recent_included_txs(
         db: &Database,
         parent_mb: H256,
-    ) -> Result<(
-        HashSet<HashOf<InjectedTransaction>>,
-        HashSet<HashOf<ShieldedTransaction>>,
-    )> {
-        let mut injected_txs = HashSet::new();
-        let mut shielded_txs = HashSet::new();
+    ) -> Result<RecentlyIncludedTransactions> {
+        let mut recent_included = RecentlyIncludedTransactions::default();
 
         let mut mb_hash = parent_mb;
         for _ in 0..VALIDITY_WINDOW {
@@ -277,17 +276,17 @@ impl TxValidityChecker {
             for op in operations.into_iter() {
                 match op {
                     Operation::Injected(signed) => {
-                        injected_txs.insert(signed.data().to_hash());
+                        recent_included.injected.insert(signed.data().to_hash());
                     }
                     Operation::Shielded(signed) => {
-                        shielded_txs.insert(signed.data().to_hash());
+                        recent_included.shielded.insert(signed.data().to_hash());
                     }
                     _ => {}
                 }
             }
             mb_hash = cb.parent;
         }
-        Ok((injected_txs, shielded_txs))
+        Ok(recent_included)
     }
 }
 

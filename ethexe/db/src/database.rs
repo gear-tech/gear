@@ -45,6 +45,7 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard},
 };
 
+#[allow(clippy::enum_variant_names)]
 #[repr(u64)]
 enum Key {
     BlockSmallData(H256) = 0,

@@ -56,6 +56,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Eq, derive_more::IsVariant)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[repr(u32)]
+#[allow(clippy::large_enum_variant)]
 pub enum Operation {
     /// Pin executor's view to a quarantine-passed Ethereum block.
     AdvanceTillEthereumBlock { block_hash: H256 } = 0,

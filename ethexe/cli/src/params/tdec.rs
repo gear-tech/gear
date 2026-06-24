@@ -1,5 +1,6 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use crate::params::MergeParams;
 use ethexe_service::config::ThresholdDecryptionCliConfig;
 use gear_tdec::bls12_381::{

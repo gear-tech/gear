@@ -525,6 +525,7 @@ impl ShieldedTransaction {
 #[cfg(feature = "shielded")]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::From)]
+#[allow(clippy::large_enum_variant)]
 pub enum Transaction {
     Injected(SignedInjectedTransaction),
     Shielded(SignedShieldedTransaction),

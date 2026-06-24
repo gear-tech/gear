@@ -136,6 +136,15 @@ pub(crate) struct PendingEvent {
     pub prerequisite: H256,
 }
 
+#[derive(Clone, Default)]
+struct UnshieldingOutput {
+    pub unshielded: Vec<(
+        HashOf<ShieldedTransaction>,
+        VerifiedData<InjectedTransaction>,
+    )>,
+    pub not_unshielded: Vec<PurgedTransaction>,
+}
+
 #[async_trait]
 impl Externalities for EthexeExternalities {
     async fn process_mb_proposal(&self, mb_hash: H256, mb: Block) -> Result<()> {
@@ -285,8 +294,10 @@ impl Externalities for EthexeExternalities {
             Operation::DecryptionKeys(keys) => Some(keys.clone()),
             _ => None,
         }) {
-            let (unshielded_with_hashes, not_unshielded) =
-                self.unshield_parent_transactions(compact.parent, &decryption_keys)?;
+            let UnshieldingOutput {
+                unshielded: unshielded_with_hashes,
+                not_unshielded,
+            } = self.unshield_parent_transactions(compact.parent, &decryption_keys)?;
             let unshielded_hash_mapping = unshielded_with_hashes
                 .iter()
                 .map(|(tx_hash, tx)| (*tx_hash, tx.data().to_hash()))
@@ -407,7 +418,8 @@ impl Externalities for EthexeExternalities {
             None => std::collections::HashSet::new(),
         };
         if let Some(keys) = &decryption_keys {
-            let (unshielded, _) = self.unshield_parent_transactions(parent_mb_hash, keys)?;
+            let UnshieldingOutput { unshielded, .. } =
+                self.unshield_parent_transactions(parent_mb_hash, keys)?;
             touched.extend(
                 unshielded
                     .iter()
@@ -740,7 +752,8 @@ impl Externalities for EthexeExternalities {
             None => std::collections::HashSet::new(),
         };
         if let Some(keys) = decryption_keys {
-            let (unshielded, _) = self.unshield_parent_transactions(parent_hash, keys)?;
+            let UnshieldingOutput { unshielded, .. } =
+                self.unshield_parent_transactions(parent_hash, keys)?;
             touched.extend(
                 unshielded
                     .iter()
@@ -774,15 +787,9 @@ impl EthexeExternalities {
         &self,
         parent_mb_hash: H256,
         decryption_keys: &BTreeMap<HashOf<ShieldedTransaction>, SharedSecret>,
-    ) -> Result<(
-        Vec<(
-            HashOf<ShieldedTransaction>,
-            VerifiedData<InjectedTransaction>,
-        )>,
-        Vec<PurgedTransaction>,
-    )> {
+    ) -> Result<UnshieldingOutput> {
         if parent_mb_hash.is_zero() || decryption_keys.is_empty() {
-            return Ok((Vec::new(), Vec::new()));
+            return Ok(UnshieldingOutput::default());
         }
 
         let compact = self.db.mb_compact_block(parent_mb_hash).ok_or_else(|| {
@@ -795,28 +802,27 @@ impl EthexeExternalities {
             )
         })?;
 
-        let mut not_unshielded = Vec::new();
-        let mut unshielded = Vec::new();
+        let mut output = UnshieldingOutput::default();
         for tx in operations.into_iter().filter_map(Operation::into_shielded) {
             let tx_hash = tx.data().to_hash();
             match decryption_keys.get(&tx_hash) {
                 Some(shared_key) => {
                     match tx.into_verified().try_map(|tx| tx.unshield(shared_key)) {
-                        Ok(injected_tx) => unshielded.push((tx_hash, injected_tx)),
-                        Err(_err) => not_unshielded.push(PurgedTransaction {
+                        Ok(injected_tx) => output.unshielded.push((tx_hash, injected_tx)),
+                        Err(_err) => output.not_unshielded.push(PurgedTransaction {
                             tx_hash: TransactionHash::Right(tx_hash),
                             reason: TransactionPurgedReason::DecryptionFailed,
                         }),
                     }
                 }
-                None => not_unshielded.push(PurgedTransaction {
+                None => output.not_unshielded.push(PurgedTransaction {
                     tx_hash: TransactionHash::Right(tx_hash),
                     reason: TransactionPurgedReason::DecryptionFailed,
                 }),
             }
         }
 
-        Ok((unshielded, not_unshielded))
+        Ok(output)
     }
 
     /// True iff `prerequisite.is_zero()` (no prerequisite — genesis

@@ -154,7 +154,7 @@ impl MalachiteService {
         };
 
         if let Some(setup) = &validator_tdec_setup {
-            db.set_shielding_key(setup.dkg_public_key.clone());
+            db.set_shielding_key(setup.dkg_public_key);
         }
 
         let (tdec_ctx, tdec_store) = match validator_tdec_setup {

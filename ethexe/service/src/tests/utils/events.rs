@@ -42,6 +42,7 @@ pub type TestingEventReceiver = KickingStream<EventReceiver<TestingEvent>>;
 pub type ObserverEventSender = EventSender<ObserverEvent>;
 pub type ObserverEventReceiver = KickingStream<EventReceiver<ObserverEvent>>;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkInjectedEvent {
     InboundTransaction {
@@ -74,6 +75,7 @@ impl TestingNetworkInjectedEvent {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),

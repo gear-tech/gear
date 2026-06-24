@@ -95,6 +95,7 @@ mod pending_tx;
 mod tests;
 
 #[derive(Debug, derive_more::From)]
+#[allow(clippy::large_enum_variant)]
 pub enum Event {
     Compute(ComputeEvent),
     Consensus(ConsensusEvent),
@@ -1013,7 +1014,7 @@ impl Service {
                         // force the policy to `Enabled` regardless.
 
                         // TODO: fix RPC, now it waits for `UnshieldingOutput` event from malachite,
-                        // but emiting this event costs time.
+                        // but emitting this event costs time.
                         //compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                     MalachiteEvent::BlockFinalized {
