@@ -162,12 +162,33 @@ pub enum ComputeError {
     AdvanceBlockEventsMissing(H256),
     #[error("anchor Eth block header missing for {0}")]
     AnchorBlockHeaderMissing(H256),
+    #[error("genesis block missing from DB; invariant violation")]
+    GenesisBlockMissing,
+    #[error("last advanced EB is zero but start block {start} does not match genesis {genesis}")]
+    StartBlockNotGenesis { start: H256, genesis: H256 },
+    #[error("start block height is 0, which is unexpected")]
+    StartBlockHeightZero,
+    #[error(
+        "target EB height {target_height} is older than last advanced height {last_advanced_height}"
+    )]
+    TargetEbOlderThanLastAdvanced {
+        target_height: u32,
+        last_advanced_height: u32,
+    },
+    #[error("target EB is at the same height as last advanced")]
+    TargetEbSameHeightAsLastAdvanced,
+    #[error(
+        "advancing chain does not connect to last advanced block: expected parent {expected_parent}, got {actual_parent}"
+    )]
+    AdvanceChainDisconnected {
+        expected_parent: H256,
+        actual_parent: H256,
+    },
+    #[error("block header not found while collecting advancing chain for block {0}")]
+    AdvanceChainHeaderMissing(H256),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
-
-    #[error("other: {0}")]
-    Other(&'static str),
 }
 
 type Result<T> = std::result::Result<T, ComputeError>;

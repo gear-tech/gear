@@ -334,9 +334,7 @@ fn build_executable_data(
     } else {
         db.block_header(db.config().genesis_block_hash)
             .map(|h| (h.height, h.timestamp))
-            .ok_or(ComputeError::Other(
-                "genesis block missing from DB; invariant violation",
-            ))?
+            .ok_or(ComputeError::GenesisBlockMissing)?
     };
 
     Ok(ExecutableData {
@@ -364,9 +362,10 @@ fn collect_advance_chain(
         let start_eb_hash = db.globals().start_block_hash;
         let genesis_eb_hash = db.config().genesis_block_hash;
         if start_eb_hash != genesis_eb_hash {
-            return Err(ComputeError::Other(
-                "if last advanced EB is zero, then start block must match genesis",
-            ));
+            return Err(ComputeError::StartBlockNotGenesis {
+                start: start_eb_hash,
+                genesis: genesis_eb_hash,
+            });
         }
         db.block_simple_data(start_eb_hash)
             .ok_or(ComputeError::BlockNotSynced(start_eb_hash))
@@ -375,7 +374,7 @@ fn collect_advance_chain(
                     .header
                     .height
                     .checked_sub(1)
-                    .ok_or(ComputeError::Other("start block height=0 isn't expected"))
+                    .ok_or(ComputeError::StartBlockHeightZero)
                     .map(|h| (H256::zero(), h))
             })??
     };
@@ -384,12 +383,13 @@ fn collect_advance_chain(
         .header
         .height
         .checked_sub(last_advanced_height)
-        .ok_or(ComputeError::Other("target EB is older than last advanced"))?;
+        .ok_or(ComputeError::TargetEbOlderThanLastAdvanced {
+            target_height: target.header.height,
+            last_advanced_height,
+        })?;
 
     if depth == 0 {
-        return Err(ComputeError::Other(
-            "target EB is at the same height as last advanced",
-        ));
+        return Err(ComputeError::TargetEbSameHeightAsLastAdvanced);
     }
 
     let mut chain = Vec::with_capacity(depth as usize);
@@ -403,18 +403,17 @@ fn collect_advance_chain(
         let parent_hash = current.header.parent_hash;
         if step + 1 == depth {
             if parent_hash != last_advanced_hash {
-                return Err(ComputeError::Other(
-                    "collected advancing chain does not connect to the last advanced block",
-                ));
+                return Err(ComputeError::AdvanceChainDisconnected {
+                    expected_parent: last_advanced_hash,
+                    actual_parent: parent_hash,
+                });
             }
             break;
         }
 
         current = db
             .block_simple_data(parent_hash)
-            .ok_or(ComputeError::Other(
-                "block header not found while collecting advancing chain",
-            ))?;
+            .ok_or(ComputeError::AdvanceChainHeaderMissing(parent_hash))?;
     }
 
     chain.reverse();
@@ -724,9 +723,9 @@ mod tests {
         let target = db.block_simple_data(target_hash).unwrap();
         let result = collect_advance_chain(&db, target, Some(last_advanced));
         match result {
-            Err(ComputeError::Other(msg)) => assert!(
-                msg.contains("block header not found"),
-                "expected a missing-header error for {parent_b:?}, got message: {msg:?} — \
+            Err(ComputeError::AdvanceChainHeaderMissing(hash)) => assert_eq!(
+                hash, parent_b,
+                "expected the missing-header error to name {parent_b:?} — \
                  a silent truncation here would non-determinise event replay across peers"
             ),
             other => panic!(
