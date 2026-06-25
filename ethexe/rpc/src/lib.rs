@@ -33,12 +33,12 @@
 //! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
 //! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
 
-pub use crate::apis::RPC_VERSION;
 #[cfg(feature = "client")]
 pub use crate::apis::{
     BlockClient, CalculateReplyForHandleResult, CodeClient, DevClient, FullProgramState,
     InfoClient, InjectedClient, ProgramBestState, ProgramClient,
 };
+pub use crate::apis::{PromiseSubscriptionFilter, RPC_VERSION, ReplyCodeFilter};
 
 #[cfg(feature = "server")]
 use anyhow::Result;

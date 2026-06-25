@@ -15,13 +15,16 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use std::sync::Arc;
-use tokio::sync::oneshot;
+use tokio::sync::{broadcast, oneshot};
 use tracing::{trace, warn};
 
 // TODO: #5385.
 type PromiseSubscribers =
     Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedTxReceipt>>>;
 type PendingReceiptsCache = moka::sync::Cache<HashOf<InjectedTransaction>, UnfilledPromiseReceipt>;
+
+/// Buffered promises per subscriber before it starts lagging.
+const PROMISE_BROADCAST_CAPACITY: usize = 1024;
 
 /// The manager for promise subscribers.
 #[derive(Debug, Clone)]
@@ -31,6 +34,8 @@ pub struct PromiseSubscriptionManager {
     subscribers: PromiseSubscribers,
     /// Cached [UnfilledPromiseReceipt] waiting for local [Promise] computation.
     pending_receipts: PendingReceiptsCache,
+    /// Broadcast sender for the global `subscribe_promises` fan-out.
+    promise_sender: broadcast::Sender<Promise>,
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -70,11 +75,20 @@ impl PendingSubscriber {
 
 impl PromiseSubscriptionManager {
     pub fn new(db: Database) -> Self {
+        let (promise_sender, _receiver) = broadcast::channel(PROMISE_BROADCAST_CAPACITY);
         Self {
             pending_receipts: utils::build_pending_receipts_cache(&db),
             db,
             subscribers: PromiseSubscribers::default(),
+            promise_sender,
         }
+    }
+
+    /// Returns a receiver for the global promise broadcast. The manager owns
+    /// `subscribe()`; [`spawner::spawn_promises_subscriber`] owns the receiver
+    /// loop.
+    pub fn subscribe_promises(&self) -> broadcast::Receiver<Promise> {
+        self.promise_sender.subscribe()
     }
 
     // TODO: Issue #5402
@@ -137,6 +151,8 @@ impl PromiseSubscriptionManager {
     pub fn on_computed_promise(&self, promise: Promise) {
         trace!(?promise, "received new computed promise");
         self.db.set_promise(&promise);
+        // Err only means there are no subscribers right now — nothing to do.
+        let _ = self.promise_sender.send(promise.clone());
 
         let Some(unfilled_promise) = self.pending_receipts.remove(&promise.tx_hash) else {
             return;

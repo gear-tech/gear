@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    CodeClient, InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent,
-    RpcServer, RpcService, test_utils::wasm_with_custom_section,
+    CodeClient, InjectedApi, InjectedClient, InjectedTransactionAcceptance,
+    PromiseSubscriptionFilter, ReplyCodeFilter, RpcConfig, RpcEvent, RpcServer, RpcService,
+    test_utils::wasm_with_custom_section,
 };
 use ethexe_common::{
     SignedMessage, ValidatorsVec,
@@ -319,4 +320,81 @@ async fn test_concurrent_multiple_clients() {
 
     let _ = tasks.join_all().await;
     wait_for_closed_subscriptions(injected_api).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_subscribe_promises_receives_computed_promise() {
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8012);
+    let service = MockService::new(listen_addr).await;
+
+    let ws_client = WsClientBuilder::new()
+        .build(format!("ws://{}", listen_addr))
+        .await
+        .expect("WS client will be created");
+
+    let mut sub = ws_client
+        .subscribe_promises(None)
+        .await
+        .expect("subscription must be created");
+
+    let tx_hash = mock_signed_transaction().data().to_hash();
+    let promise = Promise::mock(tx_hash);
+    service.rpc.receive_computed_promise(promise.clone());
+
+    let received = tokio::time::timeout(std::time::Duration::from_secs(1), sub.next())
+        .await
+        .expect("promise should arrive before timeout")
+        .expect("subscription item should exist")
+        .expect("subscription item should decode");
+
+    assert_eq!(received, promise);
+
+    service.handle.stop().expect("RPC server must stop");
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_subscribe_promises_applies_reply_code_filter() {
+    use gear_core::rpc::ReplyInfo;
+
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8013);
+    let service = MockService::new(listen_addr).await;
+
+    let ws_client = WsClientBuilder::new()
+        .build(format!("ws://{}", listen_addr))
+        .await
+        .expect("WS client will be created");
+
+    let mut sub = ws_client
+        .subscribe_promises(Some(PromiseSubscriptionFilter {
+            reply_code: Some(ReplyCodeFilter::Success),
+        }))
+        .await
+        .expect("subscription must be created");
+
+    // Non-matching promise: must be skipped by the server-side filter.
+    let skipped = Promise {
+        tx_hash: mock_signed_transaction().data().to_hash(),
+        reply: ReplyInfo {
+            payload: vec![],
+            value: 0,
+            code: ReplyCode::Unsupported,
+        },
+    };
+    service.rpc.receive_computed_promise(skipped);
+
+    // Matching promise: `Promise::mock` yields `Success(Manual)`.
+    let expected = Promise::mock(mock_signed_transaction().data().to_hash());
+    service.rpc.receive_computed_promise(expected.clone());
+
+    let received = tokio::time::timeout(std::time::Duration::from_secs(1), sub.next())
+        .await
+        .expect("promise should arrive before timeout")
+        .expect("subscription item should exist")
+        .expect("subscription item should decode");
+
+    assert_eq!(received, expected);
+
+    service.handle.stop().expect("RPC server must stop");
 }

@@ -10,12 +10,13 @@ mod program;
 #[cfg(feature = "server")]
 mod program_best_state;
 
+pub use crate::apis::info::RPC_VERSION;
 #[cfg(feature = "client")]
 pub use crate::apis::{
     block::BlockClient,
     code::CodeClient,
     dev::DevClient,
-    info::{InfoClient, RPC_VERSION},
+    info::InfoClient,
     injected::InjectedClient,
     program::{CalculateReplyForHandleResult, FullProgramState, ProgramBestState, ProgramClient},
 };
@@ -29,6 +30,7 @@ pub use dev::{DevApi, DevServer};
 pub use info::{InfoApi, InfoServer};
 #[cfg(feature = "server")]
 pub use injected::{InjectedApi, InjectedServer};
+pub use injected::{PromiseSubscriptionFilter, ReplyCodeFilter};
 #[cfg(feature = "server")]
 pub use program::{ProgramApi, ProgramServer};
 #[cfg(feature = "server")]

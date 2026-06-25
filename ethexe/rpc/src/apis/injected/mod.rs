@@ -72,6 +72,8 @@
 //! and keeps waiting for a matching computed promise. No signed full receipt is stored or delivered
 //! for that mismatch.
 
+mod filter;
+
 #[cfg(feature = "server")]
 pub(crate) mod promise_manager;
 
@@ -92,3 +94,5 @@ pub use r#trait::InjectedServer;
 
 #[cfg(feature = "client")]
 pub use r#trait::InjectedClient;
+
+pub use filter::{PromiseSubscriptionFilter, ReplyCodeFilter};
