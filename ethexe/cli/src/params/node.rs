@@ -95,7 +95,7 @@ pub struct NodeParams {
     #[serde(rename = "canonical-quarantine")]
     pub canonical_quarantine: Option<u8>,
 
-    /// See `MalachiteConfig::post_quarantine_delay`. Default 1.
+    /// See `MalachiteServiceConfig::post_quarantine_delay`. Default 1.
     #[arg(long)]
     #[serde(rename = "post-quarantine-delay")]
     pub post_quarantine_delay: Option<u32>,
@@ -161,6 +161,7 @@ impl NodeParams {
         Ok(NodeConfig {
             database_path: self.db_dir(),
             key_path: self.keys_dir(),
+            net_path: self.net_dir(),
             validator: ConfigPublicKey::new(&self.validator)
                 .with_context(|| "invalid `validator` key")?,
             validator_session: ConfigPublicKey::new(&self.validator_session)
@@ -183,7 +184,7 @@ impl NodeParams {
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             post_quarantine_delay: self
                 .post_quarantine_delay
-                .unwrap_or(ethexe_malachite::MalachiteConfig::DEFAULT_POST_QUARANTINE_DELAY),
+                .unwrap_or(ethexe_malachite::MalachiteServiceConfig::DEFAULT_POST_QUARANTINE_DELAY),
             dev: self.dev,
             pre_funded_accounts: self
                 .pre_funded_accounts
