@@ -17113,7 +17113,6 @@ pub(crate) mod utils {
         storage::{CountedByKey, Counter, IterableByKeyMap, IterableMap},
     };
     use core::{fmt, fmt::Display};
-    use core_processor::common::ActorExecutionErrorReplyReason;
     use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
@@ -17130,6 +17129,7 @@ pub(crate) mod utils {
         reservation::GasReservationMap,
     };
     use gear_core_errors::*;
+    use gear_core_processor::common::ActorExecutionErrorReplyReason;
     use gstd::TypeInfo;
     use pallet_gear_voucher::VoucherId;
     use parity_scale_codec::Encode;

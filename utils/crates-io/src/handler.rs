@@ -3,16 +3,9 @@
 
 //! Handlers for patching manifests.
 
-use crate::Manifest;
-use anyhow::Result;
-use cargo_metadata::Package;
-
 /// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
     match pkg {
-        // `gear-core-processor` is taken by others, see the docs
-        // of [`core_processor::patch_workspace`] for more details.
-        "gear-core-processor" => "core-processor",
         "sp-allocator" => "gsp-allocator",
         "sp-wasm-interface" => "gsp-wasm-interface",
         "sp-wasm-interface-common" => "gsp-wasm-interface-common",
@@ -25,27 +18,14 @@ pub fn crates_io_name(pkg: &str) -> &str {
     }
 }
 
-/// Patch specified manifest by provided name.
-pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<Manifest> {
-    let mut manifest = Manifest::new(pkg, is_published, is_actualized)?;
-    let doc = &mut manifest.mutable_manifest;
-
-    if manifest.name.as_str() == "gear-core-processor" {
-        core_processor::patch(doc);
-    }
-
-    Ok(manifest)
-}
-
 /// Apply publish-only manifest patches.
 pub fn patch_publish(name: &str, doc: &mut toml_edit::DocumentMut) {
     match name {
         local_name if crate::GEAR_SUBSTRATE_DEPENDENCIES.contains(&local_name) => {
             substrate_fork::patch_manifest(local_name, doc)
         }
-        "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
-        "gear-sandbox-interface" => sandbox_interface::patch(doc),
+        // "gear-sandbox-interface" => sandbox_interface::patch(doc),
         _ => {}
     }
 }
@@ -61,8 +41,6 @@ pub fn patch_alias(index: &mut Vec<&str>) {
 
 /// Patch the workspace manifest.
 pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
-    patch_workspace_alias(name, table);
-
     match name {
         local_name if crate::GEAR_SUBSTRATE_DEPENDENCIES.contains(&local_name) => {
             substrate_fork::patch_workspace(local_name, table)
@@ -80,14 +58,6 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
 /// Patch the workspace manifest for publish-only state.
 pub fn patch_publish_workspace(doc: &mut toml_edit::DocumentMut) {
     substrate_fork::patch_publish_workspace(doc);
-}
-
-/// Patch workspace aliases required by package manifest patches.
-pub fn patch_workspace_alias(name: &str, table: &mut toml_edit::InlineTable) {
-    match name {
-        "core-processor" | "gear-core-processor" => core_processor::patch_workspace(name, table),
-        _ => {}
-    }
 }
 
 /// Gear-maintained Polkadot SDK-compatible local crates.
@@ -148,34 +118,6 @@ mod substrate_fork {
     }
 }
 
-/// gear-core-processor handler.
-mod core_processor {
-    use toml_edit::{DocumentMut, InlineTable};
-
-    /// Pointing the package name of core-processor to
-    /// `core-processor` on `crates-io` since this is
-    /// the one we own.
-    pub fn patch_workspace(name: &str, table: &mut InlineTable) {
-        match name {
-            // Remove the path definition to point core-processor to
-            // crates-io.
-            "core-processor" => {
-                table.remove("package");
-            }
-            // Points to `core-processor` for the one on crates-io.
-            "gear-core-processor" => {
-                table.insert("package", "core-processor".into());
-            }
-            _ => {}
-        }
-    }
-
-    /// Patch the manifest of core-processor.
-    pub fn patch(manifest: &mut DocumentMut) {
-        manifest["package"]["name"] = toml_edit::value("core-processor");
-    }
-}
-
 /// sandbox handler.
 mod sandbox {
     use toml_edit::DocumentMut;
@@ -189,48 +131,6 @@ mod sandbox {
         wasmi.insert("version", toml_edit::value("0.30.0"));
         wasmi.remove("branch");
         wasmi.remove("git");
-    }
-}
-
-/// sandbox interface handler
-mod sandbox_interface {
-    use toml_edit::DocumentMut;
-
-    /// Patch the manifest of runtime-interface.
-    ///
-    /// We need to patch the manifest of package again because
-    /// `sp_runtime_interface_proc_macro` includes some hardcode
-    /// that could not locate alias packages.
-    pub fn patch(manifest: &mut DocumentMut) {
-        if let Some(deps) = manifest["dependencies"].as_table_like_mut() {
-            deps.remove("sc-executor");
-        }
-
-        if let Some(features) = manifest["features"].as_table_like_mut() {
-            if let Some(default_features) = features
-                .get_mut("default")
-                .and_then(toml_edit::Item::as_array_mut)
-            {
-                default_features.retain(|feature| feature.as_str() != Some("host-api"));
-            }
-
-            if let Some(host_api_features) = features
-                .get_mut("host-api")
-                .and_then(toml_edit::Item::as_array_mut)
-            {
-                host_api_features.retain(|feature| feature.as_str() != Some("sc-executor"));
-            }
-        }
-
-        let Some(wi) = manifest["dependencies"]["sp-wasm-interface"].as_table_like_mut() else {
-            return;
-        };
-        // The copied stable2409 executor crates use upstream `sp-wasm-interface`
-        // 21.0.1, but `gear-sandbox-interface` still pairs with the old
-        // Gear-published runtime-interface stack.
-        wi.insert("version", toml_edit::value("15.0.0"));
-        wi.insert("package", toml_edit::value("gp-wasm-interface"));
-        wi.remove("workspace");
     }
 }
 

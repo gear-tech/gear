@@ -33,12 +33,13 @@ pub const EXPECTED_OWNERS: [&str; 2] = [USER_OWNER, TEAM_OWNER];
 /// NOTE: Each package in this array could possibly depend on the previous one,
 /// please be cautious about changing the order.
 pub const GEAR_SUBSTRATE_DEPENDENCIES: &[&str] = &[
+    "sp-wasm-interface-common",
     "sp-allocator",
     "sp-wasm-interface",
     "sc-executor-common",
     "sc-executor-polkavm",
     "sc-executor-wasmtime",
-    "sp-wasm-interface-common",
+    "sc-executor",
     "substrate-wasm-builder",
 ];
 
@@ -117,10 +118,7 @@ pub const PACKAGES: &[&str] = &[
 ];
 
 /// Alias for packages.
-pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
-    ("gear-core-processor", "core-processor"),
-    ("gear-runtime-primitives", "runtime-primitives"),
-];
+pub const PACKAGE_ALIAS: [(&str, &str); 1] = [("gear-runtime-primitives", "runtime-primitives")];
 
 /// Name for temporary cargo registry.
 pub const CARGO_REGISTRY_NAME: &str = "cargo-http-registry";

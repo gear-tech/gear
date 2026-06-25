@@ -11,10 +11,6 @@ use crate::{
     manager::{ExtManager, HandleKind},
 };
 use common::{CodeStorage, Origin, Program, ProgramStorage, storage::*};
-use core_processor::{
-    ProcessExecutionContext, common::ExecutableActorData, configs::BlockConfig,
-    precharge::ContextCharged,
-};
 use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndMetadata, SyscallKind},
@@ -22,6 +18,10 @@ use gear_core::{
     limited::LimitedVecError,
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     pages::WasmPagesAmount,
+};
+use gear_core_processor::{
+    ProcessExecutionContext, common::ExecutableActorData, configs::BlockConfig,
+    precharge::ContextCharged,
 };
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;

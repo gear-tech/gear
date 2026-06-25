@@ -16,7 +16,7 @@ categories = ["wasm", "data-structures", "no-std"]
 ethexe-common.workspace = true
 
 gear-lazy-pages-common.workspace = true
-core-processor.workspace = true
+gear-core-processor.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
 gsys.workspace = true
@@ -41,7 +41,7 @@ proptest.workspace = true
 default = ["std"]
 std = [
     "anyhow/std",
-    "core-processor/std",
+    "gear-core-processor/std",
     "gear-core/std",
     "gprimitives/serde",
     "log/std",

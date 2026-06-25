@@ -12,7 +12,6 @@ use crate::{
         programs::ProgramsStorageManager,
     },
 };
-use core_processor::common::JournalNote;
 use gear_common::MessageId;
 use gear_core::{
     ids::{
@@ -24,6 +23,7 @@ use gear_core::{
     program::Program as PrimaryProgram,
     rpc::ReplyInfo,
 };
+use gear_core_processor::common::JournalNote;
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use parity_scale_codec::{Decode, DecodeAll};
@@ -494,7 +494,7 @@ impl System {
             }
 
             // As long as no reply was found, we need to handle the journal.
-            core_processor::handle_journal(journal, &mut *manager_mut);
+            gear_core_processor::handle_journal(journal, &mut *manager_mut);
         }
 
         // Before any return from the function, overlay must be disabled.

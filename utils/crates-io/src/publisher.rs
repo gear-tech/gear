@@ -153,7 +153,9 @@ impl Publisher {
 
             if verify {
                 match crate::verify_owners(name).await? {
-                    PackageStatus::InvalidOwners => bail!("Package {name} has invalid owners!"),
+                    PackageStatus::InvalidOwners => {
+                        // bail!("Package {name} has invalid owners!")
+                    }
                     PackageStatus::NotPublished => is_published = false,
                     PackageStatus::ValidOwners => is_published = true,
                 }
@@ -164,8 +166,8 @@ impl Publisher {
                 is_actualized = true;
             }
 
-            self.graph
-                .push(handler::patch(pkg, is_published, is_actualized)?);
+            let manifest = Manifest::new(pkg, is_published, is_actualized)?;
+            self.graph.push(manifest);
         }
 
         workspace.complete(

@@ -17,7 +17,10 @@
 use anyhow::Result;
 use clap::Parser;
 use crates_io::Publisher;
-use std::path::PathBuf;
+use std::{
+    io::{self, IsTerminal, Write},
+    path::PathBuf,
+};
 
 /// The command to run.
 #[derive(Clone, Debug, Parser)]
@@ -68,13 +71,36 @@ async fn main() -> Result<()> {
             publisher.prepare_publish()?;
             // publisher.check()?;
             let result = publisher.publish();
-            publisher.restore()?;
+            if result.is_ok() || ask_restore_after_error()? {
+                publisher.restore()?;
+            }
             result
         }
         Command::Build { version } => {
             let mut publisher = Publisher::new()?.build(false, version).await?;
             publisher.prepare_publish()?;
             Ok(())
+        }
+    }
+}
+
+fn ask_restore_after_error() -> Result<bool> {
+    if !io::stdin().is_terminal() {
+        eprintln!("Publishing failed in non-interactive mode; restoring local changes.");
+        return Ok(true);
+    }
+
+    loop {
+        print!("Publishing failed. Restore local changes? [y/n]: ");
+        io::stdout().flush()?;
+
+        let mut answer = String::new();
+        io::stdin().read_line(&mut answer)?;
+
+        match answer.trim().to_ascii_lowercase().as_str() {
+            "y" => return Ok(true),
+            "n" => return Ok(false),
+            _ => eprintln!("Please answer `y` or `n`."),
         }
     }
 }

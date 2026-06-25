@@ -114,7 +114,6 @@ impl Workspace {
             }
         }
 
-        self.rename_aliases()?;
         Ok(())
     }
 
@@ -136,10 +135,6 @@ impl Workspace {
         self.rename_with(handler::patch_workspace)?;
         handler::patch_publish_workspace(&mut self.mutable_manifest);
         Ok(())
-    }
-
-    fn rename_aliases(&mut self) -> Result<()> {
-        self.rename_with(handler::patch_workspace_alias)
     }
 
     fn rename_with(&mut self, patch: fn(&str, &mut InlineTable)) -> Result<()> {
