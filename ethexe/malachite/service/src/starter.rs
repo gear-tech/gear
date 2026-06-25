@@ -27,7 +27,7 @@ pub struct MalachiteServiceStarter {
     events_rx: UnboundedReceiver<Result<MalachiteEvent>>,
     chain_head: Arc<ChainHead>,
     mempool: Option<Arc<dyn Mempool>>,
-    externalities: EthexeExternalities,
+    externalities: Arc<EthexeExternalities>,
     validators: HashMap<Address, PublicKey>,
     active_era: u64,
     core_config: MalachiteCoreConfig,
@@ -96,7 +96,7 @@ impl MalachiteServiceStarter {
 
         let (event_tx, events_rx) = mpsc::unbounded_channel();
 
-        let externalities = EthexeExternalities {
+        let externalities = Arc::new(EthexeExternalities {
             db,
             cfg: ExternalitiesConfig {
                 gas_allowance: config.gas_allowance,
@@ -107,7 +107,7 @@ impl MalachiteServiceStarter {
             chain_head: chain_head.clone(),
             pending_events: Default::default(),
             event_tx,
-        };
+        });
 
         // On-chain addresses → pub keys, so era rotations resolve back without an out-of-band lookup.
         let validators = config
@@ -138,8 +138,6 @@ impl MalachiteServiceStarter {
             active_era,
             core_config,
         } = self;
-
-        let externalities = Arc::new(externalities);
 
         let inner = MalachiteCore::new(core_config, externalities.clone())
             .await
