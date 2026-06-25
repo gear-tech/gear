@@ -3,6 +3,9 @@
 
 //! Handlers for patching manifests.
 
+/// The working version of sp-wasm-interface.
+pub const GP_RUNTIME_INTERFACE_VERSION: &str = "18.0.0";
+
 /// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
     match pkg {
@@ -25,7 +28,7 @@ pub fn patch_publish(name: &str, doc: &mut toml_edit::DocumentMut) {
             substrate_fork::patch_manifest(local_name, doc)
         }
         "gear-sandbox" => sandbox::patch(doc),
-        // "gear-sandbox-interface" => sandbox_interface::patch(doc),
+        "gear-sandbox-interface" => sandbox_interface::patch(doc),
         _ => {}
     }
 }
@@ -134,6 +137,56 @@ mod sandbox {
     }
 }
 
+/// sandbox interface handler.
+mod sandbox_interface {
+    use super::GP_RUNTIME_INTERFACE_VERSION;
+    use toml_edit::DocumentMut;
+
+    /// Patch the manifest of runtime-interface.
+    ///
+    /// We need to patch the manifest of package again because
+    /// `sp_runtime_interface_proc_macro` includes some hardcode
+    /// that could not locate alias packages.
+    pub fn patch(manifest: &mut DocumentMut) {
+        if let Some(deps) = manifest["dependencies"].as_table_like_mut() {
+            deps.remove("sc-executor");
+        }
+
+        if let Some(features) = manifest["features"].as_table_like_mut() {
+            if let Some(default_features) = features
+                .get_mut("default")
+                .and_then(toml_edit::Item::as_array_mut)
+            {
+                default_features.retain(|feature| feature.as_str() != Some("host-api"));
+            }
+
+            if let Some(host_api_features) = features
+                .get_mut("host-api")
+                .and_then(toml_edit::Item::as_array_mut)
+            {
+                host_api_features.retain(|feature| feature.as_str() != Some("sc-executor"));
+            }
+        }
+
+        let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_like_mut() else {
+            return;
+        };
+        wi.insert("version", toml_edit::value(GP_RUNTIME_INTERFACE_VERSION));
+        wi.insert("package", toml_edit::value("gp-runtime-interface"));
+        wi.remove("workspace");
+
+        let Some(wi) = manifest["dependencies"]["sp-wasm-interface"].as_table_like_mut() else {
+            return;
+        };
+        // The copied stable2409 executor crates use upstream `sp-wasm-interface`
+        // 21.0.1, but `gear-sandbox-interface` still pairs with the old
+        // Gear-published runtime-interface stack.
+        wi.insert("version", toml_edit::value("15.0.0"));
+        wi.insert("package", toml_edit::value("gp-wasm-interface"));
+        wi.remove("workspace");
+    }
+}
+
 /// substrate-wasm-builder handler.
 mod substrate_wasm_builder {
     use toml_edit::DocumentMut;
@@ -153,6 +206,7 @@ mod substrate_wasm_builder {
 
 /// substrate handler.
 mod substrate {
+    use super::GP_RUNTIME_INTERFACE_VERSION;
     use toml_edit::InlineTable;
 
     /// Patch the substrate packages in the manifest of workspace.
@@ -178,6 +232,15 @@ mod substrate {
             // no ref bcz we own this package.
             "sp-wasm-interface-common" => {
                 table.insert("version", "15.0.0".into());
+            }
+            // Related to sp-wasm-interface.
+            //
+            // ref:
+            // - sp-runtime-interface-18.0.0
+            // - sp-runtime-interface-proc-macro-12.0.0
+            "sp-runtime-interface" => {
+                table.insert("version", GP_RUNTIME_INTERFACE_VERSION.into());
+                table.insert("package", "gp-runtime-interface".into());
             }
             _ => return,
         }

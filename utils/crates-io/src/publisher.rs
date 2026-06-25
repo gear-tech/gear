@@ -4,7 +4,7 @@
 //! Packages publisher.
 
 use crate::{
-    CRATES_IO_CATEGORIES, GEAR_SUBSTRATE_DEPENDENCIES, Manifest, PACKAGES, PackageStatus,
+    CRATES_IO_ALLOWED_CATEGORIES, GEAR_SUBSTRATE_DEPENDENCIES, Manifest, PACKAGES, PackageStatus,
     SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator, TEAM_OWNER, Workspace, handler,
 };
 use anyhow::{Result, bail};
@@ -87,7 +87,7 @@ impl Publisher {
             }
 
             for category in &pkg.categories {
-                if !CRATES_IO_CATEGORIES.contains(&category.as_str()) {
+                if !CRATES_IO_ALLOWED_CATEGORIES.contains(&category.as_str()) {
                     bail!("Package {name} has invalid category `{category}`!");
                 }
             }
@@ -154,6 +154,7 @@ impl Publisher {
             if verify {
                 match crate::verify_owners(name).await? {
                     PackageStatus::InvalidOwners => {
+                        // TODO: transfer ownership of crate https://crates.io/crates/gear-core-processor
                         // bail!("Package {name} has invalid owners!")
                     }
                     PackageStatus::NotPublished => is_published = false,

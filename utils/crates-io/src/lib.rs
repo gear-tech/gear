@@ -39,7 +39,6 @@ pub const GEAR_SUBSTRATE_DEPENDENCIES: &[&str] = &[
     "sc-executor-common",
     "sc-executor-polkavm",
     "sc-executor-wasmtime",
-    "sc-executor",
     "substrate-wasm-builder",
 ];
 
@@ -154,7 +153,7 @@ pub fn add_owner(package: &str, owner: &str) -> Result<ExitStatus> {
 }
 
 /// Allowed categories for crates.io packages: https://crates.io/category_slugs.
-pub const CRATES_IO_CATEGORIES: &[&str] = &[
+pub const CRATES_IO_ALLOWED_CATEGORIES: &[&str] = &[
     "accessibility",
     "aerospace",
     "aerospace::drones",

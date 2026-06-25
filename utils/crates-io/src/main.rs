@@ -69,6 +69,7 @@ async fn main() -> Result<()> {
                 .build(true, version)
                 .await?;
             publisher.prepare_publish()?;
+            // TODO: return this check back
             // publisher.check()?;
             let result = publisher.publish();
             if result.is_ok() || ask_restore_after_error()? {
