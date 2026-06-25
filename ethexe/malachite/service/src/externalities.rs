@@ -39,9 +39,9 @@
 //! back via the same key the consensus layer hands in.
 
 use crate::{
-    CommitCertificate, MalachiteEvent, Mempool, quarantine,
+    Mempool, quarantine,
     tx_validity::{TxValidity, TxValidityChecker, eb_touched_programs},
-    types::ChainHead,
+    types::{ChainHead, CommitCertificate, MalachiteEvent},
 };
 use anyhow::{Context, Result, anyhow, ensure};
 use async_trait::async_trait;
@@ -578,7 +578,7 @@ impl EthexeExternalities {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{MalachiteEvent, mempool::EmptyMempool};
+    use crate::mempool::EmptyMempool;
     use anyhow::Context;
     use ethexe_common::{
         BlockHeader, SimpleBlockData,

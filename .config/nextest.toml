@@ -27,9 +27,6 @@ test-group = 'authorship'
 [[profile.default.overrides]]
 filter = 'package(ethexe-service)'
 leak-timeout = { period = "10s", result = "pass" }
-# Heavy multi-validator tests (4 Anvil + 4 malachite engines) starve under
-# full-suite parallelism and blow the 120s cap; reserve threads like CI does.
-threads-required = 4
 
 [profile.default.junit]
 path = "junit.xml"

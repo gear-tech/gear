@@ -233,6 +233,10 @@ pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 /// Scheduler; (block height, scheduled task)
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
+/// Acceptance verdict. Can be applied in many places, where
+/// checking or validation of some data is required.
+/// In case this data fails to pass the check,
+/// than better to consider it as rejected than returning an [`Err`].
 #[derive(
     Debug,
     Clone,

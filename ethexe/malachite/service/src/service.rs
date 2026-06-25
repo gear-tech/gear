@@ -7,8 +7,10 @@
 //! engine and exposes its outputs as a `Stream` of [`MalachiteEvent`]s.
 
 use crate::{
-    MalachiteEvent, Mempool, ValidatorEntry, externalities::EthexeExternalities,
-    mempool::TxInsertionStatus, types::ChainHead,
+    Mempool, ValidatorEntry,
+    externalities::EthexeExternalities,
+    mempool::TxInsertionStatus,
+    types::{ChainHead, MalachiteEvent},
 };
 use anyhow::Result;
 use ethexe_common::{

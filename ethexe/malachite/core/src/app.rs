@@ -328,7 +328,7 @@ where
             } => self
                 .process_restream_proposal(height, round, valid_round, value_id)
                 .await
-                .map_err(|e| anyhow!("restream proposal failed: {e:?}"))?,
+                .context("restream proposal failed")?,
         }
 
         Ok(())
@@ -401,15 +401,11 @@ where
         let parent_hash = if height.as_u64() <= 1 {
             H256::zero()
         } else {
+            let parent_height = height.as_u64() - 1;
             self.state
                 .store
-                .finalized_block_at(height.as_u64() - 1)?
-                .ok_or_else(|| {
-                    anyhow!(
-                        "no finalized block at height {} — Malachite invariant violated",
-                        height.as_u64() - 1,
-                    )
-                })?
+                .finalized_block_at(parent_height)?
+                .with_context(|| format!("no finalized block at height {parent_height}"))?
         };
 
         let build_fut = self.externalities.build_block_above(parent_hash);
@@ -530,7 +526,7 @@ where
             // been processed (cascade_save would be a no-op on a
             // missing ancestor anyway — see `Store::save_chain`).
             let block = Block::decode(&mut &proposed.value.block_bytes[..])
-                .map_err(|e| anyhow!("decoding Block from synced value: {e}"))?;
+                .context("decoding Block from synced value")?;
             self.record_assembled_block(block).await?;
         }
         Ok(parsed)
@@ -622,15 +618,11 @@ where
         let local_parent = if proposed.height.as_u64() <= 1 {
             H256::zero()
         } else {
+            let parent_height = proposed.height.as_u64() - 1;
             self.state
                 .store
-                .finalized_block_at(proposed.height.as_u64() - 1)?
-                .ok_or_else(|| {
-                    anyhow!(
-                        "no finalized block at height {} — Malachite invariant violated",
-                        proposed.height.as_u64() - 1,
-                    )
-                })?
+                .finalized_block_at(parent_height)?
+                .with_context(|| format!("no finalized block at height {parent_height}"))?
         };
 
         if block.parent_hash != local_parent {
@@ -683,8 +675,7 @@ where
     /// ancestor must have been saved via [`Self::record_assembled_block`]
     /// first (debug assertion; release no-ops on an unsaved ancestor).
     async fn ingest_finalized(&self, cert: EngineCert, block_bytes: Vec<u8>) -> Result<()> {
-        let block = Block::decode(&mut &block_bytes[..])
-            .map_err(|e| anyhow!("decoding Block at finalize: {e}"))?;
+        let block = Block::decode(&mut &block_bytes[..]).context("decoding Block at finalize")?;
         let block_hash = block.hash();
         let height = cert.height.as_u64();
 

@@ -59,78 +59,14 @@ mod starter;
 mod tx_validity;
 mod types;
 
-use ethexe_common::injected::PurgedTransaction;
-use gprimitives::H256;
-
 pub use crate::{
     config::{MalachiteServiceConfig, ValidatorConfig, ValidatorEntry},
-    mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
+    mempool::{InjectedTxMempool, Mempool, TxInsertionStatus},
     service::MalachiteService,
     starter::MalachiteServiceStarter,
-    tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
+    tx_validity::{TxValidity, TxValidityChecker},
+    types::{CommitCertificate, MalachiteEvent},
 };
 pub use ethexe_malachite_core::{
     Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
 };
-
-/// Ethexe-shaped commit certificate.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct CommitCertificate {
-    /// Committed MB height.
-    pub height: u64,
-    /// Blake2b envelope hash of the committed MB.
-    pub mb_hash: H256,
-    /// Validator signatures backing the commit.
-    pub signatures: Vec<Vec<u8>>,
-}
-
-/// Output event stream of the Malachite service.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MalachiteEvent {
-    /// New sequencer block persisted; `mb_hash` is the Blake2b envelope hash.
-    BlockProposal { height: u64, mb_hash: H256 },
-
-    /// BFT-committed block; `globals.latest_finalized_mb_hash` now points at it.
-    BlockFinalized {
-        cert: CommitCertificate,
-        height: u64,
-        mb_hash: H256,
-    },
-
-    /// Transactions that were purged from the mempool.
-    PurgedTransactions {
-        eb_hash: H256,
-        transactions: Vec<PurgedTransaction>,
-    },
-}
-
-impl std::fmt::Display for MalachiteEvent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::BlockProposal { height, mb_hash } => {
-                write!(f, "BlockProposal(height: {height}, mb_hash: {mb_hash})")
-            }
-            Self::BlockFinalized {
-                cert,
-                height,
-                mb_hash,
-            } => write!(
-                f,
-                "BlockFinalized(height: {}, mb_hash: {}, sigs: {})",
-                height,
-                mb_hash,
-                cert.signatures.len()
-            ),
-            Self::PurgedTransactions {
-                eb_hash,
-                transactions,
-            } => {
-                write!(
-                    f,
-                    "PurgedTransactions(eb_hash: {eb_hash}, transactions_len: {})",
-                    transactions.len()
-                )
-            }
-        }
-    }
-}

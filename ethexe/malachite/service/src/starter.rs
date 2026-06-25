@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    MalachiteEvent, MalachiteService, MalachiteServiceConfig, Mempool,
+    MalachiteService, MalachiteServiceConfig, Mempool,
     config::ValidatorConfig,
     externalities::{EthexeExternalities, ExternalitiesConfig},
-    types::ChainHead,
+    types::{ChainHead, MalachiteEvent},
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
