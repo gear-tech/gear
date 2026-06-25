@@ -57,12 +57,12 @@ impl ReplyCodeFilter {
 /// [`ReplyCode`]. Malformed input returns `None`, which matches nothing.
 fn parse_hex_reply_code(code: &str) -> Option<ReplyCode> {
     let hex = code.strip_prefix("0x").unwrap_or(code);
-    if hex.len() != 8 {
+    if hex.len() != 8 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
         return None;
     }
     let mut bytes = [0u8; 4];
-    for (byte, chunk) in bytes.iter_mut().zip(hex.as_bytes().chunks(2)) {
-        *byte = u8::from_str_radix(std::str::from_utf8(chunk).ok()?, 16).ok()?;
+    for (i, byte) in bytes.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()?;
     }
     Some(ReplyCode::from_bytes(bytes))
 }
