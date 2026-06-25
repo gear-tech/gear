@@ -1,28 +1,11 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Per-injected-tx validity, adapted from the announce-era
-//! `ethexe-consensus/src/tx_validation.rs` to the Malachite Block (MB)
-//! world.
+//! Per-injected-tx validity checks for the Malachite Block (MB) world.
 //!
-//! Used on both producer and validator sides so a Malachite Block whose
+//! Used on both producer and validator sides so an MB whose
 //! `Operation::Injected(..)` payload would fail compute is rejected
 //! before it commits.
-//!
-//! Differences from master's announce-era checker:
-//!
-//! - The recent-included dedup walk traverses `mb_compact_block(..).parent`
-//!   and decodes each MB's `operations` blob (filtering for
-//!   [`Operation::Injected`]) instead of reading
-//!   `announce.injected_transactions` directly.
-//! - `latest_states` is taken from the most-recent **computed** MB
-//!   ancestor via `mb_program_states`, walking back through
-//!   `mb_compact_block(..).parent` if the parent itself hasn't been
-//!   computed yet.
-//! - The Ethereum branch walk in `is_reference_block_on_current_branch`
-//!   is unchanged — it still uses `block_header(..).parent_hash`
-//!   from the canonical Ethereum chain, fenced at
-//!   `globals.start_block_hash`.
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -39,20 +22,13 @@ use gprimitives::{ActorId, H256};
 use std::collections::HashSet;
 
 /// Minimum executable balance a destination program must have to receive
-/// an injected message. Mirrors master's value: cover the panic-charge
-/// floor twice over so a transient under-funding race doesn't keep
-/// re-admitting a tx that will burn at execute time.
-///
-/// 100 = value-per-gas.
+/// an injected message: twice the panic-charge floor, at 100 value-per-gas.
 pub const MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES: u128 =
     INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD as u128 * 100 * 2;
 
-/// Outcome of running [`TxValidityChecker::check_tx_validity`] against
-/// one injected transaction. The non-`Valid` variants distinguish
-/// "drop from pool" from "keep in pool, may become valid on reorg / on
-/// later state changes" — the producer's mempool uses this distinction
-/// to drive GC; the validator side just rejects the whole MB on any
-/// non-`Valid`.
+/// Outcome of [`TxValidityChecker::check_tx_validity`] for one injected
+/// transaction. The producer drops non-`Valid` txs from the MB;
+/// the validator rejects the whole MB on any non-`Valid`.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TxValidity {
     /// Transaction is valid and can be included in an MB.
@@ -75,34 +51,31 @@ pub enum TxValidity {
     InsufficientBalanceForInjectedMessages,
 }
 
-/// Stateful checker scoped to (`chain_head`, `parent_mb`). Cache the
-/// recent-included set and latest computed program states once at
-/// construction; each `check_tx_validity` call is then O(VALIDITY_WINDOW)
-/// for the branch walk plus a few O(1) DB lookups.
+/// Stateful checker scoped to (`chain_head`, `parent_mb`); caches the
+/// dedup set and the latest computed program states at construction.
 pub struct TxValidityChecker {
+    /// DB for header lookups and ancestry walks.
     db: Database,
+    /// Reference point for the validity-window and branch checks.
     chain_head: SimpleBlockData,
+    /// Local-history fence; ancestry walks stop here.
     start_block_hash: H256,
+    /// Hashes of txs included in recent MBs, for dedup.
     recent_included_txs: HashSet<HashOf<InjectedTransaction>>,
+    /// Program states snapshot of the latest computed MB ancestor.
     latest_states: ProgramStates,
 }
 
 impl TxValidityChecker {
-    /// Build a checker for an MB whose parent on the consensus chain is
-    /// `parent_mb_hash`. Genesis maps `parent_mb_hash == H256::zero()`; the
-    /// zero MB is seeded as a computed ancestor by `initialize_empty_db`
-    /// (empty for a fresh network, the dump state for re-genesis), so its
-    /// `program_states` is read like any other computed snapshot.
+    /// Build a checker for an MB whose consensus-chain parent is
+    /// `parent_mb_hash` (`H256::zero()` for genesis).
     pub fn new_for_mb(
         db: Database,
         chain_head: SimpleBlockData,
         parent_mb_hash: H256,
     ) -> Result<Self> {
-        // Walk back to the most recent MB whose `meta.computed` is set —
-        // that's the snapshot whose `program_states` we can trust. The
-        // walk is bounded by the chain depth; in practice the parent
-        // itself is already computed because compute runs ahead of MB
-        // proposal.
+        // Walk back to the most recent computed MB — that's the snapshot
+        // whose `program_states` we can trust.
         let mut cursor = parent_mb_hash;
         while !cursor.is_zero() && !db.mb_meta(cursor).computed {
             let cb = db.mb_compact_block(cursor).ok_or_else(|| {
@@ -111,8 +84,8 @@ impl TxValidityChecker {
             cursor = cb.parent;
         }
 
-        // `cursor` is either a computed MB or the zero ancestor; both carry a
-        // seeded `program_states` row (zero is seeded by `initialize_empty_db`).
+        // `cursor` is either a computed MB or the zero ancestor; both carry
+        // a seeded `program_states` row.
         let latest_states = db.mb_program_states(cursor).ok_or_else(|| {
             anyhow!("MB {cursor} marked computed but has no program_states row — DB invariant")
         })?;
@@ -205,18 +178,9 @@ impl TxValidityChecker {
         Ok(false)
     }
 
-    /// Walk back `VALIDITY_WINDOW` MBs through `mb_compact_block(..).parent`,
-    /// decoding each MB's operations blob and harvesting the hashes
-    /// of every [`Operation::Injected`] for the dedup set.
-    ///
-    /// NOTE: Not bound to an instance — exposed `pub` so that
-    /// `[`crate::EthexeExternalities`]` can build the dedup set
-    /// independently of constructing a full checker.
-    ///
-    /// A missing `mb_compact_block` / `operations` row on the walk is
-    /// treated like reaching the start of our locally-tracked history:
-    /// we stop walking instead of failing. This mirrors master's
-    /// pragmatic break-on-missing for fast-sync recovery.
+    /// Collect hashes of every [`Operation::Injected`] in the last
+    /// `VALIDITY_WINDOW` MBs, for the dedup set. A missing MB row on the
+    /// walk is treated as the start of locally-tracked history.
     pub fn collect_recent_included_txs(
         db: &Database,
         parent_mb: H256,
@@ -228,9 +192,7 @@ impl TxValidityChecker {
                 break;
             }
             let Some(cb) = db.mb_compact_block(mb_hash) else {
-                // Walk fell off our locally-tracked history; stop here
-                // and rely on the seen-hash table inside the mempool +
-                // the `Outdated` rule to keep things consistent.
+                // Walk fell off our locally-tracked history.
                 break;
             };
             let Some(operations) = db.operations(cb.operations_hash) else {
@@ -247,32 +209,12 @@ impl TxValidityChecker {
     }
 }
 
-/// Programs already "touched" by Ethereum events in the open-right
-/// range `(last_advanced_eb, advanced_eb]` along the canonical chain.
+/// Programs "touched" by Ethereum events in the range
+/// `(last_advanced_eb, advanced_eb]` along the canonical chain.
+/// Returns an empty set when there is no new EB to walk.
 ///
-/// Adapted from master's `block_touched_programs` which counted touched
-/// programs for one EB. In the MB world an MB may span multiple EBs
-/// via `AdvanceTillEthereumBlock`, so we walk every block in the range
-/// (parent-walk via `block_header.parent_hash`) and accumulate.
-///
-/// The set is seeded with the programs known at the latest computed
-/// MB; `ProgramCreatedEvent`s along the way extend it (those new
-/// actors aren't yet "touched", just known); `MirrorEvent`s on a known
-/// actor count as touched.
-///
-/// Returns an empty set when `advanced_eb == last_advanced_eb` (no
-/// new EB to walk) or when `advanced_eb` is `H256::zero()` (no advance
-/// in this MB).
-///
-/// # Best-effort approximation
-///
-/// This function is **not** a precise post-execution touched-set; it's
-/// an a-priori estimate of how many programs *will* be modified during
-/// the MB. Its sole job is to keep the per-MB touched-programs cap
-/// honest. False positives (an event that doesn't actually modify
-/// state) just make the cap stricter than necessary; false negatives
-/// are bounded by `MAX_TOUCHED_PROGRAMS_PER_MB` slack at the runtime
-/// layer. Do not rely on the returned set for anything beyond the cap.
+/// Best-effort a-priori estimate that only serves the per-MB
+/// touched-programs cap — do not rely on it for anything else.
 pub fn eb_touched_programs(
     db: &Database,
     last_advanced_eb: H256,
@@ -282,9 +224,7 @@ pub fn eb_touched_programs(
         return Ok(HashSet::new());
     }
 
-    // `latest_computed_mb_hash` is the zero ancestor at genesis, which
-    // `initialize_empty_db` seeds with the genesis / re-genesis program states
-    // (so under re-genesis it already lists the dump's programs as known).
+    // Seed the known set with the programs of the latest computed MB.
     let latest_computed_mb = db.globals().latest_computed_mb_hash;
     let mut known: HashSet<ActorId> = db
         .mb_program_states(latest_computed_mb)
@@ -298,16 +238,9 @@ pub fn eb_touched_programs(
         .collect();
 
     // Collect blocks in (last_advanced_eb, advanced_eb], newest-first.
-    //
-    // The walk is intentionally unbounded: `advanced_eb` has already
-    // passed `canonical_quarantine` (verified upstream of every caller),
-    // and `last_advanced_eb` is the parent MB's already-quarantine-passed
-    // anchor — so both points are weak-finalised on the canonical chain.
-    // Under any non-catastrophic reorg they share the same branch and
-    // the walk terminates at `last_advanced_eb` within a few EBs.
-    // The only divergent case is a chain reorg deeper than the
-    // quarantine — at that point the network has bigger problems and
-    // bailing at `start_block_hash` is the safe fallback.
+    // Both endpoints already passed quarantine, so the walk terminates
+    // at `last_advanced_eb` within a few EBs; the start-block fence is
+    // the safe fallback under a deeper-than-quarantine reorg.
     let mut chain = Vec::new();
     let start_block_hash = db.globals().start_block_hash;
     let mut current = advanced_eb;
@@ -317,9 +250,7 @@ pub fn eb_touched_programs(
         }
         chain.push(current);
         if current == start_block_hash {
-            // Walked back to the local start-block fence — older
-            // history isn't tracked. Master treats this as an error
-            // for `accept_announce`; we replicate by bailing.
+            // Local start-block fence — older history isn't tracked.
             break;
         }
         let header = db.block_header(current).ok_or_else(|| {
@@ -328,9 +259,8 @@ pub fn eb_touched_programs(
         current = header.parent_hash;
     }
 
-    // Process oldest-first so a `ProgramCreatedEvent` populates `known`
-    // before any `MirrorEvent` in a later block that references that
-    // actor. Out-of-order would silently undercount touched programs.
+    // Process oldest-first so `ProgramCreatedEvent` populates `known`
+    // before later `MirrorEvent`s referencing that actor.
     chain.reverse();
 
     let mut touched = HashSet::new();
