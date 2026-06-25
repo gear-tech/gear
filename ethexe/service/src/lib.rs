@@ -464,14 +464,7 @@ impl Service {
                     network_signer.import(network_private_key)?;
                     network_signer
                 }
-                TransportType::Default => Signer::fs(
-                    config
-                        .node
-                        .key_path
-                        .parent()
-                        .context("key_path has no parent directory")?
-                        .join("net"),
-                )?,
+                TransportType::Default => Signer::fs(config.node.net_path.clone())?,
             };
 
             let runtime_config = NetworkRuntimeConfig {

@@ -161,6 +161,7 @@ impl NodeParams {
         Ok(NodeConfig {
             database_path: self.db_dir(),
             key_path: self.keys_dir(),
+            net_path: self.net_dir(),
             validator: ConfigPublicKey::new(&self.validator)
                 .with_context(|| "invalid `validator` key")?,
             validator_session: ConfigPublicKey::new(&self.validator_session)

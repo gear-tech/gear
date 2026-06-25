@@ -74,6 +74,11 @@ impl Config {
 pub struct NodeConfig {
     pub database_path: PathBuf,
     pub key_path: PathBuf,
+    /// Directory holding the libp2p network identity (the `net/` key store).
+    /// Resolved once from the node base dir (same source the CLI network params
+    /// use); the network service reads its signer from here instead of
+    /// re-deriving the path.
+    pub net_path: PathBuf,
     pub validator: ConfigPublicKey,
     pub validator_session: ConfigPublicKey,
     pub eth_max_sync_depth: u32,
