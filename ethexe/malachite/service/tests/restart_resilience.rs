@@ -16,7 +16,7 @@
 //!    `globals.latest_finalized_mb_hash` is gap-free across the
 //!    restart boundary, and the latest pointer never rewinds.
 
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{path::Path, time::Duration};
 
 use async_trait::async_trait;
 use ethexe_common::{
@@ -26,7 +26,8 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
-    MalachiteConfig, MalachiteEvent, MalachiteService, Mempool, TxInsertionStatus, ValidatorEntry,
+    MalachiteEvent, MalachiteService, MalachiteServiceConfig, MalachiteServiceStarter, Mempool,
+    TxInsertionStatus, ValidatorConfig, ValidatorEntry,
 };
 use futures::StreamExt as _;
 use gprimitives::H256;
@@ -40,11 +41,11 @@ struct EmptyMempool;
 
 #[async_trait]
 impl Mempool for EmptyMempool {
-    fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
+    async fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
         TxInsertionStatus::Inserted
     }
 
-    fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
+    async fn set_chain_head(&self, _head: SimpleBlockData) -> Vec<PurgedTransaction> {
         Vec::new()
     }
 
@@ -114,7 +115,7 @@ fn build_signer(home: &Path) -> (Signer<Secp256k1>, gsigner::schemes::secp256k1:
     (signer, pub_key)
 }
 
-/// Build the MalachiteConfig used by the resilience tests:
+/// Build the MalachiteServiceConfig used by the resilience tests:
 /// quarantine-off (so the producer can advance immediately on each
 /// new chain head), default listen address, no persistent peers,
 /// single-validator set so the local node can decide on its own.
@@ -122,9 +123,9 @@ fn build_config(
     home: &Path,
     listen_port: u16,
     pub_key: gsigner::schemes::secp256k1::PublicKey,
-) -> MalachiteConfig {
-    MalachiteConfig {
-        gas_allowance: MalachiteConfig::DEFAULT_GAS_ALLOWANCE,
+) -> MalachiteServiceConfig {
+    MalachiteServiceConfig {
+        gas_allowance: MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE,
         canonical_quarantine: 0,
         post_quarantine_delay: 0,
         listen_addr: std::net::SocketAddr::new(
@@ -137,7 +138,16 @@ fn build_config(
             public_key: pub_key,
             voting_power: 1,
         }],
+        propose_timeout: Duration::from_secs(5),
     }
+}
+
+/// Feed one chain head into the service: register it as the new head
+/// and immediately mark it synced (the test seeds all headers/events
+/// upfront, so "observed" and "synced" coincide here).
+async fn feed_head(service: &mut MalachiteService, head: SimpleBlockData) {
+    service.receive_new_eb(head).await;
+    service.receive_eb_synced(head.hash).await;
 }
 
 /// Drain the service stream until at least `target` finalize events
@@ -162,7 +172,7 @@ async fn collect_until_finalized(
     // Push the first head right away so the producer can build the
     // genesis MB.
     if let Some(head) = pending_heads.next() {
-        service.receive_new_chain_head(head);
+        feed_head(service, head).await;
     }
     while tokio::time::Instant::now() < deadline {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -179,7 +189,7 @@ async fn collect_until_finalized(
                 // next round, so its quarantine-advance candidate
                 // moves forward.
                 if let Some(head) = pending_heads.next() {
-                    service.receive_new_chain_head(head);
+                    feed_head(service, head).await;
                 }
             }
             Ok(Some(Ok(MalachiteEvent::BlockProposal { .. }))) => {
@@ -213,13 +223,18 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     let (signer, pub_key) = build_signer(home.path());
 
     // ---- first run -------------------------------------------------
-    let mut svc = MalachiteService::new(
+    let mut svc = MalachiteServiceStarter::new(
         build_config(home.path(), 30_001, pub_key),
+        Some(ValidatorConfig {
+            pub_key,
+            mempool: EmptyMempool,
+            signer: signer.clone(),
+        }),
         db.clone(),
-        signer.clone(),
-        Some(pub_key),
-        Arc::new(EmptyMempool),
+        chain[0],
     )
+    .expect("create malachite service starter")
+    .start()
     .await
     .expect("start malachite service");
 
@@ -247,7 +262,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     // ---- shutdown --------------------------------------------------
     // `shutdown().await` waits for the engine actor + RocksDB store
     // to drop synchronously — `drop(svc)` alone is fire-and-forget
-    // and would race the second `MalachiteService::new` against the
+    // and would race the restarted service against the
     // RocksDB advisory lock.
     svc.shutdown().await;
     // libp2p TCP listener still takes a moment past the actor kill
@@ -255,13 +270,18 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // ---- second run on the SAME home dir + DB ----------------------
-    let mut svc2 = MalachiteService::new(
+    let mut svc2 = MalachiteServiceStarter::new(
         build_config(home.path(), 30_001, pub_key),
+        Some(ValidatorConfig {
+            pub_key,
+            mempool: EmptyMempool,
+            signer,
+        }),
         db.clone(),
-        signer,
-        Some(pub_key),
-        Arc::new(EmptyMempool),
+        chain[31],
     )
+    .expect("create malachite service starter after restart")
+    .start()
     .await
     .expect("restart malachite service");
     let mut pending2 = chain[32..].iter().copied();

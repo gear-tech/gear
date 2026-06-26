@@ -69,15 +69,25 @@ impl SharedValidatorSet {
     }
 }
 
+/// Volatile bookkeeping of the app event loop.
 pub(crate) struct State {
+    /// Consensus signer of the local node.
     pub signer: MalachiteSigner,
+    /// Active validator set handle.
     pub validator_set: SharedValidatorSet,
+    /// Local node's address.
     pub address: Address,
+    /// Persistent block store.
     pub store: Store,
+    /// Per-peer proposal-part stream reassembly.
     streams_map: PartStreamsMap,
+    /// Height the engine is currently working on.
     pub current_height: Height,
+    /// Round within the current height.
     pub current_round: Round,
+    /// Proposer of the current round, once known.
     pub current_proposer: Option<Address>,
+    /// Deadline for `build_block_above`.
     pub propose_timeout: Duration,
 }
 
@@ -111,7 +121,7 @@ impl State {
     }
 
     /// Round timeouts. Propose phase is bounded by the configured
-    /// [`crate::MalachiteConfig::propose_timeout`] plus a small margin
+    /// [`crate::MalachiteCoreConfig::propose_timeout`] plus a small margin
     /// for non-proposers; everything else (including the per-round
     /// `propose_delta`) stays at the engine defaults.
     pub fn get_timeouts(&self, _height: Height) -> LinearTimeouts {
@@ -134,13 +144,8 @@ impl State {
         self.streams_map.insert(from, part)
     }
 
-    /// Re-assemble a [`ProposedValue`] from a completed
-    /// [`ProposalParts`] sequence. The single `Data` part carries
-    /// the SCALE-encoded block bytes; `Init` supplies the (height,
-    /// round, proposer) header. Validation is the caller's
-    /// responsibility — application-level checks happen via
-    /// [`crate::Externalities::validate_block_above`] and the
-    /// `ProposalFin` signature check (when wired in).
+    /// Re-assemble a [`ProposedValue`] from a completed [`ProposalParts`]
+    /// sequence. Validation is the caller's responsibility.
     pub fn assemble_value_from_parts(parts: ProposalParts) -> Result<ProposedValue<MalachiteCtx>> {
         let init = parts.init().ok_or_else(|| anyhow!("missing Init part"))?;
         let block_bytes = parts
@@ -163,9 +168,8 @@ impl State {
 
     // ----------------------- propose-side helpers ---------------------
 
-    /// Wrap a freshly-built block payload into a
-    /// [`LocallyProposedValue`] for the engine. The block is
-    /// SCALE-encoded once here and stays in that form on the wire.
+    /// Wrap a freshly-built block payload into a [`LocallyProposedValue`]
+    /// for the engine and persist it as an undecided proposal.
     pub fn build_locally_proposed_value(
         &mut self,
         height: Height,
@@ -192,10 +196,8 @@ impl State {
         ))
     }
 
-    /// Reuse a prior locally-built value if the engine re-asks
-    /// `GetValue` for the same `(height, round)`. Avoids wasted
-    /// block-build work and prevents non-determinism (proposer might
-    /// otherwise build different content the second time).
+    /// Reuse a prior locally-built value when the engine re-asks `GetValue`
+    /// for the same `(height, round)` — avoids rebuild non-determinism.
     pub fn get_previously_built_value(
         &self,
         height: Height,
@@ -235,14 +237,9 @@ impl State {
         })
     }
 
-    /// Commit a finalized value: pull the matching undecided proposal
-    /// out of the engine store, persist the decided value + cert, and
-    /// advance to the next height.
-    ///
-    /// Returns the committed block bytes (SCALE-encoded
-    /// [`crate::Block`]) so the caller (`app.rs`) can decode it,
-    /// compute the [`crate::H256`] block hash, and insert into the
-    /// [`crate::store::BlockEntry`] layer.
+    /// Commit a finalized value: persist the decided value + cert and
+    /// advance to the next height. Returns the committed block bytes
+    /// (SCALE-encoded [`crate::Block`]).
     pub fn commit(
         &mut self,
         certificate: CommitCertificate<MalachiteCtx>,
