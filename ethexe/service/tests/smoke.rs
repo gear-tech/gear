@@ -31,6 +31,7 @@ async fn constructor() {
     let node_cfg = config::NodeConfig {
         database_path: tmp_dir.join("db"),
         key_path,
+        net_path: tmp_dir.join("net"),
         validator: Default::default(),
         validator_session: Default::default(),
         eth_max_sync_depth: 1_000,
