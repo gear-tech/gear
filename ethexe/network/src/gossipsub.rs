@@ -5,7 +5,7 @@ pub(crate) use libp2p::gossipsub::*;
 
 use crate::{
     db_sync::{Multiaddr, PeerId},
-    peer_score,
+    malachite, peer_score,
 };
 use anyhow::anyhow;
 use bytes::Bytes;
@@ -130,21 +130,21 @@ pub(crate) struct Behaviour {
 
 impl Behaviour {
     pub fn new(
+        malachite_config: &malachite::Config,
         keypair: Keypair,
         peer_score: peer_score::Handle,
         router_address: Address,
-        malachite_config: &malachitebft_network::Config,
         registry: &mut libp2p::metrics::Registry,
         metrics: Arc<libp2p::metrics::Metrics>,
     ) -> anyhow::Result<Self> {
         let commitments_topic = Self::topic_with_router("commitments", router_address);
         let tx_receipts_topic = Self::topic_with_router("receipts", router_address);
         let malachite_consensus_topic =
-            Self::malachite_topic_with_router("consensus", router_address);
+            Self::topic_with_router("malachite-consensus", router_address);
         let malachite_liveness_topic =
-            Self::malachite_topic_with_router("liveness", router_address);
+            Self::topic_with_router("malachite-liveness", router_address);
         let malachite_proposal_parts_topic =
-            Self::malachite_topic_with_router("proposal-parts", router_address);
+            Self::topic_with_router("malachite-proposal-parts", router_address);
 
         let inner = Self::build_config(
             malachite_config,
@@ -160,14 +160,12 @@ impl Behaviour {
                 registry.sub_registry_with_prefix("libp2p_gossipsub"),
                 MetricsConfig::default(),
             );
-        if malachite_config.gossipsub.enable_peer_scoring {
-            inner
-                .with_peer_score(
-                    malachitebft_network::peer_scoring::peer_score_params(),
-                    malachitebft_network::peer_scoring::peer_score_thresholds(),
-                )
-                .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
-        }
+        inner
+            .with_peer_score(
+                malachitebft_network::peer_scoring::peer_score_params(),
+                malachitebft_network::peer_scoring::peer_score_thresholds(),
+            )
+            .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
 
         inner.subscribe(&commitments_topic)?;
         inner.subscribe(&tx_receipts_topic)?;
@@ -192,18 +190,25 @@ impl Behaviour {
         IdentTopic::new(format!("{name}-{router_address}"))
     }
 
-    fn malachite_topic_with_router(name: &'static str, router_address: Address) -> IdentTopic {
-        IdentTopic::new(format!("malachite-{name}-{router_address}"))
-    }
-
     fn build_config(
-        config: &malachitebft_network::Config,
+        malachite_config: &malachite::Config,
         malachite_topics: [TopicHash; 3],
     ) -> anyhow::Result<Config> {
         // These settings mirror malachitebft-network's private gossipsub builder.
+
+        let malachitebft_network::GossipSubConfig {
+            mesh_n,
+            mesh_n_high,
+            mesh_n_low,
+            mesh_outbound_min,
+            enable_peer_scoring: _,     // always enabled
+            enable_explicit_peering: _, // TODO: use
+            enable_flood_publish,
+        } = malachitebft_network::GossipSubConfig::default();
+
         ConfigBuilder::default()
             .protocol_id_prefix("/ethexe/gossipsub/1.0.0")
-            .max_transmit_size(config.pubsub_max_size)
+            .max_transmit_size(malachite_config.pubsub_max_size as usize)
             .opportunistic_graft_ticks(
                 malachitebft_network::peer_scoring::OPPORTUNISTIC_GRAFT_TICKS,
             )
@@ -215,14 +220,14 @@ impl Behaviour {
             .validate_messages()
             .history_gossip(3)
             .history_length(5)
-            .mesh_n_high(config.gossipsub.mesh_n_high)
-            .mesh_n_low(config.gossipsub.mesh_n_low)
-            .mesh_outbound_min(config.gossipsub.mesh_outbound_min)
-            .mesh_n(config.gossipsub.mesh_n)
-            .flood_publish(config.gossipsub.enable_flood_publish)
+            .mesh_n_high(mesh_n_high)
+            .mesh_n_low(mesh_n_low)
+            .mesh_outbound_min(mesh_outbound_min)
+            .mesh_n(mesh_n)
+            .flood_publish(enable_flood_publish)
             .message_id_fn(move |message| {
                 let mut hasher = SeaHasher::new();
-                if malachite_topics.iter().any(|topic| topic == &message.topic) {
+                if malachite_topics.contains(&message.topic) {
                     message.hash(&mut hasher);
                 } else {
                     message.topic.hash(&mut hasher);
@@ -479,10 +484,10 @@ mod tests {
         let metrics = Arc::new(libp2p::metrics::Metrics::new(&mut registry));
 
         Behaviour::new(
+            &Default::default(),
             Keypair::generate_ed25519(),
             peer_score::Handle::new_test(),
             router_address,
-            &crate::NetworkService::default_malachite_config(),
             &mut registry,
             metrics,
         )
@@ -527,7 +532,7 @@ mod tests {
     fn message_ids_keep_ethexe_payload_dedup_but_allow_malachite_restreams() {
         let behaviour = test_behaviour(Address::from([7u8; 20]));
         let config = Behaviour::build_config(
-            &crate::NetworkService::default_malachite_config(),
+            &Default::default(),
             [
                 behaviour.malachite_consensus_topic.hash(),
                 behaviour.malachite_liveness_topic.hash(),

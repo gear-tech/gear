@@ -91,10 +91,7 @@ async fn constructor() {
         node: node_cfg,
         ethereum: eth_cfg,
         network: ethexe_network::NetworkConfig::new_local(network_key, router_address),
-        malachite: config::MalachiteCliConfig {
-            validator_pub_keys,
-            ..Default::default()
-        },
+        malachite: config::MalachiteCliConfig { validator_pub_keys },
         rpc: None,
         prometheus: None,
     };

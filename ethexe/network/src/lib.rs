@@ -284,11 +284,9 @@ impl NetworkService {
 
         let transport = Self::create_transport(&keypair, transport_type, &mut registry)?;
 
-        let malachite_config = Self::default_malachite_config();
         let behaviour_config = BehaviourConfig {
             router_address,
             keypair: keypair.clone(),
-            malachite_config: &malachite_config,
             external_data_provider,
             db: DbSyncDatabase::clone_boxed(&db),
             transport_type,
@@ -993,28 +991,6 @@ impl NetworkService {
         &self.malachite_state.persistent_peers
     }
 
-    fn default_malachite_config() -> malachitebft_network::Config {
-        const DEFAULT_MALACHITE_RPC_MAX_SIZE: usize = 10 * 1024 * 1024;
-        const DEFAULT_MALACHITE_PUBSUB_MAX_SIZE: usize = 10 * 1024 * 1024;
-
-        malachitebft_network::Config {
-            listen_addr: Multiaddr::empty(),
-            persistent_peers: Vec::new(),
-            persistent_peers_only: false,
-            discovery: malachitebft_network::DiscoveryConfig::new(false),
-            idle_connection_timeout: Duration::from_secs(5),
-            transport: malachitebft_network::TransportProtocol::Tcp,
-            gossipsub: malachitebft_network::GossipSubConfig::default(),
-            pubsub_protocol: malachitebft_network::PubSubProtocol::GossipSub,
-            channel_names: malachitebft_network::ChannelNames::default(),
-            rpc_max_size: DEFAULT_MALACHITE_RPC_MAX_SIZE,
-            pubsub_max_size: DEFAULT_MALACHITE_PUBSUB_MAX_SIZE,
-            enable_consensus: true,
-            enable_sync: true,
-            protocol_names: malachitebft_network::ProtocolNames::default(),
-        }
-    }
-
     /// Refresh validator-era state after the chain head changes.
     ///
     /// This updates both validator-message verification and validator
@@ -1079,7 +1055,6 @@ impl NetworkService {
 struct BehaviourConfig<'a> {
     router_address: Address,
     keypair: identity::Keypair,
-    malachite_config: &'a malachitebft_network::Config,
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     db: Box<dyn DbSyncDatabase>,
     transport_type: TransportType,
@@ -1126,7 +1101,6 @@ impl Behaviour {
         let BehaviourConfig {
             router_address,
             keypair,
-            malachite_config,
             external_data_provider,
             db,
             transport_type,
@@ -1138,6 +1112,8 @@ impl Behaviour {
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
+
+        let malachite_config = malachite::Config::default();
 
         let connection_limits = connection_limits::ConnectionLimits::default()
             .with_max_established_per_peer(Some(MAX_ESTABLISHED_PER_PEER_CONNECTIONS))
@@ -1176,10 +1152,10 @@ impl Behaviour {
         let kad_handle = kad.handle();
 
         let gossipsub = gossipsub::Behaviour::new(
+            &malachite_config,
             keypair.clone(),
             peer_score_handle.clone(),
             router_address,
-            malachite_config,
             registry,
             metrics.clone(),
         )
@@ -1194,7 +1170,7 @@ impl Behaviour {
 
         let injected = injected::Behaviour::new();
 
-        let malachite = malachite::behaviour::Behaviour::new(malachite_config, registry)
+        let malachite = malachite::behaviour::Behaviour::new(&malachite_config, registry)
             .context("failed to create malachite lane behaviour")?;
 
         let validator_discovery = validator::discovery::Config {

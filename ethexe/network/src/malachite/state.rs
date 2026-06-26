@@ -1,13 +1,11 @@
-use std::collections::{HashMap, HashSet};
-
+use super::adapter::LaneCommand;
 use libp2p::{Multiaddr, PeerId, request_response};
 use malachitebft_network::{
     LocalNodeInfo, NetworkStateDump, PersistentPeerError, PersistentPeersOp, ValidatorInfo,
 };
 use malachitebft_sync::{OutboundRequestId, ResponseChannel};
+use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc;
-
-use super::adapter::LaneCommand;
 
 pub(crate) struct State {
     pub lane_rx: mpsc::Receiver<LaneCommand>,
