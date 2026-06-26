@@ -38,8 +38,9 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
-    ValidatorEntry, derive_libp2p_secret, malachite_libp2p_peer_id,
+    InjectedTxMempool, MalachiteServiceConfig, MalachiteServiceStarter,
+    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
+    malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
@@ -1035,7 +1036,7 @@ pub struct Node {
     /// Snapshot of `env.validators` at `new_node` time — drives the
     /// boot-time filter on `malachite_endpoints` in `start_service`.
     active_validator_pub_keys: Vec<PublicKey>,
-    /// Port reservation; dropped just before the first `MalachiteService::new`.
+    /// Port reservation; dropped just before the first malachite service start.
     malachite_listener: Option<TcpListener>,
 
     running_service_handle: Option<JoinHandle<()>>,
@@ -1188,25 +1189,35 @@ impl Node {
                 .path()
                 .to_path_buf();
 
-            let mut mc = MalachiteConfig::from_home_dir(home_path)
+            let mut mc = MalachiteServiceConfig::from_home_dir(home_path)
                 .with_listen_addr(listen_addr)
                 .with_persistent_peers(persistent_peers)
                 .with_validators(validators);
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
-            let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
+            // Tests drive content in bursts; a short propose timeout keeps
+            // idle rounds cheap instead of burning a 24s slot each.
+            mc.propose_timeout = Duration::from_secs(3);
+
+            let malachite_validator_config =
+                self.validator_config
+                    .as_ref()
+                    .map(|c| ethexe_malachite::ValidatorConfig {
+                        pub_key: c.public_key,
+                        mempool: InjectedTxMempool::new(self.db.clone()),
+                        signer: self.signer.clone(),
+                    });
+
             // Release the port-reservation listener moments before libp2p rebinds.
             drop(self.malachite_listener.take());
-            let svc = MalachiteService::new(
+
+            MalachiteServiceStarter::new(
                 mc,
+                malachite_validator_config,
                 self.db.clone(),
-                self.signer.clone(),
-                self.validator_config.as_ref().map(|c| c.public_key),
-                mempool,
+                latest_block,
             )
-            .await
-            .expect("MalachiteService::new");
-            Some(svc)
+            .expect("MalachiteServiceStarter::new")
         };
 
         let (sender, receiver) = events::channel(self.db.clone(), self.kicking_per_blocks.clone());
