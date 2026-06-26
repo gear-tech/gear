@@ -220,7 +220,7 @@ where
 
     let context = context
         .charge_for_program(&block_config)
-        .map_err(|_| "core_processor::precharge_for_program failed")?;
+        .map_err(|_| "gear_core_processor::precharge_for_program failed")?;
 
     let active = match ProgramStorageOf::<T>::get_program(actor_id) {
         Some(Program::Active(active)) => active,
@@ -231,7 +231,7 @@ where
 
     let context = context
         .charge_for_code_metadata(&block_config)
-        .map_err(|_| "core_processor::precharge_for_code_metadata failed")?;
+        .map_err(|_| "gear_core_processor::precharge_for_code_metadata failed")?;
 
     let code_metadata =
         T::CodeStorage::get_code_metadata(active.code_id).ok_or("Code metadata not found")?;
@@ -243,14 +243,14 @@ where
                 .instrumented_code_len()
                 .ok_or("Failed to get instrumented code length")?,
         )
-        .map_err(|_| "core_processor::precharge_for_instrumented_code failed")?;
+        .map_err(|_| "gear_core_processor::precharge_for_instrumented_code failed")?;
 
     let code =
         T::CodeStorage::get_instrumented_code(active.code_id).ok_or("Program code not found")?;
 
     let context = context
         .charge_for_allocations(&block_config, active.allocations_tree_len)
-        .map_err(|_| "core_processor::precharge_for_allocations failed")?;
+        .map_err(|_| "gear_core_processor::precharge_for_allocations failed")?;
 
     let allocations = ProgramStorageOf::<T>::allocations(actor_id).unwrap_or_default();
 
@@ -267,7 +267,7 @@ where
             code.instantiated_section_sizes(),
             &code_metadata,
         )
-        .map_err(|_| "core_processor::precharge_for_module_instantiation failed")?;
+        .map_err(|_| "gear_core_processor::precharge_for_module_instantiation failed")?;
 
     let process_exec_context = ProcessExecutionContext::new(
         context,
