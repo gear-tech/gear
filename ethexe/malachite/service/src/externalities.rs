@@ -970,27 +970,21 @@ impl EthexeExternalities {
                 );
                 continue;
             };
-            if !message_share.share.verify(
-                &participant_context.blinded_key_share.blinded_key_share,
-                &participant_context.validator_public_key.encryption_key,
-                &transaction.ciphertext,
-            ) {
-                debug!(
-                    %sender,
-                    mb_hash = %data.mb_hash,
-                    tx_hash = %message_share.tx_hash.inner(),
-                    "ignoring invalid decryption share",
-                );
-                continue;
-            }
-
             match self.decryption_shares.insert(
                 data.mb_hash,
                 message_share.tx_hash,
                 sender,
+                participant_context,
+                transaction,
                 message_share.share.clone(),
             ) {
                 InsertOutcome::Inserted | InsertOutcome::Duplicate => {}
+                InsertOutcome::InvalidShare => debug!(
+                    %sender,
+                    mb_hash = %data.mb_hash,
+                    tx_hash = %message_share.tx_hash.inner(),
+                    "ignoring invalid decryption share",
+                ),
                 InsertOutcome::Equivocation => warn!(
                     %sender,
                     mb_hash = %data.mb_hash,
@@ -1023,9 +1017,14 @@ impl EthexeExternalities {
                 continue;
             };
             let tx_hash = tx.to_hash();
-            let outcome =
-                self.decryption_shares
-                    .insert(mb_hash, tx_hash, my_address, share.clone());
+            let outcome = self.decryption_shares.insert(
+                mb_hash,
+                tx_hash,
+                my_address,
+                tdec_ctx,
+                tx,
+                share.clone(),
+            );
             debug_assert!(matches!(
                 outcome,
                 InsertOutcome::Inserted | InsertOutcome::Duplicate
