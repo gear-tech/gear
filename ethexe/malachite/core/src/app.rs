@@ -30,7 +30,9 @@
 
 use crate::{
     codec::{decode_value, encode_value},
-    context::{Height, MalachiteCtx, ProposalPart, Validator, ValidatorSet, ValueId},
+    context::{
+        EQUAL_VOTING_POWER, Height, MalachiteCtx, ProposalPart, Validator, ValidatorSet, ValueId,
+    },
     externalities::Externalities,
     signing::public_key_from_gsigner,
     state::State,
@@ -38,7 +40,7 @@ use crate::{
     streaming::ProposalParts,
     types::{Address, Block, CommitCertificate, H256},
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, ensure};
 use bytes::Bytes;
 use ethexe_common::Acceptance;
 use malachitebft_app_channel::{
@@ -131,8 +133,15 @@ where
         match msg {
             // ConsensusReady
             AppMsg::ConsensusReady { reply } => {
+                let start_height = self.state.current_height;
+                info!(%start_height, "Consensus ready");
+                let params = HeightParams::new(
+                    self.validator_set_for_height(start_height)?,
+                    self.state.get_timeouts(start_height),
+                    None,
+                );
                 reply
-                    .send(self.process_consensus_ready())
+                    .send((start_height, params))
                     .map_err(|e| anyhow!("failed to send ConsensusReady reply: {e:?}"))?;
             }
 
@@ -246,32 +255,26 @@ where
                     evidence = ?evidence,
                     "Finalized"
                 );
-                let next = match self.process_finalized(certificate).await {
-                    Ok(()) => {
-                        let h = self.state.current_height;
-                        Next::Start(
-                            h,
-                            HeightParams::new(
-                                self.validator_set_for_height(h),
-                                self.state.get_timeouts(h),
-                                None,
-                            ),
-                        )
-                    }
-                    Err(FinalizationError::NonFatal(e)) => {
-                        let h = self.state.current_height;
-                        error!(?e, height = %h, "Finalized: commit failed — restarting height");
-                        Next::Restart(
-                            h,
-                            HeightParams::new(
-                                self.validator_set_for_height(h),
-                                self.state.get_timeouts(h),
-                                None,
-                            ),
-                        )
-                    }
+
+                let res = match self.process_finalized(certificate).await {
+                    Ok(()) => Ok(()),
+                    Err(FinalizationError::NonFatal(e)) => Err(e),
                     Err(FinalizationError::Fatal(e)) => {
-                        return Err(anyhow!("Fatal error during finalization: {e:?}"));
+                        Err(anyhow!("Fatal error during finalization: {e:?}"))?
+                    }
+                };
+
+                let h = self.state.current_height;
+                let validators_set = self.validator_set_for_height(h).with_context(|| {
+                    format!("FATAL: failed to resolve validator set for height {h}")
+                })?;
+                let params = HeightParams::new(validators_set, self.state.get_timeouts(h), None);
+
+                let next = match res {
+                    Ok(()) => Next::Start(h, params),
+                    Err(err) => {
+                        error!(%err, height = %h, "Finalized: commit failed — restarting height");
+                        Next::Restart(h, params)
                     }
                 };
                 reply
@@ -337,69 +340,32 @@ where
 
     // --------------------------- processors ---------------------------
 
-    /// Infallible: the start height was resolved at [`State::new`]
-    /// and lives in `self.state.current_height`. Nothing here touches
-    /// the store, so this can never fail at message-handling time.
-    /// Validator set governing `height`, resolved from the era its parent MB
-    /// advanced into (the `AdvanceTillEthereumBlock` rule). This makes
-    /// certificate verification era-correct on the sync path — a node replaying
-    /// historical heights checks each against that height's era set, not the
-    /// live shared set. Falls back to the live shared set if the era data isn't
-    /// resolvable yet (logged), so a transient gap can't wedge the engine.
-    fn validator_set_for_height(&self, height: Height) -> ValidatorSet {
-        match self.try_validator_set_for_height(height) {
-            Ok(set) => set,
-            Err(e) => {
-                warn!(
-                    %height,
-                    error = ?e,
-                    "validator_set_for_height: era resolver failed, falling back to live shared set",
-                );
-                self.state.get_validator_set(height)
-            }
-        }
-    }
-
-    fn try_validator_set_for_height(&self, height: Height) -> Result<ValidatorSet> {
-        // height h is governed by the era its parent MB (h-1) advanced into;
-        // `H256::zero()` (genesis parent) resolves to era 0.
+    fn validator_set_for_height(&self, height: Height) -> Result<ValidatorSet> {
         let parent_mb_hash = if height.as_u64() <= 1 {
+            // The parent of the genesis MB is the zero hash.
             H256::zero()
         } else {
+            let parent_height = height.as_u64() - 1;
             self.state
                 .store
-                .finalized_block_at(height.as_u64() - 1)?
-                .ok_or_else(|| {
-                    anyhow!(
-                        "no finalized MB at height {} to resolve validators",
-                        height.as_u64() - 1,
-                    )
-                })?
+                .finalized_block_at(parent_height)?
+                .with_context(|| format!("no finalized MB at height {parent_height}"))?
         };
 
-        let entries = self.externalities.validators_for_child_of(parent_mb_hash)?;
-        if entries.is_empty() {
-            anyhow::bail!("empty validator set resolved for height {height}");
-        }
+        let public_keys = self.externalities.validators_for_child_of(parent_mb_hash)?;
 
-        let mut validators = Vec::with_capacity(entries.len());
-        for entry in &entries {
-            let pk = public_key_from_gsigner(&entry.public_key)
+        ensure!(
+            !public_keys.is_empty(),
+            "empty validator set resolved for height {height}"
+        );
+
+        let mut validators = Vec::with_capacity(public_keys.len());
+        for public_key in &public_keys {
+            let pk = public_key_from_gsigner(public_key)
                 .context("converting gsigner pub key to malachite key")?;
-            validators.push(Validator::new(pk, entry.voting_power));
+            validators.push(Validator::new(pk, EQUAL_VOTING_POWER));
         }
         Ok(ValidatorSet::new(validators))
-    }
-
-    fn process_consensus_ready(&self) -> (Height, HeightParams<MalachiteCtx>) {
-        let start_height = self.state.current_height;
-        info!(%start_height, "Consensus ready");
-        let params = HeightParams::new(
-            self.validator_set_for_height(start_height),
-            self.state.get_timeouts(start_height),
-            None,
-        );
-        (start_height, params)
     }
 
     async fn process_started_round(
@@ -858,7 +824,10 @@ mod tests {
         ) -> Result<Acceptance<(), String>> {
             Ok(Acceptance::Accepted(()))
         }
-        fn validators_for_child_of(&self, _: H256) -> Result<Vec<crate::config::ValidatorEntry>> {
+        fn validators_for_child_of(
+            &self,
+            _: H256,
+        ) -> Result<Vec<crate::config::ValidatorPublicKey>> {
             Err(anyhow!("test mock does not resolve era validators"))
         }
     }
@@ -1048,7 +1017,10 @@ mod tests {
         ) -> Result<Acceptance<(), String>> {
             Ok(Acceptance::Accepted(()))
         }
-        fn validators_for_child_of(&self, _: H256) -> Result<Vec<crate::config::ValidatorEntry>> {
+        fn validators_for_child_of(
+            &self,
+            _: H256,
+        ) -> Result<Vec<crate::config::ValidatorPublicKey>> {
             Err(anyhow!("test mock does not resolve era validators"))
         }
     }

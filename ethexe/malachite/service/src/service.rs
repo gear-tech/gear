@@ -7,7 +7,7 @@
 //! engine and exposes its outputs as a `Stream` of [`MalachiteEvent`]s.
 
 use crate::{
-    Mempool, ValidatorEntry,
+    Mempool,
     externalities::EthexeExternalities,
     mempool::TxInsertionStatus,
     types::{ChainHead, MalachiteEvent},
@@ -166,10 +166,7 @@ impl MalachiteService {
         let mut missing: Vec<Address> = Vec::new();
         for addr in addrs.iter() {
             match self.validators.get(addr) {
-                Some(pk) => new_set.push(ValidatorEntry {
-                    public_key: *pk,
-                    voting_power: 1,
-                }),
+                Some(pk) => new_set.push(*pk),
                 None => missing.push(*addr),
             }
         }

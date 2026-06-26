@@ -39,7 +39,7 @@ use ethexe_ethereum::{
 };
 use ethexe_malachite::{
     InjectedTxMempool, MalachiteServiceConfig, MalachiteServiceStarter,
-    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
+    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorPublicKey, derive_libp2p_secret,
     malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
@@ -1173,13 +1173,7 @@ impl Node {
                 }
             };
 
-            let validators: Vec<ValidatorEntry> = active
-                .iter()
-                .map(|e| ValidatorEntry {
-                    public_key: e.pub_key,
-                    voting_power: 1,
-                })
-                .collect();
+            let validators: Vec<ValidatorPublicKey> = active.iter().map(|e| e.pub_key).collect();
 
             // Reuse the home dir from `new_node` so stop+start resumes from WAL.
             let home_path = self

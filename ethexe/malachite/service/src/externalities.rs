@@ -56,7 +56,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_malachite_core::{
-    Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES, ValidatorEntry,
+    Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES, ValidatorPublicKey,
 };
 use gprimitives::H256;
 use gsigner::schemes::secp256k1::PublicKey;
@@ -95,7 +95,7 @@ pub(crate) struct EthexeExternalities {
     pub event_tx: UnboundedSender<Result<MalachiteEvent>>,
     /// On-chain address → pub key for every validator across all eras this node
     /// knows. Lets [`Externalities::validators_for_child_of`] turn a stored era
-    /// validator set (addresses) back into engine [`ValidatorEntry`]s.
+    /// validator set (addresses) back into engine [`ValidatorPublicKey`]s.
     pub validators: HashMap<Address, PublicKey>,
 }
 
@@ -229,22 +229,22 @@ impl Externalities for EthexeExternalities {
     async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload> {
         ensure!(
             self.mempool.is_some(),
-            "build_block_above must not be called when node is not validator"
+            "build_block_above must not be called when node is not a validator"
         );
 
-        // `parent_hash` is the consensus envelope hash of the parent
-        // (zero for genesis). Use it directly to seed the producer's
-        // `last_advanced_eb` lookup.
         let parent_advanced = if parent_mb_hash.is_zero() {
+            // The parent of the genesis MB is the zero hash, advanced is zero too.
             H256::zero()
         } else {
             self.db
                 .mb_meta(parent_mb_hash)
                 .last_advanced_eb
-                .ok_or_else(|| anyhow!("proposed parent MB must have last_advanced_eb set"))?
+                .with_context(|| {
+                    format!("parent MB {parent_mb_hash:?} must have last_advanced_eb in mb meta")
+                })?
         };
 
-        let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await?;
+        let (mut advance, injected) = self.wait_for_proposable_content(parent_advanced).await?;
 
         debug!(
             %parent_mb_hash,
@@ -253,6 +253,72 @@ impl Externalities for EthexeExternalities {
             injected_count = injected.len(),
             "build_block_above: proposable content resolved",
         );
+
+        // In case advance changes era, only advancing can be only till first block of the `era + 1`.
+        if let Some(advance) = advance.as_mut() {
+            let timelines = self.db.config().timelines;
+
+            let parent_advanced_era = if parent_advanced.is_zero() {
+                // The parent of the genesis MB is the zero hash, which is in era 0.
+                0
+            } else {
+                let parent_advanced_timestamp = self
+                    .db
+                    .block_header(parent_advanced)
+                    .with_context(|| {
+                        format!("parent advanced EB {parent_advanced} header not found in DB")
+                    })?
+                    .timestamp;
+                timelines
+                    .era_from_ts(parent_advanced_timestamp)
+                    .with_context(|| {
+                        format!("parent advanced EB {parent_advanced} is beyond genesis")
+                    })?
+            };
+
+            let advance_eb = self
+                .db
+                .block_simple_data(*advance)
+                .with_context(|| format!("advance EB {advance} header not found in DB"))?;
+
+            let new_advanced_era = timelines
+                .era_from_ts(advance_eb.header.timestamp)
+                .with_context(|| format!("advance EB {advance} is beyond genesis"))?;
+
+            if new_advanced_era > parent_advanced_era {
+                // Bypass blocks till the first block of `era + 1`
+                // wait_for_proposable_content - already checked
+                // that `advance_eb` is strict descendant of `parent_advanced`, so we can safely walk back.
+                let mut cursor = advance_eb;
+                loop {
+                    let parent_timestamp = self
+                        .db
+                        .block_header(cursor.header.parent_hash)
+                        .with_context(|| format!("{cursor} parent header not found in DB"))?
+                        .timestamp;
+
+                    let parent_era = timelines
+                        .era_from_ts(parent_timestamp)
+                        .with_context(|| format!("{cursor} parent is beyond genesis"))?;
+
+                    if parent_era == parent_advanced_era {
+                        break;
+                    }
+
+                    ensure!(
+                        parent_era > parent_advanced_era,
+                        "reached previous era while searching for first block of next era"
+                    );
+
+                    cursor = self
+                        .db
+                        .block_simple_data(cursor.header.parent_hash)
+                        .with_context(|| format!("{cursor} parent header not found in DB"))?;
+                }
+
+                *advance = cursor.hash;
+            }
+        }
 
         // Filter the fetched injected txs down to the valid ones before we start MB assembly
         let valid_injected_txs = {
@@ -355,8 +421,7 @@ impl Externalities for EthexeExternalities {
             }
         };
 
-        // Reject operations not allowed at this protocol version (e.g. the
-        // deprecated `ProcessQueues` v1 with the old mailbox validity).
+        // Reject operations not allowed at this protocol version
         for op in payload.iter() {
             match op {
                 Operation::AdvanceTillEthereumBlock { .. }
@@ -452,6 +517,7 @@ impl Externalities for EthexeExternalities {
                     .last_advanced_eb
                     .ok_or_else(|| anyhow!("proposed parent MB must have last_advanced_eb set"))?
             };
+
             let start_block_hash = self.db.globals().start_block_hash;
             match quarantine::is_strict_descendant_of(
                 &self.db,
@@ -466,6 +532,57 @@ impl Externalities for EthexeExternalities {
                     )));
                 }
                 Err(e) => return Err(e),
+            }
+
+            let timelines = self.db.config().timelines;
+
+            let previous_era = if parent_advanced.is_zero() {
+                // The parent of the genesis MB is the zero hash, which resolves to era 0.
+                0
+            } else {
+                let timestamp = self
+                    .db
+                    .block_header(parent_advanced)
+                    .with_context(|| {
+                        format!("missing eth header for last_advanced_eb {parent_advanced}")
+                    })?
+                    .timestamp;
+                timelines
+                    .era_from_ts(timestamp)
+                    .with_context(|| format!("eb {parent_advanced} timestamp before genesis"))?
+            };
+            let advanced_to_era = timelines
+                .era_from_ts(advance.header.timestamp)
+                .with_context(|| format!("eb {advance} timestamp before genesis"))?;
+
+            let diff = advanced_to_era
+                .checked_sub(previous_era)
+                .context("advanced timestamp is earlier than parent advanced timestamp")?;
+
+            if diff > 1 {
+                return Ok(Acceptance::Rejected(format!(
+                    "advance EB {advance} jumps eras too far: parent era {previous_era}, advanced to era {advanced_to_era}"
+                )));
+            }
+
+            // If era advanced, ensure that the advance is the first block of the new era.
+            if diff == 1 {
+                let advance_parent_eb_timestamp = self
+                    .db
+                    .block_header(advance.header.parent_hash)
+                    .with_context(|| format!("missing eth header for advance EB {advance} parent"))?
+                    .timestamp;
+                let era_of_advanced_block_parent = timelines
+                    .era_from_ts(advance_parent_eb_timestamp)
+                    .with_context(|| {
+                        format!("advance EB {advance} parent timestamp is before genesis")
+                    })?;
+
+                if era_of_advanced_block_parent != previous_era {
+                    return Ok(Acceptance::Rejected(format!(
+                        "advance {advance} is advancing to the next era, but advance is not the first block of that era"
+                    )));
+                }
             }
         }
 
@@ -519,47 +636,44 @@ impl Externalities for EthexeExternalities {
         Ok(Acceptance::Accepted(()))
     }
 
-    fn validators_for_child_of(&self, parent_mb_hash: H256) -> Result<Vec<ValidatorEntry>> {
-        // The child MB is governed by the era the parent advanced into. Zero
-        // parent or a parent that never advanced past pre-genesis ⇒ era 0.
-        let era = if parent_mb_hash.is_zero() {
+    fn validators_for_child_of(&self, parent_mb_hash: H256) -> Result<Vec<ValidatorPublicKey>> {
+        let parent_era = if parent_mb_hash.is_zero() {
+            // The parent of the genesis MB is the zero hash, which resolves to era 0.
             0
         } else {
-            let advanced = self
+            let advanced_eb_hash = self
                 .db
                 .mb_meta(parent_mb_hash)
                 .last_advanced_eb
-                .ok_or_else(|| anyhow!("parent MB {parent_mb_hash} has no last_advanced_eb"))?;
-            if advanced.is_zero() {
+                .with_context(|| format!("parent MB {parent_mb_hash} has no last_advanced_eb"))?;
+
+            if advanced_eb_hash.is_zero() {
+                // The advanced EB is parent of genesis EB - resolve to era 0.
                 0
             } else {
-                let header = self
-                    .db
-                    .block_header(advanced)
-                    .ok_or_else(|| anyhow!("missing eth header for last_advanced_eb {advanced}"))?;
+                let header = self.db.block_header(advanced_eb_hash).with_context(|| {
+                    format!("missing eth header for last_advanced_eb {advanced_eb_hash}")
+                })?;
                 self.db
                     .config()
                     .timelines
                     .era_from_ts(header.timestamp)
-                    .ok_or_else(|| anyhow!("eb {advanced} timestamp before genesis"))?
+                    .with_context(|| format!("eb {advanced_eb_hash} timestamp before genesis"))?
             }
         };
 
-        let addrs = self
+        let validator_addresses = self
             .db
-            .validators(era)
-            .ok_or_else(|| anyhow!("no validators stored for era {era}"))?;
+            .validators(parent_era)
+            .with_context(|| format!("no validators stored for era {parent_era}"))?;
 
-        addrs
+        validator_addresses
             .iter()
             .map(|addr| {
                 self.validators
                     .get(addr)
-                    .map(|pk| ValidatorEntry {
-                        public_key: *pk,
-                        voting_power: 1,
-                    })
-                    .ok_or_else(|| anyhow!("validator pool missing pub key for {addr}"))
+                    .copied()
+                    .with_context(|| format!("validator pool missing pub key for {addr}"))
             })
             .collect()
     }

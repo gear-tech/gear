@@ -51,8 +51,8 @@
 //!   [`MService`]. `update_validators` rotates the active validator set, taking effect at the next height boundary.
 //! - [`MService`] — Supertrait bound implemented by [`MalachiteCore`].
 //! - [`Block`] — Service-level block envelope: `{ parent_hash: H256, height: u64, payload: BlockPayload, reserved: [u8; 64] }`.
-//! - [`ValidatorEntry`] — Validator set member: `public_key` + `voting_power`, used in [`MalachiteCoreConfig`] and
-//!   `update_validators`.
+//! - [`ValidatorPublicKey`] — Validator set member (secp256k1 public key); the set is unweighted, used in
+//!   [`MalachiteCoreConfig`] and `update_validators`.
 //! - [`MalachiteCoreConfig`] — Node configuration: validator secret, validator set, `persistent_peers`, propose timeout,
 //!   [`NodeRole`], `listen_addr`, and `base` project directory.
 //! - [`CommitCertificate`] — Finalization certificate delivered with `process_mb_finalized`.
@@ -89,7 +89,7 @@ mod store;
 mod streaming;
 
 pub use crate::{
-    config::{MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorEntry},
+    config::{MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorPublicKey},
     externalities::Externalities,
     service::{MService, MalachiteCore},
     signing::{

@@ -38,7 +38,7 @@ use async_trait::async_trait;
 use ethexe_common::Acceptance;
 use ethexe_malachite_core::{
     Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteCore,
-    MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
+    MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorPublicKey, libp2p_peer_id,
 };
 use proptest::prelude::*;
 use tempfile::TempDir;
@@ -191,7 +191,7 @@ impl Externalities for TestExt {
         Ok(Acceptance::Accepted(()))
     }
 
-    fn validators_for_child_of(&self, _parent_hash: H256) -> Result<Vec<ValidatorEntry>> {
+    fn validators_for_child_of(&self, _parent_hash: H256) -> Result<Vec<ValidatorPublicKey>> {
         // Tests drive consensus off the shared validator set configured at
         // engine start; the resolver falls back to it when this returns Err.
         Err(anyhow::anyhow!("test ext does not resolve era validators"))
@@ -253,14 +253,8 @@ fn make_validators(n: usize) -> Vec<ValidatorSetup> {
         .collect()
 }
 
-fn validator_entries(setups: &[ValidatorSetup]) -> Vec<ValidatorEntry> {
-    setups
-        .iter()
-        .map(|s| ValidatorEntry {
-            public_key: s.private_key.public_key(),
-            voting_power: 1,
-        })
-        .collect()
+fn validator_entries(setups: &[ValidatorSetup]) -> Vec<ValidatorPublicKey> {
+    setups.iter().map(|s| s.private_key.public_key()).collect()
 }
 
 fn build_multiaddrs_excluding(setups: &[ValidatorSetup], exclude: usize) -> Vec<Multiaddr> {
@@ -290,7 +284,7 @@ fn build_config(
 fn build_config_with_role(
     setup: &ValidatorSetup,
     peers: Vec<Multiaddr>,
-    validators: Vec<ValidatorEntry>,
+    validators: Vec<ValidatorPublicKey>,
     role: NodeRole,
 ) -> MalachiteCoreConfig {
     MalachiteCoreConfig {
@@ -483,12 +477,9 @@ async fn restart_one_validator_mid_run() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn full_node_syncs_from_validators() {
     let setups = make_validators(4);
-    let validator_set: Vec<ValidatorEntry> = setups[..3]
+    let validator_set: Vec<ValidatorPublicKey> = setups[..3]
         .iter()
-        .map(|s| ValidatorEntry {
-            public_key: s.private_key.public_key(),
-            voting_power: 1,
-        })
+        .map(|s| s.private_key.public_key())
         .collect();
 
     let exts: Vec<Arc<TestExt>> = (0..4).map(|_| Arc::new(TestExt::default())).collect();

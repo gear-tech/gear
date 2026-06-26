@@ -21,7 +21,7 @@
 //! - [`MalachiteEvent`] (enum) — Output event: proposal, finalization, purged txs
 //! - [`CommitCertificate`] (struct) — BFT commit proof attached to `BlockFinalized`
 //! - [`MalachiteServiceConfig`] (struct) — Service configuration
-//! - [`ValidatorEntry`] (struct) — Single entry in the validator set
+//! - [`ValidatorPublicKey`] (type) — Single entry in the unweighted validator set
 //! - [`Mempool`] (trait) — Producer-side injected-tx source
 //! - [`InjectedTxMempool`] (struct) — Real mempool implementation
 //! - [`TxValidityChecker`] (struct) — Per-tx validity against the MB world
@@ -60,7 +60,7 @@ mod tx_validity;
 mod types;
 
 pub use crate::{
-    config::{MalachiteServiceConfig, ValidatorConfig, ValidatorEntry},
+    config::{MalachiteServiceConfig, ValidatorConfig, ValidatorPublicKey},
     mempool::{InjectedTxMempool, Mempool, TxInsertionStatus},
     service::MalachiteService,
     starter::MalachiteServiceStarter,

@@ -27,7 +27,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_malachite::{
     MalachiteEvent, MalachiteService, MalachiteServiceConfig, MalachiteServiceStarter, Mempool,
-    TxInsertionStatus, ValidatorConfig, ValidatorEntry,
+    TxInsertionStatus, ValidatorConfig,
 };
 use futures::StreamExt as _;
 use gprimitives::H256;
@@ -134,10 +134,7 @@ fn build_config(
         ),
         home_dir: home.to_path_buf(),
         persistent_peers: Vec::new(),
-        validators: vec![ValidatorEntry {
-            public_key: pub_key,
-            voting_power: 1,
-        }],
+        validators: vec![pub_key],
         propose_timeout: Duration::from_secs(5),
     }
 }

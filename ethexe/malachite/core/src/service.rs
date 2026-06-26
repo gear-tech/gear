@@ -7,7 +7,7 @@ use crate::{
     app,
     codec::ScaleCodec,
     config::{MalachiteCoreConfig, NodeRole},
-    context::{MalachiteCtx, Validator, ValidatorSet},
+    context::{EQUAL_VOTING_POWER, MalachiteCtx, Validator, ValidatorSet},
     externalities::Externalities,
     signing::{
         MalachiteSigner, libp2p_keypair_from, private_key_from_gsigner, public_key_from_gsigner,
@@ -162,10 +162,10 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             return Err(anyhow::anyhow!("MalachiteCoreConfig::validators is empty"));
         }
         let mut validators = Vec::with_capacity(config.validators.len());
-        for entry in &config.validators {
-            let pk = public_key_from_gsigner(&entry.public_key)
-                .context("converting validator public key")?;
-            validators.push(Validator::new(pk, entry.voting_power));
+        for public_key in &config.validators {
+            let pk =
+                public_key_from_gsigner(public_key).context("converting validator public key")?;
+            validators.push(Validator::new(pk, EQUAL_VOTING_POWER));
         }
         let initial_validator_set = ValidatorSet::new(validators);
         let in_set = initial_validator_set.get_by_address(&address).is_some();
@@ -261,17 +261,17 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
     /// (the current height runs to completion with the old set).
     /// The caller must keep the local key in the set while in
     /// [`NodeRole::Validator`]. Empty input is rejected.
-    pub fn update_validators(&self, validators: Vec<crate::ValidatorEntry>) -> Result<()> {
+    pub fn update_validators(&self, validators: Vec<crate::ValidatorPublicKey>) -> Result<()> {
         if validators.is_empty() {
             return Err(anyhow::anyhow!(
                 "MalachiteCore::update_validators: empty validators list"
             ));
         }
         let mut converted = Vec::with_capacity(validators.len());
-        for entry in &validators {
-            let pk = public_key_from_gsigner(&entry.public_key)
-                .context("converting validator public key")?;
-            converted.push(Validator::new(pk, entry.voting_power));
+        for public_key in &validators {
+            let pk =
+                public_key_from_gsigner(public_key).context("converting validator public key")?;
+            converted.push(Validator::new(pk, EQUAL_VOTING_POWER));
         }
         let new_set = ValidatorSet::new(converted);
         self.validator_set.update(new_set);

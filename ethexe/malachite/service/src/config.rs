@@ -10,7 +10,7 @@
 
 use crate::Mempool;
 use ethexe_common::ecdsa::{PublicKey, Signer};
-pub use ethexe_malachite_core::{Multiaddr, ValidatorEntry};
+pub use ethexe_malachite_core::{Multiaddr, ValidatorPublicKey};
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
 #[derive(Clone, Debug)]
@@ -40,9 +40,10 @@ pub struct MalachiteServiceConfig {
     /// must include a `/p2p/<peer_id>` suffix (discovery is off).
     pub persistent_peers: Vec<Multiaddr>,
 
-    /// The complete validator set. Quorum is `> 2/3` of total voting power.
-    /// A validator node's own public key must appear in this list.
-    pub validators: Vec<ValidatorEntry>,
+    /// The complete validator set. The set is unweighted, so quorum is
+    /// `> 2/3` of the validator count. A validator node's own public key
+    /// must appear in this list.
+    pub validators: Vec<ValidatorPublicKey>,
 
     /// How long the proposer may wait for proposable content before the
     /// round times out and rotates.
@@ -96,7 +97,7 @@ impl MalachiteServiceConfig {
 
     /// Replace the validator set.
     #[must_use]
-    pub fn with_validators(mut self, validators: Vec<ValidatorEntry>) -> Self {
+    pub fn with_validators(mut self, validators: Vec<ValidatorPublicKey>) -> Self {
         self.validators = validators;
         self
     }

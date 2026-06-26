@@ -100,7 +100,7 @@ impl MalachiteServiceStarter {
         let validators: HashMap<Address, PublicKey> = config
             .validators
             .iter()
-            .map(|v| (v.public_key.to_address(), v.public_key))
+            .map(|pk| (pk.to_address(), *pk))
             .collect();
 
         let externalities = Arc::new(EthexeExternalities {
