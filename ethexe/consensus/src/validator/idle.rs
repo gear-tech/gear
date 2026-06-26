@@ -144,23 +144,6 @@ impl Idle {
             .into());
         }
 
-        // Batch commitments are only produced on blocks whose height is a
-        // multiple of the configured period. Coordinator and participants run
-        // this same height-based check, so — as long as they share the period
-        // (see `NodeParams::batch_commitment_period`) — they skip exactly the
-        // same blocks with no extra coordination; we just drop back to idle and
-        // wait for the next chain head.
-        let period = self.ctx.core.batch_commitment_period.get();
-        if !block.header.height.is_multiple_of(period) {
-            tracing::trace!(
-                block = %block.hash,
-                height = block.header.height,
-                period,
-                "skipping batch commitment for this block (height not a multiple of period)",
-            );
-            return Idle::create(self.ctx);
-        }
-
         // Block is prepared — figure out who's coordinator and dispatch.
         let validators = {
             let timelines = self.ctx.core.timelines;
@@ -182,8 +165,26 @@ impl Idle {
             .ok_or_else(|| anyhow!("cannot determine coordinator for block {}", block.hash))?;
 
         if coordinator_addr == self.ctx.core.pub_key.to_address() {
+            // The period is a coordinator-local cadence: only the elected
+            // coordinator decides whether this block is a commitment block,
+            // using its own `batch_commitment_period`. On a non-multiple block
+            // it produces nothing and drops back to idle.
+            let period = self.ctx.core.batch_commitment_period.get();
+            if !block.header.height.is_multiple_of(period) {
+                tracing::trace!(
+                    block = %block.hash,
+                    height = block.header.height,
+                    period,
+                    "coordinator skips this block: height not a multiple of batch_commitment_period",
+                );
+                return Idle::create(self.ctx);
+            }
+
             CoordinatorBoot::start(self.ctx, block, validators)
         } else {
+            // Participants always enter the role and validate whatever the
+            // coordinator chooses to commit — the period is not consulted here,
+            // so the knob stays purely coordinator-local.
             Participant::create(self.ctx, block, coordinator_addr)
         }
     }
@@ -263,12 +264,11 @@ mod tests {
         }
     }
 
-    /// With `batch_commitment_period = 2`, the validator must start a batch
-    /// only on even-height blocks and stay idle on odd-height ones. A
-    /// single-validator set makes this node the elected coordinator, so a
-    /// non-skipped block lands in `CoordinatorBoot`.
+    /// The period is coordinator-local: when this node is the elected
+    /// coordinator (single-validator set), `batch_commitment_period = 2` makes
+    /// it build a batch only on even-height blocks and stay idle on odd ones.
     #[tokio::test]
-    async fn batch_commitment_period_gates_by_block_height() {
+    async fn batch_commitment_period_gates_coordinator_by_block_height() {
         let db = Database::memory();
         let signer = Signer::memory();
         let pub_key = signer.generate().unwrap();
@@ -286,7 +286,7 @@ mod tests {
         assert!(even_block.header.height.is_multiple_of(period.get()));
         assert!(!odd_block.header.height.is_multiple_of(period.get()));
 
-        // Odd height → skipped → back to idle, waiting for the next head.
+        // Odd height → coordinator skips → back to idle, waiting for next head.
         let ctx = test_context(db.clone(), signer.clone(), pub_key, period);
         let state = Idle::create(ctx)
             .unwrap()
@@ -294,7 +294,7 @@ mod tests {
             .unwrap();
         assert!(
             state.is_idle(),
-            "odd-height block must be skipped, got {state}"
+            "odd-height block must be skipped by the coordinator, got {state}"
         );
 
         // Even height → coordinator boots and starts building a batch.
@@ -306,6 +306,60 @@ mod tests {
         assert!(
             state.is_coordinator_boot(),
             "even-height block must start the coordinator, got {state}"
+        );
+    }
+
+    /// A participant ignores its own period entirely: it enters the
+    /// `Participant` role to validate the coordinator's batch even on a block
+    /// whose height is not a multiple of the (large) local period.
+    #[tokio::test]
+    async fn participant_enters_regardless_of_batch_commitment_period() {
+        let db = Database::memory();
+        let signer = Signer::memory();
+        let my_key = signer.generate().unwrap();
+        let other_signer = Signer::memory();
+        let other_key = other_signer.generate().unwrap();
+
+        let validators_vec: ethexe_common::ValidatorsVec =
+            vec![my_key.to_address(), other_key.to_address()]
+                .try_into()
+                .unwrap();
+        let mut chain = BlockChain::mock(10);
+        chain.validators = validators_vec.clone();
+        let chain = chain.setup(&db);
+
+        let timelines = db.config().timelines;
+
+        // Find a prepared block whose elected coordinator is NOT this node —
+        // there our node must always become a participant.
+        let participant_block = chain
+            .blocks
+            .iter()
+            .filter_map(|b| b.synced.as_ref().map(|_| b.to_simple()))
+            .find(|b| {
+                timelines.block_coordinator_at(&validators_vec, b.header.timestamp)
+                    != Some(my_key.to_address())
+            })
+            .expect("expected a block coordinated by the other validator");
+
+        // A period far larger than any height — proving the participant path
+        // never consults it.
+        let huge_period = NonZero::new(u32::MAX).unwrap();
+        assert!(
+            !participant_block
+                .header
+                .height
+                .is_multiple_of(huge_period.get())
+        );
+
+        let ctx = test_context(db, signer, my_key, huge_period);
+        let state = Idle::create(ctx)
+            .unwrap()
+            .process_new_head(participant_block)
+            .unwrap();
+        assert!(
+            state.is_participant(),
+            "participant must enter regardless of period, got {state}"
         );
     }
 }

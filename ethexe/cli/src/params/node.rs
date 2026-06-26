@@ -127,20 +127,18 @@ pub struct NodeParams {
     #[serde(default, rename = "commitment-delay-limit")]
     pub commitment_delay_limit: Option<NonZero<u8>>,
 
-    /// How often batch commitments are produced: a validator only builds /
-    /// validates a batch on blocks whose height is a multiple of this value.
-    /// `1` (the default) commits every block and reproduces the previous
-    /// behavior.
+    /// Coordinator-local cadence for batch commitments: when this node is the
+    /// elected coordinator it only builds a batch on blocks whose height is a
+    /// multiple of this value. `1` (the default) commits every block and
+    /// reproduces the previous behavior. Participants are unaffected — they
+    /// always validate whatever the coordinator chooses to commit, so different
+    /// nodes may safely run different values.
     ///
-    /// Operational bounds (the gate is height-based and node-local):
-    /// - All validators SHOULD use the same value — coordinator and
-    ///   participants only agree on which blocks to skip when their periods
-    ///   match; divergent values reduce quorum on the off-cadence blocks.
-    /// - Keep it small enough that every era's election window still contains
-    ///   several multiple-of-period blocks, otherwise validator-set rotation
-    ///   (which has an election-window deadline) can be starved.
-    /// - Prefer a value not larger than `uncommitted-chain-len-threshold` so
-    ///   the idle-chain checkpoint still fires close to its threshold.
+    /// Keep it small enough that every era's election window still contains
+    /// several multiple-of-period blocks, otherwise validator-set rotation
+    /// (which has an election-window deadline) can be delayed; and prefer a
+    /// value not larger than `uncommitted-chain-len-threshold` so the
+    /// idle-chain checkpoint still fires close to its threshold.
     #[arg(long)]
     #[serde(default, rename = "batch-commitment-period")]
     pub batch_commitment_period: Option<NonZero<u32>>,

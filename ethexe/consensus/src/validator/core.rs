@@ -46,10 +46,10 @@ pub struct ValidatorCore {
     /// the same chain head and for malachite to finalize mb with fresh post-quarantine block included.
     /// Anyway not necessary.
     pub coordinator_aggregation_delay: Duration,
-    /// How often batch commitments are produced: a coordinator only builds a
-    /// batch on blocks whose height is a multiple of this value (`1` = every
-    /// block). Every validator gates symmetrically on block height, so no
-    /// extra coordination is needed.
+    /// Coordinator-local cadence: when elected coordinator, this node only
+    /// builds a batch on blocks whose height is a multiple of this value
+    /// (`1` = every block). Participants ignore it and validate whatever the
+    /// coordinator commits, so the knob needs no cross-node agreement.
     pub batch_commitment_period: std::num::NonZero<u32>,
 }
 
