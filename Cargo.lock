@@ -6093,6 +6093,7 @@ dependencies = [
  "gprimitives",
  "gsigner",
  "jsonrpsee",
+ "parity-scale-codec",
 ]
 
 [[package]]
