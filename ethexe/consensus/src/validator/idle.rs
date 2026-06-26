@@ -144,6 +144,23 @@ impl Idle {
             .into());
         }
 
+        // Batch commitments are only produced on blocks whose height is a
+        // multiple of the configured period. Coordinator and participants run
+        // this same height-based check, so — as long as they share the period
+        // (see `NodeParams::batch_commitment_period`) — they skip exactly the
+        // same blocks with no extra coordination; we just drop back to idle and
+        // wait for the next chain head.
+        let period = self.ctx.core.batch_commitment_period.get();
+        if !block.header.height.is_multiple_of(period) {
+            tracing::trace!(
+                block = %block.hash,
+                height = block.header.height,
+                period,
+                "skipping batch commitment for this block (height not a multiple of period)",
+            );
+            return Idle::create(self.ctx);
+        }
+
         // Block is prepared — figure out who's coordinator and dispatch.
         let validators = {
             let timelines = self.ctx.core.timelines;
@@ -169,5 +186,126 @@ impl Idle {
         } else {
             Participant::create(self.ctx, block, coordinator_addr)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::validator::{
+        ValidatorMetrics,
+        batch::{BatchCommitmentManager, BatchLimits},
+        core::{BatchCommitter, MiddlewareWrapper, ValidatorCore},
+    };
+    use async_trait::async_trait;
+    use ethexe_common::{
+        Address,
+        db::ConfigStorageRO,
+        ecdsa::{ContractSignature, PublicKey},
+        gear::BatchCommitment,
+        mock::{BlockChain, Mock},
+    };
+    use ethexe_db::Database;
+    use ethexe_ethereum::middleware::{ElectionProvider, MockElectionProvider};
+    use gsigner::secp256k1::Signer;
+    use std::{collections::VecDeque, num::NonZero, time::Duration};
+
+    /// Committer that never touches the chain — the gate test only inspects
+    /// the resulting state, no batch is ever submitted.
+    struct NoopCommitter;
+
+    #[async_trait]
+    impl BatchCommitter for NoopCommitter {
+        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+            Box::new(NoopCommitter)
+        }
+
+        async fn commit(
+            self: Box<Self>,
+            _batch: BatchCommitment,
+            _signatures: Vec<ContractSignature>,
+        ) -> Result<H256> {
+            Ok(H256::zero())
+        }
+    }
+
+    fn test_context(
+        db: Database,
+        signer: Signer,
+        pub_key: PublicKey,
+        batch_commitment_period: NonZero<u32>,
+    ) -> ValidatorContext {
+        let timelines = db.config().timelines;
+        let middleware = MiddlewareWrapper::from_inner(
+            Box::new(MockElectionProvider::new()) as Box<dyn ElectionProvider>
+        );
+        let batch_manager =
+            BatchCommitmentManager::new(BatchLimits::default(), db.clone(), middleware);
+
+        ValidatorContext {
+            core: ValidatorCore {
+                signatures_threshold: 1,
+                router_address: Address([0; 20]),
+                pub_key,
+                timelines,
+                signer,
+                db,
+                committer: Box::new(NoopCommitter),
+                batch_manager,
+                metrics: ValidatorMetrics::default(),
+                commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
+                coordinator_aggregation_delay: Duration::ZERO,
+                batch_commitment_period,
+            },
+            pending_events: VecDeque::new(),
+            output: VecDeque::new(),
+            tasks: Default::default(),
+        }
+    }
+
+    /// With `batch_commitment_period = 2`, the validator must start a batch
+    /// only on even-height blocks and stay idle on odd-height ones. A
+    /// single-validator set makes this node the elected coordinator, so a
+    /// non-skipped block lands in `CoordinatorBoot`.
+    #[tokio::test]
+    async fn batch_commitment_period_gates_by_block_height() {
+        let db = Database::memory();
+        let signer = Signer::memory();
+        let pub_key = signer.generate().unwrap();
+
+        let mut chain = BlockChain::mock(10);
+        chain.validators = vec![pub_key.to_address()].try_into().unwrap();
+        let chain = chain.setup(&db);
+
+        let period = NonZero::new(2).unwrap();
+
+        // `blocks[i].height = genesis_height + i`; genesis_height is even,
+        // so blocks[2] is even (a multiple of 2) and blocks[3] is odd.
+        let even_block = chain.blocks[2].to_simple();
+        let odd_block = chain.blocks[3].to_simple();
+        assert!(even_block.header.height.is_multiple_of(period.get()));
+        assert!(!odd_block.header.height.is_multiple_of(period.get()));
+
+        // Odd height → skipped → back to idle, waiting for the next head.
+        let ctx = test_context(db.clone(), signer.clone(), pub_key, period);
+        let state = Idle::create(ctx)
+            .unwrap()
+            .process_new_head(odd_block)
+            .unwrap();
+        assert!(
+            state.is_idle(),
+            "odd-height block must be skipped, got {state}"
+        );
+
+        // Even height → coordinator boots and starts building a batch.
+        let ctx = test_context(db, signer, pub_key, period);
+        let state = Idle::create(ctx)
+            .unwrap()
+            .process_new_head(even_block)
+            .unwrap();
+        assert!(
+            state.is_coordinator_boot(),
+            "even-height block must start the coordinator, got {state}"
+        );
     }
 }

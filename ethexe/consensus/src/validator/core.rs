@@ -46,6 +46,11 @@ pub struct ValidatorCore {
     /// the same chain head and for malachite to finalize mb with fresh post-quarantine block included.
     /// Anyway not necessary.
     pub coordinator_aggregation_delay: Duration,
+    /// How often batch commitments are produced: a coordinator only builds a
+    /// batch on blocks whose height is a multiple of this value (`1` = every
+    /// block). Every validator gates symmetrically on block height, so no
+    /// extra coordination is needed.
+    pub batch_commitment_period: std::num::NonZero<u32>,
 }
 
 impl Clone for ValidatorCore {
@@ -62,6 +67,7 @@ impl Clone for ValidatorCore {
             metrics: self.metrics.clone(),
             commitment_delay_limit: self.commitment_delay_limit,
             coordinator_aggregation_delay: self.coordinator_aggregation_delay,
+            batch_commitment_period: self.batch_commitment_period,
         }
     }
 }
