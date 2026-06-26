@@ -153,7 +153,7 @@ pub fn add_owner(package: &str, owner: &str) -> Result<ExitStatus> {
         .map_err(Into::into)
 }
 
-/// Allowed categories for crates.io packages: https://crates.io/category_slugs.
+/// Allowed categories for crates.io packages: <https://crates.io/category_slugs>.
 pub const CRATES_IO_ALLOWED_CATEGORIES: &[&str] = &[
     "accessibility",
     "aerospace",
