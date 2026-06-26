@@ -279,12 +279,20 @@ mod tests {
 
         let period = NonZero::new(2).unwrap();
 
-        // `blocks[i].height = genesis_height + i`; genesis_height is even,
-        // so blocks[2] is even (a multiple of 2) and blocks[3] is odd.
-        let even_block = chain.blocks[2].to_simple();
-        let odd_block = chain.blocks[3].to_simple();
-        assert!(even_block.header.height.is_multiple_of(period.get()));
-        assert!(!odd_block.header.height.is_multiple_of(period.get()));
+        // Pick concrete even/odd-height blocks dynamically so the test does not
+        // depend on `BlockChain::mock`'s genesis-height parity.
+        let even_block = chain
+            .blocks
+            .iter()
+            .filter_map(|b| b.synced.as_ref().map(|_| b.to_simple()))
+            .find(|b| b.header.height.is_multiple_of(period.get()))
+            .expect("mock chain must contain an even-height block");
+        let odd_block = chain
+            .blocks
+            .iter()
+            .filter_map(|b| b.synced.as_ref().map(|_| b.to_simple()))
+            .find(|b| !b.header.height.is_multiple_of(period.get()))
+            .expect("mock chain must contain an odd-height block");
 
         // Odd height → coordinator skips → back to idle, waiting for next head.
         let ctx = test_context(db.clone(), signer.clone(), pub_key, period);
