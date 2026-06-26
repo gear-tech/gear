@@ -20,7 +20,8 @@ ethexe-compute.workspace = true
 ethexe-network.workspace = true
 ethexe-malachite.workspace = true
 ethexe-prometheus.workspace = true
-ethexe-rpc = { workspace = true, features = ["client"] }
+ethexe-rpc-client.workspace = true
+ethexe-rpc-server.workspace = true
 ethexe-sdk.workspace = true
 ethexe-service.workspace = true
 gsigner = { workspace = true, features = [

@@ -31,7 +31,7 @@ use ethexe_consensus::BatchCommitter;
 use ethexe_db::{Database, dump::StateDump};
 use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
 use ethexe_processor::Processor;
-use ethexe_rpc::{InjectedClient, ProgramClient};
+use ethexe_rpc_client::{InjectedClient, ProgramClient};
 use ethexe_runtime_common::{RUNTIME_ID, state::Storage};
 use gear_core::{
     ids::prelude::MessageIdExt,

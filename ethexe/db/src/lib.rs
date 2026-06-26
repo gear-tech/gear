@@ -11,7 +11,7 @@
 //! ## Role in the stack
 //!
 //! `ethexe-service` owns the single [`Database`] instance and passes it to every subsystem
-//! (`ethexe-observer`, `ethexe-compute`, `ethexe-processor`, `ethexe-consensus`, `ethexe-rpc`).
+//! (`ethexe-observer`, `ethexe-compute`, `ethexe-processor`, `ethexe-consensus`, `ethexe-rpc-server`).
 //! The storage-role trait *definitions* live in `ethexe-common::db`; [`Database`] implements them
 //! here, plus the runtime `Storage` trait from `ethexe-runtime-common`.
 //!

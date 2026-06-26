@@ -13,7 +13,7 @@ keywords = ["ethexe", "node", "process", "testing", "rpc"]
 categories = ["development-tools::testing", "asynchronous"]
 
 [dependencies]
-ethexe-rpc = { workspace = true, features = ["client"] }
+ethexe-rpc-client.workspace = true
 ethexe-common.workspace = true
 
 which.workspace = true
