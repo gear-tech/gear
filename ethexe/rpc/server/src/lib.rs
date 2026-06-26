@@ -30,7 +30,7 @@
 
 pub use crate::apis::RPC_VERSION;
 
-pub mod types;
+pub use ethexe_rpc_common as types;
 
 use anyhow::Result;
 use apis::{

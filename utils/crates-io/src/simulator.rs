@@ -6,13 +6,16 @@
 use crate::{CARGO_REGISTRY_NAME, Workspace};
 use anyhow::Result;
 use std::{
-    env, fs,
+    env,
     net::SocketAddr,
     ops::Deref,
     path::{Path, PathBuf},
 };
 use tempfile::TempDir;
-use tokio::task::{self, JoinHandle};
+use tokio::{
+    fs,
+    task::{self, JoinHandle},
+};
 use toml_edit::DocumentMut;
 
 enum RegistryPath {
@@ -44,7 +47,7 @@ pub struct Simulator {
 
 impl Simulator {
     /// Create a new simulator.
-    pub fn new(registry_path: Option<PathBuf>) -> Result<Self> {
+    pub async fn new(registry_path: Option<PathBuf>) -> Result<Self> {
         let path = match registry_path {
             Some(path) => RegistryPath::Dir(path),
             None => RegistryPath::TempDir(TempDir::new()?),
@@ -52,8 +55,8 @@ impl Simulator {
         let (future, addr) = cargo_http_registry::serve(&path, "127.0.0.1:35503".parse()?)?;
         let handle = task::spawn(future);
 
-        let config_path = Workspace::resolve_path(".cargo/config.toml")?;
-        let original_config: DocumentMut = fs::read_to_string(&config_path)?.parse()?;
+        let config_path = Workspace::resolve_path(".cargo/config.toml").await?;
+        let original_config: DocumentMut = fs::read_to_string(&config_path).await?.parse()?;
         let mut mutable_config = original_config.clone();
 
         // Patch `.cargo/config.toml` according to https://github.com/d-e-s-o/cargo-http-registry/blob/main/README.md#usage
@@ -79,24 +82,28 @@ impl Simulator {
     }
 
     /// Restore cargo config
-    pub fn restore(&self) -> Result<()> {
-        fs::write(&self.config_path, self.original_config.to_string()).map_err(Into::into)
+    pub async fn restore(&self) -> Result<()> {
+        fs::write(&self.config_path, self.original_config.to_string())
+            .await
+            .map_err(Into::into)
     }
 
     /// Patch cargo config
-    pub fn patch(&self) -> Result<()> {
-        self.clear_cache()?;
-        fs::write(&self.config_path, self.mutable_config.to_string()).map_err(Into::into)
+    pub async fn patch(&self) -> Result<()> {
+        self.clear_cache().await?;
+        fs::write(&self.config_path, self.mutable_config.to_string())
+            .await
+            .map_err(Into::into)
     }
 
     /// Clear Cargo cache entries that can retain stale simulated packages.
-    pub fn clear_cache(&self) -> Result<()> {
-        clear_local_registry_cache()?;
-        clear_target_package_dir()
+    pub async fn clear_cache(&self) -> Result<()> {
+        clear_local_registry_cache().await?;
+        clear_target_package_dir().await
     }
 }
 
-fn clear_local_registry_cache() -> Result<()> {
+async fn clear_local_registry_cache() -> Result<()> {
     let cargo_home = env::var_os("CARGO_HOME")
         .map(PathBuf::from)
         .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".cargo")));
@@ -105,24 +112,23 @@ fn clear_local_registry_cache() -> Result<()> {
     };
 
     let registry = cargo_home.join("registry");
-    clear_registry_dir(&registry.join("src"))?;
-    clear_registry_dir(&registry.join("cache"))
+    clear_registry_dir(&registry.join("src")).await?;
+    clear_registry_dir(&registry.join("cache")).await
 }
 
-fn clear_registry_dir(path: &Path) -> Result<()> {
-    let Ok(entries) = fs::read_dir(path) else {
+async fn clear_registry_dir(path: &Path) -> Result<()> {
+    let Ok(mut entries) = fs::read_dir(path).await else {
         return Ok(());
     };
 
-    for entry in entries {
-        let entry = entry?;
+    while let Some(entry) = entries.next_entry().await? {
         let file_name = entry.file_name();
         if file_name.to_string_lossy().starts_with("127.0.0.1-") {
             let path = entry.path();
-            if entry.file_type()?.is_dir() {
-                fs::remove_dir_all(path)?;
+            if entry.file_type().await?.is_dir() {
+                fs::remove_dir_all(path).await?;
             } else {
-                fs::remove_file(path)?;
+                fs::remove_file(path).await?;
             }
         }
     }
@@ -130,15 +136,15 @@ fn clear_registry_dir(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn clear_target_package_dir() -> Result<()> {
-    let manifest = Workspace::resolve_path("Cargo.toml")?;
+async fn clear_target_package_dir() -> Result<()> {
+    let manifest = Workspace::resolve_path("Cargo.toml").await?;
     let Some(workspace_dir) = manifest.parent() else {
         return Ok(());
     };
 
     let package_dir = workspace_dir.join("target").join("package");
-    if package_dir.exists() {
-        fs::remove_dir_all(package_dir)?;
+    if fs::try_exists(&package_dir).await? {
+        fs::remove_dir_all(package_dir).await?;
     }
 
     Ok(())
@@ -148,21 +154,21 @@ fn clear_target_package_dir() -> Result<()> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn clear_registry_dir_removes_local_registry_dirs_and_files() {
+    #[tokio::test]
+    async fn clear_registry_dir_removes_local_registry_dirs_and_files() {
         let temp_dir = TempDir::new().unwrap();
         let local_dir = temp_dir.path().join("127.0.0.1-abc");
         let local_file = temp_dir.path().join("127.0.0.1-def");
         let upstream_dir = temp_dir.path().join("github.com-abc");
 
-        fs::create_dir(&local_dir).unwrap();
-        fs::write(&local_file, b"crate").unwrap();
-        fs::create_dir(&upstream_dir).unwrap();
+        fs::create_dir(&local_dir).await.unwrap();
+        fs::write(&local_file, b"crate").await.unwrap();
+        fs::create_dir(&upstream_dir).await.unwrap();
 
-        clear_registry_dir(temp_dir.path()).unwrap();
+        clear_registry_dir(temp_dir.path()).await.unwrap();
 
-        assert!(!local_dir.exists());
-        assert!(!local_file.exists());
-        assert!(upstream_dir.exists());
+        assert!(!fs::try_exists(local_dir).await.unwrap());
+        assert!(!fs::try_exists(local_file).await.unwrap());
+        assert!(fs::try_exists(upstream_dir).await.unwrap());
     }
 }

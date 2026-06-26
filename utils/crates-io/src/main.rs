@@ -65,21 +65,21 @@ async fn main() -> Result<()> {
             simulate,
             registry_path,
         } => {
-            let mut publisher = Publisher::with_simulation(simulate, registry_path)?
+            let mut publisher = Publisher::with_simulation(simulate, registry_path)
+                .await?
                 .build(true, version)
                 .await?;
-            publisher.prepare_publish()?;
-            // TODO: return this check back
-            // publisher.check()?;
-            let result = publisher.publish();
+            publisher.prepare_publish().await?;
+            publisher.check().await?;
+            let result = publisher.publish().await;
             if result.is_ok() || ask_restore_after_error()? {
-                publisher.restore()?;
+                publisher.restore().await?;
             }
             result
         }
         Command::Build { version } => {
-            let mut publisher = Publisher::new()?.build(false, version).await?;
-            publisher.prepare_publish()?;
+            let mut publisher = Publisher::new().await?.build(false, version).await?;
+            publisher.prepare_publish().await?;
             Ok(())
         }
     }
@@ -96,7 +96,10 @@ fn ask_restore_after_error() -> Result<bool> {
         io::stdout().flush()?;
 
         let mut answer = String::new();
-        io::stdin().read_line(&mut answer)?;
+        if io::stdin().read_line(&mut answer)? == 0 {
+            eprintln!("EOF reached; restoring local changes.");
+            return Ok(true);
+        }
 
         match answer.trim().to_ascii_lowercase().as_str() {
             "y" => return Ok(true),

@@ -18,5 +18,5 @@ gear-workspace-hack.workspace = true
 reqwest = { workspace = true, features = ["json", "default-tls"] }
 serde = { workspace = true, features = ["derive"] }
 tempfile.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["fs", "macros", "process", "rt-multi-thread", "time"] }
 toml_edit.workspace = true

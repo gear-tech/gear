@@ -8,7 +8,7 @@
 
 mod apis;
 
-pub mod types;
+pub use ethexe_rpc_common as types;
 
 pub use apis::{
     BlockClient, CodeClient, DevClient, InfoClient, InjectedClient, ProgramClient, RPC_VERSION,

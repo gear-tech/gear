@@ -7,7 +7,7 @@ use crate::{EXPECTED_OWNERS, Simulator, handler};
 use anyhow::{Result, anyhow};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
-use std::process::Command;
+use tokio::process::Command;
 
 #[derive(Debug, Deserialize)]
 struct VersionsResponse {
@@ -113,12 +113,15 @@ pub async fn verify_owners(name: &str) -> Result<PackageStatus> {
 }
 
 /// Get the short hash of the current commit.
-pub fn hash() -> Result<String> {
-    Ok(Command::new("git")
+pub async fn hash() -> Result<String> {
+    let output = Command::new("git")
         .args(["rev-parse", "--short", "HEAD"])
         .output()
+        .await
         .map_err(|e| anyhow!("failed to execute command git, {e}"))?
-        .stdout
+        .stdout;
+
+    Ok(output
         .iter()
         .filter_map(|&c| (!c.is_ascii_whitespace()).then_some(c as char))
         .collect())

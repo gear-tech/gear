@@ -17,7 +17,8 @@ pub use self::{
     version::{PackageStatus, verify, verify_owners},
 };
 use anyhow::Result;
-use std::process::{Command, ExitStatus};
+use std::process::ExitStatus;
+use tokio::process::Command;
 
 /// Username that owns crates.
 pub const USER_OWNER: &str = "breathx";
@@ -124,15 +125,16 @@ pub const PACKAGE_ALIAS: [(&str, &str); 1] = [("gear-runtime-primitives", "runti
 pub const CARGO_REGISTRY_NAME: &str = "cargo-http-registry";
 
 /// Test the input package
-pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
+pub async fn test(package: &str, test: &str) -> Result<ExitStatus> {
     Command::new("cargo")
         .args(["+stable", "test", "-p", package, "--", test])
         .status()
+        .await
         .map_err(Into::into)
 }
 
 /// Publish the input package
-pub fn publish(manifest: &str) -> Result<ExitStatus> {
+pub async fn publish(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
         .args([
             "+stable",
@@ -142,14 +144,16 @@ pub fn publish(manifest: &str) -> Result<ExitStatus> {
             "--allow-dirty",
         ])
         .status()
+        .await
         .map_err(Into::into)
 }
 
 /// Add owner to the input package
-pub fn add_owner(package: &str, owner: &str) -> Result<ExitStatus> {
+pub async fn add_owner(package: &str, owner: &str) -> Result<ExitStatus> {
     Command::new("cargo")
         .args(["+stable", "owner", "--add", owner, package])
         .status()
+        .await
         .map_err(Into::into)
 }
 

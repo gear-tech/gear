@@ -8,10 +8,11 @@ use anyhow::{Result, anyhow};
 use cargo_metadata::Package;
 use std::{
     collections::BTreeMap,
-    env, fs,
+    env,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
+use tokio::fs;
 use toml_edit::{DocumentMut, InlineTable, Item};
 
 const WORKSPACE_NAME: &str = "__gear_workspace";
@@ -24,13 +25,13 @@ pub struct Workspace {
 
 impl Workspace {
     /// Get the workspace manifest with version overridden.
-    pub fn lookup(version: Option<String>) -> Result<Self> {
-        let path = Self::resolve_path("Cargo.toml")?;
-        let original_manifest: DocumentMut = fs::read_to_string(&path)?.parse()?;
+    pub async fn lookup(version: Option<String>) -> Result<Self> {
+        let path = Self::resolve_path("Cargo.toml").await?;
+        let original_manifest: DocumentMut = fs::read_to_string(&path).await?.parse()?;
         let mutable_manifest = original_manifest.clone();
 
-        let lock_file_path = Self::resolve_path("Cargo.lock")?;
-        let content = fs::read_to_string(&lock_file_path)?;
+        let lock_file_path = Self::resolve_path("Cargo.lock").await?;
+        let content = fs::read_to_string(&lock_file_path).await?;
 
         let mut workspace = Self {
             manifest: Manifest {
@@ -54,7 +55,7 @@ impl Workspace {
             let version = if let Some(version) = version {
                 version
             } else {
-                workspace.version()? + "-" + &version::hash()? + "commit"
+                workspace.version()? + "-" + &version::hash().await? + "commit"
             };
 
             workspace.mutable_manifest["workspace"]["package"]["version"] =
@@ -67,13 +68,14 @@ impl Workspace {
     }
 
     /// Resolve path to file in workspace.
-    pub fn resolve_path<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
+    pub async fn resolve_path<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
         let path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
             .ancestors()
             .nth(2)
             .map(|workspace_dir| workspace_dir.join(path.as_ref()))
             .ok_or_else(|| anyhow!("Could not find workspace manifest"))?
-            .canonicalize()?;
+            .to_path_buf();
+        let path = fs::canonicalize(path).await?;
         Ok(path)
     }
 
@@ -195,8 +197,9 @@ pub struct Manifest {
 impl Manifest {
     /// Complete the manifest of the specified crate from
     /// the workspace manifest
-    pub fn new(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<Self> {
-        let original_manifest: DocumentMut = fs::read_to_string(&pkg.manifest_path)?.parse()?;
+    pub async fn new(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<Self> {
+        let original_manifest: DocumentMut =
+            fs::read_to_string(&pkg.manifest_path).await?.parse()?;
         let mut mutable_manifest = original_manifest.clone();
 
         // Complete documentation as from <https://docs.rs>
@@ -215,13 +218,17 @@ impl Manifest {
     }
 
     /// Restore manifest
-    pub fn restore(&self) -> Result<()> {
-        fs::write(&self.path, self.original_manifest.to_string()).map_err(Into::into)
+    pub async fn restore(&self) -> Result<()> {
+        fs::write(&self.path, self.original_manifest.to_string())
+            .await
+            .map_err(Into::into)
     }
 
     /// Patch manifest
-    pub fn patch(&self) -> Result<()> {
-        fs::write(&self.path, self.mutable_manifest.to_string()).map_err(Into::into)
+    pub async fn patch(&self) -> Result<()> {
+        fs::write(&self.path, self.mutable_manifest.to_string())
+            .await
+            .map_err(Into::into)
     }
 }
 
@@ -234,7 +241,9 @@ pub struct LockFile {
 
 impl LockFile {
     /// Restore lock file
-    pub fn restore(&self) -> Result<()> {
-        fs::write(&self.path, &self.content).map_err(Into::into)
+    pub async fn restore(&self) -> Result<()> {
+        fs::write(&self.path, &self.content)
+            .await
+            .map_err(Into::into)
     }
 }

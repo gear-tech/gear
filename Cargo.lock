@@ -5634,7 +5634,6 @@ dependencies = [
  "ethexe-network",
  "ethexe-processor",
  "ethexe-prometheus",
- "ethexe-rpc-client",
  "ethexe-rpc-server",
  "ethexe-runtime-common",
  "ethexe-sdk",
