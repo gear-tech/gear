@@ -255,6 +255,7 @@ impl Publisher {
                     PackageStatus::InvalidOwners => {
                         // TODO: transfer ownership of crate https://crates.io/crates/gear-core-processor
                         // bail!("Package {name} has invalid owners!")
+                        is_published = true;
                     }
                     PackageStatus::NotPublished => is_published = false,
                     PackageStatus::ValidOwners => is_published = true,
