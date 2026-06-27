@@ -468,7 +468,7 @@ impl Service {
             db: db.clone(),
         };
 
-        let mut network = NetworkService::new(config.network.clone(), runtime_config)
+        let network = NetworkService::new(config.network.clone(), runtime_config)
             .await
             .with_context(|| "failed to create network service")?;
 
@@ -495,12 +495,10 @@ impl Service {
         malachite_base_config.post_quarantine_delay = config.node.post_quarantine_delay;
         log::info!(
             "Malachite persistent_peers: {}",
-            config.network.persistent_peers.len(),
+            config.network.persistent_addresses.len(),
         );
         let malachite = {
-            let malachite_network = network
-                .take_malachite_network_parts()
-                .context("Malachite network parts were already taken")?;
+            let malachite_network = network.malachite_network_parts();
             let (network_ref, tx_network) = malachite_network.into_engine_parts();
             let malachite_validator_set = build_malachite_validator_set(
                 validators.iter().copied(),

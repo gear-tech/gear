@@ -1233,7 +1233,7 @@ impl Node {
             None => active.iter().map(|e| e.multiaddr()).collect(),
         };
 
-        let mut network = self
+        let network = self
             .construct_network_service(
                 latest_block,
                 latest_validators,
@@ -1254,9 +1254,7 @@ impl Node {
         // receive `BlockFinalized` and trigger local compute so promise
         // bodies reach the RPC subscription manager.
         let malachite = {
-            let malachite_network = network
-                .take_malachite_network_parts()
-                .expect("Malachite network parts are available");
+            let malachite_network = network.malachite_network_parts();
             let (network_ref, tx_network) = malachite_network.into_engine_parts();
 
             let validators: Vec<ValidatorEntry> = active
@@ -1424,7 +1422,7 @@ impl Node {
             let multiaddr = bootstrap_addr.parse().unwrap();
             config.bootstrap_addresses = [multiaddr].into();
         }
-        config.persistent_peers = persistent_peers;
+        config.persistent_addresses = persistent_peers.into_iter().collect();
 
         let runtime_config = NetworkRuntimeConfig {
             latest_block_header: latest_block.header,

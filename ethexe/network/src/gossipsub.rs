@@ -30,26 +30,16 @@ use std::{
     time::Duration,
 };
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum Message {
     // TODO: rename to `Validators`
+    #[from]
     Commitments(SignedValidatorMessage),
+    #[from]
     TxReceipt(SignedCompactTxReceipt),
     MalachiteConsensus(Bytes),
     MalachiteLiveness(Bytes),
     MalachiteProposalParts(Bytes),
-}
-
-impl From<SignedValidatorMessage> for Message {
-    fn from(message: SignedValidatorMessage) -> Self {
-        Self::Commitments(message)
-    }
-}
-
-impl From<SignedCompactTxReceipt> for Message {
-    fn from(message: SignedCompactTxReceipt) -> Self {
-        Self::TxReceipt(message)
-    }
 }
 
 impl Message {
