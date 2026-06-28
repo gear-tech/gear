@@ -274,15 +274,8 @@ fn build_inner_config(moniker: &str) -> InnerNodeConfig {
         enabled: true,
         value_payload: ValuePayload::ProposalAndParts,
         queue_capacity: 100,
-        p2p: P2pConfig {
-            protocol: PubSubProtocol::default(),
-            listen_addr: "/memory/0".parse().expect("valid inert listen multiaddr"),
-            discovery: DiscoveryConfig {
-                enabled: false,
-                ..Default::default()
-            },
-            ..Default::default()
-        },
+        // NOTE: the config is actually unused because we have our own network implementation
+        p2p: P2pConfig::default(),
     };
     InnerNodeConfig {
         moniker: moniker.to_string(),
