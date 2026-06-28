@@ -19,7 +19,6 @@ use ethexe_common::{
     injected::SignedInjectedTransaction,
 };
 use ethexe_malachite_core::MalachiteCore;
-use ethexe_malachite_core::{MalachiteCtx, NetworkMsg, NetworkRef};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use gsigner::schemes::secp256k1::PublicKey;

@@ -123,14 +123,15 @@ fn build_signer(home: &Path) -> (Signer<Secp256k1>, gsigner::schemes::secp256k1:
 /// quarantine-off (so the producer can advance immediately on each
 /// new chain head), no persistent peers, single-validator set so the
 /// local node can decide on its own.
-fn build_config(home: &Path, pub_key: gsigner::schemes::secp256k1::PublicKey) -> MalachiteServiceConfig {
+fn build_config(
+    home: &Path,
+    pub_key: gsigner::schemes::secp256k1::PublicKey,
+) -> MalachiteServiceConfig {
     MalachiteServiceConfig {
         gas_allowance: MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE,
         canonical_quarantine: 0,
         post_quarantine_delay: 0,
-        propose_timeout: MalachiteConfig::DEFAULT_PROPOSE_TIMEOUT,
         home_dir: home.to_path_buf(),
-        persistent_peers: Vec::new(),
         validators: vec![ValidatorEntry {
             public_key: pub_key,
             voting_power: 1,
@@ -378,11 +379,11 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         build_config(home.path(), pub_key),
         Some(ValidatorConfig {
             pub_key,
-        network_ref,
-        tx_network,
             mempool: EmptyMempool,
             signer,
         }),
+        network_ref,
+        tx_network,
         db.clone(),
         chain[31],
     )

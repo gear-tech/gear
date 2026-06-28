@@ -8,8 +8,10 @@
 //! is wired in directly — there is no separate genesis file — so the
 //! caller is the single source of truth for who can vote.
 
-pub use ethexe_malachite_core::{Multiaddr, ValidatorEntry};
+pub use ethexe_malachite_core::ValidatorEntry;
 
+use crate::Mempool;
+use gsigner::{PublicKey, secp256k1::Signer};
 use std::{path::PathBuf, time::Duration};
 
 #[derive(Clone, Debug)]
@@ -29,16 +31,8 @@ pub struct MalachiteServiceConfig {
     //       per `wait_for_proposable_content` invocation.
     pub post_quarantine_delay: u32,
 
-    /// Upper bound on how long the proposer waits for fresh local content
-    /// before Malachite advances the round.
-    pub propose_timeout: Duration,
-
     /// Directory for the consensus core's WAL and RocksDB store.
     pub home_dir: PathBuf,
-
-    /// Multiaddrs of peers to keep persistent connections to; each entry
-    /// must include a `/p2p/<peer_id>` suffix (discovery is off).
-    pub persistent_peers: Vec<Multiaddr>,
 
     /// The complete validator set. Quorum is `> 2/3` of total voting power.
     /// A validator node's own public key must appear in this list.
@@ -67,19 +61,10 @@ impl MalachiteServiceConfig {
             gas_allowance: Self::DEFAULT_GAS_ALLOWANCE,
             canonical_quarantine: Self::DEFAULT_CANONICAL_QUARANTINE,
             post_quarantine_delay: Self::DEFAULT_POST_QUARANTINE_DELAY,
-            listen_addr: Self::DEFAULT_LISTEN_ADDR,
             home_dir,
-            persistent_peers: Vec::new(),
             validators: Vec::new(),
             propose_timeout: Self::DEFAULT_PROPOSE_TIMEOUT,
         }
-    }
-
-    /// Replace the Malachite persistent peers list.
-    #[must_use]
-    pub fn with_persistent_peers(mut self, peers: Vec<Multiaddr>) -> Self {
-        self.persistent_peers = peers;
-        self
     }
 
     /// Replace the validator set.
@@ -122,7 +107,6 @@ mod tests {
     #[test]
     fn from_home_dir_defaults() {
         let cfg = MalachiteServiceConfig::from_home_dir(PathBuf::from("/tmp"));
-        assert!(cfg.persistent_peers.is_empty());
         assert!(cfg.validators.is_empty());
     }
 }

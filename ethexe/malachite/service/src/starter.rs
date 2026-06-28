@@ -13,7 +13,9 @@ use ethexe_common::{
     db::{ConfigStorageRO, GlobalsStorageRO},
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{MalachiteCore, MalachiteCoreConfig, NodeRole};
+use ethexe_malachite_core::{
+    MalachiteCore, MalachiteCoreConfig, MalachiteCtx, NetworkMsg, NetworkRef, NodeRole,
+};
 use gsigner::schemes::secp256k1::{PrivateKey, PublicKey};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{
@@ -31,6 +33,8 @@ pub struct MalachiteServiceStarter {
     validators: HashMap<Address, PublicKey>,
     active_era: u64,
     core_config: MalachiteCoreConfig,
+    network_ref: NetworkRef<MalachiteCtx>,
+    tx_network: mpsc::Sender<NetworkMsg<MalachiteCtx>>,
 }
 
 impl MalachiteServiceStarter {
@@ -40,6 +44,8 @@ impl MalachiteServiceStarter {
     pub fn new<M: Mempool>(
         config: MalachiteServiceConfig,
         validator_config: Option<ValidatorConfig<M>>,
+        network_ref: NetworkRef<MalachiteCtx>,
+        tx_network: mpsc::Sender<NetworkMsg<MalachiteCtx>>,
         db: Database,
         initial_chain_head: SimpleBlockData,
     ) -> Result<Self> {
@@ -79,9 +85,7 @@ impl MalachiteServiceStarter {
         };
 
         let core_config = MalachiteCoreConfig {
-            listen_addr: config.listen_addr,
             base: config.home_dir.clone(),
-            persistent_peers: config.persistent_peers.clone(),
             validator_secret,
             validators: config.validators.clone(),
             role,
@@ -124,6 +128,8 @@ impl MalachiteServiceStarter {
             validators,
             active_era,
             core_config,
+            network_ref,
+            tx_network,
         })
     }
 
@@ -137,9 +143,11 @@ impl MalachiteServiceStarter {
             validators,
             active_era,
             core_config,
+            network_ref,
+            tx_network,
         } = self;
 
-        let inner = MalachiteCore::new(core_config, externalities.clone())
+        let inner = MalachiteCore::new(core_config, network_ref, tx_network, externalities.clone())
             .await
             .context("starting ethexe-malachite-core")?;
 

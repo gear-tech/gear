@@ -38,18 +38,9 @@ pub enum NodeRole {
 /// Application-specific knobs live behind [`crate::Externalities`].
 #[derive(Clone, Debug)]
 pub struct MalachiteCoreConfig {
-    /// Local libp2p listen address.
-    pub listen_addr: SocketAddr,
-
     /// Base directory; the service owns `<base>/malachite/` (consensus WAL
     /// + RocksDB store), created on first run and resumed on restarts.
     pub base: PathBuf,
-
-    /// Shared-network multiaddrs the Malachite consensus lane should
-    /// treat as persistent peers. Each entry must include the shared
-    /// `/p2p/<peer_id>` suffix. The shared `ethexe-network` service
-    /// owns dialing, listener state, and peer identity.
-    pub persistent_peers: Vec<Multiaddr>,
 
     /// This node's secp256k1 secret: libp2p peer identity in both roles,
     /// plus vote / proposal signing in [`NodeRole::Validator`] mode.

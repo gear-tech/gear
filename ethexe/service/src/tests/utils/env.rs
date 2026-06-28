@@ -37,7 +37,9 @@ use ethexe_ethereum::{
     middleware::MockElectionProvider,
     router::RouterQuery,
 };
-use ethexe_malachite::{InjectedTxMempool, MalachiteConfig, MalachiteService, ValidatorEntry};
+use ethexe_malachite::{
+    InjectedTxMempool, MalachiteServiceConfig, MalachiteServiceStarter, ValidatorEntry,
+};
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
     ObserverConfig, ObserverService,
@@ -1228,7 +1230,8 @@ impl Node {
                 .path()
                 .to_path_buf();
 
-            let mut mc = MalachiteServiceConfig::from_home_dir(home_path).with_validators(validators);
+            let mut mc =
+                MalachiteServiceConfig::from_home_dir(home_path).with_validators(validators);
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
             // Tests drive content in bursts; a short propose timeout keeps
@@ -1250,9 +1253,10 @@ impl Node {
             MalachiteServiceStarter::new(
                 mc,
                 malachite_validator_config,
-                self.db.clone(),
                 network_ref,
                 tx_network,
+                self.db.clone(),
+                latest_block,
             )
             .expect("MalachiteServiceStarter::new")
         };

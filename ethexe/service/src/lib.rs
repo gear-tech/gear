@@ -452,19 +452,18 @@ impl Service {
             None
         };
 
-        let network = if let Some(net_config) = &config.network {
-            let network_signer = match net_config.transport_type {
-                TransportType::Test => {
-                    let network_signer = Signer::memory();
-                    let network_private_key = signer
-                        .private_key(net_config.public_key)
-                        .with_context(|| "failed to get test network private key")?
-                        .clone();
-                    network_signer.import(network_private_key)?;
-                    network_signer
-                }
-                TransportType::Default => Signer::fs(config.node.net_path.clone())?,
-            };
+        let network_signer = match config.network.transport_type {
+            TransportType::Test => {
+                let network_signer = Signer::memory();
+                let network_private_key = signer
+                    .private_key(config.network.public_key)
+                    .with_context(|| "failed to get test network private key")?
+                    .clone();
+                network_signer.import(network_private_key)?;
+                network_signer
+            }
+            TransportType::Default => Signer::fs(config.node.net_path.clone())?,
+        };
 
         let runtime_config = NetworkRuntimeConfig {
             latest_block_header: initial_chain_head.header,
@@ -506,17 +505,9 @@ impl Service {
             )?;
 
             let malachite_config = MalachiteServiceConfig::from_home_dir(malachite_home)
-                .with_listen_addr(config.malachite.listen_addr)
-                .with_persistent_peers(config.malachite.persistent_peers.clone())
                 .with_canonical_quarantine(config.node.canonical_quarantine)
                 .with_post_quarantine_delay(config.node.post_quarantine_delay)
                 .with_validators(malachite_validator_set);
-
-            log::info!(
-                "Malachite listen: {}  persistent_peers: {}",
-                malachite_config.listen_addr,
-                malachite_config.persistent_peers.len(),
-            );
 
             let validator_config =
                 validator_pub_key.map(|pub_key| ethexe_malachite::ValidatorConfig {
@@ -829,13 +820,13 @@ impl Service {
                             channel,
                         } => {
                             let acceptance = malachite
-                                    .receive_injected_transaction(*transaction)
-                                    .await
-                                    .into();
-                                if let Err(err) = channel.send(acceptance) {
+                                .receive_injected_transaction(*transaction)
+                                .await
+                                .into();
+                            if let Err(err) = channel.send(acceptance) {
                                 tracing::error!(
                                     ?err,
-                                        "failed to send injected transaction acceptance response"
+                                    "failed to send injected transaction acceptance response"
                                 )
                             }
                         }

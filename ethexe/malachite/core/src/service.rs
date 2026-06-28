@@ -184,7 +184,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
         }
 
         // ---- engine ----
-        let inner_cfg = build_inner_config(&config, &moniker);
+        let inner_cfg = build_inner_config(&moniker);
         let ctx = MalachiteCtx::new();
         let consensus_signer = MalachiteSigner::new(signer.private_key().clone());
         let (channels, engine) = EngineBuilder::new(ctx.clone(), inner_cfg)
@@ -269,7 +269,7 @@ impl<EXT: Externalities> FusedStream for MalachiteCore<EXT> {
 
 impl<EXT: Externalities> MService for MalachiteCore<EXT> {}
 
-fn build_inner_config(cfg: &MalachiteCoreConfig, moniker: &str) -> InnerNodeConfig {
+fn build_inner_config(moniker: &str) -> InnerNodeConfig {
     let consensus = ConsensusConfig {
         enabled: true,
         value_payload: ValuePayload::ProposalAndParts,
@@ -277,7 +277,6 @@ fn build_inner_config(cfg: &MalachiteCoreConfig, moniker: &str) -> InnerNodeConf
         p2p: P2pConfig {
             protocol: PubSubProtocol::default(),
             listen_addr: "/memory/0".parse().expect("valid inert listen multiaddr"),
-            persistent_peers: cfg.persistent_peers.clone(),
             discovery: DiscoveryConfig {
                 enabled: false,
                 ..Default::default()
