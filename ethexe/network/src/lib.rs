@@ -942,7 +942,6 @@ mod tests {
         latest_validators: ValidatorsVec,
         signer: Signer,
         validator_key: Option<PublicKey>,
-        router_address: Address,
     }
 
     impl NetworkServiceBuilder {
@@ -953,13 +952,7 @@ mod tests {
                 latest_validators: nonempty![Address::default()].into(),
                 signer: Signer::memory(),
                 validator_key: None,
-                router_address: Address::default(),
             }
-        }
-
-        fn router_address(mut self, router_address: Address) -> Self {
-            self.router_address = router_address;
-            self
         }
 
         async fn build(self) -> NetworkService {
@@ -981,7 +974,6 @@ mod tests {
                 latest_validators,
                 signer,
                 validator_key,
-                router_address,
             } = self;
 
             db.set_config(DBConfig {
@@ -990,7 +982,7 @@ mod tests {
             });
 
             let key = signer.generate().unwrap();
-            let config = NetworkConfig::new_test(key, router_address);
+            let config = NetworkConfig::new_test(key, Address::default());
 
             let runtime_config = NetworkRuntimeConfig {
                 latest_block_header: GENESIS_BLOCK_HEADER,
@@ -1008,36 +1000,6 @@ mod tests {
 
     pub(crate) async fn new_service() -> NetworkService {
         NetworkServiceBuilder::new().build().await
-    }
-
-    async fn new_service_with_router(router_address: Address) -> NetworkService {
-        NetworkServiceBuilder::new()
-            .router_address(router_address)
-            .build()
-            .await
-    }
-
-    #[tokio::test]
-    async fn malachite_gossip_topics_are_router_scoped() {
-        let router_a = Address::from([1u8; 20]);
-        let router_b = Address::from([2u8; 20]);
-        let service_a = new_service_with_router(router_a).await;
-        let service_b = new_service_with_router(router_b).await;
-
-        let topics_a = service_a
-            .swarm
-            .behaviour()
-            .gossipsub
-            .malachite_topic_hashes_for_tests();
-        let topics_b = service_b
-            .swarm
-            .behaviour()
-            .gossipsub
-            .malachite_topic_hashes_for_tests();
-
-        assert_ne!(topics_a.consensus, topics_b.consensus);
-        assert_ne!(topics_a.liveness, topics_b.liveness);
-        assert_ne!(topics_a.proposal_parts, topics_b.proposal_parts);
     }
 
     #[tokio::test]

@@ -263,51 +263,33 @@ impl Behaviour {
                 let source =
                     source.expect("ValidationMode::Strict implies `source` is always present");
 
-                let message = if topic == self.commitments_topic.hash() {
-                    match SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments) {
-                        Ok(message) => message,
-                        Err(error) => {
-                            log::trace!("failed to decode gossip message from {source}: {error}");
-                            let validated = self.inner.report_message_validation_result(
-                                &message_id,
-                                &propagation_source,
-                                MessageAcceptance::Reject,
-                            );
-                            debug_assert!(validated);
-                            self.peer_score.invalid_data(source);
-                            return Poll::Pending;
-                        }
-                    }
+                let res = if topic == self.commitments_topic.hash() {
+                    SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
                 } else if topic == self.tx_receipts_topic.hash() {
-                    match SignedCompactTxReceipt::decode(&mut &data[..]).map(Message::TxReceipt) {
-                        Ok(message) => message,
-                        Err(error) => {
-                            log::trace!("failed to decode gossip message from {source}: {error}");
-                            let validated = self.inner.report_message_validation_result(
-                                &message_id,
-                                &propagation_source,
-                                MessageAcceptance::Reject,
-                            );
-                            debug_assert!(validated);
-                            self.peer_score.invalid_data(source);
-                            return Poll::Pending;
-                        }
-                    }
+                    SignedCompactTxReceipt::decode(&mut &data[..]).map(Message::TxReceipt)
                 } else if topic == self.malachite_consensus_topic.hash() {
-                    Message::MalachiteConsensus(Bytes::from(data))
+                    Ok(Message::MalachiteConsensus(Bytes::from(data)))
                 } else if topic == self.malachite_liveness_topic.hash() {
-                    Message::MalachiteLiveness(Bytes::from(data))
+                    Ok(Message::MalachiteLiveness(Bytes::from(data)))
                 } else if topic == self.malachite_proposal_parts_topic.hash() {
-                    Message::MalachiteProposalParts(Bytes::from(data))
+                    Ok(Message::MalachiteProposalParts(Bytes::from(data)))
                 } else {
-                    log::trace!("received gossip message on unknown topic {topic:?}");
-                    let validated = self.inner.report_message_validation_result(
-                        &message_id,
-                        &propagation_source,
-                        MessageAcceptance::Ignore,
-                    );
-                    debug_assert!(validated);
-                    return Poll::Pending;
+                    unreachable!("topic we never subscribed to: {topic:?}");
+                };
+
+                let message = match res {
+                    Ok(message) => message,
+                    Err(error) => {
+                        log::trace!("failed to decode gossip message from {source}: {error}");
+                        let validated = self.inner.report_message_validation_result(
+                            &message_id,
+                            &propagation_source,
+                            MessageAcceptance::Reject,
+                        );
+                        debug_assert!(validated);
+                        self.peer_score.invalid_data(source);
+                        return Poll::Pending;
+                    }
                 };
 
                 let validator = MessageValidator {
@@ -340,22 +322,6 @@ impl Behaviour {
             }
         }
     }
-
-    #[cfg(test)]
-    pub(crate) fn malachite_topic_hashes_for_tests(&self) -> MalachiteTopicHashes {
-        MalachiteTopicHashes {
-            consensus: self.malachite_consensus_topic.hash(),
-            liveness: self.malachite_liveness_topic.hash(),
-            proposal_parts: self.malachite_proposal_parts_topic.hash(),
-        }
-    }
-}
-
-#[cfg(test)]
-pub(crate) struct MalachiteTopicHashes {
-    pub consensus: TopicHash,
-    pub liveness: TopicHash,
-    pub proposal_parts: TopicHash,
 }
 
 impl NetworkBehaviour for Behaviour {
