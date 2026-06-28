@@ -38,10 +38,7 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{InjectedTxMempool, MalachiteConfig, MalachiteService, ValidatorEntry};
-use ethexe_network::{
-    NetworkConfig, NetworkRuntimeConfig, NetworkService,
-    export::{Multiaddr, PeerId},
-};
+use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
     ObserverConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
@@ -75,28 +72,16 @@ use tracing::Instrument;
 const MAX_NETWORK_SERVICES_PER_TEST: usize = 1000;
 const INTERNAL_NETWORK_MEMORY_ADDR_BASE: usize = 1_000_000_000;
 
-/// Pre-allocated malachite endpoint: TCP port + deterministic peer-id.
+/// Pre-allocated malachite endpoint.
 #[derive(Clone, Debug)]
 pub struct MalachiteEndpoint {
     pub pub_key: PublicKey,
     pub listen_addr: SocketAddr,
-    pub peer_id: PeerId,
 }
 
 impl MalachiteEndpoint {
     pub fn listen_multiaddr(&self) -> Multiaddr {
         tcp_multiaddr(self.listen_addr)
-    }
-
-    pub fn multiaddr(&self) -> Multiaddr {
-        format!(
-            "/ip4/{}/tcp/{}/p2p/{}",
-            self.listen_addr.ip(),
-            self.listen_addr.port(),
-            self.peer_id,
-        )
-        .parse()
-        .expect("constructed multiaddr is well-formed")
     }
 }
 
@@ -151,7 +136,6 @@ pub struct TestEnv {
 }
 
 fn build_malachite_endpoints(
-    signer: &Signer,
     validators: &[ValidatorConfig],
 ) -> (Vec<MalachiteEndpoint>, HashMap<PublicKey, TcpListener>) {
     // Bind concurrently so the OS picks distinct ports; listeners stay alive until handoff.
@@ -169,30 +153,14 @@ fn build_malachite_endpoints(
         .map(|(v, listener)| {
             let listen_addr = listener.local_addr().expect("local_addr");
             listener_map.insert(v.public_key, listener);
-            let _ = signer;
-            let peer_id = network_peer_id(signer, v.public_key);
             MalachiteEndpoint {
                 pub_key: v.public_key,
                 listen_addr,
-                peer_id,
             }
         })
         .collect();
 
     (endpoints, listener_map)
-}
-
-fn network_peer_id(signer: &Signer, public_key: PublicKey) -> PeerId {
-    let mut secret = signer
-        .private_key(public_key)
-        .expect("network key in keyring")
-        .to_bytes();
-    let secret = libp2p_identity::secp256k1::SecretKey::try_from_bytes(&mut secret)
-        .expect("signer provided invalid secp256k1 secret");
-    let keypair = libp2p_identity::secp256k1::Keypair::from(secret);
-    libp2p_identity::Keypair::from(keypair)
-        .public()
-        .to_peer_id()
 }
 
 impl TestEnv {
@@ -449,7 +417,7 @@ impl TestEnv {
 
         // Hold listeners alive until `start_service` to keep concurrent test processes off our ports.
         let (malachite_endpoints, malachite_listeners) =
-            build_malachite_endpoints(&signer, &validator_configs);
+            build_malachite_endpoints(&validator_configs);
 
         Ok(TestEnv {
             eth_cfg,
@@ -576,8 +544,7 @@ impl TestEnv {
     /// `start_service` panics when asked to boot a validator whose pubkey
     /// wasn't part of `TestEnv::new` time.
     pub fn extend_malachite_endpoints(&mut self, validators: &[ValidatorConfig]) {
-        let (extra_endpoints, extra_listeners) =
-            build_malachite_endpoints(&self.signer, validators);
+        let (extra_endpoints, extra_listeners) = build_malachite_endpoints(validators);
         for ep in extra_endpoints {
             if !self
                 .malachite_endpoints
@@ -1207,9 +1174,6 @@ impl Node {
                 })
         });
 
-        // Filter `malachite_endpoints` to era-current pubkeys —
-        // leftover entries from `extend_malachite_endpoints` would
-        // skew the >2/3 threshold.
         let active: Vec<MalachiteEndpoint> = self
             .malachite_endpoints
             .iter()
@@ -1217,21 +1181,13 @@ impl Node {
             .cloned()
             .collect();
 
-        let persistent_peers: Vec<Multiaddr> = match self.validator_config.as_ref() {
-            Some(config) => {
-                assert!(
-                    active.iter().any(|e| e.pub_key == config.public_key),
-                    "test setup bug: local validator {} not in env.validators when start_service was called",
-                    config.public_key,
-                );
-                active
-                    .iter()
-                    .filter(|e| e.pub_key != config.public_key)
-                    .map(|e| e.multiaddr())
-                    .collect()
-            }
-            None => active.iter().map(|e| e.multiaddr()).collect(),
-        };
+        if let Some(config) = self.validator_config.as_ref() {
+            assert!(
+                active.iter().any(|e| e.pub_key == config.public_key),
+                "test setup bug: local validator {} not in env.validators when start_service was called",
+                config.public_key,
+            );
+        }
 
         let network = self
             .construct_network_service(
@@ -1241,7 +1197,6 @@ impl Node {
                 listen_addresses,
                 external_addresses,
                 self.network_bootstrap_address.as_deref(),
-                persistent_peers,
             )
             .await;
         if let Some(addr) = self.network_address.as_ref() {
@@ -1408,7 +1363,6 @@ impl Node {
         listen_addresses: Vec<Multiaddr>,
         external_addresses: Vec<Multiaddr>,
         bootstrap_address: Option<&str>,
-        persistent_peers: Vec<Multiaddr>,
     ) -> NetworkService {
         assert!(
             self.running_service_handle.is_none(),
@@ -1422,8 +1376,6 @@ impl Node {
             let multiaddr = bootstrap_addr.parse().unwrap();
             config.bootstrap_addresses = [multiaddr].into();
         }
-        config.persistent_addresses = persistent_peers.into_iter().collect();
-
         let runtime_config = NetworkRuntimeConfig {
             latest_block_header: latest_block.header,
             latest_validators,
@@ -1486,7 +1438,6 @@ impl Node {
                 vec![multiaddr.clone()],
                 vec![multiaddr],
                 self.network_bootstrap_address.as_deref(),
-                Vec::new(),
             )
             .await;
 

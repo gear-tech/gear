@@ -741,19 +741,6 @@ start_nodes() {
 			done
 		fi
 
-		# Malachite has no DHT discovery yet — every other validator
-		# must be listed explicitly via `--malachite-persistent-peer`
-		# (one repeat per peer). Use container DNS names so docker's
-		# resolver can find peers regardless of host IP. The peer id is
-		# the shared ethexe-network peer id.
-		for ((j = 0; j < NUM_VALIDATORS; j++)); do
-			if [[ $j -ne $i ]]; then
-				local mb_peer_id="${PEER_IDS[$j]}"
-				local mb_peer_container="${NODE_CONTAINER_PREFIX}-${j}"
-				cmd+=" --malachite-persistent-peer /dns4/$mb_peer_container/udp/$CONTAINER_NETWORK_PORT/quic-v1/p2p/$mb_peer_id"
-			fi
-		done
-
 		docker run -d \
 			--name "$container_name" \
 			--network "$DOCKER_NETWORK_NAME" \

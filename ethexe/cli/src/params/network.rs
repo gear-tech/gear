@@ -29,16 +29,6 @@ pub struct NetworkParams {
     #[serde(rename = "bootnodes")]
     pub network_bootnodes: Option<Vec<Multiaddr>>,
 
-    /// Shared-network peer multiaddrs the Malachite consensus lane
-    /// should keep connected to. Each entry must include the shared
-    /// `/p2p/<peer_id>` suffix. Repeat the flag to add more than one peer.
-    #[arg(
-        long = "network-persistent-peer",
-        aliases = &["malachite-persistent-peer", "mala-persistent-peer"]
-    )]
-    #[serde(default, rename = "persistent-peers")]
-    pub network_persistent_peers: Option<Vec<Multiaddr>>,
-
     /// Externally exposed network addresses of the node.
     #[arg(long, aliases = &["net-public-addr", "public-addr"])]
     #[serde(rename = "public-addr")]
@@ -97,12 +87,6 @@ impl NetworkParams {
             .into_iter()
             .collect();
 
-        let persistent_addresses = self
-            .network_persistent_peers
-            .unwrap_or_default()
-            .into_iter()
-            .collect();
-
         let network_listen_addr = self.network_listen_addr.unwrap_or_default();
 
         let port = self
@@ -130,7 +114,6 @@ impl NetworkParams {
             router_address,
             external_addresses,
             bootstrap_addresses,
-            persistent_addresses,
             listen_addresses,
             transport_type: Default::default(),
             allow_non_global_addresses: is_dev,
@@ -143,9 +126,6 @@ impl MergeParams for NetworkParams {
         Self {
             network_key: self.network_key.or(with.network_key),
             network_bootnodes: self.network_bootnodes.or(with.network_bootnodes),
-            network_persistent_peers: self
-                .network_persistent_peers
-                .or(with.network_persistent_peers),
             network_public_addr: self.network_public_addr.or(with.network_public_addr),
             network_listen_addr: self.network_listen_addr.or(with.network_listen_addr),
             network_port: self.network_port.or(with.network_port),

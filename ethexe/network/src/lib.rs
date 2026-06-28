@@ -128,8 +128,6 @@ pub struct NetworkConfig {
     pub external_addresses: HashSet<Multiaddr>,
     /// Peers we try to connect to proactively at startup.
     pub bootstrap_addresses: HashSet<Multiaddr>,
-    /// Shared-network peers the Malachite consensus lane keeps connected to.
-    pub persistent_addresses: HashSet<Multiaddr>,
     /// Addresses the local swarm listens on.
     pub listen_addresses: HashSet<Multiaddr>,
     /// Transport backend to use.
@@ -147,7 +145,6 @@ impl NetworkConfig {
             public_key,
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
-            persistent_addresses: Default::default(),
             listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
             transport_type: TransportType::Default,
             router_address,
@@ -161,7 +158,6 @@ impl NetworkConfig {
             public_key,
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
-            persistent_addresses: Default::default(),
             listen_addresses: Default::default(),
             transport_type: TransportType::Test,
             router_address,
@@ -250,7 +246,6 @@ impl NetworkService {
             public_key,
             external_addresses,
             bootstrap_addresses,
-            persistent_addresses,
             listen_addresses,
             transport_type,
             router_address,
@@ -325,18 +320,7 @@ impl NetworkService {
             bootstrap_peers.insert(peer_id);
         }
 
-        for multiaddr in persistent_addresses.clone() {
-            let peer_id = multiaddr
-                .peer_id()
-                .context("persistent nodes are not allowed without peer ID")?;
-
-            swarm.add_peer_address(peer_id, multiaddr.clone());
-            swarm.behaviour_mut().kad.add_address(peer_id, multiaddr);
-        }
-
-        let malachite_state =
-            malachite::state::State::spawn(keypair.public().to_peer_id(), persistent_addresses)
-                .await?;
+        let malachite_state = malachite::state::State::spawn(keypair.public().to_peer_id()).await?;
 
         log::info!(
             "NetworkService created with peer id: {}",

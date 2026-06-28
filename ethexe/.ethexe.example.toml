@@ -198,16 +198,6 @@
 # (optional, default: 20333).
 # port = 20333
 
-# Shared-network peers the Malachite consensus lane should keep connected to.
-# These use the same `/p2p/{peer_id}` values as `[network].bootnodes`.
-# Example for a 3-node test on localhost:
-#   persistent-peers = [
-#     "/ip4/127.0.0.1/udp/20333/quic-v1/p2p/12D3KooW...",
-#     "/ip4/127.0.0.1/udp/20333/quic-v1/p2p/12D3KooW...",
-#   ]
-# (optional, default: empty list).
-# persistent-peers = []
-
 ##########################################################################################
 
 ### Ethexe RPC service hosting parameters.

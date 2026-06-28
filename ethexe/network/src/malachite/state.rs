@@ -1,31 +1,26 @@
 use crate::{
     Behaviour, malachite,
     malachite::{CoreNetworkEvent, EngineNetworkMsg, MalachiteNetworkParts},
-    utils::MultiaddrExt,
 };
 use bytes::Bytes;
 use ethexe_malachite_core::{MalachiteCtx, ScaleCodec};
-use libp2p::{Multiaddr, PeerId, Swarm, request_response, swarm::SwarmEvent};
+use libp2p::{PeerId, Swarm, request_response, swarm::SwarmEvent};
 use libp2p_gossipsub::MessageAcceptance;
 use malachitebft_app_channel::app::types::sync;
 use malachitebft_codec::Codec;
 use malachitebft_core_consensus::{LivenessMsg, SignedConsensusMsg};
 use malachitebft_core_types::ValidatorProof;
 use malachitebft_engine::util::{output_port::OutputPort, streaming::StreamMessage};
-use malachitebft_network::{
-    LocalNodeInfo, NetworkStateDump, PeerIdExt, PersistentPeerError, PersistentPeersOp,
-    ValidatorInfo,
-};
+use malachitebft_network::{PeerIdExt, ValidatorInfo};
 use malachitebft_sync::Status;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     task::{Context, Poll},
 };
 use tokio::sync::mpsc;
 
 pub(crate) struct State {
     local_peer_id: malachitebft_app_channel::app::types::PeerId,
-    persistent_peers: HashSet<Multiaddr>,
     rx: mpsc::Receiver<EngineNetworkMsg>,
     parts: MalachiteNetworkParts,
     validators: Vec<ValidatorInfo>,
@@ -35,16 +30,12 @@ pub(crate) struct State {
 }
 
 impl State {
-    pub(crate) async fn spawn(
-        peer_id: PeerId,
-        persistent_peers: HashSet<Multiaddr>,
-    ) -> anyhow::Result<Self> {
+    pub(crate) async fn spawn(peer_id: PeerId) -> anyhow::Result<Self> {
         let (malachite_lane_tx, rx) = mpsc::channel(128);
         let parts = malachite::adapter::spawn_adapter(malachite_lane_tx).await?;
 
         Ok(Self {
             local_peer_id: PeerIdExt::from_libp2p(&peer_id),
-            persistent_peers,
             rx,
             parts,
             validators: Default::default(),
@@ -284,36 +275,11 @@ impl State {
                     .malachite
                     .send_sync_response(channel, response);
             }
-            EngineNetworkMsg::DumpState(reply) => {
-                let _ = reply.send(Some(self.dump_state()));
+            EngineNetworkMsg::DumpState(_reply) => {
+                unreachable!("state dump is never requested in ethexe")
             }
-            EngineNetworkMsg::UpdatePersistentPeers(op, reply) => {
-                let op = || match op {
-                    PersistentPeersOp::Add(addr) => {
-                        let Some(peer_id) = addr.peer_id() else {
-                            return Ok(());
-                        };
-
-                        self.persistent_peers
-                            .insert(addr.clone())
-                            .then_some(())
-                            .ok_or(PersistentPeerError::AlreadyExists)?;
-
-                        swarm.add_peer_address(peer_id, addr.clone());
-                        swarm.behaviour_mut().kad.add_address(peer_id, addr.clone());
-
-                        let _res = swarm.dial(addr);
-
-                        Ok(())
-                    }
-                    PersistentPeersOp::Remove(addr) => self
-                        .persistent_peers
-                        .remove(&addr)
-                        .then_some(())
-                        .ok_or(PersistentPeerError::NotFound),
-                };
-
-                let _ = reply.send(op());
+            EngineNetworkMsg::UpdatePersistentPeers(_op, _reply) => {
+                unreachable!("persistent peers update is never requested in ethexe")
             }
             EngineNetworkMsg::UpdateValidatorSet(validators) => {
                 let validators: Vec<_> = validators
@@ -326,11 +292,7 @@ impl State {
                     .collect();
                 self.validators = validators;
             }
-            EngineNetworkMsg::ValidatorProofVerified {
-                peer_id,
-                result,
-                public_key,
-            } => {}
+            EngineNetworkMsg::ValidatorProofVerified { .. } => {}
             EngineNetworkMsg::NewEvent(event) => unreachable!("{event:?}"),
         }
     }
@@ -392,24 +354,5 @@ impl State {
             .send(CoreNetworkEvent::ProposalPart(from, message));
 
         MessageAcceptance::Accept
-    }
-
-    fn dump_state(&self) -> NetworkStateDump {
-        NetworkStateDump {
-            local_node: LocalNodeInfo {
-                moniker: String::new(),
-                peer_id: self.local_peer_id.to_libp2p(),
-                listen_addr: Multiaddr::empty(),
-                consensus_address: None,
-                proof_bytes: None,
-                is_validator: false,
-                persistent_peers_only: false,
-                subscribed_topics: HashSet::new(),
-            },
-            peers: HashMap::new(),
-            validator_set: self.validators.clone(),
-            persistent_peer_ids: Vec::new(),
-            persistent_peer_addrs: self.persistent_peers.iter().cloned().collect(),
-        }
     }
 }

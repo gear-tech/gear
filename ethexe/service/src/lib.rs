@@ -493,10 +493,6 @@ impl Service {
         // Must match the compute layer's quarantine or consensus deadlocks.
         malachite_base_config.canonical_quarantine = config.node.canonical_quarantine;
         malachite_base_config.post_quarantine_delay = config.node.post_quarantine_delay;
-        log::info!(
-            "Malachite persistent_peers: {}",
-            config.network.persistent_addresses.len(),
-        );
         let malachite = {
             let malachite_network = network.malachite_network_parts();
             let (network_ref, tx_network) = malachite_network.into_engine_parts();
