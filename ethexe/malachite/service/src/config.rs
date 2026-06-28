@@ -8,26 +8,22 @@
 //! is wired in directly — there is no separate genesis file — so the
 //! caller is the single source of truth for who can vote.
 
-use std::{path::PathBuf, time::Duration};
-
 pub use ethexe_malachite_core::{Multiaddr, ValidatorEntry};
 
+use std::{path::PathBuf, time::Duration};
+
 #[derive(Clone, Debug)]
-pub struct MalachiteConfig {
+pub struct MalachiteServiceConfig {
     /// Gas allowance per block.
     pub gas_allowance: u64,
 
-    /// Number of canonical descendants an Ethereum block must have
-    /// before it is considered out of quarantine and safe to anchor a
-    /// sequencer block to.
+    /// Number of canonical descendants an EB must have before it is
+    /// out of quarantine and safe to advance to.
     pub canonical_quarantine: u8,
 
-    /// Extra depth (in Hoodi blocks, on top of `canonical_quarantine`)
-    /// the proposer waits before choosing an EB to advance to. A
-    /// positive value gives lagging validators time to receive the EB
-    /// before the proposer references it, eliminating the need for
-    /// validators to wait on local sync inside `validate_block_above`.
-    /// Defaults to 1.
+    /// Extra depth on top of `canonical_quarantine` the proposer waits
+    /// before choosing an EB to advance to, giving lagging validators
+    /// time to sync it.
     // TODO: #5478 reject unreasonable values at config load — `u32::MAX`
     //       turns the producer's anchor walk into millions of RocksDB reads
     //       per `wait_for_proposable_content` invocation.
@@ -37,48 +33,45 @@ pub struct MalachiteConfig {
     /// before Malachite advances the round.
     pub propose_timeout: Duration,
 
-    /// Directory where the wrapped [`ethexe_malachite_core::MalachiteService`] keeps
-    /// its WAL (`malachite/consensus.wal`) and RocksDB store
-    /// (`malachite/store.db/`).
+    /// Directory for the consensus core's WAL and RocksDB store.
     pub home_dir: PathBuf,
 
-    /// Shared-network peers the Malachite consensus lane should keep
-    /// connected to. Multiaddrs use the shared `ethexe-network` peer id.
+    /// Multiaddrs of peers to keep persistent connections to; each entry
+    /// must include a `/p2p/<peer_id>` suffix (discovery is off).
     pub persistent_peers: Vec<Multiaddr>,
 
-    /// The complete validator set. The local node's public key (the
-    /// one whose secret comes from the [`gsigner::Signer`] passed to
-    /// [`crate::MalachiteService::new`]) must appear in this list, or
-    /// service start-up fails.
-    ///
-    /// Voting power is taken at face value — Tendermint's quorum
-    /// threshold is `> 2/3` of the total voting power across the
-    /// list.
+    /// The complete validator set. Quorum is `> 2/3` of total voting power.
+    /// A validator node's own public key must appear in this list.
     pub validators: Vec<ValidatorEntry>,
+
+    /// How long the proposer may wait for proposable content before the
+    /// round times out and rotates.
+    pub propose_timeout: Duration,
 }
 
-impl MalachiteConfig {
+impl MalachiteServiceConfig {
     pub const DEFAULT_GAS_ALLOWANCE: u64 = ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
     /// Default matches [`ethexe_common::gear::CANONICAL_QUARANTINE`].
     pub const DEFAULT_CANONICAL_QUARANTINE: u8 = ethexe_common::gear::CANONICAL_QUARANTINE;
-    /// Default extra anchor-depth slack the proposer adds on top of
-    /// `canonical_quarantine`; one Hoodi block is enough to absorb the
-    /// typical observer-to-observer skew between validators.
+    /// One block is enough to absorb the typical observer skew between validators.
     pub const DEFAULT_POST_QUARANTINE_DELAY: u32 = 1;
-    pub const DEFAULT_PROPOSE_TIMEOUT: Duration = alloy::eips::merge::SLOT_DURATION;
-    /// Build a config with sane defaults from the node's home
-    /// directory. The validator set is left empty — the caller MUST
-    /// fill it in before passing to [`crate::MalachiteService::new`]
-    /// (see [`Self::with_validators`]).
+    /// Ethereum block time occasionally stretches past one slot, so give
+    /// the producer more than `SLOT_DURATION` to find a fresh EB.
+    pub const DEFAULT_PROPOSE_TIMEOUT: Duration =
+        Duration::from_secs(2 * alloy::eips::merge::SLOT_DURATION.as_secs());
+
+    /// Build a config with defaults from the node's home directory.
+    /// The validator set is left empty — fill it in with [`Self::with_validators`].
     pub fn from_home_dir(home_dir: PathBuf) -> Self {
         Self {
             gas_allowance: Self::DEFAULT_GAS_ALLOWANCE,
             canonical_quarantine: Self::DEFAULT_CANONICAL_QUARANTINE,
             post_quarantine_delay: Self::DEFAULT_POST_QUARANTINE_DELAY,
-            propose_timeout: Self::DEFAULT_PROPOSE_TIMEOUT,
+            listen_addr: Self::DEFAULT_LISTEN_ADDR,
             home_dir,
             persistent_peers: Vec::new(),
             validators: Vec::new(),
+            propose_timeout: Self::DEFAULT_PROPOSE_TIMEOUT,
         }
     }
 
@@ -95,6 +88,31 @@ impl MalachiteConfig {
         self.validators = validators;
         self
     }
+
+    pub fn with_gas_allowance(mut self, gas_allowance: u64) -> Self {
+        self.gas_allowance = gas_allowance;
+        self
+    }
+
+    pub fn with_canonical_quarantine(mut self, canonical_quarantine: u8) -> Self {
+        self.canonical_quarantine = canonical_quarantine;
+        self
+    }
+
+    pub fn with_post_quarantine_delay(mut self, post_quarantine_delay: u32) -> Self {
+        self.post_quarantine_delay = post_quarantine_delay;
+        self
+    }
+}
+
+/// Validator-only part of the service configuration.
+pub struct ValidatorConfig<M: Mempool> {
+    /// Validator's on-chain public key; its secret must be in `signer`.
+    pub pub_key: PublicKey,
+    /// Mempool serving injected transactions to the producer.
+    pub mempool: M,
+    /// Keystore holding the validator's signing key.
+    pub signer: Signer,
 }
 
 #[cfg(test)]
@@ -103,7 +121,7 @@ mod tests {
 
     #[test]
     fn from_home_dir_defaults() {
-        let cfg = MalachiteConfig::from_home_dir(PathBuf::from("/tmp"));
+        let cfg = MalachiteServiceConfig::from_home_dir(PathBuf::from("/tmp"));
         assert!(cfg.persistent_peers.is_empty());
         assert!(cfg.validators.is_empty());
     }

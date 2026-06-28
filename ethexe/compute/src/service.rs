@@ -147,13 +147,28 @@ mod tests {
     use proptest::{collection, prelude::*};
 
     fn seed_mb(db: &DB, mb_hash: H256, gas_allowance: u64) {
-        let eth_block_hash = H256::from_low_u64_be(0xEB00);
+        // Genesis Eth block (height 1) is the root of the advance chain; the
+        // genesis zero-MB is pinned to it so this MB walks a depth-1 chain.
+        let genesis_eb = H256::from_low_u64_be(0xEB00);
         db.set_block_header(
-            eth_block_hash,
+            genesis_eb,
             BlockHeader {
                 height: 1,
                 timestamp: 1,
                 parent_hash: H256::zero(),
+            },
+        );
+        db.set_block_events(genesis_eb, &[]);
+        db.mutate_mb_meta(H256::zero(), |m| m.last_advanced_eb = genesis_eb);
+
+        // The EB this MB advances to, chained onto the genesis Eth block.
+        let eth_block_hash = H256::from_low_u64_be(0xEB01);
+        db.set_block_header(
+            eth_block_hash,
+            BlockHeader {
+                height: 2,
+                timestamp: 2,
+                parent_hash: genesis_eb,
             },
         );
         db.set_block_events(eth_block_hash, &[]);
@@ -163,7 +178,7 @@ mod tests {
                 block_hash: eth_block_hash,
             },
             Operation::ProgressTasks,
-            Operation::ProcessQueues { gas_allowance },
+            Operation::ProcessQueuesV3 { gas_allowance },
         ]));
 
         db.set_mb_compact_block(

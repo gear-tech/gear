@@ -1039,7 +1039,7 @@ pub struct Node {
     /// Snapshot of `env.validators` at `new_node` time — drives the
     /// boot-time filter on `malachite_endpoints` in `start_service`.
     active_validator_pub_keys: Vec<PublicKey>,
-    /// Port reservation; dropped just before the first `MalachiteService::new`.
+    /// Port reservation; dropped just before the first malachite service start.
     malachite_listener: Option<TcpListener>,
 
     running_service_handle: Option<JoinHandle<()>>,
@@ -1228,23 +1228,33 @@ impl Node {
                 .path()
                 .to_path_buf();
 
-            let mut mc = MalachiteConfig::from_home_dir(home_path).with_validators(validators);
+            let mut mc = MalachiteServiceConfig::from_home_dir(home_path).with_validators(validators);
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
-            mc.propose_timeout = Duration::from_secs(2);
-            let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
-            let svc = MalachiteService::new(
+            // Tests drive content in bursts; a short propose timeout keeps
+            // idle rounds cheap instead of burning a 24s slot each.
+            mc.propose_timeout = Duration::from_secs(3);
+
+            let malachite_validator_config =
+                self.validator_config
+                    .as_ref()
+                    .map(|c| ethexe_malachite::ValidatorConfig {
+                        pub_key: c.public_key,
+                        mempool: InjectedTxMempool::new(self.db.clone()),
+                        signer: self.signer.clone(),
+                    });
+
+            // Release the port-reservation listener moments before libp2p rebinds.
+            drop(self.malachite_listener.take());
+
+            MalachiteServiceStarter::new(
                 mc,
+                malachite_validator_config,
                 self.db.clone(),
-                self.signer.clone(),
-                self.validator_config.as_ref().map(|c| c.public_key),
                 network_ref,
                 tx_network,
-                mempool,
             )
-            .await
-            .expect("MalachiteService::new");
-            Some(svc)
+            .expect("MalachiteServiceStarter::new")
         };
 
         let rpc = self

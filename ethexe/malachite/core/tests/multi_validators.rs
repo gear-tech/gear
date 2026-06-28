@@ -34,10 +34,10 @@ fn init_tracing() {
 
 use anyhow::Result;
 use async_trait::async_trait;
+use ethexe_common::Acceptance;
 use ethexe_malachite_core::{
-    Block, BlockPayload, CommitCertificate, EngineNetworkMsg, Externalities, H256, MalachiteConfig,
-    MalachiteCtx, MalachiteService, Multiaddr, NetworkMsg, NetworkRef, NodeRole, ValidatorEntry,
-    libp2p_peer_id,
+    Block, BlockPayload, CommitCertificate, EngineNetworkMsg, Externalities, H256, MalachiteCore,
+    MalachiteCoreConfig, MalachiteCtx, NetworkMsg, NetworkRef, NodeRole, ValidatorEntry,
 };
 use proptest::prelude::*;
 use tempfile::TempDir;
@@ -177,8 +177,8 @@ impl Externalities for TestExt {
     async fn validate_block_above(
         &self,
         parent_hash: H256,
-        _payload: BlockPayload,
-    ) -> Result<bool> {
+        _payload: &BlockPayload,
+    ) -> Result<Acceptance<(), String>> {
         let mut s = self.state.lock().unwrap();
         if let Some(last_fin) = s.finalized.last().copied()
             && parent_hash != last_fin
@@ -187,7 +187,7 @@ impl Externalities for TestExt {
                 "validate_block_above: parent_hash mismatch — expected {last_fin:?}, got {parent_hash:?}"
             ));
         }
-        Ok(true)
+        Ok(Acceptance::Accepted(()))
     }
 }
 
@@ -198,7 +198,6 @@ impl Externalities for TestExt {
 struct ValidatorSetup {
     private_key: gsigner::schemes::secp256k1::PrivateKey,
     home: TempDir,
-    peer_id: ethexe_malachite_core::PeerId,
 }
 
 fn make_secret(i: u16) -> [u8; 32] {
@@ -220,12 +219,7 @@ fn make_validators(n: usize) -> Vec<ValidatorSetup> {
             let private_key = gsigner::schemes::secp256k1::PrivateKey::from_seed(secret_bytes)
                 .expect("gsigner private key");
             let home = TempDir::new().expect("tempdir");
-            let peer_id = libp2p_peer_id(&secret_bytes);
-            ValidatorSetup {
-                private_key,
-                home,
-                peer_id,
-            }
+            ValidatorSetup { private_key, home }
         })
         .collect()
 }
@@ -240,35 +234,17 @@ fn validator_entries(setups: &[ValidatorSetup]) -> Vec<ValidatorEntry> {
         .collect()
 }
 
-fn build_multiaddrs_excluding(setups: &[ValidatorSetup], exclude: usize) -> Vec<Multiaddr> {
-    setups
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| *i != exclude)
-        .map(|(i, s)| {
-            let s = format!("/memory/{}/p2p/{}", i + 1, s.peer_id);
-            s.parse().expect("multiaddr parses")
-        })
-        .collect()
-}
-
-fn build_config(
-    setup: &ValidatorSetup,
-    setups: &[ValidatorSetup],
-    peers: Vec<Multiaddr>,
-) -> MalachiteConfig {
-    build_config_with_role(setup, peers, validator_entries(setups), NodeRole::Validator)
+fn build_config(setup: &ValidatorSetup, setups: &[ValidatorSetup]) -> MalachiteCoreConfig {
+    build_config_with_role(setup, validator_entries(setups), NodeRole::Validator)
 }
 
 fn build_config_with_role(
     setup: &ValidatorSetup,
-    peers: Vec<Multiaddr>,
     validators: Vec<ValidatorEntry>,
     role: NodeRole,
-) -> MalachiteConfig {
-    MalachiteConfig {
+) -> MalachiteCoreConfig {
+    MalachiteCoreConfig {
         base: setup.home.path().to_path_buf(),
-        persistent_peers: peers,
         validator_secret: setup.private_key.clone(),
         validators,
         propose_timeout: Duration::from_secs(2),
@@ -333,13 +309,11 @@ async fn fake_network_parts() -> (
 async fn start_service(
     setup: &ValidatorSetup,
     setups: &[ValidatorSetup],
-    idx: usize,
     ext: Arc<TestExt>,
-) -> MalachiteService<TestExt> {
-    let peers = build_multiaddrs_excluding(setups, idx);
-    let config = build_config(setup, setups, peers);
+) -> MalachiteCore<TestExt> {
+    let config = build_config(setup, setups);
     let (network_ref, tx_network) = fake_network_parts().await;
-    MalachiteService::<TestExt>::new(config, network_ref, tx_network, ext)
+    MalachiteCore::<TestExt>::new(config, network_ref, tx_network, ext)
         .await
         .expect("service starts")
 }
@@ -388,7 +362,7 @@ async fn three_validators_make_progress() {
     let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
     let mut services = Vec::with_capacity(3);
     for (i, setup) in setups.iter().enumerate() {
-        let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
+        let svc = start_service(setup, &setups, Arc::clone(&exts[i])).await;
         services.push(svc);
         // Stagger startup so validators don't all dial each other
         // simultaneously — concurrent dials produce two-way
@@ -421,7 +395,7 @@ async fn seven_validators_full_network_restart() {
     // ---- first run ------------------------------------------------
     let mut services = Vec::with_capacity(7);
     for (i, setup) in setups.iter().enumerate() {
-        let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
+        let svc = start_service(setup, &setups, Arc::clone(&exts[i])).await;
         services.push(svc);
     }
     sleep(Duration::from_secs(20)).await;
@@ -439,7 +413,7 @@ async fn seven_validators_full_network_restart() {
     // ---- second run on the SAME home dirs -------------------------
     let mut services2 = Vec::with_capacity(7);
     for (i, setup) in setups.iter().enumerate() {
-        let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
+        let svc = start_service(setup, &setups, Arc::clone(&exts[i])).await;
         services2.push(svc);
     }
     // Wait for at least one validator to advance ≥ 1 height beyond
@@ -468,9 +442,9 @@ async fn restart_one_validator_mid_run() {
     let setups = make_validators(3);
 
     let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
-    let mut services: Vec<Option<MalachiteService<TestExt>>> = Vec::with_capacity(3);
+    let mut services: Vec<Option<MalachiteCore<TestExt>>> = Vec::with_capacity(3);
     for (i, setup) in setups.iter().enumerate() {
-        let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
+        let svc = start_service(setup, &setups, Arc::clone(&exts[i])).await;
         services.push(Some(svc));
     }
     let _ = wait_for_finalized(&exts, 2, Duration::from_secs(45)).await;
@@ -484,7 +458,7 @@ async fn restart_one_validator_mid_run() {
     }
     sleep(Duration::from_secs(2)).await;
     let pre_count = exts[2].finalized_count();
-    let restarted = start_service(&setups[2], &setups, 2, Arc::clone(&exts[2])).await;
+    let restarted = start_service(&setups[2], &setups, Arc::clone(&exts[2])).await;
     services[2] = Some(restarted);
 
     let _ = wait_for_finalized(
@@ -530,13 +504,11 @@ async fn full_node_syncs_from_validators() {
         } else {
             NodeRole::FullNode
         };
-        let peers = build_multiaddrs_excluding(&setups, i);
-        let cfg = build_config_with_role(setup, peers, validator_set.clone(), role);
+        let cfg = build_config_with_role(setup, validator_set.clone(), role);
         let (network_ref, tx_network) = fake_network_parts().await;
-        let svc =
-            MalachiteService::<TestExt>::new(cfg, network_ref, tx_network, Arc::clone(&exts[i]))
-                .await
-                .expect("service starts");
+        let svc = MalachiteCore::<TestExt>::new(cfg, network_ref, tx_network, Arc::clone(&exts[i]))
+            .await
+            .expect("service starts");
         services.push(svc);
         sleep(Duration::from_millis(500)).await;
     }
@@ -604,11 +576,11 @@ fn run_churn_scenario(events: Vec<ChurnEvent>) {
 
         let setups = make_validators(n);
         let exts: Vec<Arc<TestExt>> = (0..n).map(|_| Arc::new(TestExt::default())).collect();
-        let mut services: Vec<Option<MalachiteService<TestExt>>> = (0..n).map(|_| None).collect();
+        let mut services: Vec<Option<MalachiteCore<TestExt>>> = (0..n).map(|_| None).collect();
 
         // Bootstrap all validators with a stagger.
         for (i, setup) in setups.iter().enumerate() {
-            services[i] = Some(start_service(setup, &setups, i, Arc::clone(&exts[i])).await);
+            services[i] = Some(start_service(setup, &setups, Arc::clone(&exts[i])).await);
             sleep(Duration::from_millis(500)).await;
         }
         // Let consensus run for a bit before applying churn.
@@ -625,10 +597,8 @@ fn run_churn_scenario(events: Vec<ChurnEvent>) {
                     svc.shutdown().await;
                 }
             } else if services[ev.idx].is_none() {
-                services[ev.idx] = Some(
-                    start_service(&setups[ev.idx], &setups, ev.idx, Arc::clone(&exts[ev.idx]))
-                        .await,
-                );
+                services[ev.idx] =
+                    Some(start_service(&setups[ev.idx], &setups, Arc::clone(&exts[ev.idx])).await);
             }
         }
         // Final settle window so the last surviving cohort can drain
@@ -697,7 +667,7 @@ async fn shutdown_releases_wal_advisory_lock() {
     for cycle in 0..50 {
         let mut services = Vec::with_capacity(3);
         for (i, setup) in setups.iter().enumerate() {
-            services.push(start_service(setup, &setups, i, Arc::clone(&exts[i])).await);
+            services.push(start_service(setup, &setups, Arc::clone(&exts[i])).await);
         }
         // Let the WAL actor's pre_start run and the writer std::thread arm.
         sleep(Duration::from_millis(10)).await;

@@ -26,6 +26,11 @@ impl Toolchain {
         Self(Self::PINNED_NIGHTLY_TOOLCHAIN.into())
     }
 
+    /// Checks if `rustup` is available in the system.
+    pub fn is_rustup_available() -> bool {
+        Command::new("rustup").arg("--version").output().is_ok()
+    }
+
     /// Fetches `Toolchain` via rustup.
     pub fn try_from_rustup() -> Result<Self> {
         let output = Command::new("rustup")

@@ -217,6 +217,11 @@
 # (optional, default: ["http://localhost:*", "http://127.0.0.1:*", "https://localhost:*", "https://127.0.0.1:*"]).
 # cors = ["http://localhost:*", "http://127.0.0.1:*", "https://localhost:*", "https://127.0.0.1:*"]
 
+# Vara.eth RPC endpoint used by client commands such as `ethexe tx`.
+# This is not the node's hosted RPC listen address.
+# (optional).
+# vara-eth-rpc = "ws://localhost:9944"
+
 # Flag to disable RPC service.
 # (optional, default: false).
 # no-rpc = false

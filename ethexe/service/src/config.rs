@@ -20,7 +20,7 @@ pub struct Config {
     pub prometheus: Option<PrometheusConfig>,
 }
 
-/// User-facing subset of [`ethexe_malachite::MalachiteConfig`],
+/// User-facing subset of [`ethexe_malachite::MalachiteServiceConfig`],
 /// resolved at CLI/TOML parse time. The rest of the runtime fields
 /// (home directory, mempool) are filled in by the service itself.
 #[derive(Clone, Debug, Default)]
@@ -53,6 +53,11 @@ impl Config {
 pub struct NodeConfig {
     pub database_path: PathBuf,
     pub key_path: PathBuf,
+    /// Directory holding the libp2p network identity (the `net/` key store).
+    /// Resolved once from the node base dir (same source the CLI network params
+    /// use); the network service reads its signer from here instead of
+    /// re-deriving the path.
+    pub net_path: PathBuf,
     pub validator: ConfigPublicKey,
     pub validator_session: ConfigPublicKey,
     pub eth_max_sync_depth: u32,
@@ -64,7 +69,7 @@ pub struct NodeConfig {
     pub canonical_quarantine: u8,
     /// Extra anchor-depth slack the proposer adds on top of
     /// `canonical_quarantine`. See
-    /// [`ethexe_malachite::MalachiteConfig::post_quarantine_delay`].
+    /// [`ethexe_malachite::MalachiteServiceConfig::post_quarantine_delay`].
     pub post_quarantine_delay: u32,
     pub dev: bool,
     pub pre_funded_accounts: u32,
@@ -83,6 +88,9 @@ pub struct NodeConfig {
     /// by more than this many Eth blocks.
     pub uncommitted_chain_len_threshold: std::num::NonZero<u32>,
     pub genesis_state_dump: Option<PathBuf>,
+    /// Prune old MB schedules on startup, right after the database is
+    /// opened. Temporary hot fix knob (#5585).
+    pub db_cleanup: bool,
 }
 
 impl NodeConfig {
