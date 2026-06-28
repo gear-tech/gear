@@ -2,8 +2,6 @@ pub(crate) mod adapter;
 pub(crate) mod behaviour;
 pub(crate) mod state;
 
-pub use adapter::MalachiteNetworkParts;
-
 use ethexe_common::injected;
 use malachitebft_network::{ChannelNames, ProtocolNames};
 

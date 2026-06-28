@@ -523,15 +523,13 @@ impl Service {
             log::info!("Malachite node role: {role}");
 
             let malachite_network = network.malachite_network_parts();
-            let (network_ref, tx_network) = malachite_network.into_engine_parts();
 
             MalachiteServiceStarter::new(
                 malachite_config,
                 validator_config,
-                network_ref,
-                tx_network,
                 db.clone(),
                 initial_chain_head,
+                malachite_network,
             )
             .context("failed to create Malachite service starter")?
         };

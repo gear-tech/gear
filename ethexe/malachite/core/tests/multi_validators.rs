@@ -37,7 +37,7 @@ use async_trait::async_trait;
 use ethexe_common::Acceptance;
 use ethexe_malachite_core::{
     Block, BlockPayload, CommitCertificate, EngineNetworkMsg, Externalities, H256, MalachiteCore,
-    MalachiteCoreConfig, MalachiteCtx, NetworkMsg, NetworkRef, NodeRole, ValidatorEntry,
+    MalachiteCoreConfig, MalachiteCtx, MalachiteNetworkParts, NetworkMsg, NodeRole, ValidatorEntry,
 };
 use proptest::prelude::*;
 use tempfile::TempDir;
@@ -252,10 +252,7 @@ fn build_config_with_role(
     }
 }
 
-async fn fake_network_parts() -> (
-    NetworkRef<MalachiteCtx>,
-    tokio::sync::mpsc::Sender<NetworkMsg<MalachiteCtx>>,
-) {
+async fn fake_network_parts() -> MalachiteNetworkParts {
     struct FakeNetwork;
 
     #[async_trait]
@@ -312,8 +309,8 @@ async fn start_service(
     ext: Arc<TestExt>,
 ) -> MalachiteCore<TestExt> {
     let config = build_config(setup, setups);
-    let (network_ref, tx_network) = fake_network_parts().await;
-    MalachiteCore::<TestExt>::new(config, network_ref, tx_network, ext)
+    let parts = fake_network_parts().await;
+    MalachiteCore::<TestExt>::new(config, ext, parts)
         .await
         .expect("service starts")
 }
@@ -505,8 +502,8 @@ async fn full_node_syncs_from_validators() {
             NodeRole::FullNode
         };
         let cfg = build_config_with_role(setup, validator_set.clone(), role);
-        let (network_ref, tx_network) = fake_network_parts().await;
-        let svc = MalachiteCore::<TestExt>::new(cfg, network_ref, tx_network, Arc::clone(&exts[i]))
+        let network_parts = fake_network_parts().await;
+        let svc = MalachiteCore::<TestExt>::new(cfg, Arc::clone(&exts[i]), network_parts)
             .await
             .expect("service starts");
         services.push(svc);

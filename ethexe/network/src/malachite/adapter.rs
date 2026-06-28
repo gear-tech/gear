@@ -3,6 +3,8 @@ use async_trait::async_trait;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 
+pub type MalachiteNetworkParts = (EngineNetworkRef, mpsc::Sender<CoreNetworkMsg>);
+
 pub(crate) struct Adapter {
     tx: mpsc::Sender<EngineNetworkMsg>,
 }
@@ -35,18 +37,6 @@ impl Actor for Adapter {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct MalachiteNetworkParts {
-    network_ref: EngineNetworkRef,
-    tx_network: mpsc::Sender<CoreNetworkMsg>,
-}
-
-impl MalachiteNetworkParts {
-    pub fn into_engine_parts(self) -> (EngineNetworkRef, mpsc::Sender<CoreNetworkMsg>) {
-        (self.network_ref, self.tx_network)
-    }
-}
-
 pub(crate) async fn spawn_adapter(
     tx: mpsc::Sender<EngineNetworkMsg>,
 ) -> anyhow::Result<MalachiteNetworkParts> {
@@ -65,8 +55,5 @@ pub(crate) async fn spawn_adapter(
         }
     });
 
-    Ok(MalachiteNetworkParts {
-        network_ref,
-        tx_network,
-    })
+    Ok((network_ref, tx_network))
 }

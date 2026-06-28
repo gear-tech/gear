@@ -22,8 +22,8 @@ use malachitebft_app_channel::{
     WalContext,
     app::{
         config::{
-            ConsensusConfig, DiscoveryConfig, LoggingConfig, MetricsConfig, NodeConfig, P2pConfig,
-            PubSubProtocol, RuntimeConfig, ValuePayload, ValueSyncConfig,
+            ConsensusConfig, LoggingConfig, MetricsConfig, NodeConfig, P2pConfig, RuntimeConfig,
+            ValuePayload, ValueSyncConfig,
         },
         metrics::SharedRegistry,
     },
@@ -38,6 +38,11 @@ use std::{
     time::Duration,
 };
 use tokio::{sync::mpsc, task::JoinHandle};
+
+pub type MalachiteNetworkParts = (
+    NetworkRef<MalachiteCtx>,
+    mpsc::Sender<NetworkMsg<MalachiteCtx>>,
+);
 
 /// Trait-object-friendly facade for the service. The stream carries
 /// only fatal app-task errors — successful events reach the
@@ -126,9 +131,8 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
     /// Bootstrap the service.
     pub async fn new(
         config: MalachiteCoreConfig,
-        network_ref: NetworkRef<MalachiteCtx>,
-        tx_network: mpsc::Sender<NetworkMsg<MalachiteCtx>>,
         externalities: Arc<EXT>,
+        (network_ref, tx_network): MalachiteNetworkParts,
     ) -> Result<Self> {
         // The service owns `<base>/malachite/`. We `mkdir -p` it so
         // RocksDB and the WAL can land there.

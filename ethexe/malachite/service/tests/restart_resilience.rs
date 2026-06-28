@@ -328,7 +328,6 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     let (signer, pub_key) = build_signer(home.path());
 
     // ---- first run -------------------------------------------------
-    let (network_ref, tx_network) = fake_network_parts().await;
     let mut svc = MalachiteServiceStarter::new(
         build_config(home.path(), pub_key),
         Some(ValidatorConfig {
@@ -336,10 +335,9 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
             mempool: EmptyMempool,
             signer: signer.clone(),
         }),
-        network_ref,
-        tx_network,
         db.clone(),
         chain[0],
+        fake_network_parts().await,
     )
     .expect("create malachite service starter")
     .start()
@@ -374,7 +372,6 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     // RocksDB advisory lock.
     svc.shutdown().await;
     // ---- second run on the SAME home dir + DB ----------------------
-    let (network_ref, tx_network) = fake_network_parts().await;
     let mut svc2 = MalachiteServiceStarter::new(
         build_config(home.path(), pub_key),
         Some(ValidatorConfig {
@@ -382,10 +379,9 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
             mempool: EmptyMempool,
             signer,
         }),
-        network_ref,
-        tx_network,
         db.clone(),
         chain[31],
+        fake_network_parts().await,
     )
     .expect("create malachite service starter after restart")
     .start()

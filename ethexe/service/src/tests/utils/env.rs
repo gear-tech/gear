@@ -1212,7 +1212,6 @@ impl Node {
         // bodies reach the RPC subscription manager.
         let malachite = {
             let malachite_network = network.malachite_network_parts();
-            let (network_ref, tx_network) = malachite_network.into_engine_parts();
 
             let validators: Vec<ValidatorEntry> = active
                 .iter()
@@ -1253,10 +1252,9 @@ impl Node {
             MalachiteServiceStarter::new(
                 mc,
                 malachite_validator_config,
-                network_ref,
-                tx_network,
                 self.db.clone(),
                 latest_block,
+                malachite_network,
             )
             .expect("MalachiteServiceStarter::new")
         };

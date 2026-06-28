@@ -1,6 +1,6 @@
 use crate::{
     Behaviour, malachite,
-    malachite::{CoreNetworkEvent, EngineNetworkMsg, MalachiteNetworkParts},
+    malachite::{CoreNetworkEvent, EngineNetworkMsg, adapter::MalachiteNetworkParts},
 };
 use bytes::Bytes;
 use ethexe_malachite_core::{MalachiteCtx, ScaleCodec};

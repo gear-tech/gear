@@ -634,7 +634,7 @@ impl NetworkService {
     }
 
     /// Returns Malachite network parts used by the consensus engine.
-    pub fn malachite_network_parts(&self) -> malachite::MalachiteNetworkParts {
+    pub fn malachite_network_parts(&self) -> malachite::adapter::MalachiteNetworkParts {
         self.malachite_state.parts()
     }
 

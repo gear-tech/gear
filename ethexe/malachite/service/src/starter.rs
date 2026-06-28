@@ -13,9 +13,7 @@ use ethexe_common::{
     db::{ConfigStorageRO, GlobalsStorageRO},
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{
-    MalachiteCore, MalachiteCoreConfig, MalachiteCtx, NetworkMsg, NetworkRef, NodeRole,
-};
+use ethexe_malachite_core::{MalachiteCore, MalachiteCoreConfig, MalachiteNetworkParts, NodeRole};
 use gsigner::schemes::secp256k1::{PrivateKey, PublicKey};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{
@@ -33,8 +31,7 @@ pub struct MalachiteServiceStarter {
     validators: HashMap<Address, PublicKey>,
     active_era: u64,
     core_config: MalachiteCoreConfig,
-    network_ref: NetworkRef<MalachiteCtx>,
-    tx_network: mpsc::Sender<NetworkMsg<MalachiteCtx>>,
+    network_parts: MalachiteNetworkParts,
 }
 
 impl MalachiteServiceStarter {
@@ -44,10 +41,9 @@ impl MalachiteServiceStarter {
     pub fn new<M: Mempool>(
         config: MalachiteServiceConfig,
         validator_config: Option<ValidatorConfig<M>>,
-        network_ref: NetworkRef<MalachiteCtx>,
-        tx_network: mpsc::Sender<NetworkMsg<MalachiteCtx>>,
         db: Database,
         initial_chain_head: SimpleBlockData,
+        network_parts: MalachiteNetworkParts,
     ) -> Result<Self> {
         std::fs::create_dir_all(&config.home_dir)
             .with_context(|| format!("creating Malachite home dir {:?}", config.home_dir))?;
@@ -128,8 +124,7 @@ impl MalachiteServiceStarter {
             validators,
             active_era,
             core_config,
-            network_ref,
-            tx_network,
+            network_parts,
         })
     }
 
@@ -143,11 +138,10 @@ impl MalachiteServiceStarter {
             validators,
             active_era,
             core_config,
-            network_ref,
-            tx_network,
+            network_parts,
         } = self;
 
-        let inner = MalachiteCore::new(core_config, network_ref, tx_network, externalities.clone())
+        let inner = MalachiteCore::new(core_config, externalities.clone(), network_parts)
             .await
             .context("starting ethexe-malachite-core")?;
 
