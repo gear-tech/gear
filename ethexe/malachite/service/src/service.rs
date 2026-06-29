@@ -7,12 +7,12 @@
 //! engine and exposes its outputs as a `Stream` of [`MalachiteEvent`]s.
 
 use crate::{
-    FastSyncReplayTarget, Mempool, ValidatorEntry,
+    Mempool, ValidatorEntry,
     externalities::EthexeExternalities,
     mempool::TxInsertionStatus,
     types::{ChainHead, MalachiteEvent},
 };
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use ethexe_common::{
     Address, SimpleBlockData,
     db::{ConfigStorageRO, OnChainStorageRO},
@@ -55,30 +55,6 @@ impl Drop for MalachiteService {
 }
 
 impl MalachiteService {
-    pub async fn enable_fast_sync_replay_filter(
-        &self,
-        target: FastSyncReplayTarget,
-    ) -> Result<bool> {
-        if self
-            .inner
-            .as_ref()
-            .context("Malachite inner service is shut down")?
-            .is_finalized(target.mb_hash)?
-        {
-            tracing::info!(
-                mb_hash = %target.mb_hash,
-                eb_hash = %target.eb_hash,
-                "not enabling fast-sync replay filter for already-finalized MB",
-            );
-            return Ok(false);
-        }
-
-        self.externalities
-            .enable_fast_sync_replay_filter(target)
-            .await;
-        Ok(true)
-    }
-
     /// Route an injected transaction into the mempool.
     /// Rejects with `PoolFull` when the node is not a validator.
     pub async fn receive_injected_transaction(
@@ -153,12 +129,6 @@ impl MalachiteService {
                 };
             }
         }
-    }
-
-    /// Handle a prepared Ethereum block: release pending events whose
-    /// prerequisite is now satisfied.
-    pub async fn receive_eb_prepared(&self, _eb_hash: H256) {
-        self.externalities.drain_pending_events().await
     }
 
     /// Tear down the inner consensus core, releasing its store and sockets.

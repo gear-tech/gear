@@ -5,10 +5,13 @@
 
 pub(crate) mod utils;
 
-use crate::tests::utils::{
-    EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, Node, NodeConfig, TestEnv,
-    TestEnvConfig, TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig,
-    init_logger, stop_nodes, test_info,
+use crate::{
+    fast_sync::FastSyncReplayTarget,
+    tests::utils::{
+        EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, Node, NodeConfig, TestEnv,
+        TestEnvConfig, TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig,
+        init_logger, stop_nodes, test_info,
+    },
 };
 use alloy::{
     primitives::U256,
@@ -33,7 +36,6 @@ use ethexe_common::{
 use ethexe_consensus::BatchCommitter;
 use ethexe_db::{Database, dump::StateDump, verifier::IntegrityVerifier};
 use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
-use ethexe_malachite::FastSyncReplayTarget;
 use ethexe_processor::Processor;
 use ethexe_rpc::{InjectedClient, ProgramClient};
 use ethexe_runtime_common::{RUNTIME_ID, state::Storage};

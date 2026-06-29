@@ -4,6 +4,7 @@
 use crate::{
     Service,
     config::EthereumConfig,
+    fast_sync::FastSyncReplayTarget,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
         events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
@@ -39,9 +40,9 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    FastSyncReplayTarget, InjectedTxMempool, MalachiteConfigEnvironment, MalachiteServiceConfig,
-    MalachiteServiceStarter, Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry,
-    derive_libp2p_secret, malachite_libp2p_peer_id,
+    InjectedTxMempool, MalachiteConfigEnvironment, MalachiteServiceConfig, MalachiteServiceStarter,
+    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
+    malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{

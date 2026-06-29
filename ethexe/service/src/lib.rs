@@ -589,16 +589,18 @@ impl Service {
     }
 
     pub async fn run(mut self) -> Result<()> {
-        if self.fast_sync {
-            fast_sync::sync(&mut self).await?;
-        }
+        let replay_target = if self.fast_sync {
+            fast_sync::sync(&mut self).await?
+        } else {
+            None
+        };
 
-        self.run_inner().await.inspect_err(|err| {
+        self.run_inner(replay_target).await.inspect_err(|err| {
             log::error!("Service finished work with error: {err:?}");
         })
     }
 
-    async fn run_inner(self) -> Result<()> {
+    async fn run_inner(self, replay_target: Option<fast_sync::FastSyncReplayTarget>) -> Result<()> {
         let Service {
             db,
             mut network,
@@ -641,6 +643,10 @@ impl Service {
             .await;
 
         let mut network_injected_txs: HashMap<_, PendingNetworkInjectedTx> = HashMap::new();
+
+        // Suppresses Malachite's startup replay of the chain fast sync already
+        // restored, up to and including the committed target MB.
+        let mut replay_gate = fast_sync::ReplayGate::new(replay_target);
 
         loop {
             let event: Event = tokio::select! {
@@ -706,8 +712,9 @@ impl Service {
                         if let Some(c) = consensus.as_mut() {
                             c.receive_prepared_block(block_hash)?;
                         }
-
-                        malachite.receive_eb_prepared(block_hash).await;
+                        // Compute owns the "wait for the prerequisite EB" gate
+                        // now (see `ComputeSubService`), so Malachite no longer
+                        // needs a prepared-block notification.
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
@@ -936,6 +943,13 @@ impl Service {
                             mb_hash = %mb_hash,
                             "Malachite: BlockProposal",
                         );
+
+                        // Suppress replay of the chain fast sync already
+                        // restored, up to and including the committed target MB.
+                        if !replay_gate.allow(&db, mb_hash)? {
+                            tracing::debug!(mb_hash = %mb_hash, "fast-sync replay gate: skipping replayed proposal");
+                            continue;
+                        }
 
                         compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }

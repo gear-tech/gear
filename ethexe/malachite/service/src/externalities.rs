@@ -57,21 +57,11 @@ use ethexe_db::Database;
 use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
 use gprimitives::H256;
 use parity_scale_codec::{DecodeAll, Encode};
-use std::{collections::VecDeque, sync::Arc};
-use tokio::sync::{RwLock, mpsc::UnboundedSender};
+use std::sync::Arc;
+#[cfg(test)]
+use tokio::sync::RwLock;
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, trace, warn};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FastSyncReplayTarget {
-    pub mb_hash: H256,
-    pub eb_hash: H256,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FastSyncReplayFilter {
-    UntilTargetProposal(FastSyncReplayTarget),
-    UntilTargetFinalization { mb_hash: H256 },
-}
 
 /// Constant parameters for [`EthexeExternalities`];
 /// see [`crate::MalachiteServiceConfig`] for field semantics.
@@ -83,6 +73,7 @@ pub struct ExternalitiesConfig {
     /// Extra producer-side anchor depth on top of `canonical_quarantine`.
     pub post_quarantine_delay: u32,
 }
+
 pub(crate) struct EthexeExternalities {
     /// Shared DB reference for all storage operations
     pub db: Database,
@@ -92,26 +83,8 @@ pub(crate) struct EthexeExternalities {
     pub mempool: Option<Arc<dyn Mempool>>,
     /// Reference to the latest chain head data.
     pub chain_head: Arc<ChainHead>,
-    /// Pending service events queue.
-    /// Release events from here only when their prerequisite EB is prepared.
-    pub pending_events: RwLock<VecDeque<PendingEvent>>,
     /// Channel to poll events in MalachiteService.
     pub event_tx: UnboundedSender<Result<MalachiteEvent>>,
-    /// Fast-sync startup gate, not a general live/replay classifier.
-    /// While active it suppresses all Malachite callbacks until the
-    /// captured target proposal and finalization are replayed. Callers
-    /// must enable it before starting the Malachite application task.
-    pub fast_sync_replay_filter: RwLock<Option<FastSyncReplayFilter>>,
-}
-
-/// One outbound [`MalachiteEvent`] that can't be released until its
-/// `prerequisite` Eth block is prepared in local DB.
-pub(crate) struct PendingEvent {
-    /// Event body
-    pub event: MalachiteEvent,
-    /// Prerequisite Eth block hash
-    /// that must be prepared before this event can be emitted
-    pub prerequisite: H256,
 }
 
 #[async_trait]
@@ -148,24 +121,15 @@ impl Externalities for EthexeExternalities {
             meta.last_advanced_eb = last_advanced;
         });
 
-        // The fast-sync replay gate sits after durable MB writes so a suppressed
-        // replayed proposal is still available to finalization and DB walks; only
-        // outbound events are skipped.
-        if self
-            .suppress_for_fast_sync_replay_proposal(mb_hash, last_advanced)
-            .await?
-        {
-            return Ok(());
-        }
-
-        self.try_emit_or_queue(
-            MalachiteEvent::BlockProposal {
-                height: mb.height,
-                mb_hash,
-            },
-            last_advanced,
-        )
-        .await;
+        // Emit immediately: the "wait until the advanced EB is prepared"
+        // gating now lives in ethexe-compute, which defers MB execution
+        // (not event emission) until the prerequisite EB is ready. Emitting
+        // here unconditionally keeps events strictly ordered and lets the
+        // service drain fast-sync replay without head-of-line stalls.
+        let _ = self.event_tx.send(Ok(MalachiteEvent::BlockProposal {
+            height: mb.height,
+            mb_hash,
+        }));
         Ok(())
     }
 
@@ -174,16 +138,6 @@ impl Externalities for EthexeExternalities {
         mb_hash: H256,
         cert: ethexe_malachite_core::CommitCertificate,
     ) -> Result<()> {
-        // The replay gate sits after loading the compact block and operations:
-        // even suppressed finalizations must prove the proposal path persisted
-        // the MB before we skip mempool, globals, and event side effects.
-        if self
-            .suppress_for_fast_sync_replay_finalization(mb_hash)
-            .await
-        {
-            return Ok(());
-        }
-
         if let Some(pool) = self.mempool.as_ref() {
             // Remove any finalized MB's proposed injected txs from the mempool.
 
@@ -209,7 +163,6 @@ impl Externalities for EthexeExternalities {
                 pool.forget(&injected).await;
             }
         }
-
         self.db
             .globals_mutate(|g| g.latest_finalized_mb_hash = mb_hash);
 
@@ -218,16 +171,12 @@ impl Externalities for EthexeExternalities {
             mb_hash,
             signatures: cert.signatures,
         };
-        let last_advanced = self.db.mb_meta(mb_hash).last_advanced_eb;
-        self.try_emit_or_queue(
-            MalachiteEvent::BlockFinalized {
-                cert: app_cert,
-                height: cert.height,
-                mb_hash,
-            },
-            last_advanced,
-        )
-        .await;
+        // Emit immediately; see the note in `process_mb_proposal`.
+        let _ = self.event_tx.send(Ok(MalachiteEvent::BlockFinalized {
+            cert: app_cert,
+            height: cert.height,
+            mb_hash,
+        }));
 
         Ok(())
     }
@@ -506,99 +455,6 @@ impl Externalities for EthexeExternalities {
 }
 
 impl EthexeExternalities {
-    pub(crate) async fn enable_fast_sync_replay_filter(&self, target: FastSyncReplayTarget) {
-        *self.fast_sync_replay_filter.write().await =
-            Some(FastSyncReplayFilter::UntilTargetProposal(target));
-    }
-
-    async fn suppress_for_fast_sync_replay_proposal(
-        &self,
-        mb_hash: H256,
-        last_advanced_eb: H256,
-    ) -> Result<bool> {
-        let mut guard = self.fast_sync_replay_filter.write().await;
-
-        match *guard {
-            None => Ok(false),
-            Some(FastSyncReplayFilter::UntilTargetProposal(target)) => {
-                let matches_target =
-                    mb_hash == target.mb_hash && last_advanced_eb == target.eb_hash;
-
-                if mb_hash == target.mb_hash && !matches_target {
-                    // Fast sync captures the on-chain committed MB/EB as one
-                    // event pair. Replaying the target MB with another advanced
-                    // EB means the restored anchor is internally inconsistent.
-                    let message = format!(
-                        "fast-sync replay target mismatch: MB {mb_hash} advanced {last_advanced_eb}, expected {}",
-                        target.eb_hash,
-                    );
-                    *guard = None;
-                    drop(guard);
-
-                    let _ = self.event_tx.send(Err(anyhow!(message.clone())));
-                    return Err(anyhow!(message));
-                }
-
-                if matches_target {
-                    *guard = Some(FastSyncReplayFilter::UntilTargetFinalization { mb_hash });
-                }
-
-                Ok(true)
-            }
-            Some(FastSyncReplayFilter::UntilTargetFinalization { .. }) => Ok(true),
-        }
-    }
-
-    async fn suppress_for_fast_sync_replay_finalization(&self, mb_hash: H256) -> bool {
-        let mut guard = self.fast_sync_replay_filter.write().await;
-
-        match *guard {
-            None => false,
-            Some(FastSyncReplayFilter::UntilTargetProposal(_)) => true,
-            Some(FastSyncReplayFilter::UntilTargetFinalization {
-                mb_hash: target_mb_hash,
-            }) => {
-                if mb_hash == target_mb_hash {
-                    *guard = None;
-                }
-                true
-            }
-        }
-    }
-
-    /// Check whether the prerequisite EB is prepared in local DB.
-    /// Zero hash is a special case that always passes.
-    fn prerequisite_satisfied(&self, prerequisite: H256) -> bool {
-        use ethexe_common::db::BlockMetaStorageRO;
-        prerequisite.is_zero() || self.db.block_meta(prerequisite).prepared
-    }
-
-    /// Send event immediately if prerequisite is satisfied, otherwise queue it for later emission.
-    pub(crate) async fn try_emit_or_queue(&self, event: MalachiteEvent, prerequisite: H256) {
-        let mut queue = self.pending_events.write().await;
-        if queue.is_empty() && self.prerequisite_satisfied(prerequisite) {
-            // Channel receiver dropped only on shutdown — best-effort.
-            let _ = self.event_tx.send(Ok(event));
-        } else {
-            queue.push_back(PendingEvent {
-                event,
-                prerequisite,
-            });
-        }
-    }
-
-    /// Check the pending events queue and release any events whose prerequisites are now satisfied.
-    pub(crate) async fn drain_pending_events(&self) {
-        let mut queue = self.pending_events.write().await;
-        while let Some(front) = queue.front() {
-            if !self.prerequisite_satisfied(front.prerequisite) {
-                break;
-            }
-            let entry = queue.pop_front().expect("just peeked");
-            let _ = self.event_tx.send(Ok(entry.event));
-        }
-    }
-
     // Wait for either a new EB candidate past quarantine
     // or any suitable injected tx to include in the next proposal.
     async fn wait_for_proposable_content(
@@ -736,13 +592,11 @@ mod tests {
             mempool: Some(Arc::new(EmptyMempool)),
             chain_head: make_chain_head(),
             event_tx,
-            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 0,
                 post_quarantine_delay: 0,
             },
-            fast_sync_replay_filter: RwLock::new(None),
         };
         (ext, event_rx)
     }
@@ -1152,13 +1006,11 @@ mod tests {
             mempool: Some(Arc::clone(&tracker) as Arc<dyn Mempool>),
             chain_head: make_chain_head(),
             event_tx,
-            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 0,
                 post_quarantine_delay: 0,
             },
-            fast_sync_replay_filter: RwLock::new(None),
         };
 
         let payload = Operations::new(vec![
@@ -1198,229 +1050,6 @@ mod tests {
         assert!(seen_hashes.contains(&tx_b.data().to_hash()));
     }
 
-    #[tokio::test]
-    async fn fast_sync_filter_suppresses_until_boundary_finalization() {
-        use ethexe_common::db::MbStorageRO;
-
-        let db = Database::memory();
-        let (ext, mut rx) = make_externalities(db.clone());
-
-        let boundary_eb = H256::repeat_byte(0xA1);
-        let boundary_payload = payload(Some(boundary_eb), 1);
-        let boundary_block = wrap(boundary_payload, 10, H256::zero());
-        let boundary_hash = boundary_block.hash();
-        ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
-            mb_hash: boundary_hash,
-            eb_hash: boundary_eb,
-        })
-        .await;
-
-        ext.process_mb_proposal(boundary_hash, boundary_block)
-            .await
-            .unwrap();
-        assert!(rx.try_recv().is_err(), "boundary proposal is suppressed");
-        assert_eq!(
-            *ext.fast_sync_replay_filter.read().await,
-            Some(FastSyncReplayFilter::UntilTargetFinalization {
-                mb_hash: boundary_hash,
-            }),
-        );
-        assert!(ext.pending_events.read().await.is_empty());
-        assert_eq!(db.mb_meta(boundary_hash).last_advanced_eb, boundary_eb);
-        assert!(db.mb_compact_block(boundary_hash).is_some());
-
-        ext.process_mb_finalized(boundary_hash, fake_cert(10))
-            .await
-            .unwrap();
-        assert!(
-            rx.try_recv().is_err(),
-            "boundary finalization is suppressed"
-        );
-        assert!(ext.pending_events.read().await.is_empty());
-
-        let post_eb = H256::repeat_byte(0xA2);
-        db.mutate_block_meta(post_eb, |meta| meta.prepared = true);
-        let post_payload = payload(Some(post_eb), 2);
-        let post_block = wrap(post_payload, 11, boundary_hash);
-        let post_hash = post_block.hash();
-
-        ext.process_mb_proposal(post_hash, post_block)
-            .await
-            .unwrap();
-        match rx.recv().await.expect("proposal event").unwrap() {
-            MalachiteEvent::BlockProposal { height, mb_hash } => {
-                assert_eq!(height, 11);
-                assert_eq!(mb_hash, post_hash);
-            }
-            other => panic!("expected BlockProposal, got {other:?}"),
-        }
-
-        ext.process_mb_finalized(post_hash, fake_cert(11))
-            .await
-            .unwrap();
-        match rx.recv().await.expect("finalization event").unwrap() {
-            MalachiteEvent::BlockFinalized {
-                cert,
-                height,
-                mb_hash,
-            } => {
-                assert_eq!(cert.height, 11);
-                assert_eq!(height, 11);
-                assert_eq!(mb_hash, post_hash);
-            }
-            other => panic!("expected BlockFinalized, got {other:?}"),
-        }
-        assert_eq!(db.globals().latest_finalized_mb_hash, post_hash);
-    }
-
-    #[tokio::test]
-    async fn fast_sync_filter_retains_until_boundary_proposal_seen() {
-        let db = Database::memory();
-        let (ext, mut rx) = make_externalities(db.clone());
-
-        let boundary_eb = H256::repeat_byte(0xD1);
-        let boundary_payload = payload(Some(boundary_eb), 1);
-        let boundary_block = wrap(boundary_payload.clone(), 10, H256::zero());
-        let boundary_hash = boundary_block.hash();
-        ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
-            mb_hash: boundary_hash,
-            eb_hash: boundary_eb,
-        })
-        .await;
-
-        let operations_hash = db.set_operations(boundary_payload);
-        db.set_mb_compact_block(
-            boundary_hash,
-            CompactMb {
-                parent: H256::zero(),
-                height: 10,
-                operations_hash,
-            },
-        );
-
-        ext.process_mb_finalized(boundary_hash, fake_cert(10))
-            .await
-            .unwrap();
-        assert!(
-            rx.try_recv().is_err(),
-            "boundary finalization before proposal is suppressed"
-        );
-        assert!(
-            ext.fast_sync_replay_filter.read().await.is_some(),
-            "filter must stay active until boundary proposal is seen",
-        );
-
-        let retained_eb = H256::repeat_byte(0xD2);
-        db.mutate_block_meta(retained_eb, |meta| meta.prepared = true);
-        let retained_block = wrap(payload(Some(retained_eb), 2), 11, boundary_hash);
-        let retained_hash = retained_block.hash();
-        ext.process_mb_proposal(retained_hash, retained_block)
-            .await
-            .unwrap();
-        assert!(
-            rx.try_recv().is_err(),
-            "non-boundary proposal is still suppressed while filter is retained"
-        );
-
-        ext.process_mb_proposal(boundary_hash, boundary_block)
-            .await
-            .unwrap();
-        ext.process_mb_finalized(boundary_hash, fake_cert(10))
-            .await
-            .unwrap();
-        assert!(
-            ext.fast_sync_replay_filter.read().await.is_none(),
-            "boundary proposal plus finalization clears filter",
-        );
-
-        let post_eb = H256::repeat_byte(0xD3);
-        db.mutate_block_meta(post_eb, |meta| meta.prepared = true);
-        let post_block = wrap(payload(Some(post_eb), 3), 12, boundary_hash);
-        let post_hash = post_block.hash();
-        ext.process_mb_proposal(post_hash, post_block)
-            .await
-            .unwrap();
-        match rx.recv().await.expect("proposal event").unwrap() {
-            MalachiteEvent::BlockProposal { height, mb_hash } => {
-                assert_eq!(height, 12);
-                assert_eq!(mb_hash, post_hash);
-            }
-            other => panic!("expected BlockProposal, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn fast_sync_filter_rejects_boundary_eb_mismatch() {
-        let db = Database::memory();
-        let (ext, mut rx) = make_externalities(db);
-
-        let expected_eb = H256::repeat_byte(0xB1);
-        let actual_eb = H256::repeat_byte(0xB2);
-        let block = wrap(payload(Some(actual_eb), 1), 10, H256::zero());
-        let mb_hash = block.hash();
-        ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
-            mb_hash,
-            eb_hash: expected_eb,
-        })
-        .await;
-
-        let err = ext
-            .process_mb_proposal(mb_hash, block)
-            .await
-            .expect_err("target EB mismatch must fail");
-        assert!(
-            err.to_string().contains("fast-sync replay target mismatch"),
-            "unexpected error: {err:#}"
-        );
-        match rx.try_recv().expect("mismatch event") {
-            Err(err) => assert!(
-                err.to_string().contains("fast-sync replay target mismatch"),
-                "unexpected event error: {err:#}"
-            ),
-            Ok(event) => panic!("expected mismatch error event, got {event:?}"),
-        }
-        assert!(
-            ext.fast_sync_replay_filter.read().await.is_none(),
-            "mismatch must clear replay filter",
-        );
-    }
-
-    #[tokio::test]
-    async fn fast_sync_filter_rejects_zero_boundary_eb_mismatch() {
-        let db = Database::memory();
-        let (ext, mut rx) = make_externalities(db);
-
-        let expected_eb = H256::zero();
-        let actual_eb = H256::repeat_byte(0xC1);
-        let block = wrap(payload(Some(actual_eb), 1), 10, H256::zero());
-        let mb_hash = block.hash();
-        ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
-            mb_hash,
-            eb_hash: expected_eb,
-        })
-        .await;
-
-        let err = ext
-            .process_mb_proposal(mb_hash, block)
-            .await
-            .expect_err("zero target EB mismatch must fail");
-        assert!(
-            err.to_string().contains("fast-sync replay target mismatch"),
-            "unexpected error: {err:#}"
-        );
-        match rx.try_recv().expect("mismatch event") {
-            Err(err) => assert!(
-                err.to_string().contains("fast-sync replay target mismatch"),
-                "unexpected event error: {err:#}"
-            ),
-            Ok(event) => panic!("expected mismatch error event, got {event:?}"),
-        }
-        assert!(
-            ext.fast_sync_replay_filter.read().await.is_none(),
-            "mismatch must clear replay filter",
-        );
-    }
-
     // ------------------------------------------------------------------
     // Integration tests for build_block_above / validate_block_above
     // size + touched-programs caps. Adapted from master's
@@ -1443,13 +1072,11 @@ mod tests {
             mempool: Some(mempool as Arc<dyn Mempool>),
             chain_head: make_chain_head(),
             event_tx,
-            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 0,
                 post_quarantine_delay: 0,
             },
-            fast_sync_replay_filter: RwLock::new(None),
         };
         (ext, event_rx)
     }
@@ -2198,13 +1825,11 @@ mod tests {
             mempool: Some(Arc::new(EmptyMempool)),
             chain_head: make_chain_head(),
             event_tx,
-            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 2,
                 post_quarantine_delay: 3,
             },
-            fast_sync_replay_filter: RwLock::new(None),
         };
         set_head(&ext, head).await;
 
