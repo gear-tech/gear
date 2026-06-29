@@ -52,7 +52,7 @@ impl State {
     }
 
     pub fn poll(&mut self, swarm: &mut Swarm<Behaviour>, cx: &mut Context<'_>) {
-        if let Poll::Ready(Some(msg)) = self.rx.poll_recv(cx) {
+        while let Poll::Ready(Some(msg)) = self.rx.poll_recv(cx) {
             self.handle_malachite_command(swarm, msg)
         }
     }
