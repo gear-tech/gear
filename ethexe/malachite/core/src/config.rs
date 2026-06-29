@@ -61,16 +61,3 @@ pub struct MalachiteCoreConfig {
     /// before the round rolls over.
     pub propose_timeout: Duration,
 }
-
-// +_+_+ consider to remove
-impl MalachiteCoreConfig {
-    /// Default propose timeout.
-    pub const DEFAULT_PROPOSE_TIMEOUT: Duration = Duration::from_secs(13);
-
-    /// Default libp2p listen address — TCP next to the typical
-    /// 20333/udp application QUIC port.
-    pub const DEFAULT_LISTEN_ADDR: SocketAddr = SocketAddr::new(
-        std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
-        20334,
-    );
-}

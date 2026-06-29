@@ -61,8 +61,7 @@
 //!
 //! ## Caller invariants
 //!
-//! - `listen_addr` must be set explicitly; [`MalachiteCoreConfig::DEFAULT_LISTEN_ADDR`] is
-//!   available but is not applied by any struct-level default.
+//! - `listen_addr` must be set explicitly; there is no struct-level default.
 //! - `base` must be a persistent path: the service writes `<base>/malachite/` (store and
 //!   WAL) on first run and resumes from it on restart; a transient path loses BFT state.
 //! - Every persistent-peer multiaddr must include a `/p2p/<peer-id>` suffix (see
