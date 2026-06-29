@@ -10,7 +10,7 @@
 use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
-use ethexe_malachite::{MalachiteConfig, Multiaddr};
+use ethexe_malachite::{MalachiteServiceConfig, Multiaddr};
 use ethexe_service::config::MalachiteCliConfig;
 use gsigner::secp256k1::{Address, PublicKey};
 use serde::Deserialize;
@@ -72,7 +72,7 @@ pub struct MalachiteParams {
 impl MalachiteParams {
     /// Converts CLI/TOML Malachite parameters into a service-ready
     /// [`MalachiteCliConfig`]. Missing fields fall back to sensible
-    /// defaults from [`MalachiteConfig`].
+    /// defaults from `MalachiteServiceConfig`.
     pub fn into_config(self) -> Result<MalachiteCliConfig> {
         let validator_pub_keys = match self.validators_malachite_pub_keys {
             Some(path) => load_validator_pub_keys_table(&path)?,
@@ -81,7 +81,7 @@ impl MalachiteParams {
         Ok(MalachiteCliConfig {
             listen_addr: self
                 .malachite_listen_addr
-                .unwrap_or(MalachiteConfig::DEFAULT_LISTEN_ADDR),
+                .unwrap_or(MalachiteServiceConfig::DEFAULT_LISTEN_ADDR),
             persistent_peers: self.malachite_persistent_peers,
             validator_pub_keys,
         })

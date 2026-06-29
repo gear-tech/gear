@@ -35,7 +35,7 @@ use ethexe_db::{Database, dump::StateDump, verifier::IntegrityVerifier};
 use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
 use ethexe_malachite::FastSyncReplayTarget;
 use ethexe_processor::Processor;
-use ethexe_rpc::InjectedClient;
+use ethexe_rpc::{InjectedClient, ProgramClient};
 use ethexe_runtime_common::{RUNTIME_ID, state::Storage};
 use gear_core::{
     ids::prelude::MessageIdExt,
@@ -2774,6 +2774,135 @@ async fn injected_tx_fungible_token() {
     stop_nodes([node]).await;
 }
 
+/// Subscribe to a program's best state over RPC and assert that handling a
+/// message produces a `ProgramBestState` carrying the program's new state hash
+/// and its outgoing reply.
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn program_subscribe_best_state() {
+    init_logger();
+
+    let mut env = TestEnv::default().await;
+
+    let pubkey = env.validators[0].public_key;
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(8095)
+                .validator(env.validators[0]),
+        )
+        .await;
+    node.start_service().await;
+    let rpc_client = node
+        .rpc_ws_client()
+        .await
+        .expect("RPC client provide by node");
+
+    // Upload demo_ping and create the program.
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = program.program_id;
+
+    // Subscribe after creation so the first emitted state is the PING handle.
+    let mut subscription = rpc_client
+        .subscribe_best_state(ping_id.to_address_lossy())
+        .await
+        .expect("successfully subscribe for program best state");
+
+    // Trigger a state transition for the program.
+    let reply = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(reply.payload, b"PONG");
+
+    let best_state = subscription
+        .next()
+        .await
+        .expect("subscription produces a best state")
+        .expect("no RPC subscription error");
+
+    assert_ne!(best_state.mb_hash, H256::zero());
+    assert_ne!(best_state.new_state_hash, H256::zero());
+    assert!(
+        best_state.messages.iter().any(|msg| msg.payload == b"PONG"),
+        "expected the PONG reply in the best state messages"
+    );
+    tracing::info!("✅ Best state successfully received from RPC subscription");
+
+    // Now send the same PING as an injected transaction: it must yield a PONG
+    // promise over its own subscription, and our best-state subscription must
+    // also observe the resulting transition.
+    let ping_tx = InjectedTransaction {
+        destination: ping_id,
+        payload: b"PING".to_vec().try_into().unwrap(),
+        value: 0,
+        reference_block: node.db.globals().latest_prepared_eb_hash,
+        salt: vec![1].try_into().unwrap(),
+    };
+    let rpc_tx = env
+        .signer
+        .signed_message(pubkey, ping_tx.clone(), None)
+        .unwrap();
+
+    let mut tx_subscription = rpc_client
+        .send_transaction_and_watch(rpc_tx)
+        .await
+        .expect("successfully subscribe for injected transaction promise");
+
+    let promise = tx_subscription
+        .next()
+        .await
+        .expect("promise from subscription")
+        .expect("transaction promise")
+        .data()
+        .clone()
+        .unwrap_promise();
+    assert_eq!(promise.tx_hash, ping_tx.to_hash());
+    assert_eq!(promise.reply.payload, b"PONG");
+    tracing::info!("✅ Injected PING promise received from RPC subscription");
+
+    let injected_best_state = subscription
+        .next()
+        .await
+        .expect("subscription produces a best state for the injected ping")
+        .expect("no RPC subscription error");
+    assert_ne!(injected_best_state.mb_hash, H256::zero());
+    assert_ne!(injected_best_state.new_state_hash, H256::zero());
+    assert!(
+        injected_best_state
+            .messages
+            .iter()
+            .any(|msg| msg.payload == b"PONG"),
+        "expected the injected PONG reply in the best state messages"
+    );
+    tracing::info!("✅ Best state for injected PING received from RPC subscription");
+
+    subscription
+        .unsubscribe()
+        .await
+        .expect("successfully unsubscribe from best state");
+
+    stop_nodes([node]).await;
+}
+
 /// Same flow as `injected_tx_fungible_token` but the RPC is on a non-validator
 /// (Alice) — the injected tx is gossiped through the p2p network to the
 /// validator (Bob) and the promise comes back through both nodes.
@@ -3676,6 +3805,97 @@ async fn re_genesis_delayed_message() {
                 assert_eq!(*value, 0);
             },
         );
+
+    stop_nodes([node]).await;
+}
+
+/// With `batch_commitment_period > 1` the validator must keep the chain live
+/// (a ping still round-trips) while only ever committing batches on blocks
+/// whose height is a multiple of the period.
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn batch_commitment_period_commits_only_on_multiples() {
+    init_logger();
+
+    let period = std::num::NonZero::new(2).unwrap();
+    let config = TestEnvConfig {
+        batch_commitment_period: period,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    let committed_batches = Arc::new(Mutex::new(Vec::new()));
+    let recording_committer = RecordingCommitter {
+        router: EthereumBuilder::default()
+            .rpc_url(&env.eth_cfg.rpc)
+            .router_address(env.eth_cfg.router_address)
+            .signer(env.signer.clone())
+            .sender_address(env.validators[0].public_key.to_address())
+            .eip1559_fee_increase_percentage(env.eth_cfg.eip1559_fee_increase_percentage)
+            .blob_gas_multiplier(env.eth_cfg.blob_gas_multiplier)
+            .build()
+            .await
+            .unwrap()
+            .router(),
+        committed_batches: committed_batches.clone(),
+    };
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.custom_committer = Some(Box::new(recording_committer));
+    node.start_service().await;
+
+    // The whole flow (code → program → ping reply) only completes if batches
+    // keep landing despite the gate — i.e. the chain stays live.
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = program.program_id;
+
+    let reply = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(reply.program_id, ping_id);
+    assert_eq!(reply.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(reply.payload, b"PONG");
+
+    // Every committed batch must target a block whose height is a multiple of
+    // the configured period — that is exactly the coordinator-side gate.
+    let batches = committed_batches.lock().await.clone();
+    assert!(
+        !batches.is_empty(),
+        "expected at least one committed batch for the ping flow"
+    );
+    for batch in &batches {
+        let header = node
+            .db
+            .block_header(batch.block_hash)
+            .expect("committed batch's block header must be in db");
+        assert!(
+            header.height.is_multiple_of(period.get()),
+            "batch committed on height {} which is not a multiple of period {}",
+            header.height,
+            period.get(),
+        );
+    }
 
     stop_nodes([node]).await;
 }

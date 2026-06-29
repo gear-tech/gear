@@ -165,9 +165,209 @@ impl Idle {
             .ok_or_else(|| anyhow!("cannot determine coordinator for block {}", block.hash))?;
 
         if coordinator_addr == self.ctx.core.pub_key.to_address() {
+            // The period is a coordinator-local cadence: only the elected
+            // coordinator decides whether this block is a commitment block,
+            // using its own `batch_commitment_period`. On a non-multiple block
+            // it produces nothing and drops back to idle.
+            let period = self.ctx.core.batch_commitment_period.get();
+            if !block.header.height.is_multiple_of(period) {
+                tracing::trace!(
+                    block = %block.hash,
+                    height = block.header.height,
+                    period,
+                    "coordinator skips this block: height not a multiple of batch_commitment_period",
+                );
+                return Idle::create(self.ctx);
+            }
+
             CoordinatorBoot::start(self.ctx, block, validators)
         } else {
+            // Participants always enter the role and validate whatever the
+            // coordinator chooses to commit — the period is not consulted here,
+            // so the knob stays purely coordinator-local.
             Participant::create(self.ctx, block, coordinator_addr)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::validator::{
+        ValidatorMetrics,
+        batch::{BatchCommitmentManager, BatchLimits},
+        core::{BatchCommitter, MiddlewareWrapper, ValidatorCore},
+    };
+    use async_trait::async_trait;
+    use ethexe_common::{
+        Address,
+        db::ConfigStorageRO,
+        ecdsa::{ContractSignature, PublicKey},
+        gear::BatchCommitment,
+        mock::{BlockChain, Mock},
+    };
+    use ethexe_db::Database;
+    use ethexe_ethereum::middleware::{ElectionProvider, MockElectionProvider};
+    use gsigner::secp256k1::Signer;
+    use std::{collections::VecDeque, num::NonZero, time::Duration};
+
+    /// Committer that never touches the chain — the gate test only inspects
+    /// the resulting state, no batch is ever submitted.
+    struct NoopCommitter;
+
+    #[async_trait]
+    impl BatchCommitter for NoopCommitter {
+        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+            Box::new(NoopCommitter)
+        }
+
+        async fn commit(
+            self: Box<Self>,
+            _batch: BatchCommitment,
+            _signatures: Vec<ContractSignature>,
+        ) -> Result<H256> {
+            Ok(H256::zero())
+        }
+    }
+
+    fn test_context(
+        db: Database,
+        signer: Signer,
+        pub_key: PublicKey,
+        batch_commitment_period: NonZero<u32>,
+    ) -> ValidatorContext {
+        let timelines = db.config().timelines;
+        let middleware = MiddlewareWrapper::from_inner(
+            Box::new(MockElectionProvider::new()) as Box<dyn ElectionProvider>
+        );
+        let batch_manager =
+            BatchCommitmentManager::new(BatchLimits::default(), db.clone(), middleware);
+
+        ValidatorContext {
+            core: ValidatorCore {
+                signatures_threshold: 1,
+                router_address: Address([0; 20]),
+                pub_key,
+                timelines,
+                signer,
+                db,
+                committer: Box::new(NoopCommitter),
+                batch_manager,
+                metrics: ValidatorMetrics::default(),
+                commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
+                coordinator_aggregation_delay: Duration::ZERO,
+                batch_commitment_period,
+            },
+            pending_events: VecDeque::new(),
+            output: VecDeque::new(),
+            tasks: Default::default(),
+        }
+    }
+
+    /// The period is coordinator-local: when this node is the elected
+    /// coordinator (single-validator set), `batch_commitment_period = 2` makes
+    /// it build a batch only on even-height blocks and stay idle on odd ones.
+    #[tokio::test]
+    async fn batch_commitment_period_gates_coordinator_by_block_height() {
+        let db = Database::memory();
+        let signer = Signer::memory();
+        let pub_key = signer.generate().unwrap();
+
+        let mut chain = BlockChain::mock(10);
+        chain.validators = vec![pub_key.to_address()].try_into().unwrap();
+        let chain = chain.setup(&db);
+
+        let period = NonZero::new(2).unwrap();
+
+        // Pick concrete even/odd-height blocks dynamically so the test does not
+        // depend on `BlockChain::mock`'s genesis-height parity.
+        let even_block = chain
+            .blocks
+            .iter()
+            .filter_map(|b| b.synced.as_ref().map(|_| b.to_simple()))
+            .find(|b| b.header.height.is_multiple_of(period.get()))
+            .expect("mock chain must contain an even-height block");
+        let odd_block = chain
+            .blocks
+            .iter()
+            .filter_map(|b| b.synced.as_ref().map(|_| b.to_simple()))
+            .find(|b| !b.header.height.is_multiple_of(period.get()))
+            .expect("mock chain must contain an odd-height block");
+
+        // Odd height → coordinator skips → back to idle, waiting for next head.
+        let ctx = test_context(db.clone(), signer.clone(), pub_key, period);
+        let state = Idle::create(ctx)
+            .unwrap()
+            .process_new_head(odd_block)
+            .unwrap();
+        assert!(
+            state.is_idle(),
+            "odd-height block must be skipped by the coordinator, got {state}"
+        );
+
+        // Even height → coordinator boots and starts building a batch.
+        let ctx = test_context(db, signer, pub_key, period);
+        let state = Idle::create(ctx)
+            .unwrap()
+            .process_new_head(even_block)
+            .unwrap();
+        assert!(
+            state.is_coordinator_boot(),
+            "even-height block must start the coordinator, got {state}"
+        );
+    }
+
+    /// A participant ignores its own period entirely: it enters the
+    /// `Participant` role to validate the coordinator's batch even on a block
+    /// whose height is not a multiple of the (large) local period.
+    #[tokio::test]
+    async fn participant_enters_regardless_of_batch_commitment_period() {
+        let db = Database::memory();
+        let signer = Signer::memory();
+        let my_key = signer.generate().unwrap();
+        let other_signer = Signer::memory();
+        let other_key = other_signer.generate().unwrap();
+
+        let validators_vec: ethexe_common::ValidatorsVec =
+            vec![my_key.to_address(), other_key.to_address()]
+                .try_into()
+                .unwrap();
+        let mut chain = BlockChain::mock(10);
+        chain.validators = validators_vec.clone();
+        let chain = chain.setup(&db);
+
+        let timelines = db.config().timelines;
+
+        // Find a prepared block whose elected coordinator is NOT this node —
+        // there our node must always become a participant.
+        let participant_block = chain
+            .blocks
+            .iter()
+            .filter_map(|b| b.synced.as_ref().map(|_| b.to_simple()))
+            .find(|b| {
+                timelines.block_coordinator_at(&validators_vec, b.header.timestamp)
+                    != Some(my_key.to_address())
+            })
+            .expect("expected a block coordinated by the other validator");
+
+        // A period far larger than any height — proving the participant path
+        // never consults it.
+        let huge_period = NonZero::new(u32::MAX).unwrap();
+        assert!(
+            !participant_block
+                .header
+                .height
+                .is_multiple_of(huge_period.get())
+        );
+
+        let ctx = test_context(db, signer, my_key, huge_period);
+        let state = Idle::create(ctx)
+            .unwrap()
+            .process_new_head(participant_block)
+            .unwrap();
+        assert!(
+            state.is_participant(),
+            "participant must enter regardless of period, got {state}"
+        );
     }
 }

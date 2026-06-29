@@ -87,6 +87,8 @@ pub use gsigner::{
 };
 pub use validators::{EmptyValidatorsError, ValidatorsVec};
 pub mod ecdsa {
+    #[cfg(feature = "std")]
+    pub use gsigner::secp256k1::Signer;
     pub use gsigner::secp256k1::{
         ContractSignature, PrivateKey, PublicKey, Signature, SignedData, SignedMessage,
         VerifiedData,
@@ -108,6 +110,12 @@ pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
 /// Not a protocol constant — every coordinator picks its own value.
 pub const DEFAULT_COMMITMENT_DELAY_LIMIT: core::num::NonZero<u8> =
     core::num::NonZero::new(16).expect("16 != 0");
+
+/// Default `batch_commitment_period` (in Ethereum blocks). A coordinator only
+/// builds a `BatchCommitment` on blocks whose height is a multiple of this
+/// value; `1` means every block. Node-local knob, not a protocol constant.
+pub const DEFAULT_BATCH_COMMITMENT_PERIOD: core::num::NonZero<u32> =
+    core::num::NonZero::new(1).expect("1 != 0");
 
 /// Maximum number of touched programs per MB.
 pub const MAX_TOUCHED_PROGRAMS_PER_MB: u32 = 128;

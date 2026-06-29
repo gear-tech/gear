@@ -18,7 +18,7 @@
 //! [`crate::Externalities`] is enforced by
 //! [`Store::cascade_save`] / [`Store::cascade_finalize`]; fatal
 //! callback errors are surfaced through
-//! [`crate::MalachiteService`]'s error stream.
+//! [`crate::MalachiteCore`]'s error stream.
 //!
 //! Each [`AppMsg`] variant is paired with a `process_*` method on
 //! [`AppMsgHandler`] that performs the work and returns the value the
@@ -39,6 +39,7 @@ use crate::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use bytes::Bytes;
+use ethexe_common::Acceptance;
 use malachitebft_app_channel::{
     AppMsg, Channels, NetworkMsg,
     app::{
@@ -55,7 +56,7 @@ use malachitebft_app_channel::{
 use malachitebft_core_types::Height as _;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::RangeInclusive, sync::Arc};
-use tracing::{error, info};
+use tracing::{debug, error, info, trace, warn};
 
 /// Max allowed distance into the future for pending proposal parts.
 const FUTURE_HEIGHT_WINDOW: u64 = 4;
@@ -88,6 +89,14 @@ enum FinalizationError {
     NonFatal(anyhow::Error),
 }
 
+#[derive(derive_more::From, derive_more::Display)]
+enum ProcessGetValueError {
+    #[display("building block timeout elapsed: {_0}")]
+    TimeoutElapsed(tokio::time::error::Elapsed),
+    #[display(" {_0}")]
+    Any(anyhow::Error),
+}
+
 /// Owns the channel-app event-loop state and dispatches each
 /// [`AppMsg`] variant to its matching `process_*` method. The dispatch
 /// holds the engine reply channel — `process_*` only produces the
@@ -107,6 +116,12 @@ where
             let Some(msg) = self.channels.consensus.recv().await else {
                 return Err(anyhow!("consensus channel closed"));
             };
+
+            // `Err` from `handle_app_msg` means a FATAL failure (dropped
+            // engine reply channel, `FinalizationError::Fatal`, broken
+            // proposal production) — propagate so the app task terminates
+            // and the error surfaces on the service stream. Non-fatal
+            // cases are logged and absorbed inside `handle_app_msg`.
             self.handle_app_msg(msg).await?;
         }
     }
@@ -115,9 +130,9 @@ where
         match msg {
             // ConsensusReady
             AppMsg::ConsensusReady { reply } => {
-                if reply.send(self.process_consensus_ready()).is_err() {
-                    error!("ConsensusReady: failed to send reply");
-                }
+                reply
+                    .send(self.process_consensus_ready())
+                    .map_err(|e| anyhow!("failed to send ConsensusReady reply: {e:?}"))?;
             }
 
             // StartedRound
@@ -136,9 +151,9 @@ where
                         error!(?e, %height, %round, "StartedRound: process failed");
                         Vec::new()
                     });
-                if reply_value.send(proposals).is_err() {
-                    error!("StartedRound: failed to send proposals reply");
-                }
+                reply_value
+                    .send(proposals)
+                    .map_err(|e| anyhow!("failed to send StartedRound reply: {e:?}"))?;
             }
 
             // GetValue (we are proposer)
@@ -151,35 +166,44 @@ where
                 info!(%height, %round, "GetValue");
                 match self.process_get_value(height, round).await {
                     Ok(proposal) => {
-                        if reply.send(proposal.clone()).is_err() {
-                            error!("GetValue: failed to send proposal reply");
-                        }
+                        reply
+                            .send(proposal.clone())
+                            .map_err(|e| anyhow!("failed to send GetValue reply: {e:?}"))?;
+
                         for stream_message in self.state.stream_proposal(proposal, Round::Nil) {
-                            self.channels
+                            if let Err(err) = self
+                                .channels
                                 .network
                                 .send(NetworkMsg::PublishProposalPart(stream_message))
-                                .await?;
+                                .await
+                            {
+                                error!("failed to send PublishProposalPart: {err}");
+                            }
                         }
                     }
-                    Err(e) => {
-                        // No usable default for `LocallyProposedValue` —
-                        // dropping the reply sender lets the engine time
-                        // out the propose step and advance the round.
-                        error!(?e, %height, %round, "GetValue: process failed — skipping reply");
+
+                    // No usable default for `LocallyProposedValue` —
+                    // dropping the reply sender lets the engine time
+                    // out the propose step and advance the round.
+                    Err(ProcessGetValueError::TimeoutElapsed(e)) => {
+                        warn!(%height, %round, reason = %e, "unable to produce proposal");
+                    }
+                    Err(ProcessGetValueError::Any(e)) => {
+                        return Err(anyhow!("errors during proposal production: {e:?}"));
                     }
                 }
             }
 
             // Vote extensions (unused — return defaults).
             AppMsg::ExtendVote { reply, .. } => {
-                if reply.send(self.process_extend_vote()).is_err() {
-                    error!("ExtendVote: failed to send reply");
-                }
+                reply
+                    .send(self.process_extend_vote())
+                    .map_err(|e| anyhow!("failed to send ExtendVote reply: {e:?}"))?;
             }
             AppMsg::VerifyVoteExtension { reply, .. } => {
-                if reply.send(self.process_verify_vote_extension()).is_err() {
-                    error!("VerifyVoteExtension: failed to send reply");
-                }
+                reply
+                    .send(self.process_verify_vote_extension())
+                    .map_err(|e| anyhow!("failed to send VerifyVoteExtension reply: {e:?}"))?;
             }
 
             // ReceivedProposalPart (we are not proposer)
@@ -188,17 +212,17 @@ where
                     StreamContent::Data(p) => p.get_type(),
                     StreamContent::Fin => "fin",
                 };
-                info!(%from, %part.sequence, part.type = %part_type, "ReceivedProposalPart");
+                trace!(%from, %part.sequence, part.type = %part_type, "ReceivedProposalPart");
                 let value = self
                     .process_received_proposal_part(from, part)
                     .await
                     .unwrap_or_else(|e| {
-                        error!(?e, "ReceivedProposalPart: process failed");
+                        error!("ReceivedProposalPart: process failed, {e}");
                         None
                     });
-                if reply.send(value).is_err() {
-                    error!("ReceivedProposalPart: failed to send reply");
-                }
+                reply
+                    .send(value)
+                    .map_err(|e| anyhow!("failed to send ReceivedProposalPart reply: {e:?}"))?;
             }
 
             // Decided (info only — Finalized fires next).
@@ -249,9 +273,9 @@ where
                         return Err(anyhow!("Fatal error during finalization: {e:?}"));
                     }
                 };
-                if reply.send(next).is_err() {
-                    error!("Finalized: failed to send Next reply");
-                }
+                reply
+                    .send(next)
+                    .map_err(|e| anyhow!("failed to send Next reply: {e:?}"))?;
             }
 
             // Sync path
@@ -267,32 +291,32 @@ where
                     .process_synced_value(height, round, proposer, value_bytes)
                     .await
                     .unwrap_or_else(|e| {
-                        error!(?e, %height, %round, "ProcessSyncedValue: process failed");
+                        error!(?e, %height, %round, "process synced value failed");
                         None
                     });
-                if reply.send(value).is_err() {
-                    error!("ProcessSyncedValue: failed to send reply");
-                }
+                reply
+                    .send(value)
+                    .map_err(|e| anyhow!("failed to send ProcessSyncedValue reply: {e:?}"))?
             }
 
             AppMsg::GetDecidedValues { range, reply } => {
                 let values = self.process_get_decided_values(range).unwrap_or_else(|e| {
-                    error!(?e, "GetDecidedValues: process failed");
+                    error!(?e, "process get decided values failed");
                     Vec::new()
                 });
-                if reply.send(values).is_err() {
-                    error!("GetDecidedValues: failed to send reply");
-                }
+                reply
+                    .send(values)
+                    .map_err(|e| anyhow!("failed to send GetDecidedValues reply: {e:?}"))?;
             }
 
             AppMsg::GetHistoryMinHeight { reply } => {
                 let h = self.process_get_history_min_height().unwrap_or_else(|e| {
-                    error!(?e, "GetHistoryMinHeight: process failed");
+                    error!(?e, "process get history min height failed");
                     Height::default()
                 });
-                if reply.send(h).is_err() {
-                    error!("GetHistoryMinHeight: failed to send reply");
-                }
+                reply
+                    .send(h)
+                    .map_err(|e| anyhow!("failed to send GetHistoryMinHeight reply: {e:?}"))?;
             }
 
             AppMsg::RestreamProposal {
@@ -301,15 +325,12 @@ where
                 valid_round,
                 address: _,
                 value_id,
-            } => {
-                if let Err(e) = self
-                    .process_restream_proposal(height, round, valid_round, value_id)
-                    .await
-                {
-                    error!(?e, %height, %round, "RestreamProposal: process failed");
-                }
-            }
+            } => self
+                .process_restream_proposal(height, round, valid_round, value_id)
+                .await
+                .context("restream proposal failed")?,
         }
+
         Ok(())
     }
 
@@ -346,12 +367,17 @@ where
         let pending = self.state.store.get_pending_proposal_parts(height, round)?;
         for parts in pending {
             let promote = async {
-                let proposed = self.assemble_and_validate(&parts).await?;
+                let (proposed, block) = match self.assemble_and_validate(&parts).await? {
+                    Acceptance::Accepted(res) => res,
+                    Acceptance::Rejected(reason) => {
+                        warn!(%height, %round, reason, "rejecting pending proposal");
+                        return Ok(());
+                    }
+                };
                 self.state.store.store_undecided_proposal(&proposed)?;
-                let block = Block::decode(&mut &proposed.value.block_bytes[..])
-                    .map_err(|e| anyhow!("decoding Block from pending proposal: {e}"))?;
                 self.record_assembled_block(block).await
             };
+
             if let Err(e) = promote.await {
                 error!(?e, "rejecting invalid pending proposal");
             }
@@ -364,9 +390,9 @@ where
         &mut self,
         height: Height,
         round: Round,
-    ) -> Result<LocallyProposedValue<MalachiteCtx>> {
+    ) -> Result<LocallyProposedValue<MalachiteCtx>, ProcessGetValueError> {
         if let Some(p) = self.state.get_previously_built_value(height, round)? {
-            info!("re-using previously built value");
+            debug!("re-using previously built value");
             return Ok(p);
         }
 
@@ -375,22 +401,17 @@ where
         let parent_hash = if height.as_u64() <= 1 {
             H256::zero()
         } else {
+            let parent_height = height.as_u64() - 1;
             self.state
                 .store
-                .finalized_block_at(height.as_u64() - 1)?
-                .ok_or_else(|| {
-                    anyhow!(
-                        "no finalized block at height {} — Malachite invariant violated",
-                        height.as_u64() - 1,
-                    )
-                })?
+                .finalized_block_at(parent_height)?
+                .with_context(|| format!("no finalized block at height {parent_height}"))?
         };
 
         let build_fut = self.externalities.build_block_above(parent_hash);
         let payload = tokio::time::timeout(self.state.propose_timeout, build_fut)
-            .await
-            .context("block proposal timeout elapsed")?
-            .context("Proposal block building failed")?;
+            .await?
+            .context("build_block_above failed")?;
         let block = Block::new(parent_hash, height.as_u64(), payload);
         let block_bytes = block.encode();
         let locally = self
@@ -444,10 +465,14 @@ where
                 .store_pending_proposal_parts(&parts, &value_id)?;
             Ok(None)
         } else {
-            let proposed = self.assemble_and_validate(&parts).await?;
+            let (proposed, block) = match self.assemble_and_validate(&parts).await? {
+                Acceptance::Accepted(res) => res,
+                Acceptance::Rejected(reason) => {
+                    warn!(%parts.height, %parts.round, reason, "rejecting received proposal");
+                    return Ok(None);
+                }
+            };
             self.state.store.store_undecided_proposal(&proposed)?;
-            let block = Block::decode(&mut &proposed.value.block_bytes[..])
-                .map_err(|e| anyhow!("decoding Block from received proposal: {e}"))?;
             self.record_assembled_block(block).await?;
             Ok(Some(proposed))
         }
@@ -500,7 +525,7 @@ where
             // been processed (cascade_save would be a no-op on a
             // missing ancestor anyway — see `Store::save_chain`).
             let block = Block::decode(&mut &proposed.value.block_bytes[..])
-                .map_err(|e| anyhow!("decoding Block from synced value: {e}"))?;
+                .context("decoding Block from synced value")?;
             self.record_assembled_block(block).await?;
         }
         Ok(parsed)
@@ -570,71 +595,59 @@ where
     async fn assemble_and_validate(
         &self,
         parts: &ProposalParts,
-    ) -> Result<ProposedValue<MalachiteCtx>> {
+    ) -> Result<Acceptance<(ProposedValue<MalachiteCtx>, Block), String>> {
         let proposed = State::assemble_value_from_parts(parts.clone())?;
-        let block = Block::decode(&mut &proposed.value.block_bytes[..])
-            .map_err(|e| anyhow!("decoding Block from value bytes: {e}"))?;
+
+        let block = match Block::decode(&mut &proposed.value.block_bytes[..]) {
+            Ok(b) => b,
+            Err(e) => {
+                let reason = format!("unable to decode Block from proposal: {e}");
+                return Ok(Acceptance::Rejected(reason));
+            }
+        };
+
         if block.height != proposed.height.as_u64() {
-            return Err(anyhow!(
+            let reason = format!(
                 "block.height ({}) does not match proposed height ({})",
-                block.height,
-                proposed.height
-            ));
+                block.height, proposed.height
+            );
+            return Ok(Acceptance::Rejected(reason));
         }
+
         let local_parent = if proposed.height.as_u64() <= 1 {
             H256::zero()
         } else {
+            let parent_height = proposed.height.as_u64() - 1;
             self.state
                 .store
-                .finalized_block_at(proposed.height.as_u64() - 1)?
-                .ok_or_else(|| {
-                    anyhow!(
-                        "no finalized block at height {} — Malachite invariant violated",
-                        proposed.height.as_u64() - 1,
-                    )
-                })?
+                .finalized_block_at(parent_height)?
+                .with_context(|| format!("no finalized block at height {parent_height}"))?
         };
+
         if block.parent_hash != local_parent {
-            return Err(anyhow!(
-                "parent_hash mismatch at height {}: block claims {:?}, local view {:?}",
-                proposed.height,
-                block.parent_hash,
-                local_parent
-            ));
+            let reason = format!(
+                "proposal parent_hash mismatch at height {}: block claims {:?}, local view {:?}",
+                proposed.height, block.parent_hash, local_parent
+            );
+            return Ok(Acceptance::Rejected(reason));
         }
-        // Parent + height already validated above. The application
-        // only sees the parent hash + payload — payload-level checks
-        // live there.
-        let valid = self
+
+        let validation_status = self
             .externalities
-            .validate_block_above(block.parent_hash, block.payload)
+            .validate_block_above(block.parent_hash, &block.payload)
             .await
-            .context("Externalities::validate_block_above")?;
-        if !valid {
-            return Err(anyhow!(
-                "application rejected proposal at height {}",
-                proposed.height
-            ));
+            .context("assemble_and_validate: validate block")?;
+
+        match validation_status {
+            Acceptance::Accepted(()) => Ok(Acceptance::Accepted((proposed, block))),
+            Acceptance::Rejected(reason) => Ok(Acceptance::Rejected(reason)),
         }
-        Ok(proposed)
     }
 
-    /// Drive the strict-ordering save cascade against the application
-    /// for a freshly-assembled block. Inserts a `saved=false,
-    /// finalized=false, cert=None` [`BlockEntry`] and runs
-    /// [`Store::cascade_save`] from this hash — the cascade flushes
-    /// every ancestor that is now connected in chronological
-    /// (parent-first) order. If an ancestor is still missing the
-    /// cascade is a no-op; it will pick up when the gap closes via a
-    /// later assembled block at the missing height.
-    ///
-    /// Called from [`Self::process_get_value`] (we are proposer),
-    /// [`Self::process_received_proposal_part`] (peer proposal), and
-    /// [`Self::process_synced_value`] (sync path). Multiple callers
-    /// can race for the same `block_hash` — `Store::insert_block`
-    /// dedup is idempotent and `cascade_save` skips already-saved
-    /// entries, so the application's `process_mb_proposal` runs at
-    /// most once per `block_hash`.
+    /// Record a freshly-assembled block and run the parent-first save
+    /// cascade, so the application's `process_mb_proposal` fires for every
+    /// now-connected ancestor. Idempotent — racing callers are deduped and
+    /// the callback runs at most once per `block_hash`.
     async fn record_assembled_block(&self, block: Block) -> Result<()> {
         let block_hash = block.hash();
         self.state.store.insert_block(BlockEntry {
@@ -656,20 +669,12 @@ where
             .await
     }
 
-    /// Attach the engine's quorum certificate to the
-    /// already-processed [`BlockEntry`] and run the finalize cascade.
-    ///
-    /// Contract: the block (and every ancestor) must have already been
-    /// processed by [`Self::record_assembled_block`] earlier — the
-    /// strict-ordering guarantee documented on
-    /// [`crate::Externalities::process_mb_proposal`]. A debug-build
-    /// assertion catches a violation; in release builds
-    /// [`Store::cascade_finalize`] silently no-ops on an unsaved
-    /// ancestor (the `finalize_chain` walk returns `None`), and the
-    /// `errors_tx` channel surfaces the contract breach upstream.
+    /// Attach the engine's quorum certificate to the already-processed
+    /// [`BlockEntry`] and run the finalize cascade. The block and every
+    /// ancestor must have been saved via [`Self::record_assembled_block`]
+    /// first (debug assertion; release no-ops on an unsaved ancestor).
     async fn ingest_finalized(&self, cert: EngineCert, block_bytes: Vec<u8>) -> Result<()> {
-        let block = Block::decode(&mut &block_bytes[..])
-            .map_err(|e| anyhow!("decoding Block at finalize: {e}"))?;
+        let block = Block::decode(&mut &block_bytes[..]).context("decoding Block at finalize")?;
         let block_hash = block.hash();
         let height = cert.height.as_u64();
 
@@ -793,8 +798,12 @@ mod tests {
         async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
             Ok(test_payload())
         }
-        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
-            Ok(true)
+        async fn validate_block_above(
+            &self,
+            _: H256,
+            _: &BlockPayload,
+        ) -> Result<Acceptance<(), String>> {
+            Ok(Acceptance::Accepted(()))
         }
     }
 
@@ -976,8 +985,12 @@ mod tests {
         async fn build_block_above(&self, _: H256) -> Result<BlockPayload> {
             Ok(test_payload())
         }
-        async fn validate_block_above(&self, _: H256, _: BlockPayload) -> Result<bool> {
-            Ok(true)
+        async fn validate_block_above(
+            &self,
+            _: H256,
+            _: &BlockPayload,
+        ) -> Result<Acceptance<(), String>> {
+            Ok(Acceptance::Accepted(()))
         }
     }
 

@@ -95,7 +95,7 @@ pub struct NodeParams {
     #[serde(rename = "canonical-quarantine")]
     pub canonical_quarantine: Option<u8>,
 
-    /// See `MalachiteConfig::post_quarantine_delay`. Default 1.
+    /// See `MalachiteServiceConfig::post_quarantine_delay`. Default 1.
     #[arg(long)]
     #[serde(rename = "post-quarantine-delay")]
     pub post_quarantine_delay: Option<u32>,
@@ -126,6 +126,22 @@ pub struct NodeParams {
     #[arg(long)]
     #[serde(default, rename = "commitment-delay-limit")]
     pub commitment_delay_limit: Option<NonZero<u8>>,
+
+    /// Coordinator-local cadence for batch commitments: when this node is the
+    /// elected coordinator it only builds a batch on blocks whose height is a
+    /// multiple of this value. `1` (the default) commits every block and
+    /// reproduces the previous behavior. Participants are unaffected — they
+    /// always validate whatever the coordinator chooses to commit, so different
+    /// nodes may safely run different values.
+    ///
+    /// Keep it small enough that every era's election window still contains
+    /// several multiple-of-period blocks, otherwise validator-set rotation
+    /// (which has an election-window deadline) can be delayed; and prefer a
+    /// value not larger than `uncommitted-chain-len-threshold` so the
+    /// idle-chain checkpoint still fires close to its threshold.
+    #[arg(long)]
+    #[serde(default, rename = "batch-commitment-period")]
+    pub batch_commitment_period: Option<NonZero<u32>>,
 
     /// Path to genesis state dump file (.blob or .json) for initial chain state.
     #[arg(long)]
@@ -161,6 +177,7 @@ impl NodeParams {
         Ok(NodeConfig {
             database_path: self.db_dir(),
             key_path: self.keys_dir(),
+            net_path: self.net_dir(),
             validator: ConfigPublicKey::new(&self.validator)
                 .with_context(|| "invalid `validator` key")?,
             validator_session: ConfigPublicKey::new(&self.validator_session)
@@ -183,7 +200,7 @@ impl NodeParams {
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             post_quarantine_delay: self
                 .post_quarantine_delay
-                .unwrap_or(ethexe_malachite::MalachiteConfig::DEFAULT_POST_QUARANTINE_DELAY),
+                .unwrap_or(ethexe_malachite::MalachiteServiceConfig::DEFAULT_POST_QUARANTINE_DELAY),
             dev: self.dev,
             pre_funded_accounts: self
                 .pre_funded_accounts
@@ -200,6 +217,9 @@ impl NodeParams {
             commitment_delay_limit: self
                 .commitment_delay_limit
                 .unwrap_or(ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT),
+            batch_commitment_period: self
+                .batch_commitment_period
+                .unwrap_or(ethexe_common::DEFAULT_BATCH_COMMITMENT_PERIOD),
             genesis_state_dump: self.genesis_state_dump,
             db_cleanup: self.db_cleanup,
         })
@@ -291,6 +311,10 @@ impl MergeParams for NodeParams {
                 .or(with.uncommitted_chain_len_threshold),
 
             commitment_delay_limit: self.commitment_delay_limit.or(with.commitment_delay_limit),
+
+            batch_commitment_period: self
+                .batch_commitment_period
+                .or(with.batch_commitment_period),
 
             genesis_state_dump: self.genesis_state_dump.or(with.genesis_state_dump),
 

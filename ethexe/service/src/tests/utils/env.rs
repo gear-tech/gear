@@ -39,9 +39,9 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    FastSyncReplayTarget, InjectedTxMempool, MalachiteConfig, MalachiteConfigEnvironment,
-    MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry,
-    derive_libp2p_secret, malachite_libp2p_peer_id,
+    InjectedTxMempool, MalachiteServiceConfig, MalachiteServiceStarter,
+    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
+    malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
@@ -110,6 +110,7 @@ pub struct TestEnv {
     pub threshold: u64,
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: std::num::NonZero<u8>,
+    pub batch_commitment_period: std::num::NonZero<u32>,
     pub canonical_quarantine: u8,
     pub post_quarantine_delay: u32,
     pub kicking_per_blocks: Option<u32>,
@@ -180,6 +181,7 @@ impl TestEnv {
             network,
             deploy_params,
             commitment_delay_limit,
+            batch_commitment_period,
             canonical_quarantine,
             post_quarantine_delay,
             kicking_per_blocks,
@@ -432,6 +434,7 @@ impl TestEnv {
             threshold,
             continuous_block_generation,
             commitment_delay_limit,
+            batch_commitment_period,
             canonical_quarantine,
             post_quarantine_delay,
             kicking_per_blocks,
@@ -520,6 +523,7 @@ impl TestEnv {
             service_rpc_config,
             fast_sync,
             commitment_delay_limit: self.commitment_delay_limit,
+            batch_commitment_period: self.batch_commitment_period,
             malachite_endpoints: self.malachite_endpoints.clone(),
             active_validator_pub_keys,
             malachite_home,
@@ -865,6 +869,9 @@ pub struct TestEnvConfig {
     pub deploy_params: ContractsDeploymentParams,
     /// Commitment delay limit in Eth blocks (coordinator-local).
     pub commitment_delay_limit: std::num::NonZero<u8>,
+    /// How often batch commitments are produced (block-height period).
+    /// Defaults to 1 (commit every block) in tests.
+    pub batch_commitment_period: std::num::NonZero<u32>,
     /// Canonical quarantine period in blocks.
     pub canonical_quarantine: u8,
     /// Producer-side extra anchor-depth slack on top of `canonical_quarantine`.
@@ -894,6 +901,7 @@ impl Default for TestEnvConfig {
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
             commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
+            batch_commitment_period: ethexe_common::DEFAULT_BATCH_COMMITMENT_PERIOD,
             canonical_quarantine: 0,
             post_quarantine_delay: 0,
             kicking_per_blocks: Some(3),
@@ -1024,6 +1032,7 @@ pub struct Node {
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
     commitment_delay_limit: std::num::NonZero<u8>,
+    batch_commitment_period: std::num::NonZero<u32>,
     canonical_quarantine: u8,
     post_quarantine_delay: u32,
     kicking_per_blocks: Option<(Duration, RootProvider)>,
@@ -1036,7 +1045,7 @@ pub struct Node {
     /// Snapshot of `env.validators` at `new_node` time — drives the
     /// boot-time filter on `malachite_endpoints` in `start_service`.
     active_validator_pub_keys: Vec<PublicKey>,
-    /// Port reservation; dropped just before the first `MalachiteService::new`.
+    /// Port reservation; dropped just before the first malachite service start.
     malachite_listener: Option<TcpListener>,
 
     running_service_handle: Option<JoinHandle<()>>,
@@ -1112,6 +1121,7 @@ impl Node {
                             // short Eth-block budget service tests run for.
                             uncommitted_chain_len_threshold: std::num::NonZero::new(u32::MAX)
                                 .unwrap(),
+                            batch_commitment_period: self.batch_commitment_period,
                         },
                     )
                     .unwrap(),
@@ -1189,26 +1199,36 @@ impl Node {
                 .path()
                 .to_path_buf();
 
-            let mut mc = MalachiteConfig::from_home_dir(home_path)
+            let mut mc = MalachiteServiceConfig::from_home_dir(home_path)
                 .with_listen_addr(listen_addr)
                 .with_persistent_peers(persistent_peers)
                 .with_validators(validators);
             mc.env = MalachiteConfigEnvironment::Test;
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
-            let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
+            // Tests drive content in bursts; a short propose timeout keeps
+            // idle rounds cheap instead of burning a 24s slot each.
+            mc.propose_timeout = Duration::from_secs(3);
+
+            let malachite_validator_config =
+                self.validator_config
+                    .as_ref()
+                    .map(|c| ethexe_malachite::ValidatorConfig {
+                        pub_key: c.public_key,
+                        mempool: InjectedTxMempool::new(self.db.clone()),
+                        signer: self.signer.clone(),
+                    });
+
             // Release the port-reservation listener moments before libp2p rebinds.
             drop(self.malachite_listener.take());
-            let svc = MalachiteService::new(
+
+            MalachiteServiceStarter::new(
                 mc,
+                malachite_validator_config,
                 self.db.clone(),
-                self.signer.clone(),
-                self.validator_config.as_ref().map(|c| c.public_key),
-                mempool,
+                latest_block,
             )
-            .await
-            .expect("MalachiteService::new");
-            Some(svc)
+            .expect("MalachiteServiceStarter::new")
         };
 
         let (sender, receiver) = events::channel(self.db.clone(), self.kicking_per_blocks.clone());
