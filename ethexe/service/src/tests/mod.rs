@@ -4065,3 +4065,94 @@ async fn re_genesis_delayed_message() {
 
     stop_nodes([node]).await;
 }
+
+/// With `batch_commitment_period > 1` the validator must keep the chain live
+/// (a ping still round-trips) while only ever committing batches on blocks
+/// whose height is a multiple of the period.
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn batch_commitment_period_commits_only_on_multiples() {
+    init_logger();
+
+    let period = std::num::NonZero::new(2).unwrap();
+    let config = TestEnvConfig {
+        batch_commitment_period: period,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    let committed_batches = Arc::new(Mutex::new(Vec::new()));
+    let recording_committer = RecordingCommitter {
+        router: EthereumBuilder::default()
+            .rpc_url(&env.eth_cfg.rpc)
+            .router_address(env.eth_cfg.router_address)
+            .signer(env.signer.clone())
+            .sender_address(env.validators[0].public_key.to_address())
+            .eip1559_fee_increase_percentage(env.eth_cfg.eip1559_fee_increase_percentage)
+            .blob_gas_multiplier(env.eth_cfg.blob_gas_multiplier)
+            .build()
+            .await
+            .unwrap()
+            .router(),
+        committed_batches: committed_batches.clone(),
+    };
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.custom_committer = Some(Box::new(recording_committer));
+    node.start_service().await;
+
+    // The whole flow (code → program → ping reply) only completes if batches
+    // keep landing despite the gate — i.e. the chain stays live.
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = program.program_id;
+
+    let reply = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(reply.program_id, ping_id);
+    assert_eq!(reply.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(reply.payload, b"PONG");
+
+    // Every committed batch must target a block whose height is a multiple of
+    // the configured period — that is exactly the coordinator-side gate.
+    let batches = committed_batches.lock().await.clone();
+    assert!(
+        !batches.is_empty(),
+        "expected at least one committed batch for the ping flow"
+    );
+    for batch in &batches {
+        let header = node
+            .db
+            .block_header(batch.block_hash)
+            .expect("committed batch's block header must be in db");
+        assert!(
+            header.height.is_multiple_of(period.get()),
+            "batch committed on height {} which is not a multiple of period {}",
+            header.height,
+            period.get(),
+        );
+    }
+
+    stop_nodes([node]).await;
+}
