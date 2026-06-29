@@ -13,17 +13,11 @@ use crate::{
     types::{ChainHead, MalachiteEvent},
 };
 use anyhow::Result;
-use ethexe_common::{
-    Address, SimpleBlockData,
-    db::{ConfigStorageRO, OnChainStorageRO},
-    injected::SignedInjectedTransaction,
-};
+use ethexe_common::{SimpleBlockData, db::OnChainStorageRO, injected::SignedInjectedTransaction};
 use ethexe_malachite_core::MalachiteCore;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
-use gsigner::schemes::secp256k1::PublicKey;
 use std::{
-    collections::HashMap,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -40,10 +34,6 @@ pub struct MalachiteService {
     pub(crate) mempool: Option<Arc<dyn Mempool>>,
     /// Externalities shared with the inner consensus core.
     pub(crate) externalities: Arc<EthexeExternalities>,
-    /// Known validator public keys by on-chain address, for era rotation.
-    pub(crate) validators: HashMap<Address, PublicKey>,
-    /// Era whose validator set is currently active in the engine.
-    pub(crate) active_era: u64,
     /// Inner consensus core; `None` after shutdown.
     pub(crate) inner: Option<MalachiteCore<EthexeExternalities>>,
 }
@@ -79,7 +69,7 @@ impl MalachiteService {
     }
 
     /// Handle a fully synced Ethereum block: publish it for the producer's
-    /// quarantine checks, rotate the validator set on era change and GC the mempool.
+    /// quarantine checks, wake the producer and GC the mempool.
     pub async fn receive_eb_synced(&mut self, eb_hash: H256) {
         let Some(synced) = self.externalities.db.block_simple_data(eb_hash) else {
             tracing::error!(synced = %eb_hash, "synced EB header not found in local DB, ignoring");
@@ -111,9 +101,6 @@ impl MalachiteService {
         // Notify inner proposer if it waits (see EthexeExternalities::wait_for_proposable_content)
         self.chain_head.notify.notify_waiters();
 
-        // Rotate before waking the producer so the next round sees the new set.
-        self.maybe_rotate_validators_for_era(synced);
-
         if let Some(pool) = self.mempool.as_ref() {
             let purged_txs = pool.set_chain_head(synced).await;
             if !purged_txs.is_empty() {
@@ -142,67 +129,6 @@ impl MalachiteService {
         if let Some(inner) = self.inner.take() {
             inner.shutdown().await;
         }
-    }
-
-    /// Push the on-chain validators for `head`'s era into the engine,
-    /// if the era moved. Skips on missing DB data or unknown pub keys
-    /// (wait-and-retry: the next `BlockSynced` re-evaluates).
-    fn maybe_rotate_validators_for_era(&mut self, head: SimpleBlockData) {
-        let db = &self.externalities.db;
-        let timelines = db.config().timelines;
-        let Some(era) = timelines.era_from_ts(head.header.timestamp) else {
-            return;
-        };
-        if self.active_era == era {
-            return;
-        }
-        let Some(addrs) = db.validators(era) else {
-            // trace like error because `head` must be synced
-            tracing::error!(era, "validators for era not yet in DB; deferring rotation");
-            return;
-        };
-
-        let mut new_set = Vec::with_capacity(self.validators.len());
-        let mut missing: Vec<Address> = Vec::new();
-        for addr in addrs.iter() {
-            match self.validators.get(addr) {
-                Some(pk) => new_set.push(*pk),
-                None => missing.push(*addr),
-            }
-        }
-
-        if !missing.is_empty() {
-            tracing::warn!(
-                era,
-                missing = ?missing,
-                "validator pool missing pub keys for some on-chain era validators; \
-                 keeping the previous active set",
-            );
-            return;
-        }
-
-        // Bug-class failure — advance active_era so we don't loop on the same broken input.
-        let inner = match self.inner.as_ref() {
-            Some(inner) => inner,
-            None => {
-                tracing::error!(era, "rotate after shutdown");
-                self.active_era = era;
-                return;
-            }
-        };
-
-        if let Err(e) = inner.update_validators(new_set) {
-            tracing::error!(era, error = %e, "rotating malachite validator set failed");
-            self.active_era = era;
-            return;
-        }
-
-        self.active_era = era;
-
-        tracing::info!(
-            era,
-            "rotated malachite validator set to era's on-chain quorum"
-        );
     }
 }
 

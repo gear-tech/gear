@@ -8,10 +8,7 @@ use crate::{
     types::{ChainHead, MalachiteEvent},
 };
 use anyhow::{Context as _, Result, anyhow};
-use ethexe_common::{
-    Address, SimpleBlockData,
-    db::{ConfigStorageRO, GlobalsStorageRO},
-};
+use ethexe_common::{Address, SimpleBlockData, db::GlobalsStorageRO};
 use ethexe_db::Database;
 use ethexe_malachite_core::{MalachiteCore, MalachiteCoreConfig, NodeRole};
 use gsigner::schemes::secp256k1::{PrivateKey, PublicKey};
@@ -28,8 +25,6 @@ pub struct MalachiteServiceStarter {
     chain_head: Arc<ChainHead>,
     mempool: Option<Arc<dyn Mempool>>,
     externalities: Arc<EthexeExternalities>,
-    validators: HashMap<Address, PublicKey>,
-    active_era: u64,
     core_config: MalachiteCoreConfig,
 }
 
@@ -49,12 +44,6 @@ impl MalachiteServiceStarter {
         if config.validators.is_empty() {
             return Err(anyhow!("MalachiteServiceConfig::validators is empty"));
         }
-
-        let active_era = db
-            .config()
-            .timelines
-            .era_from_ts(initial_chain_head.header.timestamp)
-            .context("initial chain head must be after genesis")?;
 
         // Validators sign votes/proposals using their on-chain key;
         // full nodes get an ephemeral secret used only as the libp2p
@@ -96,7 +85,9 @@ impl MalachiteServiceStarter {
 
         let (event_tx, events_rx) = mpsc::unbounded_channel();
 
-        // On-chain addresses → pub keys, so era rotations resolve back without an out-of-band lookup.
+        // On-chain address → pub key, so the era resolver
+        // ([`EthexeExternalities::validators_for_child_of`]) maps a stored era's
+        // addresses back to engine keys.
         let validators: HashMap<Address, PublicKey> = config
             .validators
             .iter()
@@ -114,7 +105,7 @@ impl MalachiteServiceStarter {
             chain_head: chain_head.clone(),
             pending_events: Default::default(),
             event_tx,
-            validators: validators.clone(),
+            validators,
         });
 
         Ok(Self {
@@ -122,8 +113,6 @@ impl MalachiteServiceStarter {
             chain_head,
             mempool,
             externalities,
-            validators,
-            active_era,
             core_config,
         })
     }
@@ -135,8 +124,6 @@ impl MalachiteServiceStarter {
             chain_head,
             mempool,
             externalities,
-            validators,
-            active_era,
             core_config,
         } = self;
 
@@ -149,8 +136,6 @@ impl MalachiteServiceStarter {
             chain_head,
             mempool,
             externalities,
-            validators,
-            active_era,
             inner: Some(inner),
         })
     }

@@ -48,11 +48,11 @@
 //! - [`Externalities`] — Async application callbacks: `process_mb_proposal`, `process_mb_finalized`, `build_block_above`,
 //!   `validate_block_above`.
 //! - [`MalachiteCore`] — Running service; owns the swarm and store. Implements `Stream<Item = anyhow::Error>` and
-//!   [`MService`]. `update_validators` rotates the active validator set, taking effect at the next height boundary.
+//!   [`MService`]. Per-height validators are resolved from the era via [`Externalities::validators_for_child_of`].
 //! - [`MService`] — Supertrait bound implemented by [`MalachiteCore`].
 //! - [`Block`] — Service-level block envelope: `{ parent_hash: H256, height: u64, payload: BlockPayload, reserved: [u8; 64] }`.
 //! - [`ValidatorPublicKey`] — Validator set member (secp256k1 public key); the set is unweighted, used in
-//!   [`MalachiteCoreConfig`] and `update_validators`.
+//!   [`MalachiteCoreConfig`].
 //! - [`MalachiteCoreConfig`] — Node configuration: validator secret, validator set, `persistent_peers`, propose timeout,
 //!   [`NodeRole`], `listen_addr`, and `base` project directory.
 //! - [`CommitCertificate`] — Finalization certificate delivered with `process_mb_finalized`.

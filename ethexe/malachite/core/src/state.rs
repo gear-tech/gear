@@ -9,10 +9,7 @@
 //! cascade-save / cascade-finalize flows live in [`crate::app`]
 //! which calls into this struct.
 
-use std::{
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 use malachitebft_app_channel::app::{
@@ -27,8 +24,8 @@ use malachitebft_core_types::CommitCertificate;
 
 use crate::{
     context::{
-        Height, MalachiteCtx, ProposalData, ProposalFin, ProposalInit, ProposalPart, ValidatorSet,
-        Value, sign_proposal_fin,
+        Height, MalachiteCtx, ProposalData, ProposalFin, ProposalInit, ProposalPart, Value,
+        sign_proposal_fin,
     },
     signing::MalachiteSigner,
     store::Store,
@@ -47,24 +44,6 @@ pub(crate) const NON_PROPOSER_PROPOSE_MARGIN: Duration = Duration::from_secs(1);
 pub struct DecidedValue {
     pub value: Value,
     pub certificate: CommitCertificate<MalachiteCtx>,
-}
-
-/// Shared validator set handle written by [`crate::MalachiteCore::update_validators`].
-///
-/// Consensus no longer reads this set: per-height validators are resolved from
-/// the era via [`crate::Externalities::validators_for_child_of`]. The handle is
-/// kept only as the sink for `update_validators`.
-#[derive(Clone)]
-pub(crate) struct SharedValidatorSet(Arc<RwLock<ValidatorSet>>);
-
-impl SharedValidatorSet {
-    pub fn new(set: ValidatorSet) -> Self {
-        Self(Arc::new(RwLock::new(set)))
-    }
-
-    pub fn update(&self, set: ValidatorSet) {
-        *self.0.write().expect("validator set lock poisoned") = set;
-    }
 }
 
 /// Volatile bookkeeping of the app event loop.

@@ -12,7 +12,7 @@ use crate::{
     signing::{
         MalachiteSigner, libp2p_keypair_from, private_key_from_gsigner, public_key_from_gsigner,
     },
-    state::{SharedValidatorSet, State},
+    state::State,
     store::Store,
     types::Address,
 };
@@ -58,8 +58,6 @@ pub struct MalachiteCore<EXT: Externalities> {
     /// WAL file path; [`Self::shutdown`] probes its advisory lock before
     /// returning so a restart on the same base dir doesn't race the writer.
     wal_path: PathBuf,
-    /// Shared with the app loop; [`Self::update_validators`] writes here.
-    validator_set: SharedValidatorSet,
     /// Keeps the externalities alive for the app task.
     _externalities: Arc<EXT>,
 }
@@ -169,7 +167,6 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
         }
         let initial_validator_set = ValidatorSet::new(validators);
         let in_set = initial_validator_set.get_by_address(&address).is_some();
-        let validator_set = SharedValidatorSet::new(initial_validator_set);
 
         // ---- network identity, role-dependent ----
         let identity = match config.role {
@@ -246,30 +243,8 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             engine,
             app_handle,
             wal_path,
-            validator_set,
             _externalities: externalities,
         })
-    }
-
-    /// Swap the active validator set, taking effect at the next height start
-    /// (the current height runs to completion with the old set).
-    /// The caller must keep the local key in the set while in
-    /// [`NodeRole::Validator`]. Empty input is rejected.
-    pub fn update_validators(&self, validators: Vec<crate::ValidatorPublicKey>) -> Result<()> {
-        if validators.is_empty() {
-            return Err(anyhow::anyhow!(
-                "MalachiteCore::update_validators: empty validators list"
-            ));
-        }
-        let mut converted = Vec::with_capacity(validators.len());
-        for public_key in &validators {
-            let pk =
-                public_key_from_gsigner(public_key).context("converting validator public key")?;
-            converted.push(Validator::new(pk, EQUAL_VOTING_POWER));
-        }
-        let new_set = ValidatorSet::new(converted);
-        self.validator_set.update(new_set);
-        Ok(())
     }
 }
 
