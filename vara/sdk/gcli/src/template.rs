@@ -32,7 +32,11 @@ pub async fn list() -> Result<Vec<String>> {
         rb = rb.bearer_auth(tk);
     }
 
-    let resp = rb.send().await.context("failed to get examples")?;
+    let resp = rb
+        .send()
+        .await
+        .and_then(|resp| resp.error_for_status())
+        .context("failed to get examples")?;
 
     let repos = resp
         .json::<Vec<Repo>>()
@@ -110,7 +114,15 @@ fn process_manifest(manifest: &mut String) -> Result<()> {
 
 #[tokio::test]
 async fn list_examples() {
-    let ls = list().await.expect("Failed to get examples");
+    let ls = match list().await {
+        Ok(ls) => ls,
+        Err(err) if env::var(GITHUB_TOKEN).is_err() => {
+            eprintln!("skipping unauthenticated live GitHub template list check: {err:#}");
+            return;
+        }
+        Err(err) => panic!("Failed to get examples: {err:#}"),
+    };
+
     // TODO: #2914
     assert!(
         ls.contains(&"dapp-template".to_string()),

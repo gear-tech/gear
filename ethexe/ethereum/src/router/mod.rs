@@ -165,7 +165,7 @@ impl Router {
             self.instance
                 .requestCodeValidation(code_id.into_bytes().into(), deadline, v, r, s);
         let builder =
-            builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?);
+            builder.sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build_4844()?);
 
         let receipt = builder
             .send()

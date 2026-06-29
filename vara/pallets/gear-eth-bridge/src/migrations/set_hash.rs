@@ -9,7 +9,7 @@ use frame_support::{
     pallet_prelude::Weight,
     traits::{Get, OnRuntimeUpgrade},
 };
-use gprimitives::H256;
+use pallet_gear_eth_bridge_primitives::H256;
 #[cfg(feature = "try-runtime")]
 use sp_runtime::TryRuntimeError;
 use sp_runtime::{RuntimeAppPublic, sp_std::vec::Vec};

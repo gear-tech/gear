@@ -6,7 +6,6 @@ use futures::{
     channel::oneshot,
     future,
     future::{Either, Future, FutureExt},
-    select,
 };
 use futures_timer::Delay;
 use log::{debug, error, info, trace, warn};
@@ -14,11 +13,12 @@ use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use parity_scale_codec::Encode;
 use sc_block_builder::BlockBuilderApi;
 use sc_telemetry::{CONSENSUS_INFO, TelemetryHandle, telemetry};
-use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
-use sp_api::{ApiExt, ApiRef, CallApiAt, ProvideRuntimeApi};
+use sc_transaction_pool_api::{InPoolTransaction, TransactionPool, TxInvalidityReportMap};
+use sp_api::{ApiExt, ApiRef, CallApiAt, ProofRecorder, ProvideRuntimeApi};
 use sp_blockchain::{ApplyExtrinsicFailed::Validity, Error::ApplyExtrinsicFailed, HeaderBackend};
-use sp_consensus::{DisableProofRecording, EnableProofRecording, ProofRecording, Proposal};
+use sp_consensus::{Proposal, ProposeArgs};
 use sp_core::traits::SpawnNamed;
+use sp_externalities::Extensions;
 use sp_inherents::InherentData;
 use sp_runtime::{
     Digest, Percent, SaturatedConversion,
@@ -48,6 +48,20 @@ pub const DEFAULT_BLOCK_SIZE_LIMIT: usize = 4 * 1024 * 1024 + 512;
 const DEFAULT_SOFT_DEADLINE_PERCENT: Percent = Percent::from_percent(50);
 
 const LOG_TARGET: &str = "gear::authorship";
+
+pub trait ProofRecording {
+    const ENABLED: bool;
+}
+
+pub struct DisableProofRecording;
+impl ProofRecording for DisableProofRecording {
+    const ENABLED: bool = false;
+}
+
+pub struct EnableProofRecording;
+impl ProofRecording for EnableProofRecording {
+    const ENABLED: bool = true;
+}
 
 /// A unit type wrapper to express a duration multiplier.
 #[derive(Clone, Copy)]
@@ -278,7 +292,7 @@ where
     C: HeaderBackend<Block> + ProvideRuntimeApi<Block> + CallApiAt<Block> + Send + Sync + 'static,
     C::Api:
         ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone + Deconstructable<C>,
-    PR: ProofRecording,
+    PR: ProofRecording + Send + Sync + 'static,
 {
     type CreateProposer = future::Ready<Result<Self::Proposer, Self::Error>>;
     type Proposer = Proposer<Block, C, A, PR>;
@@ -315,23 +329,27 @@ where
     C: HeaderBackend<Block> + ProvideRuntimeApi<Block> + CallApiAt<Block> + Send + Sync + 'static,
     C::Api:
         ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone + Deconstructable<C>,
-    PR: ProofRecording,
+    PR: ProofRecording + Send + Sync + 'static,
 {
-    type Proposal =
-        Pin<Box<dyn Future<Output = Result<Proposal<Block, PR::Proof>, Self::Error>> + Send>>;
+    type Proposal = Pin<Box<dyn Future<Output = Result<Proposal<Block>, Self::Error>> + Send>>;
     type Error = sp_blockchain::Error;
-    type ProofRecording = PR;
-    type Proof = PR::Proof;
 
-    fn propose(
-        self,
-        inherent_data: InherentData,
-        inherent_digests: Digest,
-        max_duration: Duration,
-        block_size_limit: Option<usize>,
-    ) -> Self::Proposal {
+    fn propose(self, args: ProposeArgs<Block>) -> Self::Proposal {
+        let ProposeArgs {
+            inherent_data,
+            inherent_digests,
+            max_duration,
+            block_size_limit,
+            storage_proof_recorder,
+            extra_extensions,
+        } = args;
         let (tx, rx) = oneshot::channel();
         let spawn_handle = self.spawn_handle.clone();
+        let proof_recorder = if PR::ENABLED {
+            storage_proof_recorder.or_else(|| Some(Default::default()))
+        } else {
+            storage_proof_recorder
+        };
 
         spawn_handle.spawn_blocking(
             "gear-authorship-proposer",
@@ -340,7 +358,14 @@ where
                 // leave some time for evaluation and block finalization (33%)
                 let deadline = (self.now)() + (max_duration / 3) * 2;
                 let res = self
-                    .propose_with(inherent_data, inherent_digests, deadline, block_size_limit)
+                    .propose_with(
+                        inherent_data,
+                        inherent_digests,
+                        deadline,
+                        block_size_limit,
+                        proof_recorder,
+                        extra_extensions,
+                    )
                     .await;
                 if tx.send(res).is_err() {
                     trace!(target: "gear::authorship", "Could not send block production result to proposer!");
@@ -364,7 +389,7 @@ where
     C: HeaderBackend<Block> + ProvideRuntimeApi<Block> + CallApiAt<Block> + Send + Sync + 'static,
     C::Api:
         ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone + Deconstructable<C>,
-    PR: ProofRecording,
+    PR: ProofRecording + Send + Sync + 'static,
 {
     async fn propose_with(
         self,
@@ -372,13 +397,16 @@ where
         inherent_digests: Digest,
         deadline: Instant,
         block_size_limit: Option<usize>,
-    ) -> Result<Proposal<Block, PR::Proof>, sp_blockchain::Error> {
+        proof_recorder: Option<ProofRecorder<Block>>,
+        extra_extensions: Extensions,
+    ) -> Result<Proposal<Block>, sp_blockchain::Error> {
         let block_timer = Instant::now();
         let mut block_builder = BlockBuilderBuilder::new(self.client.as_ref())
             .on_parent_block(self.parent_hash)
             .with_parent_block_number(self.parent_number)
-            .with_proof_recording(PR::ENABLED)
+            .with_proof_recorder(proof_recorder)
             .with_inherent_digests(inherent_digests)
+            .with_extra_extensions(extra_extensions)
             .build()?;
 
         self.apply_inherents(&mut block_builder, inherent_data)?;
@@ -390,16 +418,12 @@ where
             .apply_extrinsics(&mut block_builder, deadline, block_size_limit)
             .await?;
 
-        let (block, storage_changes, proof) = block_builder.build()?.into_inner();
+        let (block, storage_changes) = block_builder.build()?.into_inner();
         let block_took = block_timer.elapsed();
-
-        let proof =
-            PR::into_proof(proof).map_err(|e| sp_blockchain::Error::Application(Box::new(e)))?;
 
         self.print_summary(&block, end_reason, block_took, block_timer.elapsed());
         Ok(Proposal {
             block,
-            proof,
             storage_changes,
         })
     }
@@ -469,23 +493,13 @@ where
         let soft_deadline =
             now + Duration::from_micros(self.soft_deadline_percent.mul_floor(left_micros));
         let mut skipped = 0;
-        let mut unqueue_invalid = Vec::new();
+        let mut unqueue_invalid = TxInvalidityReportMap::new();
 
-        let mut t1 = self.transaction_pool.ready_at(self.parent_number).fuse();
-        let mut t2 =
-            futures_timer::Delay::new(deadline.saturating_duration_since((self.now)()) / 8).fuse();
-
-        let mut pending_iterator = select! {
-            res = t1 => res,
-            _ = t2 => {
-                warn!(target: LOG_TARGET,
-                    "Timeout fired waiting for transaction pool at block #{}. \
-                    Proceeding with production.",
-                    self.parent_number,
-                );
-                self.transaction_pool.ready()
-            },
-        };
+        let delay = deadline.saturating_duration_since((self.now)()) / 8;
+        let mut pending_iterator = self
+            .transaction_pool
+            .ready_at_with_timeout(self.parent_hash, delay)
+            .await;
 
         let block_size_limit = block_size_limit.unwrap_or(self.default_block_size_limit);
 
@@ -515,7 +529,7 @@ where
                 break EndProposingReason::HitDeadline;
             }
 
-            let pending_tx_data = pending_tx.data().clone();
+            let pending_tx_data = (**pending_tx.data()).clone();
             let pending_tx_hash = pending_tx.hash().clone();
 
             let block_size =
@@ -581,7 +595,12 @@ where
                         target: LOG_TARGET,
                         "[{pending_tx_hash:?}] Invalid transaction: {e}"
                     );
-                    unqueue_invalid.push(pending_tx_hash);
+                    let error_to_report = match e {
+                        ApplyExtrinsicFailed(Validity(e)) => Some(e),
+                        _ => None,
+                    };
+
+                    unqueue_invalid.insert(pending_tx_hash, error_to_report);
                 }
             }
         };
@@ -593,7 +612,9 @@ where
             );
         }
 
-        self.transaction_pool.remove_invalid(&unqueue_invalid);
+        self.transaction_pool
+            .report_invalid(Some(self.parent_hash), unqueue_invalid)
+            .await;
 
         // Attempt to apply pseudo-inherent on top of the current overlay in a separate thread.
         // In case the timeout was hit at previous step, adjust the `max_gas`.

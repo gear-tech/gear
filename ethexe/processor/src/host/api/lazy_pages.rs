@@ -98,7 +98,7 @@ fn pre_process_memory_accesses(
     mut caller: Caller<'_, StoreData>,
     reads: i64,
     writes: i64,
-    gas_bytes: u32,
+    gas_bytes: i64,
 ) -> i32 {
     log::trace!(target: "host_call", "pre_process_memory_accesses(reads={reads:?}, writes={writes:?}, gas_bytes={gas_bytes:?})");
 
@@ -108,14 +108,19 @@ fn pre_process_memory_accesses(
 
     // read gas_bytes into `mut` variable because `pre_process_memory_accesses` updates
     // it, then write updated slice to memory.
-    let mut gas_counter: u64 = memory.decode_by_max_len(gas_bytes);
+    let mut gas_counter = u64::from_le_bytes(
+        memory
+            .slice_by_val(gas_bytes)
+            .try_into()
+            .expect("gas counter must be encoded as 8 bytes"),
+    );
 
     let res =
         lazy_pages_detail::pre_process_memory_accesses(reads, writes, &mut gas_counter) as i32;
 
     memory
-        .slice_mut(gas_bytes, 8)
-        .unwrap()
+        .slice_mut_by_val(gas_bytes)
+        .expect("gas counter must be encoded as 8 bytes")
         .copy_from_slice(&gas_counter.to_le_bytes());
     log::trace!(target: "host_call", "pre_process_memory_accesses(..) -> {res:?}");
 

@@ -22,7 +22,7 @@ use scale_decode::{
 use scale_encode::EncodeAsType;
 use scale_info::{
     TypeInfo,
-    scale::{Decode, Encode},
+    scale::{Decode, DecodeWithMemTracking, Encode},
 };
 
 /// Vector with limited length.
@@ -64,6 +64,8 @@ impl<T: Decode, const N: usize> Decode for LimitedVec<T, N> {
         decode_vec_with_len(input, len).map(Self)
     }
 }
+
+impl<T: DecodeWithMemTracking, const N: usize> DecodeWithMemTracking for LimitedVec<T, N> {}
 
 impl<T: MaxEncodedLen, const N: usize> MaxEncodedLen for LimitedVec<T, N> {
     fn max_encoded_len() -> usize {

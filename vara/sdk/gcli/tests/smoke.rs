@@ -26,11 +26,15 @@ async fn smoke_test() -> Result<()> {
             "
         ));
     gcli().args(["wallet", "dev"]).assert().success();
-    gcli().args(["info", "balance"]).assert().stdout_eq(indoc!(
-        "
-        Free balance: 1000000000000000000000
-        "
-    ));
+    gcli()
+        .args(["info", "balance"])
+        .assert()
+        .success()
+        .stdout_eq(indoc!(
+            "
+            Free balance: 1000000000000000000000
+            "
+        ));
 
     Ok(())
 }

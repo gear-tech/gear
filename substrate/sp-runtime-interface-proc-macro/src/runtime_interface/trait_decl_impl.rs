@@ -19,8 +19,8 @@
 //! default implementations and implements the trait for `&mut dyn Externalities`.
 
 use crate::utils::{
-    RuntimeInterface, create_function_ident_with_version, generate_crate_access,
-    get_function_argument_types_without_ref, get_runtime_interface,
+    create_function_ident_with_version, generate_crate_access, get_function_argument_types,
+    get_runtime_interface,
 };
 
 use syn::{
@@ -36,9 +36,8 @@ use quote::quote;
 /// Process the given trait definition, by checking that the definition is valid, fold it to the
 /// essential definition and implement this essential definition for `dyn Externalities`.
 pub fn process(trait_def: &ItemTrait, is_wasm_only: bool) -> Result<TokenStream> {
-    let interface = get_runtime_interface(trait_def)?;
-    let impl_trait = impl_trait_for_externalities(trait_def, &interface, is_wasm_only)?;
-    let essential_trait_def = declare_essential_trait(trait_def, &interface)?;
+    let impl_trait = impl_trait_for_externalities(trait_def, is_wasm_only)?;
+    let essential_trait_def = declare_essential_trait(trait_def)?;
 
     Ok(quote! {
         #impl_trait
@@ -79,6 +78,7 @@ impl ToEssentialTraitDef {
     fn process(&mut self, method: &TraitItemFn, version: u32) {
         let mut folded = self.fold_trait_item_fn(method.clone());
         folded.sig.ident = create_function_ident_with_version(&folded.sig.ident, version);
+        crate::utils::unpack_inner_types_in_signature(&mut folded.sig);
         self.methods.push(folded);
     }
 
@@ -99,7 +99,7 @@ impl Fold for ToEssentialTraitDef {
             self.push_error(&method, "Methods need to have an implementation.");
         }
 
-        let arg_types = get_function_argument_types_without_ref(&method.sig);
+        let arg_types = get_function_argument_types(&method.sig);
         arg_types
             .filter_map(|ty| match *ty {
                 Type::ImplTrait(impl_trait) => Some(impl_trait),
@@ -130,10 +130,7 @@ impl Fold for ToEssentialTraitDef {
     }
 }
 
-fn declare_essential_trait(
-    trait_def: &ItemTrait,
-    interface: &RuntimeInterface,
-) -> Result<TokenStream> {
+fn declare_essential_trait(trait_def: &ItemTrait) -> Result<TokenStream> {
     let trait_ = &trait_def.ident;
 
     if let Some(param) = trait_def.generics.params.first() {
@@ -143,6 +140,7 @@ fn declare_essential_trait(
         ));
     }
 
+    let interface = get_runtime_interface(trait_def)?;
     let mut folder = ToEssentialTraitDef::new();
     for (version, interface_method) in interface.all_versions() {
         folder.process(interface_method, version);
@@ -157,17 +155,15 @@ fn declare_essential_trait(
 }
 
 /// Implements the given trait definition for `dyn Externalities`.
-fn impl_trait_for_externalities(
-    trait_def: &ItemTrait,
-    interface: &RuntimeInterface,
-    is_wasm_only: bool,
-) -> Result<TokenStream> {
+fn impl_trait_for_externalities(trait_def: &ItemTrait, is_wasm_only: bool) -> Result<TokenStream> {
     let trait_ = &trait_def.ident;
     let crate_ = generate_crate_access();
+    let interface = get_runtime_interface(trait_def)?;
     let methods = interface.all_versions().map(|(version, method)| {
         let mut cloned = (*method).clone();
         cloned.attrs.retain(|a| !a.path().is_ident("version"));
         cloned.sig.ident = create_function_ident_with_version(&cloned.sig.ident, version);
+        crate::utils::unpack_inner_types_in_signature(&mut cloned.sig);
         cloned
     });
 
@@ -178,7 +174,7 @@ fn impl_trait_for_externalities(
     };
 
     Ok(quote! {
-        #[cfg(feature = "std")]
+        #[cfg(not(substrate_runtime))]
         impl #trait_ for #impl_type {
             #( #methods )*
         }

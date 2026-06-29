@@ -12,6 +12,10 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sha3::Digest as _;
 
+fn u256_to_be_bytes(value: U256) -> [u8; 32] {
+    value.to_big_endian()
+}
+
 // TODO: support query from router.
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
 pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
@@ -96,7 +100,7 @@ impl ToDigest for OperatorRewardsCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let OperatorRewardsCommitment { amount, root } = self;
 
-        hasher.update(<[u8; 32]>::from(*amount));
+        hasher.update(u256_to_be_bytes(*amount));
         hasher.update(root);
     }
 }
@@ -126,10 +130,10 @@ impl ToDigest for StakerRewardsCommitment {
             .iter()
             .for_each(|StakerRewards { vault, amount }| {
                 hasher.update(vault);
-                hasher.update(<[u8; 32]>::from(*amount));
+                hasher.update(u256_to_be_bytes(*amount));
             });
 
-        hasher.update(<[u8; 32]>::from(*total_amount));
+        hasher.update(u256_to_be_bytes(*total_amount));
         hasher.update(token);
     }
 }
@@ -237,8 +241,8 @@ impl ToDigest for ValidatorsCommitment {
         } = self;
 
         hasher.update([*has_aggregated_public_key as u8]);
-        hasher.update(<[u8; 32]>::from(aggregated_public_key.x));
-        hasher.update(<[u8; 32]>::from(aggregated_public_key.y));
+        hasher.update(u256_to_be_bytes(aggregated_public_key.x));
+        hasher.update(u256_to_be_bytes(aggregated_public_key.y));
         hasher.update(
             validators
                 .iter()

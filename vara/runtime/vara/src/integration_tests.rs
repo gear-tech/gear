@@ -17,7 +17,7 @@ use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
 };
 use sp_core::{Pair, ed25519, sr25519};
-use sp_keyring::AccountKeyring;
+use sp_keyring::Sr25519Keyring as AccountKeyring;
 use sp_runtime::{BuildStorage, Digest, DigestItem};
 
 const ENDOWMENT: u128 = 100_000 * UNITS;
@@ -145,9 +145,12 @@ impl ExtBuilder {
 
         balances.push((GearBank::bank_address(), EXISTENTIAL_DEPOSIT));
 
-        pallet_balances::GenesisConfig::<Runtime> { balances }
-            .assimilate_storage(&mut storage)
-            .unwrap();
+        pallet_balances::GenesisConfig::<Runtime> {
+            balances,
+            dev_accounts: None,
+        }
+        .assimilate_storage(&mut storage)
+        .unwrap();
 
         SessionConfig {
             keys: self

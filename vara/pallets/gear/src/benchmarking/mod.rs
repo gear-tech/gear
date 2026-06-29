@@ -124,13 +124,11 @@ where
         )],
     };
 
-    let bn = previous
-        .unwrap_or_else(Zero::zero)
-        .checked_add(&One::one())
-        .expect("overflow");
+    let previous = previous.unwrap_or_else(SystemPallet::<T>::block_number);
+    let bn = previous.checked_add(&One::one()).expect("overflow");
 
+    SystemPallet::<T>::set_block_number(previous);
     SystemPallet::<T>::initialize(&bn, &SystemPallet::<T>::parent_hash(), &pre_digest);
-    SystemPallet::<T>::set_block_number(bn);
     SystemPallet::<T>::on_initialize(bn);
     AuthorshipPallet::<T>::on_initialize(bn);
 }
@@ -185,14 +183,14 @@ where
 pub fn find_latest_event<T, F, R>(mapping_filter: F) -> Option<R>
 where
     T: Config,
+    <T as frame_system::Config>::RuntimeEvent: TryInto<Event<T>>,
     F: Fn(Event<T>) -> Option<R>,
 {
     SystemPallet::<T>::events()
         .into_iter()
         .rev()
         .filter_map(|event_record| {
-            let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
-            let event: Result<Event<T>, _> = event.try_into();
+            let event: Result<Event<T>, _> = event_record.event.try_into();
 
             event.ok()
         })
@@ -279,6 +277,7 @@ benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+        <T as frame_system::Config>::RuntimeEvent: TryInto<Event<T>>,
         T: pallet_gear_voucher::Config,
     }
 

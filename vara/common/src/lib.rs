@@ -33,7 +33,7 @@ use frame_support::{
     sp_runtime::{
         self,
         generic::{CheckedExtrinsic, UncheckedExtrinsic},
-        traits::{Dispatchable, SignedExtension},
+        traits::{Dispatchable, TransactionExtension},
     },
     traits::Get,
 };
@@ -220,7 +220,7 @@ impl<Address, Call, Signature, Extra> ExtractCall<Call>
     for UncheckedExtrinsic<Address, Call, Signature, Extra>
 where
     Call: Dispatchable + Clone,
-    Extra: SignedExtension,
+    Extra: TransactionExtension<Call>,
 {
     fn extract_call(&self) -> Call {
         self.function.clone()

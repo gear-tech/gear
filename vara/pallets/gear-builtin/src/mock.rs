@@ -18,10 +18,10 @@ use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use gear_core::{ids::ActorId, message::StoredDispatch};
-use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use parity_scale_codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use sp_core::H256;
 use sp_runtime::{
-    BuildStorage, Perbill, Permill, RuntimeDebug,
+    BuildStorage, Perbill, Permill,
     traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
@@ -96,8 +96,9 @@ parameter_types! {
     PartialOrd,
     Encode,
     Decode,
-    RuntimeDebug,
+    Debug,
     MaxEncodedLen,
+    DecodeWithMemTracking,
     scale_info::TypeInfo,
 )]
 pub enum ProxyType {
@@ -179,6 +180,7 @@ impl pallet_proxy::Config for Test {
     type CallHasher = BlakeTwo256;
     type AnnouncementDepositBase = AnnouncementDepositBase;
     type AnnouncementDepositFactor = AnnouncementDepositBase;
+    type BlockNumberProvider = System;
 }
 
 parameter_types! {
@@ -353,6 +355,7 @@ impl ExtBuilder {
                 .iter()
                 .map(|k| (*k, self.endowment))
                 .collect(),
+            dev_accounts: None,
         }
         .assimilate_storage(&mut storage)
         .unwrap();
@@ -367,7 +370,7 @@ impl ExtBuilder {
                     (
                         *x,
                         *x,
-                        self.endowment,
+                        self.endowment.saturating_sub(EXISTENTIAL_DEPOSIT),
                         pallet_staking::StakerStatus::<AccountId>::Validator,
                     )
                 })

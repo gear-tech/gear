@@ -15,10 +15,20 @@ slow-timeout = { period = "1m", terminate-after = 5 }
 # every test process compiling the Vara runtime WASM independently.
 authorship = { max-threads = 1 }
 
+# These tests invoke nested builds or long runtime benchmarks. Running them
+# together with a fully saturated workspace test set can exceed the timeout
+# window even though they complete when isolated.
+heavy-workspace = { max-threads = 1 }
+
 [[profile.default.overrides]]
 filter = 'package(gear-authorship)'
 retries = 5
 test-group = 'authorship'
+
+[[profile.default.overrides]]
+filter = '(package(cargo-gbuild) and test(test_program_tests)) or (package(gstd-codegen) and test(ui)) or (package(pallet-gear) and (test(bench_gr_create_program_per_kb) or test(bench_gr_create_program_wgas_per_kb)))'
+test-group = 'heavy-workspace'
+threads-required = 8
 
 # ethexe-service tests spawn Anvil child processes plus a malachite
 # engine with libp2p sockets and a RocksDB WAL. Graceful tear-down of
@@ -26,6 +36,12 @@ test-group = 'authorship'
 # as a non-fatal warning here so the suite is stable.
 [[profile.default.overrides]]
 filter = 'package(ethexe-service)'
+leak-timeout = { period = "10s", result = "pass" }
+
+# These gsdk tests pass their assertions but can leave RPC/node client tasks alive
+# just past the default leak window on local runs.
+[[profile.default.overrides]]
+filter = 'package(gsdk) and (test(timeout) or test(memory_dump) or test(memory_download))'
 leak-timeout = { period = "10s", result = "pass" }
 
 [profile.default.junit]

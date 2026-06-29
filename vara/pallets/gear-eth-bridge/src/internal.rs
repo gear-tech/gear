@@ -14,8 +14,8 @@ use builtins_common::eth_bridge;
 use common::Origin;
 use frame_support::{Blake2_256, StorageHasher, ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::{BlockNumberFor, HeaderFor};
-use gprimitives::{ActorId, H160, H256, U256};
-use pallet_gear_eth_bridge_primitives::EthMessage;
+use gprimitives::{ActorId, U256};
+use pallet_gear_eth_bridge_primitives::{EthMessage, H160, H256};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -203,7 +203,9 @@ impl<T: Config> Pallet<T> {
         }
 
         // Calculating new root.
-        let root = binary_merkle_tree::merkle_root_raw::<Keccak256, _>(queue);
+        let root = H256::from(binary_merkle_tree::merkle_root_raw::<Keccak256, _>(
+            queue.iter().copied().map(Into::<gprimitives::H256>::into),
+        ));
 
         // Updating queue merkle root in storage.
         QueueMerkleRoot::<T>::put(root);
@@ -391,10 +393,11 @@ impl EthMessageExt for EthMessage {
     fn hash(&self) -> H256 {
         eth_bridge::bridge_call_hash(
             self.nonce(),
-            self.source(),
-            self.destination(),
+            self.source().into(),
+            self.destination().into(),
             self.payload(),
             Keccak256::hash,
         )
+        .into()
     }
 }

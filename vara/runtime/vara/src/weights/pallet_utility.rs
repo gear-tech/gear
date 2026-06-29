@@ -27,6 +27,8 @@ pub trait WeightInfo {
     fn as_derivative() -> Weight;
     fn batch_all(c: u32, ) -> Weight;
     fn dispatch_as() -> Weight;
+    fn dispatch_as_fallible() -> Weight;
+    fn if_else() -> Weight;
     fn force_batch(c: u32, ) -> Weight;
 }
 
@@ -66,6 +68,12 @@ impl<T: frame_system::Config> pallet_utility::WeightInfo for SubstrateWeight<T> 
         //  Estimated: `0`
         // Minimum execution time: 4_703_000 picoseconds.
         Weight::from_parts(5_092_000, 0)
+    }
+    fn dispatch_as_fallible() -> Weight {
+        Self::dispatch_as()
+    }
+    fn if_else() -> Weight {
+        Self::dispatch_as()
     }
     /// The range of component `c` is `[0, 1000]`.
     fn force_batch(c: u32, ) -> Weight {
@@ -114,6 +122,12 @@ impl WeightInfo for () {
         //  Estimated: `0`
         // Minimum execution time: 4_703_000 picoseconds.
         Weight::from_parts(5_092_000, 0)
+    }
+    fn dispatch_as_fallible() -> Weight {
+        Self::dispatch_as()
+    }
+    fn if_else() -> Weight {
+        Self::dispatch_as()
     }
     /// The range of component `c` is `[0, 1000]`.
     fn force_batch(c: u32, ) -> Weight {

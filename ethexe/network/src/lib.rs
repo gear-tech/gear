@@ -85,6 +85,28 @@ const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
 const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
 const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 
+fn validator_peer_addresses(
+    identities: &validator::discovery::ValidatorIdentities,
+) -> impl Iterator<Item = (PeerId, Multiaddr)> + '_ {
+    identities.values().flat_map(|identity| {
+        let peer_id = identity.peer_id();
+        identity
+            .addresses()
+            .iter()
+            .cloned()
+            .map(move |address| (peer_id, address))
+    })
+}
+
+fn register_validator_addresses<B: NetworkBehaviour>(
+    swarm: &mut Swarm<B>,
+    addresses: impl IntoIterator<Item = (PeerId, Multiaddr)>,
+) {
+    for (peer_id, address) in addresses {
+        swarm.add_peer_address(peer_id, address);
+    }
+}
+
 /// High-level events produced by [`NetworkService`].
 #[derive(derive_more::Debug)]
 pub enum NetworkEvent {
@@ -636,6 +658,11 @@ impl NetworkService {
         &mut self,
         transaction: SignedInjectedTransaction,
     ) -> Result<NonZeroUsize, injected::SendTransactionError> {
+        let addresses: Vec<_> =
+            validator_peer_addresses(self.swarm.behaviour().validator_discovery.identities())
+                .collect();
+        register_validator_addresses(&mut self.swarm, addresses);
+
         let behaviour = self.swarm.behaviour_mut();
         behaviour
             .injected

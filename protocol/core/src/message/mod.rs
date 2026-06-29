@@ -30,7 +30,7 @@ pub use user::{UserMessage, UserStoredMessage};
 
 use core::fmt::Debug;
 use gear_wasm_instrument::syscalls::SyscallName;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, DecodeWithMemTracking, Encode};
 use scale_info::TypeInfo;
 
 /// Gas limit type for message.
@@ -55,6 +55,7 @@ pub type Salt = crate::buffer::Payload;
     Hash,
     Decode,
     DecodeAsType,
+    DecodeWithMemTracking,
     Encode,
     EncodeAsType,
     TypeInfo,

@@ -287,6 +287,9 @@ impl pallet_session::Config for Test {
     type SessionManager = TestSessionManager;
     type SessionHandler = VaraSessionHandler;
     type Keys = SessionKeys;
+    type DisablingStrategy = pallet_session::disabling::UpToLimitDisablingStrategy;
+    type Currency = Balances;
+    type KeyDeposit = ();
     type WeightInfo = pallet_session::weights::SubstrateWeight<Test>;
 }
 
@@ -309,7 +312,6 @@ impl pallet_gear_eth_bridge::Config for Test {
     type AdminOrigin = EnsureSignedBy<MockBridgeAdminAccounts, AccountId>;
     type PalletId = GearEthBridgePalletId;
     type BuiltinAddress = MockBridgeBuiltinAddress;
-    type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
     type BridgeAdmin = MockBridgeAdminAccount;
@@ -346,6 +348,7 @@ impl ExtBuilder {
                 .iter()
                 .map(|k| (*k, self.endowment))
                 .collect(),
+            dev_accounts: None,
         }
         .assimilate_storage(&mut storage)
         .unwrap();

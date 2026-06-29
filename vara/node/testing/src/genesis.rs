@@ -24,9 +24,9 @@ pub fn config_endowed(extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
         (alice(), 111 * ECONOMIC_UNITS),
         (bob(), 100 * ECONOMIC_UNITS),
         (charlie(), 100_000_000 * ECONOMIC_UNITS),
-        (dave(), 111 * ECONOMIC_UNITS),
+        (dave(), 111 * ECONOMIC_UNITS + EXISTENTIAL_DEPOSIT),
         (eve(), 101 * ECONOMIC_UNITS),
-        (ferdie(), 100 * ECONOMIC_UNITS),
+        (ferdie(), 100 * ECONOMIC_UNITS + EXISTENTIAL_DEPOSIT),
         (GearBank::bank_address(), UNITS),
     ];
 
@@ -38,7 +38,10 @@ pub fn config_endowed(extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
 
     RuntimeGenesisConfig {
         system: Default::default(),
-        balances: BalancesConfig { balances: endowed },
+        balances: BalancesConfig {
+            balances: endowed,
+            dev_accounts: None,
+        },
         babe: BabeConfig {
             authorities: vec![],
             epoch_config: BABE_GENESIS_EPOCH_CONFIG,

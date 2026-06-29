@@ -37,6 +37,10 @@ impl NodeInstance {
 
 impl Drop for NodeInstance {
     fn drop(&mut self) {
-        self.process.kill().expect("Unable to kill node process.")
+        if matches!(self.process.try_wait(), Ok(None)) {
+            let _ = self.process.kill();
+        }
+
+        let _ = self.process.wait();
     }
 }

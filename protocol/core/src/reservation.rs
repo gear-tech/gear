@@ -13,7 +13,7 @@ use scale_decode::DecodeAsType;
 use scale_encode::EncodeAsType;
 use scale_info::{
     TypeInfo,
-    scale::{Decode, Encode},
+    scale::{Decode, DecodeWithMemTracking, Encode},
 };
 
 /// An unchangeable wrapper over u64 value, which is required
@@ -36,6 +36,7 @@ use scale_info::{
     PartialOrd,
     Decode,
     DecodeAsType,
+    DecodeWithMemTracking,
     Encode,
     EncodeAsType,
     TypeInfo,

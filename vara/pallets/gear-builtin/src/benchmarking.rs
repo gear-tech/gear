@@ -9,9 +9,13 @@ use crate::*;
 use ark_std::{UniformRand, ops::Mul};
 use builtins_common::bls12_381::{
     ark_bls12_381::{self, Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2},
-    ark_ec::{Group, ScalarMul, pairing::Pairing, short_weierstrass::SWCurveConfig},
+    ark_ec::{
+        AffineRepr, CurveGroup, Group, ScalarMul, pairing::Pairing,
+        short_weierstrass::SWCurveConfig,
+    },
     ark_ff::biginteger::BigInt,
-    ark_scale::{self, hazmat::ArkScaleProjective},
+    ark_scale::{self, ArkScaleMaxEncodedLen, MaxEncodedLen},
+    ark_serialize::CanonicalSerialize,
 };
 use common::Origin;
 use frame_benchmarking::benchmarks;
@@ -22,6 +26,13 @@ type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 type ScalarField = <G2 as Group>::ScalarField;
 
 const MAX_BIG_INT: u32 = 100;
+
+fn buffer_for<T>() -> Vec<u8>
+where
+    T: CanonicalSerialize + ArkScaleMaxEncodedLen,
+{
+    vec![0; ArkScale::<T>::max_encoded_len()]
+}
 
 fn naive_var_base_msm<G: ScalarMul>(bases: &[G::MulBase], scalars: &[G::ScalarField]) -> G {
     let mut acc = G::zero();
@@ -100,14 +111,15 @@ benchmarks! {
         let pub_key: ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> = pub_keys.into();
         let encoded_pub_key = pub_key.encode();
 
-        let mut _result: Result<Vec<u8>, ()> = Err(());
+        let mut _result = buffer_for::<<Bls12_381 as Pairing>::TargetField>();
     }: {
-        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_multi_miller_loop(
-            encoded_message,
-            encoded_pub_key,
-        );
+        sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_multi_miller_loop(
+            &encoded_message,
+            &encoded_pub_key,
+            &mut _result,
+        ).unwrap();
     } verify {
-        assert!(_result.is_ok());
+        assert!(!_result.is_empty());
     }
 
     bls12_381_final_exponentiation {
@@ -124,16 +136,18 @@ benchmarks! {
         let pub_key: ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> = vec![pub_key].into();
         let encoded_pub_key = pub_key.encode();
 
-        let miller_loop = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_multi_miller_loop(
-            encoded_message,
-            encoded_pub_key,
+        let mut miller_loop = buffer_for::<<Bls12_381 as Pairing>::TargetField>();
+        sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_multi_miller_loop(
+            &encoded_message,
+            &encoded_pub_key,
+            &mut miller_loop,
         ).unwrap();
 
-        let mut _result: Result<Vec<u8>, ()> = Err(());
+        let mut _result = miller_loop;
     }: {
-        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_final_exponentiation(miller_loop);
+        sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_final_exponentiation(&mut _result).unwrap();
     } verify {
-        assert!(_result.is_ok());
+        assert!(!_result.is_empty());
     }
 
     bls12_381_msm_g1 {
@@ -156,14 +170,17 @@ benchmarks! {
         let ark_bases: ArkScale<Vec<G1Affine>> = bases.clone().into();
         let encoded_bases = ark_bases.encode();
 
-        let mut _result: Result<Vec<u8>, ()> = Err(());
+        let mut _result = buffer_for::<G1Affine>();
     }: {
-        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_msm_g1(encoded_bases, encoded_scalars);
+        sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_msm_g1(
+            &encoded_bases,
+            &encoded_scalars,
+            &mut _result,
+        ).unwrap();
     } verify {
         let naive = naive_var_base_msm::<G1>(bases.as_slice(), scalars.as_slice());
-        let encoded = _result.unwrap();
-        let fast = ArkScaleProjective::<G1>::decode(&mut &encoded[..]).unwrap();
-        assert_eq!(naive, fast.0);
+        let fast = ArkScale::<G1Affine>::decode(&mut &_result[..]).unwrap();
+        assert_eq!(naive, fast.0.into_group());
     }
 
     bls12_381_msm_g2 {
@@ -186,14 +203,17 @@ benchmarks! {
         let ark_bases: ArkScale<Vec<G2Affine>> = bases.clone().into();
         let encoded_bases = ark_bases.encode();
 
-        let mut _result: Result<Vec<u8>, ()> = Err(());
+        let mut _result = buffer_for::<G2Affine>();
     }: {
-        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_msm_g2(encoded_bases, encoded_scalars);
+        sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_msm_g2(
+            &encoded_bases,
+            &encoded_scalars,
+            &mut _result,
+        ).unwrap();
     } verify {
         let naive = naive_var_base_msm::<G2>(bases.as_slice(), scalars.as_slice());
-        let encoded = _result.unwrap();
-        let fast = ArkScaleProjective::<G2>::decode(&mut &encoded[..]).unwrap();
-        assert_eq!(naive, fast.0);
+        let fast = ArkScale::<G2Affine>::decode(&mut &_result[..]).unwrap();
+        assert_eq!(naive, fast.0.into_group());
     }
 
     bls12_381_mul_projective_g1 {
@@ -207,17 +227,20 @@ benchmarks! {
         let encoded_bigint = ark_bigint.encode();
 
         let base = G1::rand(&mut rng);
-        let ark_base: ArkScaleProjective<G1> = base.into();
+        let ark_base: ArkScale<G1Affine> = base.into_affine().into();
         let encoded_base = ark_base.encode();
 
-        let mut _result: Result<Vec<u8>, ()> = Err(());
+        let mut _result = vec![0; encoded_base.len()];
     }: {
-        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_mul_projective_g1(encoded_base, encoded_bigint);
+        sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_mul_g1(
+            &encoded_base,
+            &encoded_bigint,
+            &mut _result,
+        ).unwrap();
     } verify {
-        let encoded = _result.unwrap();
-        let result = ArkScaleProjective::<G1>::decode(&mut &encoded[..]).unwrap();
+        let result = ArkScale::<G1Affine>::decode(&mut &_result[..]).unwrap();
         let standard = <ark_bls12_381::g1::Config as SWCurveConfig>::mul_projective(&base, &bigint);
-        assert_eq!(standard, result.0);
+        assert_eq!(standard, result.0.into_group());
     }
 
     bls12_381_mul_projective_g2 {
@@ -231,17 +254,20 @@ benchmarks! {
         let encoded_bigint = ark_bigint.encode();
 
         let base = G2::rand(&mut rng);
-        let ark_base: ArkScaleProjective<G2> = base.into();
+        let ark_base: ArkScale<G2Affine> = base.into_affine().into();
         let encoded_base = ark_base.encode();
 
-        let mut _result: Result<Vec<u8>, ()> = Err(());
+        let mut _result = vec![0; encoded_base.len()];
     }: {
-        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_mul_projective_g2(encoded_base, encoded_bigint);
+        sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_mul_g2(
+            &encoded_base,
+            &encoded_bigint,
+            &mut _result,
+        ).unwrap();
     } verify {
-        let encoded = _result.unwrap();
-        let result = ArkScaleProjective::<G2>::decode(&mut &encoded[..]).unwrap();
+        let result = ArkScale::<G2Affine>::decode(&mut &_result[..]).unwrap();
         let standard = <ark_bls12_381::g2::Config as SWCurveConfig>::mul_projective(&base, &bigint);
-        assert_eq!(standard, result.0);
+        assert_eq!(standard, result.0.into_group());
     }
 
     bls12_381_aggregate_g1 {

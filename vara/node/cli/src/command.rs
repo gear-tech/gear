@@ -258,8 +258,12 @@ pub fn run() -> sc_cli::Result<()> {
                         )?;
                         let db = backend.expose_db();
                         let storage = backend.expose_storage();
+                        let shared_trie_cache = backend.expose_shared_trie_cache();
 
-                        unwrap_client!(client, cmd.run(config, client.clone(), db, storage))
+                        unwrap_client!(
+                            client,
+                            cmd.run(config, client.clone(), db, storage, shared_trie_cache)
+                        )
                     }
                     BenchmarkCmd::Overhead(cmd) => {
                         let inherent_data = inherent_benchmark_data().map_err(|e| {
@@ -276,11 +280,12 @@ pub fn run() -> sc_cli::Result<()> {
                         unwrap_client!(
                             client,
                             cmd.run(
-                                config,
+                                config.chain_spec.name().into(),
                                 client.clone(),
                                 inherent_data,
                                 Vec::new(),
-                                &ext_builder
+                                &ext_builder,
+                                false,
                             )
                         )
                     }

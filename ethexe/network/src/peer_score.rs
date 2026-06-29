@@ -11,7 +11,7 @@ use libp2p::{
     },
 };
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     task::{Context, Poll},
     time::Duration,
 };
@@ -158,6 +158,7 @@ pub(crate) struct Behaviour {
     pending_events: VecDeque<Event>,
     config: Config,
     block_list: BlockListBehaviour,
+    blocked_peers: HashSet<PeerId>,
     handle: Handle,
     rx: mpsc::UnboundedReceiver<(PeerId, ScoreDecreaseReason)>,
     peers: HashMap<PeerId, ScoreEntry>,
@@ -174,6 +175,7 @@ impl Behaviour {
             driver: time::interval(config.driver_time),
             config,
             block_list: BlockListBehaviour::default(),
+            blocked_peers: HashSet::new(),
             handle,
             rx,
             peers: HashMap::new(),
@@ -198,6 +200,7 @@ impl Behaviour {
 
             if was_blocked && !now_blocked {
                 self.block_list.unblock_peer(peer_id);
+                self.blocked_peers.remove(&peer_id);
                 self.pending_events
                     .push_back(Event::PeerUnblocked { peer_id });
             }
@@ -205,7 +208,7 @@ impl Behaviour {
             // remove the peer score entry if it is not updated for a long time
             if entry.is_expired(self.config.forget_time) {
                 // should be unblocked during decay
-                debug_assert!(!self.block_list.blocked_peers().contains(&peer_id));
+                debug_assert!(!self.blocked_peers.contains(&peer_id));
                 return false;
             }
 
@@ -214,7 +217,7 @@ impl Behaviour {
 
         self.metrics
             .blocked_peers
-            .set(self.block_list.blocked_peers().len() as f64);
+            .set(self.blocked_peers.len() as f64);
     }
 
     fn on_score_decrease(&mut self, peer_id: PeerId, reason: ScoreDecreaseReason) -> Option<Event> {
@@ -226,6 +229,7 @@ impl Behaviour {
 
         if !was_blocked && now_blocked {
             self.block_list.block_peer(peer_id);
+            self.blocked_peers.insert(peer_id);
             return Some(Event::PeerBlocked {
                 peer_id,
                 last_reason: reason,

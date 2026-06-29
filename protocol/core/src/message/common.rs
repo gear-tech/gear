@@ -10,14 +10,16 @@ use crate::{
 };
 use core::ops::Deref;
 use gear_core_errors::{ReplyCode, SignalCode};
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, DecodeWithMemTracking, Encode};
 use scale_decode::DecodeAsType;
 use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
 /// An entity that is used for interaction between actors.
 /// Can transfer value and executes by programs in corresponding function: init, handle or handle_reply.
-#[derive(Clone, Debug, PartialEq, Eq, Decode, DecodeAsType, Encode, EncodeAsType)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Decode, DecodeAsType, DecodeWithMemTracking, Encode, EncodeAsType,
+)]
 pub struct Message {
     /// Message id.
     id: MessageId,
@@ -159,6 +161,7 @@ impl Message {
     Hash,
     Decode,
     DecodeAsType,
+    DecodeWithMemTracking,
     Encode,
     EncodeAsType,
     TypeInfo,
@@ -212,7 +215,18 @@ impl MessageDetails {
 /// Part of [`ReplyMessage`](crate::message::ReplyMessage) logic, containing data about on which message id
 /// this replies and its status code.
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    Decode,
+    DecodeAsType,
+    DecodeWithMemTracking,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReplyDetails {
@@ -246,7 +260,18 @@ impl ReplyDetails {
 
 /// Signal details data.
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    Decode,
+    DecodeAsType,
+    DecodeWithMemTracking,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct SignalDetails {
@@ -279,7 +304,9 @@ impl SignalDetails {
 }
 
 /// Message with entry point.
-#[derive(Clone, Debug, PartialEq, Eq, Decode, DecodeAsType, Encode, EncodeAsType)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Decode, DecodeAsType, DecodeWithMemTracking, Encode, EncodeAsType,
+)]
 pub struct Dispatch {
     /// Entry point for the message.
     kind: DispatchKind,

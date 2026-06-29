@@ -188,11 +188,10 @@ impl Behaviour {
         }
 
         for (recipient, identity) in recipients {
-            let id = self.inner.send_request_with_addresses(
-                &identity.peer_id(),
-                InnerRequest(transaction.clone()),
-                identity.addresses().iter().cloned().collect(),
-            );
+            let peer_id = identity.peer_id();
+            let id = self
+                .inner
+                .send_request(&peer_id, InnerRequest(transaction.clone()));
             self.pending_requests.insert(id, tx_hash);
 
             self.transaction_cache
@@ -210,13 +209,13 @@ impl Behaviour {
         match event {
             request_response::Event::Message {
                 peer,
-                connection_id: _,
                 message:
                     Message::Request {
                         request_id: _,
                         request,
                         channel,
                     },
+                ..
             } => {
                 let InnerRequest(transaction) = request;
                 let (tx, rx) = oneshot::channel();
@@ -235,12 +234,12 @@ impl Behaviour {
             }
             request_response::Event::Message {
                 peer: _,
-                connection_id: _,
                 message:
                     Message::Response {
                         request_id,
                         response,
                     },
+                ..
             } => {
                 let transaction_hash = self
                     .pending_requests
@@ -255,9 +254,9 @@ impl Behaviour {
             }
             request_response::Event::OutboundFailure {
                 peer,
-                connection_id: _,
                 request_id,
                 error,
+                ..
             } => {
                 let transaction_hash = self
                     .pending_requests
@@ -278,9 +277,9 @@ impl Behaviour {
             }
             request_response::Event::InboundFailure {
                 peer,
-                connection_id: _,
                 request_id: _,
                 error: InboundFailure::UnsupportedProtocols,
+                ..
             } => {
                 log::debug!(
                     "request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
@@ -463,6 +462,10 @@ mod tests {
         let transaction = signed_injected_tx();
         let identities = [(bob_identity.address(), bob_identity)].into();
 
+        crate::register_validator_addresses(
+            &mut alice,
+            crate::validator_peer_addresses(&identities),
+        );
         alice
             .behaviour_mut()
             .broadcast_transaction(&identities, transaction.clone())
@@ -503,6 +506,10 @@ mod tests {
         ]
         .into();
 
+        crate::register_validator_addresses(
+            &mut alice,
+            crate::validator_peer_addresses(&identities),
+        );
         alice
             .behaviour_mut()
             .broadcast_transaction(&identities, transaction.clone())
@@ -549,6 +556,10 @@ mod tests {
         let transaction = signed_injected_tx();
         let identities = [(bob_identity.address(), bob_identity)].into();
 
+        crate::register_validator_addresses(
+            &mut alice,
+            crate::validator_peer_addresses(&identities),
+        );
         alice
             .behaviour_mut()
             .broadcast_transaction(&identities, transaction.clone())
@@ -591,6 +602,10 @@ mod tests {
         let transaction = signed_injected_tx();
         let identities = [(bob_identity.address(), bob_identity)].into();
 
+        crate::register_validator_addresses(
+            &mut alice,
+            crate::validator_peer_addresses(&identities),
+        );
         alice
             .behaviour_mut()
             .broadcast_transaction(&identities, transaction.clone())

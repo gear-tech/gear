@@ -12,7 +12,7 @@ macro_rules! impl_runtime_apis_plus_common {
 					VERSION
 				}
 
-				fn execute_block(block: Block) {
+				fn execute_block(block: <Block as BlockT>::LazyBlock) {
 					Executive::execute_block(block);
 				}
 
@@ -49,7 +49,7 @@ macro_rules! impl_runtime_apis_plus_common {
 				}
 
 				fn check_inherents(
-					block: Block,
+					block: <Block as BlockT>::LazyBlock,
 					data: sp_inherents::InherentData,
 				) -> sp_inherents::CheckInherentsResult {
 					data.check_extrinsics(&block)
@@ -73,8 +73,8 @@ macro_rules! impl_runtime_apis_plus_common {
 			}
 
 			impl sp_session::SessionKeys<Block> for Runtime {
-				fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
-					SessionKeys::generate(seed)
+				fn generate_session_keys(owner: Vec<u8>, seed: Option<Vec<u8>>) -> sp_session::OpaqueGeneratedSessionKeys {
+					SessionKeys::generate(&owner, seed).into()
 				}
 
 				fn decode_session_keys(
@@ -178,7 +178,7 @@ macro_rules! impl_runtime_apis_plus_common {
 				}
 
 				fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic {
-					UncheckedExtrinsic::new_unsigned(
+					UncheckedExtrinsic::new_bare(
 						pallet_gear::Call::run { max_gas }.into()
 					).into()
 				}
@@ -224,7 +224,7 @@ macro_rules! impl_runtime_apis_plus_common {
 
 				fn dispatch_benchmark(
 					config: frame_benchmarking::BenchmarkConfig
-				) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
+				) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, alloc::string::String> {
 					use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch};
 					use sp_storage::TrackedStorageKey;
 					use frame_system_benchmarking::Pallet as SystemBench;

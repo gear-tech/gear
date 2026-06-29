@@ -4,8 +4,12 @@
 use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use parity_scale_codec::Encode;
 use sc_block_builder::{BlockBuilderApi, BuiltBlock};
-use sp_api::{ApiExt, ApiRef, CallApiAt, Core, ProvideRuntimeApi, TransactionOutcome};
+use sp_api::{
+    ApiExt, ApiRef, CallApiAt, Core, ProofRecorder, ProvideRuntimeApi, TransactionOutcome,
+};
 use sp_blockchain::{ApplyExtrinsicFailed, Error, HeaderBackend};
+use sp_core::traits::CallContext;
+use sp_externalities::Extensions;
 use sp_runtime::{
     Digest, ExtrinsicInclusionMode, legacy,
     traits::{Block as BlockT, Hash, HashingFor, Header as HeaderT, NumberFor, One},
@@ -74,7 +78,8 @@ where
 
         Ok(BlockBuilderBuilderStage2 {
             call_api_at: self.call_api_at,
-            enable_proof_recording: false,
+            proof_recorder: None,
+            extra_extensions: Default::default(),
             inherent_digests: Default::default(),
             parent_block: self.parent_block,
             parent_number,
@@ -91,7 +96,8 @@ where
     ) -> BlockBuilderBuilderStage2<'a, B, C> {
         BlockBuilderBuilderStage2 {
             call_api_at: self.call_api_at,
-            enable_proof_recording: false,
+            proof_recorder: None,
+            extra_extensions: Default::default(),
             inherent_digests: Default::default(),
             parent_block: self.parent_block,
             parent_number,
@@ -105,7 +111,8 @@ where
 /// [`BlockBuilderBuilder::new`] needs to be used.
 pub struct BlockBuilderBuilderStage2<'a, B: BlockT, C> {
     call_api_at: &'a C,
-    enable_proof_recording: bool,
+    proof_recorder: Option<ProofRecorder<B>>,
+    extra_extensions: Extensions,
     inherent_digests: Digest,
     parent_block: B::Hash,
     parent_number: NumberFor<B>,
@@ -115,19 +122,35 @@ impl<'a, B: BlockT, C> BlockBuilderBuilderStage2<'a, B, C> {
     /// Enable proof recording for the block builder.
     #[allow(unused)]
     pub fn enable_proof_recording(mut self) -> Self {
-        self.enable_proof_recording = true;
+        self.proof_recorder = Some(Default::default());
         self
     }
 
     /// Enable/disable proof recording for the block builder.
+    #[allow(unused)]
     pub fn with_proof_recording(mut self, enable: bool) -> Self {
-        self.enable_proof_recording = enable;
+        self.proof_recorder = enable.then(Default::default);
+        self
+    }
+
+    /// Use the provided proof recorder for block production.
+    pub fn with_proof_recorder(
+        mut self,
+        proof_recorder: impl Into<Option<ProofRecorder<B>>>,
+    ) -> Self {
+        self.proof_recorder = proof_recorder.into();
         self
     }
 
     /// Build the block with the given inherent digests.
     pub fn with_inherent_digests(mut self, inherent_digests: Digest) -> Self {
         self.inherent_digests = inherent_digests;
+        self
+    }
+
+    /// Set the extra extensions to be registered with the runtime API during block building.
+    pub fn with_extra_extensions(mut self, extra_extensions: impl Into<Extensions>) -> Self {
+        self.extra_extensions = extra_extensions.into();
         self
     }
 
@@ -141,8 +164,9 @@ impl<'a, B: BlockT, C> BlockBuilderBuilderStage2<'a, B, C> {
             self.call_api_at,
             self.parent_block,
             self.parent_number,
-            self.enable_proof_recording,
+            self.proof_recorder,
             self.inherent_digests,
+            self.extra_extensions,
         )
     }
 }
@@ -174,8 +198,9 @@ where
         call_api_at: &'a C,
         parent_hash: Block::Hash,
         parent_number: NumberFor<Block>,
-        record_proof: bool,
+        proof_recorder: Option<ProofRecorder<Block>>,
         inherent_digests: Digest,
+        extra_extensions: Extensions,
     ) -> Result<Self, Error> {
         let header = <<Block as BlockT>::Header as HeaderT>::new(
             parent_number + One::one(),
@@ -189,9 +214,15 @@ where
 
         let mut api = call_api_at.runtime_api();
 
-        if record_proof {
-            api.record_proof();
+        if let Some(recorder) = proof_recorder {
+            api.record_proof_with_recorder(recorder);
         }
+
+        extra_extensions.into_extensions().for_each(|extension| {
+            api.register_extension(extension);
+        });
+
+        api.set_call_context(CallContext::Onchain);
 
         let core_version = api
             .api_version::<dyn Core<Block>>(parent_hash)?
@@ -298,10 +329,8 @@ where
 
     /// Consume the builder to build a valid `Block` containing all pushed extrinsics.
     ///
-    /// Returns the build `Block`, the changes to the storage and an optional `StorageProof`
-    /// supplied by `self.api`, combined as [`BuiltBlock`].
-    /// The storage proof will be `Some(_)` when proof recording was enabled.
-    pub fn build(mut self) -> Result<BuiltBlock<Block>, Error> {
+    /// Returns the build `Block` and the changes to the storage, combined as [`BuiltBlock`].
+    pub fn build(self) -> Result<BuiltBlock<Block>, Error> {
         let header = self.api.finalize_block(self.parent_hash)?;
 
         debug_assert_eq!(
@@ -311,8 +340,6 @@ where
                 sp_runtime::StateVersion::V0,
             ),
         );
-
-        let proof = self.api.extract_proof();
 
         let state = self.call_api_at.state_at(self.parent_hash)?;
 
@@ -324,7 +351,6 @@ where
         Ok(BuiltBlock {
             block: <Block as BlockT>::new(header, self.extrinsics),
             storage_changes,
-            proof,
         })
     }
 
