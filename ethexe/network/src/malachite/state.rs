@@ -140,9 +140,6 @@ impl State {
                     request,
                     channel,
                 } => {
-                    let request_id = malachitebft_sync::InboundRequestId::new(request_id);
-                    self.inbound_requests.insert(request_id.clone(), channel);
-
                     let request = match ScaleCodec.decode(request.0) {
                         Ok(request) => request,
                         Err(e) => {
@@ -150,6 +147,9 @@ impl State {
                             return;
                         }
                     };
+
+                    let request_id = malachitebft_sync::InboundRequestId::new(request_id);
+                    self.inbound_requests.insert(request_id.clone(), channel);
 
                     self.output_port.send(CoreNetworkEvent::SyncRequest(
                         request_id,
