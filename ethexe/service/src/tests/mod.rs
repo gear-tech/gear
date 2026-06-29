@@ -2097,7 +2097,6 @@ async fn validators_election() {
 
     stop_nodes(validators).await;
 
-    env.extend_malachite_endpoints(&next_validators_configs);
     env.validators = next_validators_configs;
     let mut new_validators = vec![];
     for (i, v) in env.validators.clone().into_iter().enumerate() {
