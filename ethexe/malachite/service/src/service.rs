@@ -17,7 +17,6 @@ use ethexe_common::{
     Address, SimpleBlockData,
     db::{ConfigStorageRO, OnChainStorageRO},
     injected::Transaction,
-    malachite::SignedBlockDecryptionShares,
 };
 use ethexe_malachite_core::MalachiteCore;
 use futures::{Stream, stream::FusedStream};
@@ -155,13 +154,6 @@ impl MalachiteService {
         if let Some(inner) = self.inner.take() {
             inner.shutdown().await;
         }
-    }
-
-    /// Handle signed decryption shares for [ShieldedTransaction].
-    ///
-    /// [ShieldedTransaction]: ethexe_common::injected::ShieldedTransaction
-    pub fn receive_decryption_shares(&self, signed_shares: SignedBlockDecryptionShares) {
-        self.externalities.receive_decryption_shares(signed_shares);
     }
 
     /// Push the on-chain validators for `head`'s era into the engine,

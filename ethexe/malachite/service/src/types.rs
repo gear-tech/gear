@@ -4,7 +4,6 @@
 use ethexe_common::{
     HashOf, SimpleBlockData,
     injected::{InjectedTransaction, PurgedTransaction, ShieldedTransaction},
-    malachite::ShieldedTxDecryptionShare,
 };
 use gprimitives::H256;
 use tokio::sync::{Notify, RwLock};
@@ -59,12 +58,6 @@ pub enum MalachiteEvent {
         unshielded_hash_mapping: Vec<(HashOf<ShieldedTransaction>, HashOf<InjectedTransaction>)>,
         not_unshielded: Vec<PurgedTransaction>,
     },
-
-    /// Decryption shares for shielded transactions in an MB.
-    DecryptionShares {
-        mb_hash: H256,
-        shares: Vec<ShieldedTxDecryptionShare>,
-    },
 }
 
 impl std::fmt::Display for MalachiteEvent {
@@ -103,11 +96,6 @@ impl std::fmt::Display for MalachiteEvent {
                 "UnshieldingOutput(mb_hash: {mb_hash}, unshielded_len: {}, not_unshielded_len: {})",
                 unshielded_hash_mapping.len(),
                 not_unshielded.len(),
-            ),
-            Self::DecryptionShares { mb_hash, shares } => write!(
-                f,
-                "DecryptionShares(mb_hash: {mb_hash}, shares_len: {})",
-                shares.len(),
             ),
         }
     }

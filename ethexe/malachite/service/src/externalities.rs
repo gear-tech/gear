@@ -56,13 +56,12 @@ use ethexe_common::{
         InjectedTransaction, MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, PurgedTransaction,
         ShieldedTransaction, Transaction, TransactionHash, TransactionPurgedReason,
     },
-    malachite::{
-        MalachiteTdecContext, Operation, Operations, ShieldedTxDecryptionShare,
-        SignedBlockDecryptionShares,
-    },
+    malachite::{MalachiteTdecContext, Operation, Operations, ShieldedTxDecryptionShare},
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
+use ethexe_malachite_core::{
+    Block, BlockPayload, EthexeVoteExtension, Externalities, MAX_BLOCK_PAYLOAD_BYTES,
+};
 use gear_tdec::bls12_381::{
     DecryptionShareSimple, SharedSecret, prepare_combine_simple, share_combine_simple,
 };
@@ -133,6 +132,51 @@ struct UnshieldingOutput {
 
 #[async_trait]
 impl Externalities for EthexeExternalities {
+    async fn extend_vote(&self, mb_hash: H256) -> Result<Option<EthexeVoteExtension>> {
+        let Some(context) = self.tdec_ctx.as_ref() else {
+            return Ok(None);
+        };
+        let compact = self
+            .db
+            .mb_compact_block(mb_hash)
+            .with_context(|| format!("vote extension refers to unknown MB {mb_hash}"))?;
+        let operations = self
+            .db
+            .operations(compact.operations_hash)
+            .with_context(|| format!("operations for MB {mb_hash} are missing"))?;
+        let transactions = operations
+            .iter()
+            .filter_map(|op| op.as_shielded().map(|signed| signed.data()))
+            .collect::<Vec<_>>();
+        if transactions.is_empty() {
+            return Ok(None);
+        }
+
+        let my_address = context
+            .contexts
+            .iter()
+            .find_map(|(address, participant)| {
+                (participant.validator_public_key == context.my_context.validator_public_key)
+                    .then_some(*address)
+            })
+            .context("local TDEC context is absent from validator contexts")?;
+        let shares =
+            self.provide_decryption_shares(mb_hash, &context.my_context, my_address, &transactions);
+
+        Ok(Some(EthexeVoteExtension {
+            sender: my_address,
+            shares,
+        }))
+    }
+
+    async fn verify_vote_extension(
+        &self,
+        mb_hash: H256,
+        extension: &EthexeVoteExtension,
+    ) -> Result<Acceptance<(), String>> {
+        Ok(self.receive_decryption_shares(mb_hash, extension.sender, &extension.shares))
+    }
+
     async fn process_mb_proposal(&self, mb_hash: H256, mb: Block) -> Result<()> {
         let operations = Operations::decode_all(&mut mb.payload.as_ref())
             .map_err(|e| anyhow!("decoding Operations from block payload bytes: {e}"))?;
@@ -171,25 +215,6 @@ impl Externalities for EthexeExternalities {
             .collect::<Vec<_>>();
         self.decryption_shares
             .register_block(mb_hash, shielded_transactions.iter().map(|tx| tx.to_hash()));
-
-        if let Some(context) = self.tdec_ctx.as_ref() {
-            // If this node have TDEC context - try provide shares for shielded transaction in this block.
-            let tdec_ctx = &context.my_context;
-
-            let maybe_my_address = context.contexts.iter().find_map(|(address, participant)| {
-                (participant.validator_public_key == tdec_ctx.validator_public_key)
-                    .then_some(*address)
-            });
-            match maybe_my_address {
-                Some(my_address) => self.provide_decryption_shares(
-                    mb_hash,
-                    tdec_ctx,
-                    my_address,
-                    &shielded_transactions,
-                ),
-                None => warn!("local TDEC context is absent from validator contexts"),
-            }
-        }
 
         // If decryption keys provided - decrypt shielded transactions and save them to database.
         if let Some(decryption_keys) = operations.iter().find_map(|op| match op {
@@ -775,31 +800,28 @@ impl EthexeExternalities {
         Ok(Some(keys))
     }
 
-    pub(crate) fn receive_decryption_shares(&self, signed: SignedBlockDecryptionShares) {
+    fn receive_decryption_shares(
+        &self,
+        mb_hash: H256,
+        sender: Address,
+        shares: &[ShieldedTxDecryptionShare],
+    ) -> Acceptance<(), String> {
         let Some(context) = self.tdec_ctx.as_ref() else {
-            debug!("ignoring decryption shares without local TDEC context");
-            return;
+            return Acceptance::Rejected("local TDEC context is unavailable".into());
         };
 
-        let sender = signed.address();
-        let data = signed.data();
-        let Some(compact) = self.db.mb_compact_block(data.mb_hash) else {
-            debug!(%sender, mb_hash = %data.mb_hash, "ignoring shares for unknown MB");
-            return;
+        let Some(compact) = self.db.mb_compact_block(mb_hash) else {
+            return Acceptance::Rejected(format!("unknown MB {mb_hash}"));
         };
         let Some(operations) = self.db.operations(compact.operations_hash) else {
-            warn!(
-                %sender,
-                mb_hash = %data.mb_hash,
-                operations_hash = %compact.operations_hash,
-                "ignoring decryption shares: MB operations are missing",
-            );
-            return;
+            return Acceptance::Rejected(format!(
+                "operations {} for MB {mb_hash} are missing",
+                compact.operations_hash
+            ));
         };
 
         let Some(participant_context) = context.contexts.get(&sender) else {
-            debug!(%sender, "ignoring decryption shares from unknown TDEC participant");
-            return;
+            return Acceptance::Rejected(format!("unknown TDEC participant {sender}"));
         };
         let transactions = operations
             .iter()
@@ -807,18 +829,22 @@ impl EthexeExternalities {
             .map(|tx| (tx.to_hash(), tx))
             .collect::<HashMap<_, _>>();
 
-        for message_share in &data.shares {
+        let mut seen = HashSet::with_capacity(shares.len());
+        for message_share in shares {
+            if !seen.insert(message_share.tx_hash) {
+                return Acceptance::Rejected(format!(
+                    "duplicate decryption share for transaction {}",
+                    message_share.tx_hash.inner()
+                ));
+            }
             let Some(transaction) = transactions.get(&message_share.tx_hash) else {
-                debug!(
-                    %sender,
-                    mb_hash = %data.mb_hash,
-                    tx_hash = %message_share.tx_hash.inner(),
-                    "ignoring decryption share for transaction outside MB",
-                );
-                continue;
+                return Acceptance::Rejected(format!(
+                    "decryption share for transaction {} outside MB {mb_hash}",
+                    message_share.tx_hash.inner()
+                ));
             };
             match self.decryption_shares.insert(
-                data.mb_hash,
+                mb_hash,
                 message_share.tx_hash,
                 sender,
                 participant_context,
@@ -826,26 +852,18 @@ impl EthexeExternalities {
                 message_share.share.clone(),
             ) {
                 InsertOutcome::Inserted | InsertOutcome::Duplicate => {}
-                InsertOutcome::InvalidShare => debug!(
-                    %sender,
-                    mb_hash = %data.mb_hash,
-                    tx_hash = %message_share.tx_hash.inner(),
-                    "ignoring invalid decryption share",
-                ),
-                InsertOutcome::Equivocation => warn!(
-                    %sender,
-                    mb_hash = %data.mb_hash,
-                    tx_hash = %message_share.tx_hash.inner(),
-                    "conflicting valid decryption share from the same participant",
-                ),
-                InsertOutcome::UnknownBlock | InsertOutcome::UnknownTransaction => debug!(
-                    %sender,
-                    mb_hash = %data.mb_hash,
-                    tx_hash = %message_share.tx_hash.inner(),
-                    "decryption-share storage rejected unknown MB or transaction",
-                ),
+                InsertOutcome::InvalidShare => {
+                    return Acceptance::Rejected("invalid decryption share".into());
+                }
+                InsertOutcome::Equivocation => {
+                    return Acceptance::Rejected("conflicting decryption share".into());
+                }
+                InsertOutcome::UnknownBlock | InsertOutcome::UnknownTransaction => {
+                    return Acceptance::Rejected("unknown MB or transaction".into());
+                }
             }
         }
+        Acceptance::Accepted(())
     }
 
     fn provide_decryption_shares(
@@ -854,7 +872,7 @@ impl EthexeExternalities {
         tdec_ctx: &PublicDecryptionContext,
         my_address: Address,
         transactions: &[&ShieldedTransaction],
-    ) {
+    ) -> Vec<ShieldedTxDecryptionShare> {
         let mut shares = Vec::with_capacity(transactions.len());
         for tx in transactions {
             let Ok(share) =
@@ -879,12 +897,7 @@ impl EthexeExternalities {
             shares.push(ShieldedTxDecryptionShare { tx_hash, share });
         }
 
-        if !shares.is_empty() {
-            // Channel receiver is dropped only during shutdown.
-            let _ = self
-                .event_tx
-                .send(Ok(MalachiteEvent::DecryptionShares { mb_hash, shares }));
-        }
+        shares
     }
 
     fn process_unshielding(&self, mb_hash: H256, decryption_keys: &DecryptionKeys) -> Result<()> {
@@ -1245,8 +1258,8 @@ mod tests {
         let parent = wrap(parent_payload, 1, H256::zero());
         let parent_hash = parent.hash();
         ext.process_mb_proposal(parent_hash, parent).await.unwrap();
-        let _ = rx.recv().await.expect("decryption shares").expect("ok");
         let _ = rx.recv().await.expect("parent proposal").expect("ok");
+        assert!(ext.extend_vote(parent_hash).await.unwrap().is_some());
 
         let child_payload = ext
             .build_operations(parent_hash)
@@ -1569,18 +1582,9 @@ mod tests {
         let parent = Block::new(H256::zero(), 1, to_payload(parent_payload.encode()));
         let parent_hash = parent.hash();
         ext.process_mb_proposal(parent_hash, parent).await.unwrap();
-        let first = rx.recv().await.expect("first event").expect("ok");
-        let second = rx.recv().await.expect("second event").expect("ok");
-        assert!(
-            [&first, &second]
-                .iter()
-                .any(|event| matches!(event, MalachiteEvent::BlockProposal { .. }))
-        );
-        assert!(
-            [&first, &second]
-                .iter()
-                .any(|event| matches!(event, MalachiteEvent::DecryptionShares { .. }))
-        );
+        let event = rx.recv().await.expect("block event").expect("ok");
+        assert!(matches!(event, MalachiteEvent::BlockProposal { .. }));
+        assert!(ext.extend_vote(parent_hash).await.unwrap().is_some());
 
         let operations = tokio::time::timeout(
             std::time::Duration::from_millis(50),

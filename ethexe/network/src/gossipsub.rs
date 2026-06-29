@@ -8,10 +8,7 @@ use crate::{
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{
-    Address, injected::SignedCompactTxReceipt, malachite::SignedBlockDecryptionShares,
-    network::SignedValidatorMessage,
-};
+use ethexe_common::{Address, injected::SignedCompactTxReceipt, network::SignedValidatorMessage};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -35,7 +32,6 @@ pub enum Message {
     // TODO: rename to `Validators`
     Commitments(SignedValidatorMessage),
     TxReceipt(SignedCompactTxReceipt),
-    DecryptionShares(SignedBlockDecryptionShares),
 }
 
 impl Message {
@@ -43,7 +39,6 @@ impl Message {
         match self {
             Message::Commitments(_) => behaviour.commitments_topic.hash(),
             Message::TxReceipt(_) => behaviour.tx_receipts_topic.hash(),
-            Message::DecryptionShares(_) => behaviour.decryption_shares_topic.hash(),
         }
     }
 
@@ -51,7 +46,6 @@ impl Message {
         match self {
             Message::Commitments(message) => message.encode(),
             Message::TxReceipt(message) => message.encode(),
-            Message::DecryptionShares(message) => message.encode(),
         }
     }
 }
@@ -104,7 +98,6 @@ pub(crate) struct Behaviour {
     message_queue: VecDeque<Message>,
     commitments_topic: IdentTopic,
     tx_receipts_topic: IdentTopic,
-    decryption_shares_topic: IdentTopic,
     metrics: Arc<libp2p::metrics::Metrics>,
 }
 
@@ -118,7 +111,6 @@ impl Behaviour {
     ) -> anyhow::Result<Self> {
         let commitments_topic = Self::topic_with_router("commitments", router_address);
         let tx_receipts_topic = Self::topic_with_router("receipts", router_address);
-        let decryption_shares_topic = Self::topic_with_router("decryption_shares", router_address);
 
         let inner = ConfigBuilder::default()
             // dedup messages
@@ -143,7 +135,6 @@ impl Behaviour {
 
         inner.subscribe(&commitments_topic)?;
         inner.subscribe(&tx_receipts_topic)?;
-        inner.subscribe(&decryption_shares_topic)?;
 
         Ok(Self {
             inner,
@@ -151,7 +142,6 @@ impl Behaviour {
             message_queue: VecDeque::new(),
             commitments_topic,
             tx_receipts_topic,
-            decryption_shares_topic,
             metrics,
         })
     }
@@ -186,9 +176,6 @@ impl Behaviour {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
                 } else if topic == self.tx_receipts_topic.hash() {
                     SignedCompactTxReceipt::decode(&mut &data[..]).map(Message::TxReceipt)
-                } else if topic == self.decryption_shares_topic.hash() {
-                    SignedBlockDecryptionShares::decode(&mut &data[..])
-                        .map(Message::DecryptionShares)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };

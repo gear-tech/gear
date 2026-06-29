@@ -97,7 +97,10 @@ pub use crate::{
         libp2p_keypair_from, libp2p_peer_id, private_key_from_bytes, private_key_from_gsigner,
         public_key_from_gsigner,
     },
-    types::{Address, Block, BlockPayload, CommitCertificate, H256, MAX_BLOCK_PAYLOAD_BYTES},
+    types::{
+        Address, Block, BlockPayload, CommitCertificate, EthexeVoteExtension, H256,
+        MAX_BLOCK_PAYLOAD_BYTES,
+    },
 };
 
 /// Re-exported libp2p PeerId — used by integration tests / operators

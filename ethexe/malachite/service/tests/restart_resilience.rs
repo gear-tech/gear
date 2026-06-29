@@ -226,9 +226,6 @@ async fn collect_until_finalized(
             Ok(Some(Ok(MalachiteEvent::PurgedTransactions { .. }))) => {
                 // ignore
             }
-            Ok(Some(Ok(MalachiteEvent::DecryptionShares { .. }))) => {
-                // ignore
-            }
             Ok(Some(Ok(MalachiteEvent::UnshieldingOutput { .. }))) => {
                 // ignore
             }

@@ -35,9 +35,9 @@ use crate::{
     state::State,
     store::BlockEntry,
     streaming::ProposalParts,
-    types::{Address, Block, CommitCertificate, H256},
+    types::{Address, Block, CommitCertificate, EthexeVoteExtension, H256},
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, ensure};
 use bytes::Bytes;
 use ethexe_common::Acceptance;
 use malachitebft_app_channel::{
@@ -195,14 +195,39 @@ where
             }
 
             // Vote extensions.
-            AppMsg::ExtendVote { reply, .. } => {
+            AppMsg::ExtendVote {
+                height,
+                round,
+                value_id,
+                reply,
+            } => {
+                let extension = self
+                    .process_extend_vote(height, round, value_id)
+                    .await
+                    .unwrap_or_else(|e| {
+                        error!(%height, %round, ?e, "ExtendVote: process failed");
+                        None
+                    });
                 reply
-                    .send(self.process_extend_vote())
+                    .send(extension)
                     .map_err(|e| anyhow!("failed to send ExtendVote reply: {e:?}"))?;
             }
-            AppMsg::VerifyVoteExtension { reply, .. } => {
+            AppMsg::VerifyVoteExtension {
+                height,
+                round,
+                value_id,
+                extension,
+                reply,
+            } => {
+                let result = self
+                    .process_verify_vote_extension(height, round, value_id, &extension)
+                    .await
+                    .unwrap_or_else(|e| {
+                        warn!(%height, %round, ?e, "VerifyVoteExtension: process failed");
+                        Err(VoteExtensionError::InvalidVoteExtension)
+                    });
                 reply
-                    .send(self.process_verify_vote_extension())
+                    .send(result)
                     .map_err(|e| anyhow!("failed to send VerifyVoteExtension reply: {e:?}"))?;
             }
 
@@ -426,12 +451,53 @@ where
         Ok(locally)
     }
 
-    fn process_extend_vote(&self) -> Option<Bytes> {
-        None
+    async fn process_extend_vote(
+        &self,
+        height: Height,
+        _round: Round,
+        value_id: ValueId,
+    ) -> Result<Option<EthexeVoteExtension>> {
+        let mb_hash = self.mb_hash_for_value(height, &value_id)?;
+        self.externalities.extend_vote(mb_hash).await
     }
 
-    fn process_verify_vote_extension(&self) -> Result<(), VoteExtensionError> {
-        Ok(())
+    async fn process_verify_vote_extension(
+        &self,
+        height: Height,
+        _round: Round,
+        value_id: ValueId,
+        extension: &EthexeVoteExtension,
+    ) -> Result<Result<(), VoteExtensionError>> {
+        let mb_hash = self.mb_hash_for_value(height, &value_id)?;
+        Ok(
+            match self
+                .externalities
+                .verify_vote_extension(mb_hash, extension)
+                .await?
+            {
+                Acceptance::Accepted(()) => Ok(()),
+                Acceptance::Rejected(reason) => {
+                    debug!(%reason, %mb_hash, "rejecting vote extension");
+                    Err(VoteExtensionError::InvalidVoteExtension)
+                }
+            },
+        )
+    }
+
+    fn mb_hash_for_value(&self, height: Height, value_id: &ValueId) -> Result<H256> {
+        let proposed = self
+            .state
+            .store
+            .get_undecided_proposal_by_value_id(value_id)?
+            .context("vote extension refers to an unknown proposal")?;
+        ensure!(
+            proposed.height == height,
+            "vote extension value belongs to height {}, not {height}",
+            proposed.height
+        );
+        let block = Block::decode(&mut &proposed.value.block_bytes[..])
+            .context("decoding vote extension block")?;
+        Ok(block.hash())
     }
 
     // TODO: #5475 add per-peer token-bucket rate limit before `ingest_proposal_part`

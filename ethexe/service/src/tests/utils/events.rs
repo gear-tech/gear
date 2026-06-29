@@ -12,7 +12,6 @@ use ethexe_common::{
     db::*,
     events::BlockEvent,
     injected::{SignedCompactTxReceipt, Transaction, TransactionAcceptance, TransactionHash},
-    malachite::SignedBlockDecryptionShares,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::ComputeEvent;
@@ -78,7 +77,6 @@ impl TestingNetworkInjectedEvent {
 pub enum TestingNetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
     TxReceiptMessage(SignedCompactTxReceipt),
-    DecryptionShares(SignedBlockDecryptionShares),
     ValidatorIdentityUpdated(Address),
     InjectedTransaction(TestingNetworkInjectedEvent),
     PeerBlocked(PeerId),
@@ -90,7 +88,6 @@ impl TestingNetworkEvent {
         match event {
             NetworkEvent::ValidatorMessage(message) => Self::ValidatorMessage(message.clone()),
             NetworkEvent::TxReceiptMessage(message) => Self::TxReceiptMessage(message.clone()),
-            NetworkEvent::DecryptionShares(message) => Self::DecryptionShares(message.clone()),
             NetworkEvent::ValidatorIdentityUpdated(address) => {
                 Self::ValidatorIdentityUpdated(*address)
             }
