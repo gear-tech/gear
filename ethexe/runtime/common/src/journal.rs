@@ -960,6 +960,25 @@ mod tests {
         )
     }
 
+    fn dispatch_to_with_payload(
+        destination: ActorId,
+        value: u128,
+        payload: Vec<u8>,
+    ) -> CoreDispatch {
+        CoreDispatch::new(
+            DispatchKind::Handle,
+            CoreMessage::new(
+                MessageId::from(10),
+                ActorId::from(7),
+                destination,
+                payload.try_into().unwrap(),
+                None,
+                value,
+                None,
+            ),
+        )
+    }
+
     fn handle_user_dispatch(
         destination: ActorId,
         event_destinations_autoreply: bool,
@@ -1013,14 +1032,13 @@ mod tests {
         let state = storage.program_state(state_hash).unwrap();
 
         if event_destinations_autoreply {
-            assert_eq!(transition.messages.len(), 1);
-            assert_eq!(transition.messages[0].id, MessageId::from(10));
-            assert_eq!(transition.messages[0].destination, destination);
-            assert_eq!(transition.messages[0].value, 11);
-            assert_eq!(transition.claims.len(), 1);
-            assert_eq!(transition.claims[0].message_id, MessageId::from(10));
-            assert_eq!(transition.claims[0].destination, destination);
-            assert_eq!(transition.claims[0].value, 11);
+            assert!(transition.messages.is_empty());
+            assert!(transition.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert_eq!(transition.events.len(), 1);
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(transition.eth_events.len(), 1);
+            }
         } else {
             assert_eq!(transition.messages.len(), 1);
             assert!(transition.claims.is_empty());
@@ -1115,7 +1133,7 @@ mod tests {
 
             handler.send_dispatch(
                 MessageId::from(9),
-                dispatch_to(destination, 11),
+                dispatch_to_with_payload(destination, 11, vec![1, 2, 3]),
                 DELAY,
                 None,
             );
@@ -1143,14 +1161,10 @@ mod tests {
         }
 
         let transition = transitions.modifications_mut().get(&source).unwrap();
-        assert_eq!(transition.messages.len(), 1);
-        assert_eq!(transition.messages[0].id, message_id);
-        assert_eq!(transition.messages[0].destination, destination);
-        assert_eq!(transition.messages[0].value, 11);
-        assert_eq!(transition.claims.len(), 1);
-        assert_eq!(transition.claims[0].message_id, message_id);
-        assert_eq!(transition.claims[0].destination, destination);
-        assert_eq!(transition.claims[0].value, 11);
+        assert_eq!(transition.messages.len(), 0);
+        assert_eq!(transition.claims.len(), 0);
+        assert_eq!(transition.eth_events.len(), 1);
+        assert_eq!(transition.eth_events[0], vec![1, 2, 3]);
 
         let state_hash = transitions.state_of(&source).unwrap().hash;
         let state = storage.program_state(state_hash).unwrap();

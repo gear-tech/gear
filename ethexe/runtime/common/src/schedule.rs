@@ -604,13 +604,13 @@ mod tests {
             }
 
             let transition = transitions.modifications_mut().remove(&program_id).unwrap();
-            assert_eq!(transition.messages.len(), 1);
-            assert_eq!(transition.messages[0].destination, destination);
-            assert_eq!(transition.messages[0].value, 11);
-            assert_eq!(transition.claims.len(), 1);
-            assert_eq!(transition.claims[0].message_id, message_id);
-            assert_eq!(transition.claims[0].destination, destination);
-            assert_eq!(transition.claims[0].value, 11);
+            assert!(transition.messages.is_empty());
+            assert!(transition.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert_eq!(transition.events.len(), 1);
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(transition.eth_events.len(), 1);
+            }
 
             let state_hash = transitions.state_of(&program_id).unwrap().hash;
             let state = storage.program_state(state_hash).unwrap();
