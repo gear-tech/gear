@@ -86,8 +86,9 @@ pub fn spawn_promises_subscriber(
                 result = receiver.recv() => match result {
                     Ok(envelope) => envelope,
                     Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                        warn!(skipped, "promise subscriber lagged, skipping missed promises");
-                        continue;
+                        // Close rather than skip: missed promises are unrecoverable from this stream.
+                        warn!(skipped, "promise subscriber lagged; closing subscription");
+                        return;
                     }
                     Err(broadcast::error::RecvError::Closed) => return,
                 },
@@ -114,6 +115,8 @@ pub fn spawn_promises_subscriber(
                         ?err,
                         "serialization error: failed to create `SubscriptionMessage` from promise envelope; this must never happen"
                     );
+                    // Return, not continue — persistent failure would spin-log; client resubscribes.
+                    return;
                 }
             }
         }

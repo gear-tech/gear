@@ -17,7 +17,7 @@ pub struct PromiseEnvelope {
     pub destination: ActorId,
     /// Recovered signer of the originating injected transaction.
     ///
-    /// Populated by looking up the stored [`SignedInjectedTransaction`] by `tx_hash`. If two
+    /// Populated by looking up the stored `SignedInjectedTransaction` by `tx_hash`. If two
     /// different signers submitted identical transaction data (same destination, payload, value,
     /// reference block, and salt), the database may contain either signer. The canonical fix is
     /// for the compute layer to pass the winning signer alongside the [`Promise`] so no DB lookup
@@ -101,7 +101,11 @@ where
     T: serde::de::DeserializeOwned + Eq + Hash,
 {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        Ok(Self::from(ValueOrArray::<T>::deserialize(d)?))
+        // null => empty set (wildcard); scalar or array => populated set.
+        Ok(match Option::<ValueOrArray<T>>::deserialize(d)? {
+            Some(voa) => Self::from(voa),
+            None => FilterSet(HashSet::new()),
+        })
     }
 }
 
@@ -310,6 +314,24 @@ mod tests {
 
         assert!(!filter.matches(&envelope(first, destination, ReplyCode::Unsupported)));
         assert!(filter.matches(&envelope(second, destination, ReplyCode::Unsupported)));
+    }
+
+    #[test]
+    fn empty_filterset_round_trips_via_null() {
+        let empty: FilterSet<Address> = FilterSet::default();
+
+        let json = serde_json::to_value(&empty).expect("empty FilterSet must serialize");
+        assert_eq!(
+            json,
+            serde_json::Value::Null,
+            "empty FilterSet must serialize as null"
+        );
+
+        let back: FilterSet<Address> =
+            serde_json::from_value(json).expect("null must deserialize back to empty FilterSet");
+        assert!(back.is_empty());
+        // Empty set is a wildcard — verify the semantic is preserved after the round-trip.
+        assert!(back.matches(&Address::from([1u8; 20])));
     }
 
     #[test]
