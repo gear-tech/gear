@@ -45,7 +45,7 @@ use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
-    db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
+    db::{GlobalsStorageRW, MbStorageRO},
     gear::CodeState,
     injected::{CompactPromise, Receipt, TransactionAcceptance},
     malachite::BlockDecryptionData,
@@ -58,11 +58,12 @@ use ethexe_db::{
 };
 use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService, ValidatorEntry,
-    ValidatorTdecSetup,
+    InjectedTxMempool, MalachiteEvent, MalachiteServiceConfig, MalachiteServiceStarter,
+    ValidatorEntry, ValidatorTdecSetup,
 };
 use ethexe_network::{
-    NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
+    NetworkEvent, NetworkRuntimeConfig, NetworkService, TransportType,
+    db_sync::ExternalDataProvider,
 };
 use ethexe_observer::{
     ObserverConfig, ObserverEvent, ObserverService,
@@ -171,7 +172,7 @@ pub struct Service {
     compute: ComputeService,
     /// `None` for connect (non-validator) nodes.
     consensus: Option<Pin<Box<dyn ConsensusService>>>,
-    malachite: Option<MalachiteService>,
+    malachite_starter: MalachiteServiceStarter,
     signer: Signer,
 
     // Optional services
@@ -372,7 +373,7 @@ impl Service {
         .await
         .context("failed to create observer service")?;
 
-        let latest_block = observer
+        let initial_chain_head = observer
             .block_loader()
             .load_simple(BlockId::Latest)
             .await
@@ -398,7 +399,7 @@ impl Service {
         }
 
         let validators = router_query
-            .validators_at(latest_block.hash)
+            .validators_at(initial_chain_head.hash)
             .await
             .context("failed to query validators")?;
         log::info!("👥 Current validators set: {validators:?}");
@@ -466,24 +467,21 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
-            // TODO: #4918 create Signer object correctly for test/prod environments
-            let network_signer = Signer::fs(
-                config
-                    .node
-                    .key_path
-                    .parent()
-                    .context("key_path has no parent directory")?
-                    .join("net"),
-            )?;
-
-            let latest_block_data = observer
-                .block_loader()
-                .load_simple(BlockId::Latest)
-                .await
-                .context("failed to get latest block")?;
+            let network_signer = match net_config.transport_type {
+                TransportType::Test => {
+                    let network_signer = Signer::memory();
+                    let network_private_key = signer
+                        .private_key(net_config.public_key)
+                        .with_context(|| "failed to get test network private key")?
+                        .clone();
+                    network_signer.import(network_private_key)?;
+                    network_signer
+                }
+                TransportType::Default => Signer::fs(config.node.net_path.clone())?,
+            };
 
             let runtime_config = NetworkRuntimeConfig {
-                latest_block_header: latest_block_data.header,
+                latest_block_header: initial_chain_head.header,
                 latest_validators: validators.clone(),
                 validator_key: validator_pub_key,
                 general_signer: signer.clone(),
@@ -512,48 +510,52 @@ impl Service {
         let compute = ComputeService::with_promise_mode(db.clone(), processor, promises_mode);
 
         // Malachite consensus service.
-        let malachite_home = config
-            .node
-            .database_path_for(config.ethereum.router_address)
-            .join("malachite");
-        let mut malachite_base_config = MalachiteConfig::from_home_dir(malachite_home)
-            .with_listen_addr(config.malachite.listen_addr)
-            .with_persistent_peers(config.malachite.persistent_peers.clone());
-        // Must match the compute layer's quarantine or consensus deadlocks.
-        malachite_base_config.canonical_quarantine = config.node.canonical_quarantine;
-        malachite_base_config.post_quarantine_delay = config.node.post_quarantine_delay;
-        log::info!(
-            "Malachite listen: {}  persistent_peers: {}",
-            malachite_base_config.listen_addr,
-            malachite_base_config.persistent_peers.len(),
-        );
-        let malachite = {
+
+        let malachite_starter = {
+            let malachite_home = config
+                .node
+                .database_path_for(config.ethereum.router_address)
+                .join("malachite");
+
             let malachite_validator_set = build_malachite_validator_set(
                 validators.iter().copied(),
                 &config.malachite.validator_pub_keys,
             )?;
+
+            let malachite_config = MalachiteServiceConfig::from_home_dir(malachite_home)
+                .with_listen_addr(config.malachite.listen_addr)
+                .with_persistent_peers(config.malachite.persistent_peers.clone())
+                .with_canonical_quarantine(config.node.canonical_quarantine)
+                .with_post_quarantine_delay(config.node.post_quarantine_delay)
+                .with_validators(malachite_validator_set);
+
             log::info!(
-                "Malachite validators: {} (local role: {})",
-                malachite_validator_set.len(),
-                if validator_pub_key.is_some() {
-                    "validator"
-                } else {
-                    "full"
-                },
+                "Malachite listen: {}  persistent_peers: {}",
+                malachite_config.listen_addr,
+                malachite_config.persistent_peers.len(),
             );
-            let malachite_config = malachite_base_config.with_validators(malachite_validator_set);
-            Some(
-                MalachiteService::new(
-                    malachite_config,
-                    db.clone(),
-                    signer.clone(),
-                    validator_pub_key,
+
+            let validator_config =
+                validator_pub_key.map(|pub_key| ethexe_malachite::ValidatorConfig {
+                    pub_key,
+                    mempool: InjectedTxMempool::new(db.clone()),
+                    signer: signer.clone(),
                     validator_tdec_setup,
-                    std::sync::Arc::new(InjectedTxMempool::new(db.clone())),
-                )
-                .await
-                .context("failed to start Malachite service")?,
+                });
+
+            let role = validator_config
+                .as_ref()
+                .map(|_| "validator")
+                .unwrap_or("full");
+            log::info!("Malachite node role: {role}");
+
+            MalachiteServiceStarter::new(
+                malachite_config,
+                validator_config,
+                db.clone(),
+                initial_chain_head,
             )
+            .context("failed to create Malachite service starter")?
         };
 
         let fast_sync = config.node.fast_sync;
@@ -566,7 +568,7 @@ impl Service {
             blob_loader,
             compute,
             consensus,
-            malachite,
+            malachite_starter,
             signer,
             prometheus,
             rpc,
@@ -595,7 +597,7 @@ impl Service {
         compute: ComputeService,
         signer: Signer,
         consensus: Option<Pin<Box<dyn ConsensusService>>>,
-        malachite: Option<MalachiteService>,
+        malachite_starter: MalachiteServiceStarter,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcServer>,
@@ -609,7 +611,7 @@ impl Service {
             blob_loader,
             compute,
             consensus,
-            malachite,
+            malachite_starter,
             signer,
             network,
             prometheus,
@@ -623,7 +625,7 @@ impl Service {
 
     /// Install a graceful-shutdown channel. The returned sender,
     /// when fired, breaks the run loop at the next yield and then
-    /// awaits [`MalachiteService::shutdown`] before `run` returns —
+    /// awaits [`ethexe_malachite::MalachiteService::shutdown`] before `run` returns —
     /// freeing the RocksDB advisory lock and libp2p listener
     /// synchronously, which a plain `JoinHandle::abort` does not
     /// guarantee.
@@ -651,7 +653,7 @@ impl Service {
             mut blob_loader,
             mut compute,
             mut consensus,
-            mut malachite,
+            malachite_starter,
             signer,
             mut prometheus,
             rpc,
@@ -661,7 +663,10 @@ impl Service {
             #[cfg(test)]
             sender,
         } = self;
+
         let mut shutdown_rx = shutdown_rx;
+
+        let mut malachite = malachite_starter.start().await?;
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
@@ -690,7 +695,7 @@ impl Service {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
                 event = consensus.maybe_next_some() => event?.into(),
-                event = malachite.maybe_next_some() => event?.into(),
+                event = malachite.select_next_some() => event?.into(),
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
                 event = blob_loader.select_next_some() => event?.into(),
@@ -712,38 +717,29 @@ impl Service {
 
             match event {
                 Event::Observer(event) => match event {
-                    ObserverEvent::Block(block_data) => {
-                        tracing::info!(
-                            height = %block_data.header.height,
-                            timestamp = %block_data.header.timestamp,
-                            hash = %block_data.hash,
-                            parent_hash = %block_data.header.parent_hash,
-                            "📦 receive a chain head",
-                        );
-                        if let Some(c) = consensus.as_mut() {
-                            c.receive_new_chain_head(block_data)?;
-                        }
-                    }
-                    ObserverEvent::BlockSynced(block) => {
-                        log::info!(
-                            "Block synced: {}",
-                            db.block_simple_data(block)
-                                .context("Cannot find header of synced block")?
-                        );
+                    ObserverEvent::Block(block) => {
+                        tracing::info!("📦 receive a ethereum chain head: {block}",);
 
-                        compute.prepare_block(block);
                         if let Some(c) = consensus.as_mut() {
-                            c.receive_synced_block(block)?;
+                            c.receive_new_chain_head(block)?;
                         }
+
+                        malachite.receive_new_eb(block).await;
+                    }
+                    ObserverEvent::BlockSynced(block_hash) => {
+                        log::info!("Ethereum block synced: {block_hash}");
+
+                        compute.prepare_block(block_hash);
+
+                        if let Some(c) = consensus.as_mut() {
+                            c.receive_synced_block(block_hash)?;
+                        }
+
                         if let Some(network) = network.as_mut() {
-                            network.set_chain_head(block)?;
+                            network.set_chain_head(block_hash)?;
                         }
-                        if let Some(m) = malachite.as_mut() {
-                            let block = db
-                                .block_simple_data(block)
-                                .context("Cannot find header of synced block")?;
-                            m.receive_new_chain_head(block);
-                        }
+
+                        malachite.receive_eb_synced(block_hash).await;
                     }
                 },
                 Event::BlobLoader(event) => match event {
@@ -759,14 +755,8 @@ impl Service {
                         if let Some(c) = consensus.as_mut() {
                             c.receive_prepared_block(block_hash)?;
                         }
-                        // Malachite's BlockProposal events are gated
-                        // on the EB they advance over being prepared
-                        // (so downstream compute_mb doesn't race the
-                        // code-validation pipeline). Wake the gate
-                        // here so pending events get drained.
-                        if let Some(m) = malachite.as_ref() {
-                            m.receive_eb_prepared(block_hash);
-                        }
+
+                        malachite.receive_eb_prepared(block_hash).await;
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
@@ -860,15 +850,14 @@ impl Service {
                                 transaction,
                                 channel,
                             } => {
-                                let acceptance = match malachite.as_mut() {
-                                    Some(malachite) => {
-                                        malachite.receive_transaction(*transaction).into()
-                                    }
-                                    None => TransactionAcceptance::Reject {
-                                        reason: "no malachite service to handle transaction".into(),
-                                    },
-                                };
-                                let _ = channel.send(acceptance);
+                                let acceptance =
+                                    malachite.receive_transaction(*transaction).await.into();
+                                if let Err(err) = channel.send(acceptance) {
+                                    tracing::error!(
+                                        ?err,
+                                        "failed to send injected transaction acceptance response"
+                                    )
+                                }
                             }
                             ethexe_network::NetworkInjectedEvent::OutboundAcceptance {
                                 transaction_hash,
@@ -895,9 +884,7 @@ impl Service {
                         }
                         NetworkEvent::DecryptionShares(message) => {
                             // Just route shares to malachite service.
-                            if let Some(malachite) = malachite.as_mut() {
-                                malachite.receive_decryption_shares(message);
-                            }
+                            malachite.receive_decryption_shares(message);
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)
                         | NetworkEvent::PeerBlocked(_)
@@ -912,16 +899,12 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            let mut local_acceptance = None;
-
-                            if let Some(malachite) = malachite.as_mut() {
-                                let status = malachite.receive_transaction(transaction.clone());
-                                local_acceptance = Some(TransactionAcceptance::from(status));
-                            }
+                            let status = malachite.receive_transaction(transaction.clone()).await;
+                            let local_acceptance = TransactionAcceptance::from(status);
 
                             match network.as_mut() {
                                 Some(network) => match local_acceptance {
-                                    Some(acceptance @ TransactionAcceptance::Accept) => {
+                                    acceptance @ TransactionAcceptance::Accept => {
                                         // local consensus handle transaction, no need to wait for other acceptances
                                         if let Err(err) =
                                             network.broadcast_injected_transaction(transaction)
@@ -952,7 +935,7 @@ impl Service {
                                                 let pending = PendingNetworkInjectedTx::new(
                                                     response_sender,
                                                     pending_responses,
-                                                    local_acceptance,
+                                                    Some(local_acceptance),
                                                 );
                                                 network_injected_txs.insert(tx_hash, pending);
                                             }
@@ -973,12 +956,7 @@ impl Service {
                                 },
                                 None => {
                                     // No network, send local_acceptance to RPC
-                                    let acceptance = local_acceptance.unwrap_or_else(|| {
-                                        TransactionAcceptance::Reject {
-                                            reason: "RPC not a validator and do not connect to P2P network".into(),
-                                        }
-                                    });
-                                    let _ = response_sender.send(acceptance);
+                                    let _ = response_sender.send(local_acceptance);
                                 }
                             }
                         }
@@ -1006,11 +984,6 @@ impl Service {
                             mb_hash = %mb_hash,
                             "Malachite: BlockProposal",
                         );
-                        // Validators are interested in this MB's
-                        // promises so they can gossip them; the
-                        // service's `PromiseEmissionMode` can still
-                        // force the policy to `Enabled` regardless.
-
                         compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                     MalachiteEvent::BlockFinalized {
@@ -1024,17 +997,11 @@ impl Service {
                             sigs = cert.signatures.len(),
                             "Malachite: BlockFinalized",
                         );
-                        // Non-proposer nodes (validators that didn't propose
-                        // this height + every full/RPC node) first see the MB
-                        // here. Trigger compute so the body — including any
-                        // injected-tx `Promise` — is produced locally; the
-                        // matching `SignedCompactPromise` arrives via the
-                        // network and is joined into a full `SignedTxReceipt`
-                        // by the RPC subscription manager. Calls are
-                        // idempotent: a proposer that already computed via
-                        // `BlockProposal` short-circuits on
-                        // `mb_meta.computed`.
-                        compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
+
+                        // No compute here: `BlockProposal` is always emitted
+                        // before the matching `BlockFinalized` (on every node,
+                        // including the sync path), so compute for this MB has
+                        // already been triggered.
                     }
                     MalachiteEvent::PurgedTransactions {
                         eb_hash,
@@ -1143,13 +1110,8 @@ impl Service {
             }
         }
 
-        // Graceful tear-down: hand the malachite engine a chance to
-        // flush its WAL and release the RocksDB advisory lock and
-        // libp2p listener. Without this, an immediate restart on
-        // the same home directory races the previous lock release.
-        if let Some(m) = malachite.take() {
-            m.shutdown().await;
-        }
+        malachite.shutdown().await;
+
         Ok(())
     }
 }
