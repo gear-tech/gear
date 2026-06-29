@@ -38,9 +38,7 @@ pub use crate::apis::{
     BlockClient, CalculateReplyForHandleResult, CodeClient, DevClient, FullProgramState,
     InfoClient, InjectedClient, ProgramBestState, ProgramClient,
 };
-pub use crate::apis::{
-    PromiseEnvelope, PromiseSubscriptionFilter, RPC_VERSION, ReplyCodeFilter, ValueOrArray,
-};
+pub use crate::apis::{PromiseEnvelope, PromiseSubscriptionFilter, RPC_VERSION, ReplyCodeFilter};
 
 #[cfg(feature = "server")]
 use anyhow::Result;

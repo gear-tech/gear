@@ -30,7 +30,7 @@ pub use dev::{DevApi, DevServer};
 pub use info::{InfoApi, InfoServer};
 #[cfg(feature = "server")]
 pub use injected::{InjectedApi, InjectedServer};
-pub use injected::{PromiseEnvelope, PromiseSubscriptionFilter, ReplyCodeFilter, ValueOrArray};
+pub use injected::{PromiseEnvelope, PromiseSubscriptionFilter, ReplyCodeFilter};
 #[cfg(feature = "server")]
 pub use program::{ProgramApi, ProgramServer};
 #[cfg(feature = "server")]

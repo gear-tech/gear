@@ -430,11 +430,21 @@ async fn test_subscribe_promises_applies_sender_and_destination_filter() {
         .await
         .expect("WS client will be created");
 
-    // Build a transaction with a known key so we can predict the sender address.
+    // Use an explicit destination distinct from the mock default ([0u8;32]) so the
+    // destination filter is actually exercised, not just the sender filter.
+    // With the `ethexe` serde feature, ActorId serializes as an H160 (last 20 bytes),
+    // so constructing via H160 ensures the value survives the filter JSON round-trip.
     let expected_key = PrivateKey::random();
     let expected_sender = PublicKey::from(&expected_key).to_address();
-    let expected_tx = SignedMessage::create(expected_key, InjectedTransaction::mock(())).unwrap();
-    let expected_destination = expected_tx.data().destination;
+    let expected_destination = gprimitives::ActorId::from(gprimitives::H160::from([1u8; 20]));
+    let expected_tx = SignedMessage::create(
+        expected_key,
+        InjectedTransaction {
+            destination: expected_destination,
+            ..InjectedTransaction::mock(())
+        },
+    )
+    .unwrap();
     let expected_tx_hash = expected_tx.data().to_hash();
     service.db.set_injected_transaction(expected_tx);
 

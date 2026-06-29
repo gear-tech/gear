@@ -72,9 +72,9 @@ pub fn spawn_pending_subscriber<F>(
 /// matching promises to the JSON-RPC sink; the per-subscriber `filter` is
 /// applied here, just before the sink, so the broadcast itself stays
 /// filter-agnostic. There is no replay of historical promises — only promises
-/// computed after the subscription was accepted are delivered. A slow
-/// subscriber that lags is told how many it missed and keeps going; the stream
-/// is never closed on `Lagged`.
+/// computed after the subscription was accepted are delivered. A slow subscriber
+/// that exhausts the broadcast buffer receives `Lagged` and the subscription is
+/// closed; the client should fall back to `get_transaction_receipt` for any gaps.
 pub fn spawn_promises_subscriber(
     sink: SubscriptionSink,
     mut receiver: broadcast::Receiver<Arc<PromiseEnvelope>>,

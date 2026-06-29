@@ -33,7 +33,7 @@ pub struct PromiseEnvelope {
 /// `From<Vec<T>>` impls so it works with any item type, not only alloy primitives.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum ValueOrArray<T> {
+pub(crate) enum ValueOrArray<T> {
     Value(T),
     Array(Vec<T>),
 }
@@ -56,8 +56,14 @@ impl<T> From<Vec<T>> for ValueOrArray<T> {
 ///
 /// Equivalent to `alloy_rpc_types_eth::FilterSet` but with serde that accepts both a JSON
 /// scalar and a JSON array (alloy's version only deserializes from an array).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct FilterSet<T>(HashSet<T>);
+
+impl<T> Default for FilterSet<T> {
+    fn default() -> Self {
+        Self(HashSet::new())
+    }
+}
 
 impl<T: Eq + Hash> From<ValueOrArray<T>> for FilterSet<T> {
     fn from(voa: ValueOrArray<T>) -> Self {
@@ -65,6 +71,30 @@ impl<T: Eq + Hash> From<ValueOrArray<T>> for FilterSet<T> {
             ValueOrArray::Value(v) => Self(std::iter::once(v).collect()),
             ValueOrArray::Array(vs) => Self(vs.into_iter().collect()),
         }
+    }
+}
+
+impl From<Address> for FilterSet<Address> {
+    fn from(v: Address) -> Self {
+        Self(std::iter::once(v).collect())
+    }
+}
+
+impl From<Vec<Address>> for FilterSet<Address> {
+    fn from(vs: Vec<Address>) -> Self {
+        Self(vs.into_iter().collect())
+    }
+}
+
+impl From<ActorId> for FilterSet<ActorId> {
+    fn from(v: ActorId) -> Self {
+        Self(std::iter::once(v).collect())
+    }
+}
+
+impl From<Vec<ActorId>> for FilterSet<ActorId> {
+    fn from(vs: Vec<ActorId>) -> Self {
+        Self(vs.into_iter().collect())
     }
 }
 
@@ -78,10 +108,9 @@ impl<T: Eq + Hash> FilterSet<T> {
     }
 
     fn to_value_or_array(&self) -> Option<ValueOrArray<&T>> {
-        let mut iter = self.0.iter();
-        match (iter.next(), iter.next()) {
-            (None, _) => None,
-            (Some(v), None) => Some(ValueOrArray::Value(v)),
+        match self.0.len() {
+            0 => None,
+            1 => Some(ValueOrArray::Value(self.0.iter().next().expect("len is 1"))),
             _ => Some(ValueOrArray::Array(self.0.iter().collect())),
         }
     }
@@ -104,7 +133,7 @@ where
         // null => empty set (wildcard); scalar or array => populated set.
         Ok(match Option::<ValueOrArray<T>>::deserialize(d)? {
             Some(voa) => Self::from(voa),
-            None => FilterSet(HashSet::new()),
+            None => FilterSet::<T>::default(),
         })
     }
 }
@@ -123,7 +152,7 @@ pub struct PromiseSubscriptionFilter {
     /// avoid confusion with the program code ids used by the neighbouring
     /// `code` RPC API.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reply_code: Option<ReplyCodeFilter>,
+    reply_code: Option<ReplyCodeFilter>,
 }
 
 impl PromiseSubscriptionFilter {
@@ -132,14 +161,14 @@ impl PromiseSubscriptionFilter {
     }
 
     #[must_use]
-    pub fn sender<T: Into<ValueOrArray<Address>>>(mut self, sender: T) -> Self {
-        self.sender = FilterSet::from(sender.into());
+    pub fn sender<T: Into<FilterSet<Address>>>(mut self, sender: T) -> Self {
+        self.sender = sender.into();
         self
     }
 
     #[must_use]
-    pub fn destination<T: Into<ValueOrArray<ActorId>>>(mut self, destination: T) -> Self {
-        self.destination = FilterSet::from(destination.into());
+    pub fn destination<T: Into<FilterSet<ActorId>>>(mut self, destination: T) -> Self {
+        self.destination = destination.into();
         self
     }
 
