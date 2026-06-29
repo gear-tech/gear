@@ -9,7 +9,7 @@
 //! backfilled to `true` for every MB reachable from `latest_finalized_mb_hash`
 //! — mirroring the old reachability-based "finalized locally" semantics.
 
-use super::{InitConfig, migration::Migration};
+use super::{InitConfig, migration::Migration, v1};
 use crate::RawDatabase;
 use anyhow::{Context, Result};
 use ethexe_common::db::{CompactMb, DBConfig, DBGlobals};
@@ -42,13 +42,6 @@ fn singleton_key(discriminant: u64) -> Vec<u8> {
     key
 }
 
-/// Frozen v1 layout of `MbMeta`.
-#[derive(Decode)]
-struct MbMetaV1 {
-    computed: bool,
-    last_advanced_eb: H256,
-}
-
 /// Frozen v2 layout of `MbMeta`.
 #[derive(Encode)]
 struct MbMetaV2 {
@@ -76,7 +69,7 @@ impl Migration for MigrationFromV1 {
             let entries: Vec<(Vec<u8>, Vec<u8>)> = db.kv.iter_prefix(&meta_prefix).collect();
             for (key, value) in entries {
                 let mb_hash = H256::from_slice(&key[meta_prefix.len()..]);
-                let old = MbMetaV1::decode(&mut value.as_slice())
+                let old = v1::MbMeta::decode(&mut value.as_slice())
                     .with_context(|| format!("failed to decode v1 MbMeta for {mb_hash}"))?;
                 let new = MbMetaV2 {
                     computed: old.computed,
