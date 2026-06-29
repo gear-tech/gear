@@ -108,6 +108,10 @@ pub struct NodeConfig {
     /// `last_advanced_eth_block` runs ahead of `last_committed_eb`
     /// by more than this many Eth blocks.
     pub uncommitted_chain_len_threshold: std::num::NonZero<u32>,
+    /// Coordinator-local cadence — when elected coordinator, this node only
+    /// builds a batch on blocks whose height is a multiple of this value
+    /// (`1` = every block). Participants ignore it.
+    pub batch_commitment_period: std::num::NonZero<u32>,
     pub genesis_state_dump: Option<PathBuf>,
     /// Prune old MB schedules on startup, right after the database is
     /// opened. Temporary hot fix knob (#5585).
