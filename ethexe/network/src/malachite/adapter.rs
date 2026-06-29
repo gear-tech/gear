@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use super::{CoreNetworkMsg, EngineNetworkMsg, EngineNetworkRef};
 use async_trait::async_trait;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
