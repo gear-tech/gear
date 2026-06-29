@@ -101,7 +101,7 @@ pub(crate) struct EthexeExternalities {
     /// While active it suppresses all Malachite callbacks until the
     /// captured target proposal and finalization are replayed. Callers
     /// must enable it before starting the Malachite application task.
-    pub fast_sync_replay_filter: Mutex<Option<FastSyncReplayFilter>>,
+    pub fast_sync_replay_filter: RwLock<Option<FastSyncReplayFilter>>,
 }
 
 /// One outbound [`MalachiteEvent`] that can't be released until its
@@ -151,7 +151,10 @@ impl Externalities for EthexeExternalities {
         // The fast-sync replay gate sits after durable MB writes so a suppressed
         // replayed proposal is still available to finalization and DB walks; only
         // outbound events are skipped.
-        if self.suppress_for_fast_sync_replay_proposal(mb_hash, last_advanced)? {
+        if self
+            .suppress_for_fast_sync_replay_proposal(mb_hash, last_advanced)
+            .await?
+        {
             return Ok(());
         }
 
@@ -174,7 +177,10 @@ impl Externalities for EthexeExternalities {
         // The replay gate sits after loading the compact block and operations:
         // even suppressed finalizations must prove the proposal path persisted
         // the MB before we skip mempool, globals, and event side effects.
-        if self.suppress_for_fast_sync_replay_finalization(mb_hash) {
+        if self
+            .suppress_for_fast_sync_replay_finalization(mb_hash)
+            .await
+        {
             return Ok(());
         }
 
@@ -500,23 +506,17 @@ impl Externalities for EthexeExternalities {
 }
 
 impl EthexeExternalities {
-    pub(crate) fn enable_fast_sync_replay_filter(&self, target: FastSyncReplayTarget) {
-        *self
-            .fast_sync_replay_filter
-            .lock()
-            .expect("fast_sync_replay_filter poisoned") =
+    pub(crate) async fn enable_fast_sync_replay_filter(&self, target: FastSyncReplayTarget) {
+        *self.fast_sync_replay_filter.write().await =
             Some(FastSyncReplayFilter::UntilTargetProposal(target));
     }
 
-    fn suppress_for_fast_sync_replay_proposal(
+    async fn suppress_for_fast_sync_replay_proposal(
         &self,
         mb_hash: H256,
         last_advanced_eb: H256,
     ) -> Result<bool> {
-        let mut guard = self
-            .fast_sync_replay_filter
-            .lock()
-            .expect("fast_sync_replay_filter poisoned");
+        let mut guard = self.fast_sync_replay_filter.write().await;
 
         match *guard {
             None => Ok(false),
@@ -549,11 +549,8 @@ impl EthexeExternalities {
         }
     }
 
-    fn suppress_for_fast_sync_replay_finalization(&self, mb_hash: H256) -> bool {
-        let mut guard = self
-            .fast_sync_replay_filter
-            .lock()
-            .expect("fast_sync_replay_filter poisoned");
+    async fn suppress_for_fast_sync_replay_finalization(&self, mb_hash: H256) -> bool {
+        let mut guard = self.fast_sync_replay_filter.write().await;
 
         match *guard {
             None => false,
@@ -745,7 +742,7 @@ mod tests {
                 canonical_quarantine: 0,
                 post_quarantine_delay: 0,
             },
-            fast_sync_replay_filter: Mutex::new(None),
+            fast_sync_replay_filter: RwLock::new(None),
         };
         (ext, event_rx)
     }
@@ -1161,7 +1158,7 @@ mod tests {
                 canonical_quarantine: 0,
                 post_quarantine_delay: 0,
             },
-            fast_sync_replay_filter: Mutex::new(None),
+            fast_sync_replay_filter: RwLock::new(None),
         };
 
         let payload = Operations::new(vec![
@@ -1215,26 +1212,20 @@ mod tests {
         ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
             mb_hash: boundary_hash,
             eb_hash: boundary_eb,
-        });
+        })
+        .await;
 
         ext.process_mb_proposal(boundary_hash, boundary_block)
             .await
             .unwrap();
         assert!(rx.try_recv().is_err(), "boundary proposal is suppressed");
         assert_eq!(
-            *ext.fast_sync_replay_filter
-                .lock()
-                .expect("fast_sync_replay_filter poisoned"),
+            *ext.fast_sync_replay_filter.read().await,
             Some(FastSyncReplayFilter::UntilTargetFinalization {
                 mb_hash: boundary_hash,
             }),
         );
-        assert!(
-            ext.pending_events
-                .lock()
-                .expect("pending_events poisoned")
-                .is_empty()
-        );
+        assert!(ext.pending_events.read().await.is_empty());
         assert_eq!(db.mb_meta(boundary_hash).last_advanced_eb, boundary_eb);
         assert!(db.mb_compact_block(boundary_hash).is_some());
 
@@ -1245,12 +1236,7 @@ mod tests {
             rx.try_recv().is_err(),
             "boundary finalization is suppressed"
         );
-        assert!(
-            ext.pending_events
-                .lock()
-                .expect("pending_events poisoned")
-                .is_empty()
-        );
+        assert!(ext.pending_events.read().await.is_empty());
 
         let post_eb = H256::repeat_byte(0xA2);
         db.mutate_block_meta(post_eb, |meta| meta.prepared = true);
@@ -1299,7 +1285,8 @@ mod tests {
         ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
             mb_hash: boundary_hash,
             eb_hash: boundary_eb,
-        });
+        })
+        .await;
 
         let operations_hash = db.set_operations(boundary_payload);
         db.set_mb_compact_block(
@@ -1319,10 +1306,7 @@ mod tests {
             "boundary finalization before proposal is suppressed"
         );
         assert!(
-            ext.fast_sync_replay_filter
-                .lock()
-                .expect("fast_sync_replay_filter poisoned")
-                .is_some(),
+            ext.fast_sync_replay_filter.read().await.is_some(),
             "filter must stay active until boundary proposal is seen",
         );
 
@@ -1345,10 +1329,7 @@ mod tests {
             .await
             .unwrap();
         assert!(
-            ext.fast_sync_replay_filter
-                .lock()
-                .expect("fast_sync_replay_filter poisoned")
-                .is_none(),
+            ext.fast_sync_replay_filter.read().await.is_none(),
             "boundary proposal plus finalization clears filter",
         );
 
@@ -1380,7 +1361,8 @@ mod tests {
         ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
             mb_hash,
             eb_hash: expected_eb,
-        });
+        })
+        .await;
 
         let err = ext
             .process_mb_proposal(mb_hash, block)
@@ -1398,10 +1380,7 @@ mod tests {
             Ok(event) => panic!("expected mismatch error event, got {event:?}"),
         }
         assert!(
-            ext.fast_sync_replay_filter
-                .lock()
-                .expect("fast_sync_replay_filter poisoned")
-                .is_none(),
+            ext.fast_sync_replay_filter.read().await.is_none(),
             "mismatch must clear replay filter",
         );
     }
@@ -1418,7 +1397,8 @@ mod tests {
         ext.enable_fast_sync_replay_filter(FastSyncReplayTarget {
             mb_hash,
             eb_hash: expected_eb,
-        });
+        })
+        .await;
 
         let err = ext
             .process_mb_proposal(mb_hash, block)
@@ -1436,10 +1416,7 @@ mod tests {
             Ok(event) => panic!("expected mismatch error event, got {event:?}"),
         }
         assert!(
-            ext.fast_sync_replay_filter
-                .lock()
-                .expect("fast_sync_replay_filter poisoned")
-                .is_none(),
+            ext.fast_sync_replay_filter.read().await.is_none(),
             "mismatch must clear replay filter",
         );
     }
@@ -1472,7 +1449,7 @@ mod tests {
                 canonical_quarantine: 0,
                 post_quarantine_delay: 0,
             },
-            fast_sync_replay_filter: Mutex::new(None),
+            fast_sync_replay_filter: RwLock::new(None),
         };
         (ext, event_rx)
     }
@@ -2227,7 +2204,7 @@ mod tests {
                 canonical_quarantine: 2,
                 post_quarantine_delay: 3,
             },
-            fast_sync_replay_filter: Mutex::new(None),
+            fast_sync_replay_filter: RwLock::new(None),
         };
         set_head(&ext, head).await;
 

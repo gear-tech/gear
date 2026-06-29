@@ -6,7 +6,7 @@
 use crate::{
     app,
     codec::ScaleCodec,
-    config::{MalachiteCoreConfig, NodeRole},
+    config::{Environment, MalachiteCoreConfig, NodeRole},
     context::{MalachiteCtx, Validator, ValidatorSet},
     externalities::Externalities,
     signing::{
@@ -40,10 +40,7 @@ use std::{
     task::{Context as TaskContext, Poll},
     time::Duration,
 };
-use tokio::{
-    sync::{mpsc, oneshot},
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc, task::JoinHandle};
 
 /// Trait-object-friendly facade for the service. The stream carries
 /// only fatal app-task errors — successful events reach the
@@ -245,12 +242,9 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
         )?;
 
         // ---- spawn app task ----
-        let (start_tx, start_rx) = oneshot::channel();
         let (errors_tx, errors_rx) = mpsc::unbounded_channel();
         let externalities_for_task = Arc::clone(&externalities);
         let app_handle = tokio::spawn(async move {
-            start_rx.await.expect("start sender has been dropped");
-
             if let Err(e) = app::run::<EXT>(state, channels, externalities_for_task).await {
                 tracing::error!(target: "ethexe-malachite-core", error = %e, "app task terminated");
                 let _ = errors_tx.send(e);
@@ -258,7 +252,6 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
         });
 
         Ok(Self {
-            start_tx: Some(start_tx),
             errors_rx,
             engine,
             app_handle,
@@ -300,7 +293,6 @@ impl<EXT: Externalities> Stream for MalachiteCore<EXT> {
     type Item = anyhow::Error;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
-        debug_assert!(self.start_tx.is_none(), "app task is not started");
         self.errors_rx.poll_recv(cx)
     }
 }

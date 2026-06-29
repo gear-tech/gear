@@ -600,7 +600,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         observer,
         compute,
         network,
-        malachite,
+        malachite_starter,
         db,
         #[cfg(test)]
         sender,
@@ -716,15 +716,13 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         globals.latest_computed_mb_hash = latest_committed_mb;
     });
 
-    if let Some(malachite) = malachite.as_mut() {
-        // `Service::run` performs fast sync before `run_inner().start_app_task()`,
-        // so live Malachite callbacks cannot race this startup replay gate.
-        let _ = malachite.enable_fast_sync_replay_filter(replay_target)?;
-        // Fast sync restores DB globals directly, but Malachite keeps its
-        // own in-memory chain head for proposal/validation. Seed it now; the
-        // observer will only deliver later EBs after the app task starts.
-        malachite.receive_new_chain_head(block_data.to_simple());
-    }
+    // `Service::run` performs fast sync before `run_inner().start_app_task()`,
+    // so live Malachite callbacks cannot race this startup replay gate.
+    malachite_starter.enable_fast_sync_replay_filter(replay_target);
+    // Fast sync restores DB globals directly, but Malachite keeps its
+    // own in-memory chain head for proposal/validation. Seed it now; the
+    // observer will only deliver later EBs after the app task starts.
+    //malachite.receive_new_chain_head(block_data.to_simple());
 
     log::info!(
         "Fast synchronization done: synced to {latest_committed_eb:?}, height {height:?}, MB {latest_committed_mb}",

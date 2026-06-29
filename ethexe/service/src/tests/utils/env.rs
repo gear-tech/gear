@@ -39,9 +39,9 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteServiceConfig, MalachiteServiceStarter,
-    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
-    malachite_libp2p_peer_id,
+    FastSyncReplayTarget, InjectedTxMempool, MalachiteConfigEnvironment, MalachiteServiceConfig,
+    MalachiteServiceStarter, Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry,
+    derive_libp2p_secret, malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{

@@ -59,14 +59,8 @@ use ethexe_malachite::{
     InjectedTxMempool, MalachiteEvent, MalachiteServiceConfig, MalachiteServiceStarter,
     ValidatorEntry,
 };
-use ethexe_network::{
-    NetworkEvent, NetworkRuntimeConfig, NetworkService, TransportType,
-    db_sync::ExternalDataProvider,
-};
-use ethexe_observer::{
-    ObserverConfig, ObserverEvent, ObserverService,
-    utils::{BlockId, BlockLoader},
-};
+use ethexe_network::{NetworkEvent, NetworkRuntimeConfig, NetworkService, TransportType};
+use ethexe_observer::{ObserverConfig, ObserverEvent, ObserverService, utils::BlockLoader};
 use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeInfo};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};

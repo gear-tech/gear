@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    MalachiteService, MalachiteServiceConfig, Mempool,
+    FastSyncReplayTarget, MalachiteService, MalachiteServiceConfig, Mempool,
     config::ValidatorConfig,
     externalities::{EthexeExternalities, ExternalitiesConfig},
     types::{ChainHead, MalachiteEvent},
@@ -31,6 +31,7 @@ pub struct MalachiteServiceStarter {
     validators: HashMap<Address, PublicKey>,
     active_era: u64,
     core_config: MalachiteCoreConfig,
+    fast_sync_replay_target: Option<FastSyncReplayTarget>,
 }
 
 impl MalachiteServiceStarter {
@@ -79,6 +80,7 @@ impl MalachiteServiceStarter {
         };
 
         let core_config = MalachiteCoreConfig {
+            env: config.env,
             listen_addr: config.listen_addr,
             base: config.home_dir.clone(),
             persistent_peers: config.persistent_peers.clone(),
@@ -107,6 +109,7 @@ impl MalachiteServiceStarter {
             chain_head: chain_head.clone(),
             pending_events: Default::default(),
             event_tx,
+            fast_sync_replay_filter: RwLock::new(None),
         });
 
         // On-chain addresses → pub keys, so era rotations resolve back without an out-of-band lookup.
@@ -124,7 +127,12 @@ impl MalachiteServiceStarter {
             validators,
             active_era,
             core_config,
+            fast_sync_replay_target: None,
         })
+    }
+
+    pub fn enable_fast_sync_replay_filter(&mut self, target: FastSyncReplayTarget) {
+        self.fast_sync_replay_target = Some(target);
     }
 
     /// Launch the consensus core and assemble the running [`MalachiteService`].
@@ -137,13 +145,14 @@ impl MalachiteServiceStarter {
             validators,
             active_era,
             core_config,
+            fast_sync_replay_target,
         } = self;
 
         let inner = MalachiteCore::new(core_config, externalities.clone())
             .await
             .context("starting ethexe-malachite-core")?;
 
-        Ok(MalachiteService {
+        let service = MalachiteService {
             events_rx,
             chain_head,
             mempool,
@@ -151,6 +160,12 @@ impl MalachiteServiceStarter {
             validators,
             active_era,
             inner: Some(inner),
-        })
+        };
+
+        if let Some(target) = fast_sync_replay_target {
+            service.enable_fast_sync_replay_filter(target).await?;
+        }
+
+        Ok(service)
     }
 }
