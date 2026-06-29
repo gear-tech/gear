@@ -11,7 +11,7 @@ use malachitebft_network::{ChannelNames, ProtocolNames};
 pub type CoreNetworkMsg = ethexe_malachite_core::NetworkMsg<ethexe_malachite_core::MalachiteCtx>;
 pub type CoreNetworkEvent =
     ethexe_malachite_core::NetworkEvent<ethexe_malachite_core::MalachiteCtx>;
-pub type EngineNetworkRef = ethexe_malachite_core::NetworkRef<ethexe_malachite_core::MalachiteCtx>;
+pub type CoreNetworkRef = ethexe_malachite_core::NetworkRef<ethexe_malachite_core::MalachiteCtx>;
 pub type EngineNetworkMsg =
     ethexe_malachite_core::EngineNetworkMsg<ethexe_malachite_core::MalachiteCtx>;
 

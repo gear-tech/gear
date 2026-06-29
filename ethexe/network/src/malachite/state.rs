@@ -34,8 +34,8 @@ pub(crate) struct State {
 
 impl State {
     pub(crate) async fn spawn(peer_id: PeerId) -> anyhow::Result<Self> {
-        let (malachite_lane_tx, rx) = mpsc::channel(128);
-        let parts = malachite::adapter::spawn_adapter(malachite_lane_tx).await?;
+        let (tx, rx) = mpsc::channel(128);
+        let parts = malachite::adapter::Adapter::spawn(tx).await?;
 
         Ok(Self {
             local_peer_id: PeerIdExt::from_libp2p(&peer_id),

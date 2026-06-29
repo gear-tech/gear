@@ -1,15 +1,38 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use super::{CoreNetworkMsg, EngineNetworkMsg, EngineNetworkRef};
+use super::{CoreNetworkMsg, CoreNetworkRef, EngineNetworkMsg};
 use async_trait::async_trait;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 
-pub type MalachiteNetworkParts = (EngineNetworkRef, mpsc::Sender<CoreNetworkMsg>);
+pub type MalachiteNetworkParts = (CoreNetworkRef, mpsc::Sender<CoreNetworkMsg>);
 
 pub(crate) struct Adapter {
     tx: mpsc::Sender<EngineNetworkMsg>,
+}
+
+impl Adapter {
+    pub(crate) async fn spawn(
+        tx: mpsc::Sender<EngineNetworkMsg>,
+    ) -> anyhow::Result<MalachiteNetworkParts> {
+        let (network_ref, _) = Actor::spawn(None, Self { tx }, ()).await?;
+
+        let (tx_network, mut rx_network) = mpsc::channel::<CoreNetworkMsg>(128);
+        tokio::spawn({
+            let network_ref = network_ref.clone();
+            async move {
+                while let Some(message) = rx_network.recv().await {
+                    if let Err(error) = network_ref.cast(message.into()) {
+                        log::error!("failed to send Malachite network message to adapter: {error}");
+                        break;
+                    }
+                }
+            }
+        });
+
+        Ok((network_ref, tx_network))
+    }
 }
 
 #[async_trait]
@@ -35,28 +58,7 @@ impl Actor for Adapter {
         self.tx
             .send(message)
             .await
-            .expect("channel must never be closed");
+            .map_err(|err| anyhow::anyhow!("{err}"))?;
         Ok(())
     }
-}
-
-pub(crate) async fn spawn_adapter(
-    tx: mpsc::Sender<EngineNetworkMsg>,
-) -> anyhow::Result<MalachiteNetworkParts> {
-    let (network_ref, _) = Actor::spawn(None, Adapter { tx }, ()).await?;
-
-    let (tx_network, mut rx_network) = mpsc::channel::<CoreNetworkMsg>(128);
-    tokio::spawn({
-        let network_ref = network_ref.clone();
-        async move {
-            while let Some(message) = rx_network.recv().await {
-                if let Err(error) = network_ref.cast(message.into()) {
-                    log::error!("failed to send Malachite network message to adapter: {error}");
-                    break;
-                }
-            }
-        }
-    });
-
-    Ok((network_ref, tx_network))
 }
