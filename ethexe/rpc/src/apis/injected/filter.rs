@@ -127,13 +127,13 @@ impl<T: Serialize + Eq + Hash> Serialize for FilterSet<T> {
 
 impl<'de, T> Deserialize<'de> for FilterSet<T>
 where
-    T: serde::de::DeserializeOwned + Eq + Hash,
+    T: serde::Deserialize<'de> + Eq + Hash,
 {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         // null => empty set (wildcard); scalar or array => populated set.
         Ok(match Option::<ValueOrArray<T>>::deserialize(d)? {
             Some(voa) => Self::from(voa),
-            None => FilterSet::<T>::default(),
+            None => Self::default(),
         })
     }
 }
