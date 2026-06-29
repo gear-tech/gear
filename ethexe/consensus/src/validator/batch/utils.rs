@@ -13,7 +13,7 @@ use ethexe_common::{
     },
 };
 use gprimitives::{ActorId, H256};
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::{BTreeSet, HashMap, hash_map::Entry};
 
 /// MBs in `(last_committed_mb, mb_hash]`, chronological order. Strict: errors
 /// if the walk doesn't reach the anchor or any MB along the way is not computed.
@@ -195,6 +195,23 @@ pub fn aggregate_code_commitments_for_block<DB: CodesStorageRO + BlockMetaStorag
     Ok(())
 }
 
+/// Returns the outcome for `mb_hash` with non-committable messages stripped out.
+///
+/// The `mb_committed_message_ids` set is written atomically with `mb_outcome` in
+/// `compute_one`; if it is absent, no message was committable and all messages are
+/// dropped (every message was an off-chain injected message with no value and no call).
+pub(crate) fn committed_mb_outcome<DB: MbStorageRO>(
+    db: &DB,
+    mb_hash: H256,
+) -> Option<Vec<StateTransition>> {
+    let mut transitions = db.mb_outcome(mb_hash)?;
+    let committed: BTreeSet<_> = db.mb_committed_message_ids(mb_hash).unwrap_or_default();
+    for t in &mut transitions {
+        t.messages.retain(|m| committed.contains(&m.id));
+    }
+    Some(transitions)
+}
+
 /// Producer chain-commitment builder: covers `(last_committed_mb..mb_head]` up
 /// to where compute has reached, fits within the size budget, returns the
 /// head MB actually included. Returns `last_committed_mb` if nothing fits.
@@ -220,7 +237,7 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     let mut transitions: Vec<StateTransition> = Vec::new();
     let mut last_included = last_committed_mb;
     for mb_hash in &pending {
-        let Some(mb_transitions) = db.mb_outcome(*mb_hash) else {
+        let Some(mb_transitions) = committed_mb_outcome(db, *mb_hash) else {
             anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
         };
 

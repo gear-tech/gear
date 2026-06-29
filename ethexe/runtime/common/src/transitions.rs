@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use alloc::{
-    collections::{BTreeMap, btree_map::Iter},
+    collections::{BTreeMap, BTreeSet, btree_map::Iter},
     vec::Vec,
 };
 use anyhow::{Result, anyhow};
@@ -11,7 +11,7 @@ use ethexe_common::{
     MAILBOX_VALIDITY_VERSION_2, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
 };
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256, MessageId};
 
 pub(crate) const GEAR_SAILS_EVENT: ActorId = ActorId::new([0; 32]);
 
@@ -69,7 +69,14 @@ pub struct FinalizedBlockTransitions {
     pub program_creations: Vec<(ActorId, CodeId)>,
     /// Outgoing messages produced by Injected dispatches. Not committed
     /// on-chain; persisted and served off-Ethereum instead.
+    /// Always empty now — kept for ABI compatibility until Commit 2.
     pub local_outcome: Vec<(ActorId, Vec<Message>)>,
+    /// Flat set of message ids that are committable to Ethereum for this block.
+    ///
+    /// A message is committable when `message_type.is_canonical() || msg.value != 0 || msg.call`.
+    /// Populated at finalize time by unioning per-actor committed_message_ids.
+    // TODO(regenesis): carry committable flag on Message and drop mb_committed_message_ids.
+    pub committed_message_ids: BTreeSet<MessageId>,
 }
 
 impl InBlockTransitions {
@@ -244,19 +251,17 @@ impl InBlockTransitions {
         } = self;
 
         let mut transitions = Vec::with_capacity(modifications.len());
-        let mut local_outcome = Vec::new();
+        // Union of all per-actor committable message ids for this block.
+        let mut committed_message_ids = BTreeSet::new();
 
-        for (actor_id, mut modification) in modifications {
+        for (actor_id, modification) in modifications {
             let new_state = states
                 .get(&actor_id)
                 .cloned()
                 .expect("failed to find state record for modified state");
 
-            // Local (Injected) messages are collected regardless of the noop
-            // filter: they aren't committed but must still be served off-chain.
-            if !modification.local_messages.is_empty() {
-                local_outcome.push((actor_id, core::mem::take(&mut modification.local_messages)));
-            }
+            // Accumulate committable ids from all modifications regardless of the noop filter.
+            committed_message_ids.extend(modification.committed_message_ids.iter().copied());
 
             if !modification.is_noop(new_state.hash) {
                 transitions.push(StateTransition {
@@ -277,7 +282,9 @@ impl InBlockTransitions {
             states,
             schedule,
             program_creations: program_creations.into_iter().collect(),
-            local_outcome,
+            // Always empty: local_messages is no longer populated (Commit 2 removes this field).
+            local_outcome: Vec::new(),
+            committed_message_ids,
         }
     }
 
@@ -320,9 +327,12 @@ pub struct NonFinalTransition {
     pub value_to_receive: i128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
-    /// Outgoing messages from Injected dispatches. Kept off the on-chain
-    /// commitment; drained into `FinalizedBlockTransitions::local_outcome`.
+    /// Outgoing messages from Injected dispatches. No longer populated
+    /// (Commit 2 removes this field); kept for ABI compatibility.
     pub local_messages: Vec<Message>,
+    /// Ids of messages in `messages` that are committable to Ethereum.
+    /// Populated by [`push_outgoing`] when `committable` is true.
+    pub committed_message_ids: BTreeSet<MessageId>,
 }
 
 impl NonFinalTransition {
@@ -355,6 +365,7 @@ impl NonFinalTransition {
             claims,
             messages,
             local_messages: Vec::new(),
+            committed_message_ids: BTreeSet::new(),
         }
     }
 }

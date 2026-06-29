@@ -1062,6 +1062,7 @@ impl Arbitrary for FinalizedBlockTransitions {
                     schedule,
                     program_creations,
                     local_outcome,
+                    committed_message_ids: Default::default(),
                 },
             )
             .boxed()

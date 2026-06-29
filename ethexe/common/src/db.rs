@@ -19,7 +19,7 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
 };
-use gprimitives::H256;
+use gprimitives::{H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -168,6 +168,11 @@ pub trait MbStorageRO {
     fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
     /// Off-chain (Injected) outgoing messages for this MB. See [`LocalOutcome`].
     fn mb_local_outcome(&self, mb_hash: H256) -> Option<LocalOutcome>;
+    /// Ids of messages in `mb_outcome` that are committable to Ethereum.
+    ///
+    /// Written atomically with [`MbStorageRW::set_mb_outcome`] in `compute_one`.
+    /// Absence means no message was committable (all are off-chain injected).
+    fn mb_committed_message_ids(&self, mb_hash: H256) -> Option<BTreeSet<MessageId>>;
     fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
     fn mb_meta(&self, mb_hash: H256) -> MbMeta;
 }
@@ -181,6 +186,7 @@ pub trait MbStorageRW: MbStorageRO {
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
     fn set_mb_local_outcome(&self, mb_hash: H256, local_outcome: LocalOutcome);
+    fn set_mb_committed_message_ids(&self, mb_hash: H256, ids: BTreeSet<MessageId>);
     fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
     fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
 }

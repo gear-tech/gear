@@ -35,14 +35,27 @@ use gsys::GasMultiplier;
 /// when not enough gas was provided for the requested duration.
 pub const WAIT_UP_TO_SAFE_DURATION: u32 = 64;
 
-/// Routes an outgoing user-bound message into the committed (`messages`) or the
-/// off-chain (`local_messages`) bucket depending on the producing dispatch type.
-pub(crate) fn push_outgoing(transition: &mut NonFinalTransition, message: Message, local: bool) {
-    if local {
-        transition.local_messages.push(message);
-    } else {
-        transition.messages.push(message);
+/// Pushes an outgoing user-bound message into the single `messages` bucket and
+/// records its id in `committed_message_ids` when it is committable to Ethereum.
+///
+/// Returns `true` when the message is committable.
+///
+/// A message is committable when any of these hold:
+///   - produced by a Canonical dispatch (`message_type.is_canonical()`),
+///   - carries value (`msg.value != 0`), or
+///   - is a call/call-reply (`msg.call`).
+// TODO(regenesis): carry committable flag on Message and drop mb_committed_message_ids.
+pub(crate) fn push_outgoing(
+    transition: &mut NonFinalTransition,
+    msg: Message,
+    message_type: MessageType,
+) -> bool {
+    let committable = message_type.is_canonical() || msg.value != 0 || msg.call;
+    if committable {
+        transition.committed_message_ids.insert(msg.id);
     }
+    transition.messages.push(msg);
+    committable
 }
 
 // Handles unprocessed journal notes during chunk processing.
@@ -121,9 +134,8 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
             *self.call_reply_limiter = self.call_reply_limiter.saturating_sub(1);
         }
 
-        let is_local = self.message_type.is_injected();
-
         if dispatch.is_reply() {
+            let message_type = self.message_type;
             self.controller
                 .update_state(dispatch.source(), |state, _, transitions| {
                     if dispatch.value() != 0 {
@@ -136,7 +148,7 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                         let stored = dispatch.into_parts().1;
                         let message = Message::from_stored(stored, self.call_reply);
 
-                        push_outgoing(transition, message, is_local);
+                        push_outgoing(transition, message, message_type);
                     });
                 });
 
@@ -193,12 +205,20 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
 
-                        push_outgoing(transition, Message::from_stored(stored, false), is_local);
-                        transition.claims.push(ethexe_common::gear::ValueClaim {
-                            message_id,
-                            destination,
-                            value,
-                        });
+                        let committable = push_outgoing(
+                            transition,
+                            Message::from_stored(stored, false),
+                            message_type,
+                        );
+                        // Only emit the autoclaim when the message is committed on Ethereum;
+                        // an off-chain injected event message has no on-chain Message to claim.
+                        if committable {
+                            transition.claims.push(ethexe_common::gear::ValueClaim {
+                                message_id,
+                                destination,
+                                value,
+                            });
+                        }
                     });
 
                     let reply = Dispatch::reply(
@@ -242,7 +262,11 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
 
-                        push_outgoing(transition, Message::from_stored(stored, false), is_local);
+                        push_outgoing(
+                            transition,
+                            Message::from_stored(stored, false),
+                            message_type,
+                        );
                     });
                 }
             });

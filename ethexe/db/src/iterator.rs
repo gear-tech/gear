@@ -21,7 +21,7 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     memory::PageBuf,
 };
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256, MessageId};
 use std::{
     collections::{BTreeSet, HashSet, VecDeque},
     hash::{DefaultHasher, Hash, Hasher},
@@ -244,6 +244,13 @@ node! {
                 pub mb_outcome: Vec<StateTransition>,
             }
         ),
+        MbCommittedMessageIds(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MbCommittedMessageIdsNode {
+                pub mb_hash: H256,
+                pub mb_committed_message_ids: BTreeSet<MessageId>,
+            }
+        ),
         StateTransition(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct StateTransitionNode {
@@ -454,6 +461,7 @@ where
             Node::MbScheduleTasks(node) => self.iter_mb_schedule_tasks(node),
             Node::ScheduledTask(node) => self.iter_scheduled_task(*node),
             Node::MbOutcome(node) => self.iter_mb_outcome(node),
+            Node::MbCommittedMessageIds(_) => {}
             Node::StateTransition(node) => self.iter_state_transition(node),
             Node::Allocations(_) => {}
             Node::MemoryPages(node) => self.iter_memory_pages(node),
@@ -557,6 +565,13 @@ where
                 });
             }
             try_push_node!(with_hash: self.mb_outcome(mb_hash));
+            // Absence is valid: means no message was committable for this MB.
+            if let Some(mb_committed_message_ids) = self.storage.mb_committed_message_ids(mb_hash) {
+                self.push_node(MbCommittedMessageIdsNode {
+                    mb_hash,
+                    mb_committed_message_ids,
+                });
+            }
             try_push_node!(with_hash: self.mb_program_states(mb_hash));
         }
     }

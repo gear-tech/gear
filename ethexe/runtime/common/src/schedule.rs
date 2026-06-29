@@ -98,16 +98,18 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 if event_destinations && is_event_destination(user_id) {
                     let value = dispatch.value;
                     let message_type = dispatch.message_type;
-                    let is_local = message_type.is_injected();
 
                     transitions.modify_transition(program_id, |transition| {
                         let message = dispatch.clone().into_message(storage, user_id);
-                        push_outgoing(transition, message, is_local);
-                        transition.claims.push(ValueClaim {
-                            message_id: stashed_message_id,
-                            destination: user_id,
-                            value,
-                        });
+                        let committable = push_outgoing(transition, message, message_type);
+                        // Only emit the autoclaim when the message is committed on Ethereum.
+                        if committable {
+                            transition.claims.push(ValueClaim {
+                                message_id: stashed_message_id,
+                                destination: user_id,
+                                value,
+                            });
+                        }
                     });
 
                     let reply = Dispatch::reply(
@@ -126,7 +128,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                     return;
                 }
 
-                let is_local = dispatch.message_type.is_injected();
+                let message_type = dispatch.message_type;
 
                 let expiry = transitions.schedule_task(
                     mailbox_validity,
@@ -145,7 +147,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
 
                 transitions.modify_transition(program_id, |transition| {
                     let message = dispatch.into_message(storage, user_id);
-                    push_outgoing(transition, message, is_local);
+                    push_outgoing(transition, message, message_type);
                 })
             });
 
