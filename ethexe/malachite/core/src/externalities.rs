@@ -62,5 +62,8 @@ pub trait Externalities: Send + Sync + 'static {
     /// validated against that era's set. Used by the consensus layer to verify
     /// each height's commit certificate against the correct historical set
     /// during sync, not just the live shared set.
-    fn validators_for_child_of(&self, parent_mb_hash: H256) -> Result<Vec<ValidatorPublicKey>>;
+    async fn validators_for_child_of(
+        &self,
+        parent_mb_hash: H256,
+    ) -> Result<Vec<ValidatorPublicKey>>;
 }

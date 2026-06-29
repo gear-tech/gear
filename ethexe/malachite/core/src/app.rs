@@ -136,7 +136,7 @@ where
                 let start_height = self.state.current_height;
                 info!(%start_height, "Consensus ready");
                 let params = HeightParams::new(
-                    self.validator_set_for_height(start_height)?,
+                    self.validator_set_for_height(start_height).await?,
                     self.state.get_timeouts(start_height),
                     None,
                 );
@@ -265,7 +265,7 @@ where
                 };
 
                 let h = self.state.current_height;
-                let validators_set = self.validator_set_for_height(h).with_context(|| {
+                let validators_set = self.validator_set_for_height(h).await.with_context(|| {
                     format!("FATAL: failed to resolve validator set for height {h}")
                 })?;
                 let params = HeightParams::new(validators_set, self.state.get_timeouts(h), None);
@@ -338,9 +338,7 @@ where
         Ok(())
     }
 
-    // --------------------------- processors ---------------------------
-
-    fn validator_set_for_height(&self, height: Height) -> Result<ValidatorSet> {
+    async fn validator_set_for_height(&self, height: Height) -> Result<ValidatorSet> {
         let parent_mb_hash = if height.as_u64() <= 1 {
             // The parent of the genesis MB is the zero hash.
             H256::zero()
@@ -352,7 +350,10 @@ where
                 .with_context(|| format!("no finalized MB at height {parent_height}"))?
         };
 
-        let public_keys = self.externalities.validators_for_child_of(parent_mb_hash)?;
+        let public_keys = self
+            .externalities
+            .validators_for_child_of(parent_mb_hash)
+            .await?;
 
         ensure!(
             !public_keys.is_empty(),
@@ -785,9 +786,8 @@ fn compute_value_id_from_parts(parts: &ProposalParts) -> ValueId {
 mod tests {
     use super::*;
     use crate::{
-        context::{ProposalData, ProposalInit, Validator, ValidatorSet, Value},
+        context::{ProposalData, ProposalInit, Value},
         signing::{MalachiteSigner, libp2p_peer_id, private_key_from_bytes},
-        state::SharedValidatorSet,
         store::Store,
         types::BlockPayload,
     };
@@ -824,7 +824,7 @@ mod tests {
         ) -> Result<Acceptance<(), String>> {
             Ok(Acceptance::Accepted(()))
         }
-        fn validators_for_child_of(
+        async fn validators_for_child_of(
             &self,
             _: H256,
         ) -> Result<Vec<crate::config::ValidatorPublicKey>> {
@@ -883,18 +883,7 @@ mod tests {
         let store = Store::open(dir.path()).unwrap();
         let signer = test_signer(1);
         let address = Address::from_public_key(&signer.public_key());
-        let validator_set = SharedValidatorSet::new(ValidatorSet::new(vec![Validator::new(
-            signer.public_key(),
-            1,
-        )]));
-        let mut state = State::new(
-            signer,
-            validator_set,
-            address,
-            store,
-            Duration::from_secs(1),
-        )
-        .unwrap();
+        let mut state = State::new(signer, address, store, Duration::from_secs(1)).unwrap();
         state.current_height = Height::new(current_height);
 
         let (_consensus_tx, consensus_rx) = mpsc::channel::<AppMsg<MalachiteCtx>>(1);
@@ -1017,7 +1006,7 @@ mod tests {
         ) -> Result<Acceptance<(), String>> {
             Ok(Acceptance::Accepted(()))
         }
-        fn validators_for_child_of(
+        async fn validators_for_child_of(
             &self,
             _: H256,
         ) -> Result<Vec<crate::config::ValidatorPublicKey>> {
@@ -1036,18 +1025,7 @@ mod tests {
         let store = Store::open(dir.path()).unwrap();
         let signer = test_signer(1);
         let address = Address::from_public_key(&signer.public_key());
-        let validator_set = SharedValidatorSet::new(ValidatorSet::new(vec![Validator::new(
-            signer.public_key(),
-            1,
-        )]));
-        let mut state = State::new(
-            signer,
-            validator_set,
-            address,
-            store,
-            Duration::from_secs(1),
-        )
-        .unwrap();
+        let mut state = State::new(signer, address, store, Duration::from_secs(1)).unwrap();
         state.current_height = Height::new(current_height);
 
         let (_consensus_tx, consensus_rx) = mpsc::channel::<AppMsg<MalachiteCtx>>(1);

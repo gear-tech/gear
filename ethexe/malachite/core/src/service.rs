@@ -229,13 +229,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
 
         // ---- store + state ----
         let store = Store::open(&store_path).context("opening Store")?;
-        let state = State::new(
-            signer,
-            validator_set.clone(),
-            address,
-            store,
-            config.propose_timeout,
-        )?;
+        let state = State::new(signer, address, store, config.propose_timeout)?;
 
         // ---- spawn app task ----
         let (errors_tx, errors_rx) = mpsc::unbounded_channel();

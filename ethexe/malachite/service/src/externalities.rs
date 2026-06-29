@@ -636,7 +636,10 @@ impl Externalities for EthexeExternalities {
         Ok(Acceptance::Accepted(()))
     }
 
-    fn validators_for_child_of(&self, parent_mb_hash: H256) -> Result<Vec<ValidatorPublicKey>> {
+    async fn validators_for_child_of(
+        &self,
+        parent_mb_hash: H256,
+    ) -> Result<Vec<ValidatorPublicKey>> {
         let parent_era = if parent_mb_hash.is_zero() {
             // The parent of the genesis MB is the zero hash, which resolves to era 0.
             0
@@ -651,14 +654,36 @@ impl Externalities for EthexeExternalities {
                 // The advanced EB is parent of genesis EB - resolve to era 0.
                 0
             } else {
-                let header = self.db.block_header(advanced_eb_hash).with_context(|| {
-                    format!("missing eth header for last_advanced_eb {advanced_eb_hash}")
-                })?;
+                // Wait for the advanced EB to be synced in local DB
+
+                let mut counter = 0;
+                loop {
+                    let notified = self.chain_head.notify.notified();
+                    tokio::pin!(notified);
+                    notified.as_mut().enable();
+                    if self.db.block_synced(advanced_eb_hash) {
+                        break;
+                    }
+                    notified.await;
+
+                    counter += 1;
+                    if counter % 100 == 0 {
+                        warn!(
+                            advanced_eb_hash = %advanced_eb_hash,
+                            counter,
+                            "waiting for advanced EB to be synced in local DB, counter={counter} synced EB notifications received...",
+                        );
+                    }
+                }
+
+                let timelines = self.db.config().timelines;
                 self.db
-                    .config()
-                    .timelines
-                    .era_from_ts(header.timestamp)
-                    .with_context(|| format!("eb {advanced_eb_hash} timestamp before genesis"))?
+                    .block_header(advanced_eb_hash)
+                    .with_context(|| format!("missing header for advanced eb {advanced_eb_hash}"))
+                    .map(|header| timelines.era_from_ts(header.timestamp))?
+                    .with_context(|| {
+                        format!("advanced eb {advanced_eb_hash} timestamp before genesis")
+                    })?
             }
         };
 

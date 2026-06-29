@@ -114,7 +114,8 @@ pub struct TestEnv {
     pub kicking_per_blocks: Option<u32>,
     #[allow(unused)]
     pub db: Database,
-    /// Endpoints aligned 1:1 with `validators`.
+    /// Endpoints for the full malachite validator universe: the initial
+    /// on-chain `validators` plus any `future_validators` reserved up front.
     pub malachite_endpoints: Vec<MalachiteEndpoint>,
     /// Pre-bound TCP listeners holding each validator's port until handed off in `new_node`.
     malachite_listeners: HashMap<PublicKey, TcpListener>,
@@ -170,6 +171,7 @@ impl TestEnv {
     pub async fn new(config: TestEnvConfig) -> anyhow::Result<Self> {
         let TestEnvConfig {
             validators,
+            future_validators,
             block_time,
             rpc,
             wallets,
@@ -416,9 +418,17 @@ impl TestEnv {
             (handle, bootstrap_address, nonce)
         });
 
-        // Hold listeners alive until `start_service` to keep concurrent test processes off our ports.
+        // Reserve endpoints for the full malachite validator universe (initial
+        // on-chain set + any `future_validators` elected in a later era), so all
+        // nodes can boot at once and rotate without a restart. Hold the listeners
+        // alive until `start_service` to keep concurrent test processes off our ports.
+        let all_validator_configs: Vec<ValidatorConfig> = validator_configs
+            .iter()
+            .cloned()
+            .chain(Self::define_session_keys(future_validators))
+            .collect();
         let (malachite_endpoints, malachite_listeners) =
-            build_malachite_endpoints(&signer, &validator_configs);
+            build_malachite_endpoints(&signer, &all_validator_configs);
 
         Ok(TestEnv {
             eth_cfg,
@@ -497,10 +507,6 @@ impl TestEnv {
             .as_ref()
             .and_then(|c| self.malachite_listeners.remove(&c.public_key));
 
-        // Snapshot env.validators now so a node spawned post-rotation boots with the new set.
-        let active_validator_pub_keys: Vec<PublicKey> =
-            self.validators.iter().map(|v| v.public_key).collect();
-
         Node {
             name,
             db,
@@ -521,7 +527,6 @@ impl TestEnv {
             fast_sync,
             commitment_delay_limit: self.commitment_delay_limit,
             malachite_endpoints: self.malachite_endpoints.clone(),
-            active_validator_pub_keys,
             malachite_home,
             malachite_listener,
             running_service_handle: None,
@@ -532,26 +537,6 @@ impl TestEnv {
                 .kicking_per_blocks
                 .map(|blocks| (blocks * self.eth_cfg.block_time, self.provider.clone())),
         }
-    }
-
-    /// Pre-allocate malachite endpoints for an *additional* validator set
-    /// (e.g. the "next" set in an era handover test) and merge them into
-    /// `self.malachite_endpoints` / `self.malachite_listeners`. Without this,
-    /// `start_service` panics when asked to boot a validator whose pubkey
-    /// wasn't part of `TestEnv::new` time.
-    pub fn extend_malachite_endpoints(&mut self, validators: &[ValidatorConfig]) {
-        let (extra_endpoints, extra_listeners) =
-            build_malachite_endpoints(&self.signer, validators);
-        for ep in extra_endpoints {
-            if !self
-                .malachite_endpoints
-                .iter()
-                .any(|e| e.pub_key == ep.pub_key)
-            {
-                self.malachite_endpoints.push(ep);
-            }
-        }
-        self.malachite_listeners.extend(extra_listeners);
     }
 
     pub async fn new_initialized_db(&self) -> Database {
@@ -846,6 +831,12 @@ pub struct TestEnvConfig {
     /// How many validators will be in deployed router.
     /// By default uses 1 auto generated validator.
     pub validators: ValidatorsConfig,
+    /// Validators that are NOT in the initial on-chain set but whose malachite
+    /// endpoints (TCP port + peer-id) must be reserved up front, so they can be
+    /// booted immediately and join consensus on a later era handover without a
+    /// restart. Their pub keys are added to every node's malachite validator
+    /// pool; the per-era resolver still governs who actually votes. Empty by default.
+    pub future_validators: Vec<PublicKey>,
     /// By default uses 1 second block time.
     pub block_time: Duration,
     /// By default creates new anvil instance if rpc is not provided.
@@ -879,6 +870,7 @@ impl Default for TestEnvConfig {
     fn default() -> Self {
         Self {
             validators: ValidatorsConfig::PreDefined(1),
+            future_validators: Vec::new(),
             block_time: Duration::from_secs(1),
             rpc: EnvRpcConfig::CustomAnvil {
                 // speeds up block finalization, so we don't have to calculate
@@ -1031,11 +1023,10 @@ pub struct Node {
     /// Malachite WAL + store.db tempdir; lives with the node.
     malachite_home: Option<tempfile::TempDir>,
 
-    /// Endpoints of every validator (this node + peers).
+    /// Endpoints of the full malachite validator universe (this node + peers,
+    /// including any future-era validators). The per-era resolver decides who
+    /// actually votes, so the whole set is passed as the validator pool.
     malachite_endpoints: Vec<MalachiteEndpoint>,
-    /// Snapshot of `env.validators` at `new_node` time — drives the
-    /// boot-time filter on `malachite_endpoints` in `start_service`.
-    active_validator_pub_keys: Vec<PublicKey>,
     /// Port reservation; dropped just before the first malachite service start.
     malachite_listener: Option<TcpListener>,
 
@@ -1128,31 +1119,21 @@ impl Node {
         // receive `BlockFinalized` and trigger local compute so promise
         // bodies reach the RPC subscription manager.
         let malachite = {
-            // Filter `malachite_endpoints` to era-current pubkeys —
-            // leftover entries from `extend_malachite_endpoints` would
-            // skew the >2/3 threshold.
-            let active: Vec<&MalachiteEndpoint> = self
-                .malachite_endpoints
-                .iter()
-                .filter(|e| self.active_validator_pub_keys.contains(&e.pub_key))
-                .collect();
+            // The whole reserved universe is the validator pool; the per-era
+            // resolver inside the engine governs who actually votes at each
+            // height, so era handovers happen in-place with no restart.
+            let endpoints = &self.malachite_endpoints;
 
             let (listen_addr, persistent_peers) = match self.validator_config.as_ref() {
                 Some(config) => {
-                    let me = self
-                        .malachite_endpoints
+                    let me = endpoints
                         .iter()
                         .find(|e| e.pub_key == config.public_key)
                         .cloned()
                         .expect(
                             "validator's malachite endpoint missing — env not aware of this key",
                         );
-                    assert!(
-                        active.iter().any(|e| e.pub_key == config.public_key),
-                        "test setup bug: local validator {} not in env.validators when start_service was called",
-                        config.public_key,
-                    );
-                    let peers: Vec<MalachiteMultiaddr> = active
+                    let peers: Vec<MalachiteMultiaddr> = endpoints
                         .iter()
                         .filter(|e| e.pub_key != config.public_key)
                         .map(|e| e.multiaddr())
@@ -1160,20 +1141,20 @@ impl Node {
                     (me.listen_addr, peers)
                 }
                 None => {
-                    // Full node: bind a fresh port, dial every active
-                    // validator. No reserved listener since `new_node`
-                    // never allocated one for this key.
+                    // Full node: bind a fresh port, dial every validator.
+                    // No reserved listener since `new_node` never allocated
+                    // one for this key.
                     let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
                         .expect("bind 127.0.0.1:0 for full-node malachite endpoint");
                     let addr = listener.local_addr().expect("local_addr");
                     let peers: Vec<MalachiteMultiaddr> =
-                        active.iter().map(|e| e.multiaddr()).collect();
+                        endpoints.iter().map(|e| e.multiaddr()).collect();
                     drop(listener);
                     (addr, peers)
                 }
             };
 
-            let validators: Vec<ValidatorPublicKey> = active.iter().map(|e| e.pub_key).collect();
+            let validators: Vec<ValidatorPublicKey> = endpoints.iter().map(|e| e.pub_key).collect();
 
             // Reuse the home dir from `new_node` so stop+start resumes from WAL.
             let home_path = self

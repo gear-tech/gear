@@ -20,7 +20,7 @@ use std::{path::Path, time::Duration};
 
 use async_trait::async_trait;
 use ethexe_common::{
-    BlockHeader, SimpleBlockData,
+    BlockHeader, SimpleBlockData, ValidatorsVec,
     db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
     injected::{PurgedTransaction, SignedInjectedTransaction},
 };
@@ -100,6 +100,11 @@ fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
         db.set_block_header(hash, header);
         db.set_block_events(hash, &[]);
         db.mutate_block_meta(hash, |m| m.prepared = true);
+        // Mark synced too: `validators_for_child_of` now waits for the
+        // `last_advanced_eb` block to be synced before resolving its era.
+        // In production the observer sets this flag; this test has no observer,
+        // and it seeds the whole chain as already-synced.
+        db.set_block_synced(hash);
         chain.push(SimpleBlockData { hash, header });
         parent = hash;
     }
@@ -218,6 +223,19 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     let chain = seed_chain(&db, 64, 0xDEAD_BEEF);
 
     let (signer, pub_key) = build_signer(home.path());
+
+    // Seed on-chain validators for every era the chain spans: the era-aware
+    // resolver (`EthexeExternalities::validators_for_child_of`) looks these up to
+    // map the governing era's addresses back to engine keys. The memory DB uses
+    // a 1-second era with genesis at 0, so block timestamp `i` lands in era `i`;
+    // the 64-block chain therefore touches eras 0..64. Production stores this via
+    // the observer; tests must seed it.
+    let validators: ValidatorsVec = vec![pub_key.to_address()]
+        .try_into()
+        .expect("non-empty validator set");
+    for era in 0..chain.len() as u64 {
+        db.set_validators(era, validators.clone());
+    }
 
     // ---- first run -------------------------------------------------
     let mut svc = MalachiteServiceStarter::new(

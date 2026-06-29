@@ -102,14 +102,14 @@ impl MalachiteService {
                 drop(latest_synced);
                 // Still wake the producer: a lower-height sync may have just
                 // landed parent headers a failed descendant walk needs.
-                self.chain_head.notify.notify_one();
+                self.chain_head.notify.notify_waiters();
                 return;
             }
             *latest_synced = synced;
         }
 
         // Notify inner proposer if it waits (see EthexeExternalities::wait_for_proposable_content)
-        self.chain_head.notify.notify_one();
+        self.chain_head.notify.notify_waiters();
 
         // Rotate before waking the producer so the next round sees the new set.
         self.maybe_rotate_validators_for_era(synced);
