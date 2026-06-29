@@ -1980,7 +1980,7 @@ async fn injected_tx_purged_receipt() {
     stop_nodes([node]).await;
 }
 
-/// 3+3 validator election handover: stage next validator set during the
+/// 5+5 validator election handover: stage next validator set during the
 /// election window of era N, fire one `ValidatorsCommittedForEra`, swap
 /// validators when era N+1 starts, and verify the new set can serve PING.
 #[tokio::test]
@@ -2000,11 +2000,11 @@ async fn validators_election() {
     };
 
     let signer = Signer::memory();
-    // Anvil provides enough hardcoded wallets for both validator sets.
+    // 10 wallets - hardcoded in anvil
     let mut wallets = Wallets::anvil(&signer);
 
-    let current_validators: Vec<_> = (0..3).map(|_| wallets.next()).collect();
-    let next_validators: Vec<_> = (0..3).map(|_| wallets.next()).collect();
+    let current_validators: Vec<_> = (0..5).map(|_| wallets.next()).collect();
+    let next_validators: Vec<_> = (0..5).map(|_| wallets.next()).collect();
 
     let env_config = TestEnvConfig {
         validators: ValidatorsConfig::ProvidedValidators(current_validators),
