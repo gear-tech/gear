@@ -118,6 +118,13 @@
 # (optional, must be non-zero u8, default: 16).
 # commitment-delay-limit = 16
 
+# Coordinator-local cadence for batch commitments: when elected coordinator,
+# this node only builds a batch on blocks whose height is a multiple of this
+# value (1 = every block). Participants ignore it and validate whatever the
+# coordinator commits, so nodes may run different values.
+# (optional, must be non-zero u32, default: 1).
+# batch-commitment-period = 1
+
 # Path to genesis state dump file (.blob or .json) for initial chain state.
 # (optional, default: None).
 # genesis-state-dump = "/path/to/genesis.blob"
