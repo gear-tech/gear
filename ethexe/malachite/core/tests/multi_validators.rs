@@ -14,6 +14,7 @@
 
 use std::{
     collections::HashMap,
+    net::{SocketAddr, TcpListener},
     sync::{Arc, Mutex, Once},
     time::Duration,
 };
@@ -36,10 +37,18 @@ use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_common::Acceptance;
 use ethexe_malachite_core::{
-    Block, BlockPayload, CommitCertificate, EngineNetworkMsg, Externalities, H256, MalachiteCore,
-    MalachiteCoreConfig, MalachiteCtx, MalachiteNetworkParts, NetworkMsg, NodeRole, ValidatorEntry,
+    Address, Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteCore,
+    MalachiteCoreConfig, MalachiteCtx, MalachiteNetworkParts, MalachiteSigner, Multiaddr, NodeRole,
+    PeerId, ScaleCodec, ValidatorEntry, libp2p_keypair_from, libp2p_peer_id,
+    private_key_from_gsigner, public_key_from_gsigner,
 };
-use libp2p_identity::PeerId;
+use malachitebft_app_channel::app::{metrics::SharedRegistry, types::codec::Codec};
+use malachitebft_engine::network::{Network, NetworkIdentity};
+use malachitebft_network::{
+    ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, ProtocolNames,
+    PubSubProtocol, TransportProtocol,
+};
+use malachitebft_signing::SigningProviderExt as _;
 use proptest::prelude::*;
 use tempfile::TempDir;
 use tokio::time::sleep;
@@ -199,6 +208,8 @@ impl Externalities for TestExt {
 struct ValidatorSetup {
     private_key: gsigner::schemes::secp256k1::PrivateKey,
     home: TempDir,
+    listen_addr: SocketAddr,
+    peer_id: PeerId,
 }
 
 fn make_secret(i: u16) -> [u8; 32] {
@@ -214,13 +225,33 @@ fn make_secret(i: u16) -> [u8; 32] {
 }
 
 fn make_validators(n: usize) -> Vec<ValidatorSetup> {
-    (0..n)
-        .map(|i| {
+    // Bind every listener up front to grab a unique OS-assigned port,
+    // then drop them so the engine can take over. This avoids
+    // hardcoded port ranges that may already be in use.
+    let listeners: Vec<TcpListener> = (0..n)
+        .map(|_| TcpListener::bind("127.0.0.1:0").expect("bind 127.0.0.1:0"))
+        .collect();
+    let addrs: Vec<SocketAddr> = listeners
+        .iter()
+        .map(|l| l.local_addr().expect("local_addr"))
+        .collect();
+    drop(listeners);
+
+    addrs
+        .into_iter()
+        .enumerate()
+        .map(|(i, addr)| {
             let secret_bytes = make_secret(i as u16 + 1);
             let private_key = gsigner::schemes::secp256k1::PrivateKey::from_seed(secret_bytes)
                 .expect("gsigner private key");
             let home = TempDir::new().expect("tempdir");
-            ValidatorSetup { private_key, home }
+            let peer_id = libp2p_peer_id(&secret_bytes);
+            ValidatorSetup {
+                private_key,
+                home,
+                listen_addr: addr,
+                peer_id,
+            }
         })
         .collect()
 }
@@ -231,6 +262,22 @@ fn validator_entries(setups: &[ValidatorSetup]) -> Vec<ValidatorEntry> {
         .map(|s| ValidatorEntry {
             public_key: s.private_key.public_key(),
             voting_power: 1,
+        })
+        .collect()
+}
+
+fn build_multiaddrs_excluding(setups: &[ValidatorSetup], exclude: usize) -> Vec<Multiaddr> {
+    setups
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != exclude)
+        .map(|(_, s)| {
+            let s = format!(
+                "/ip4/127.0.0.1/tcp/{}/p2p/{}",
+                s.listen_addr.port(),
+                s.peer_id
+            );
+            s.parse().expect("multiaddr parses")
         })
         .collect()
 }
@@ -253,46 +300,70 @@ fn build_config_with_role(
     }
 }
 
-async fn fake_network_parts() -> MalachiteNetworkParts {
-    struct FakeNetwork;
+async fn default_network_parts(
+    setup: &ValidatorSetup,
+    peers: Vec<Multiaddr>,
+    role: NodeRole,
+) -> MalachiteNetworkParts {
+    let keypair = libp2p_keypair_from(&setup.private_key.to_bytes());
+    let peer_id = keypair.public().to_peer_id();
+    let moniker = format!("v-{}", setup.listen_addr.port());
 
-    #[async_trait]
-    impl ractor::Actor for FakeNetwork {
-        type Msg = EngineNetworkMsg<MalachiteCtx>;
-        type State = ();
-        type Arguments = ();
-
-        async fn pre_start(
-            &self,
-            _myself: ractor::ActorRef<Self::Msg>,
-            _args: Self::Arguments,
-        ) -> Result<Self::State, ractor::ActorProcessingErr> {
-            Ok(())
+    let identity = match role {
+        NodeRole::Validator => {
+            let private_key =
+                private_key_from_gsigner(&setup.private_key).expect("malachite private key");
+            let signer = MalachiteSigner::new(private_key);
+            let public_key = public_key_from_gsigner(&setup.private_key.public_key())
+                .expect("malachite public key");
+            let proof = signer
+                .sign_validator_proof(public_key.to_vec(), peer_id.to_bytes())
+                .await
+                .expect("sign validator proof");
+            let proof_bytes = <ScaleCodec as Codec<
+                malachitebft_core_types::ValidatorProof<MalachiteCtx>,
+            >>::encode(&ScaleCodec, &proof)
+            .expect("encode validator proof");
+            NetworkIdentity::new_validator(
+                moniker.clone(),
+                keypair,
+                Address::from_public_key(&public_key).to_string(),
+                proof_bytes,
+            )
         }
+        NodeRole::FullNode => NetworkIdentity::new(moniker.clone(), keypair, None),
+    };
 
-        async fn handle(
-            &self,
-            _myself: ractor::ActorRef<Self::Msg>,
-            msg: Self::Msg,
-            _state: &mut Self::State,
-        ) -> Result<(), ractor::ActorProcessingErr> {
-            match msg {
-                EngineNetworkMsg::DumpState(reply) => {
-                    let _ = reply.send(None);
-                }
-                EngineNetworkMsg::UpdatePersistentPeers(_, reply) => {
-                    let _ = reply.send(Ok(()));
-                }
-                _ => {}
-            }
-            Ok(())
-        }
-    }
+    let network_config = NetworkConfig {
+        listen_addr: format!("/ip4/127.0.0.1/tcp/{}", setup.listen_addr.port())
+            .parse()
+            .expect("valid listen multiaddr"),
+        persistent_peers: peers,
+        persistent_peers_only: false,
+        discovery: DiscoveryConfig::new(false),
+        idle_connection_timeout: Duration::from_secs(15 * 60),
+        transport: TransportProtocol::Tcp,
+        gossipsub: GossipSubConfig::default(),
+        pubsub_protocol: PubSubProtocol::GossipSub,
+        channel_names: ChannelNames::default(),
+        rpc_max_size: 10 * 1024 * 1024,
+        pubsub_max_size: 4 * 1024 * 1024,
+        enable_consensus: true,
+        enable_sync: true,
+        protocol_names: ProtocolNames::default(),
+    };
 
-    let (network_ref, _join) = ractor::Actor::spawn(None, FakeNetwork, ())
-        .await
-        .expect("fake network actor starts");
-    let (tx_network, mut rx_network) = tokio::sync::mpsc::channel::<NetworkMsg<MalachiteCtx>>(32);
+    let network_ref = Network::<MalachiteCtx, ScaleCodec>::spawn(
+        identity,
+        network_config,
+        SharedRegistry::global().with_moniker(&moniker),
+        ScaleCodec,
+        tracing::Span::current(),
+    )
+    .await
+    .expect("default malachite network starts");
+    let (tx_network, mut rx_network) =
+        tokio::sync::mpsc::channel::<ethexe_malachite_core::NetworkMsg<MalachiteCtx>>(128);
     tokio::spawn({
         let network_ref = network_ref.clone();
         async move {
@@ -307,11 +378,13 @@ async fn fake_network_parts() -> MalachiteNetworkParts {
 async fn start_service(
     setup: &ValidatorSetup,
     setups: &[ValidatorSetup],
+    idx: usize,
     ext: Arc<TestExt>,
 ) -> MalachiteCore<TestExt> {
+    let peers = build_multiaddrs_excluding(setups, idx);
     let config = build_config(setup, setups);
-    let parts = fake_network_parts().await;
-    MalachiteCore::<TestExt>::new(config, ext, PeerId::random(), parts)
+    let parts = default_network_parts(setup, peers, NodeRole::Validator).await;
+    MalachiteCore::<TestExt>::new(config, ext, setup.peer_id, parts)
         .await
         .expect("service starts")
 }
@@ -353,14 +426,13 @@ fn assert_no_violations(name: &str, ext: &TestExt) {
 /// validator must finalize at least three blocks in chronological
 /// order.
 #[tokio::test(flavor = "multi_thread", worker_threads = 6)]
-#[ignore = "requires a composed shared ethexe-network; core no longer owns libp2p networking"]
 async fn three_validators_make_progress() {
     init_tracing();
     let setups = make_validators(3);
     let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
     let mut services = Vec::with_capacity(3);
     for (i, setup) in setups.iter().enumerate() {
-        let svc = start_service(setup, &setups, Arc::clone(&exts[i])).await;
+        let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
         services.push(svc);
         // Stagger startup so validators don't all dial each other
         // simultaneously — concurrent dials produce two-way
@@ -383,7 +455,6 @@ async fn three_validators_make_progress() {
 /// validators must continue from where they left off — finalized
 /// heights must remain gap-free across the restart boundary.
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-#[ignore = "requires a composed shared ethexe-network; core no longer owns libp2p networking"]
 async fn seven_validators_full_network_restart() {
     let setups = make_validators(7);
     // One Arc<TestExt> per validator slot — reused across the
@@ -393,7 +464,7 @@ async fn seven_validators_full_network_restart() {
     // ---- first run ------------------------------------------------
     let mut services = Vec::with_capacity(7);
     for (i, setup) in setups.iter().enumerate() {
-        let svc = start_service(setup, &setups, Arc::clone(&exts[i])).await;
+        let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
         services.push(svc);
     }
     sleep(Duration::from_secs(20)).await;
@@ -411,7 +482,7 @@ async fn seven_validators_full_network_restart() {
     // ---- second run on the SAME home dirs -------------------------
     let mut services2 = Vec::with_capacity(7);
     for (i, setup) in setups.iter().enumerate() {
-        let svc = start_service(setup, &setups, Arc::clone(&exts[i])).await;
+        let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
         services2.push(svc);
     }
     // Wait for at least one validator to advance ≥ 1 height beyond
@@ -435,14 +506,13 @@ async fn seven_validators_full_network_restart() {
 /// home dir mid-run; the network keeps making progress on the other
 /// two, and the rejoiner must catch up.
 #[tokio::test(flavor = "multi_thread", worker_threads = 6)]
-#[ignore = "requires a composed shared ethexe-network; core no longer owns libp2p networking"]
 async fn restart_one_validator_mid_run() {
     let setups = make_validators(3);
 
     let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
     let mut services: Vec<Option<MalachiteCore<TestExt>>> = Vec::with_capacity(3);
     for (i, setup) in setups.iter().enumerate() {
-        let svc = start_service(setup, &setups, Arc::clone(&exts[i])).await;
+        let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
         services.push(Some(svc));
     }
     let _ = wait_for_finalized(&exts, 2, Duration::from_secs(45)).await;
@@ -456,7 +526,7 @@ async fn restart_one_validator_mid_run() {
     }
     sleep(Duration::from_secs(2)).await;
     let pre_count = exts[2].finalized_count();
-    let restarted = start_service(&setups[2], &setups, Arc::clone(&exts[2])).await;
+    let restarted = start_service(&setups[2], &setups, 2, Arc::clone(&exts[2])).await;
     services[2] = Some(restarted);
 
     let _ = wait_for_finalized(
@@ -483,7 +553,6 @@ async fn restart_one_validator_mid_run() {
 /// `process_mb_proposal` / `process_mb_finalized` callbacks
 /// (delivered through the sync path) without ever signing a vote.
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-#[ignore = "requires a composed shared ethexe-network; core no longer owns libp2p networking"]
 async fn full_node_syncs_from_validators() {
     let setups = make_validators(4);
     let validator_set: Vec<ValidatorEntry> = setups[..3]
@@ -502,16 +571,13 @@ async fn full_node_syncs_from_validators() {
         } else {
             NodeRole::FullNode
         };
+        let peers = build_multiaddrs_excluding(&setups, i);
         let cfg = build_config_with_role(setup, validator_set.clone(), role);
-        let network_parts = fake_network_parts().await;
-        let svc = MalachiteCore::<TestExt>::new(
-            cfg,
-            Arc::clone(&exts[i]),
-            PeerId::random(),
-            network_parts,
-        )
-        .await
-        .expect("service starts");
+        let network_parts = default_network_parts(setup, peers, role).await;
+        let svc =
+            MalachiteCore::<TestExt>::new(cfg, Arc::clone(&exts[i]), setup.peer_id, network_parts)
+                .await
+                .expect("service starts");
         services.push(svc);
         sleep(Duration::from_millis(500)).await;
     }
@@ -583,7 +649,7 @@ fn run_churn_scenario(events: Vec<ChurnEvent>) {
 
         // Bootstrap all validators with a stagger.
         for (i, setup) in setups.iter().enumerate() {
-            services[i] = Some(start_service(setup, &setups, Arc::clone(&exts[i])).await);
+            services[i] = Some(start_service(setup, &setups, i, Arc::clone(&exts[i])).await);
             sleep(Duration::from_millis(500)).await;
         }
         // Let consensus run for a bit before applying churn.
@@ -600,8 +666,10 @@ fn run_churn_scenario(events: Vec<ChurnEvent>) {
                     svc.shutdown().await;
                 }
             } else if services[ev.idx].is_none() {
-                services[ev.idx] =
-                    Some(start_service(&setups[ev.idx], &setups, Arc::clone(&exts[ev.idx])).await);
+                services[ev.idx] = Some(
+                    start_service(&setups[ev.idx], &setups, ev.idx, Arc::clone(&exts[ev.idx]))
+                        .await,
+                );
             }
         }
         // Final settle window so the last surviving cohort can drain
@@ -631,7 +699,6 @@ proptest! {
     })]
 
     #[test]
-    #[ignore = "requires a composed shared ethexe-network; core no longer owns libp2p networking"]
     fn validator_churn_preserves_contracts(events in arb_churn_events(4, 6)) {
         run_churn_scenario(events);
     }
@@ -670,7 +737,7 @@ async fn shutdown_releases_wal_advisory_lock() {
     for cycle in 0..50 {
         let mut services = Vec::with_capacity(3);
         for (i, setup) in setups.iter().enumerate() {
-            services.push(start_service(setup, &setups, Arc::clone(&exts[i])).await);
+            services.push(start_service(setup, &setups, i, Arc::clone(&exts[i])).await);
         }
         // Let the WAL actor's pre_start run and the writer std::thread arm.
         sleep(Duration::from_millis(10)).await;
