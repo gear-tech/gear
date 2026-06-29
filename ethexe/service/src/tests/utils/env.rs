@@ -114,6 +114,7 @@ pub struct TestEnv {
     pub threshold: u64,
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: std::num::NonZero<u8>,
+    pub batch_commitment_period: std::num::NonZero<u32>,
     pub canonical_quarantine: u8,
     pub post_quarantine_delay: u32,
     pub kicking_per_blocks: Option<u32>,
@@ -263,6 +264,7 @@ impl TestEnv {
             network,
             deploy_params,
             commitment_delay_limit,
+            batch_commitment_period,
             canonical_quarantine,
             post_quarantine_delay,
             kicking_per_blocks,
@@ -519,6 +521,7 @@ impl TestEnv {
             threshold,
             continuous_block_generation,
             commitment_delay_limit,
+            batch_commitment_period,
             canonical_quarantine,
             post_quarantine_delay,
             kicking_per_blocks,
@@ -615,6 +618,7 @@ impl TestEnv {
             service_rpc_config,
             fast_sync,
             commitment_delay_limit: self.commitment_delay_limit,
+            batch_commitment_period: self.batch_commitment_period,
             malachite_endpoints: self.malachite_endpoints.clone(),
             active_validator_pub_keys,
             malachite_home,
@@ -960,6 +964,9 @@ pub struct TestEnvConfig {
     pub deploy_params: ContractsDeploymentParams,
     /// Commitment delay limit in Eth blocks (coordinator-local).
     pub commitment_delay_limit: std::num::NonZero<u8>,
+    /// How often batch commitments are produced (block-height period).
+    /// Defaults to 1 (commit every block) in tests.
+    pub batch_commitment_period: std::num::NonZero<u32>,
     /// Canonical quarantine period in blocks.
     pub canonical_quarantine: u8,
     /// Producer-side extra anchor-depth slack on top of `canonical_quarantine`.
@@ -989,6 +996,7 @@ impl Default for TestEnvConfig {
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
             commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
+            batch_commitment_period: ethexe_common::DEFAULT_BATCH_COMMITMENT_PERIOD,
             canonical_quarantine: 0,
             post_quarantine_delay: 0,
             kicking_per_blocks: Some(3),
@@ -1120,6 +1128,7 @@ pub struct Node {
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
     commitment_delay_limit: std::num::NonZero<u8>,
+    batch_commitment_period: std::num::NonZero<u32>,
     canonical_quarantine: u8,
     post_quarantine_delay: u32,
     kicking_per_blocks: Option<(Duration, RootProvider)>,
@@ -1208,6 +1217,7 @@ impl Node {
                             // short Eth-block budget service tests run for.
                             uncommitted_chain_len_threshold: std::num::NonZero::new(u32::MAX)
                                 .unwrap(),
+                            batch_commitment_period: self.batch_commitment_period,
                         },
                     )
                     .unwrap(),
