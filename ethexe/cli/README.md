@@ -65,6 +65,7 @@ port = 9944
 external = false
 cors = ["http://localhost:*", "http://127.0.0.1:*"]
 gas_limit_multiplier = 3
+vara-eth-rpc = "ws://127.0.0.1:9944" # client endpoint used by `ethexe tx`
 
 [prometheus]
 name = "validator-1"
@@ -139,6 +140,7 @@ Shared requirements:
 
 - `--sender` is a 20-byte Ethereum address and must have a corresponding private key in the chosen key store
 - `--ethereum-rpc` and `--ethereum-router` must be provided directly or through config
+- `--vara-eth-rpc` must be provided directly or through config
 - `--key-store` defaults to the node `keys/` directory
 
 Supported workflows:
@@ -168,8 +170,8 @@ Examples:
 ```bash
 ethexe tx --sender 0x... upload ./target/wasm32-unknown-unknown/release/demo_ping.opt.wasm --watch
 ethexe tx --sender 0x... create 0x... --salt 0x...
-ethexe tx --sender 0x... send-message 0xMirror 0x50494e47 0 --watch
-ethexe tx --sender 0x... send-message 0xMirror 0x50494e47 0 --injected --rpc-url ws://127.0.0.1:9944 --watch
+ethexe tx --sender 0x... --vara-eth-rpc ws://127.0.0.1:9944 send-message 0xMirror 0x50494e47 0 --watch
+ethexe tx --sender 0x... --vara-eth-rpc ws://127.0.0.1:9944 send-message 0xMirror 0x50494e47 0 --injected --watch
 ethexe tx --sender 0x... executable-balance-top-up 0xMirror "10 WVARA" --approve
 ```
 

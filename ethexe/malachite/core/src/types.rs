@@ -1,38 +1,23 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Core public types for [`crate::MalachiteService`].
+//! Core public types for [`crate::MalachiteCore`].
 
 use gear_core::limited::LimitedVec;
 pub use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-/// Hard cap on a block's encoded application payload — the SCALE-encoded
-/// application operation list carried in [`Block::payload`] (the service treats
-/// it as opaque bytes; the schema lives in the application crate).
-///
-/// The whole [`Block`] ships as a single gossipsub message: the proposer
-/// streams it as one `Data` proposal part, and the value-sync path fetches a
-/// finalized block in one request-response round. Malachite's `pubsub_max_size`
-/// (the gossipsub `max_transmit_size`) defaults to 4 MiB, so the encoded block
-/// must stay well under that. Realistic content is ~127 KiB
-/// (`MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB` plus three protocol operations); the
-/// 1 MiB cap leaves ~8x headroom for future operation variants while staying
-/// ~4x under the 4 MiB transport ceiling (block envelope + SCALE / stream
-/// framing fit comfortably in the remaining margin).
+/// Hard cap on a block's encoded application payload. The whole [`Block`]
+/// ships as a single gossipsub message, so the cap must stay well under
+/// malachite's 4 MiB transport ceiling.
 pub const MAX_BLOCK_PAYLOAD_BYTES: usize = 1024 * 1024;
 
 /// Size-capped opaque application payload carried by [`Block::payload`].
 pub type BlockPayload = LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>;
 
-/// 20-byte validator address.
-///
-/// Newtype around [`gsigner::schemes::secp256k1::Address`] so the
-/// service's API and the typical application code (ethexe today,
-/// arbitrary other consumers tomorrow) share a single address shape
-/// without each side reaching across crate boundaries for the inner
-/// representation.
+/// 20-byte validator address (newtype around
+/// [`gsigner::schemes::secp256k1::Address`]).
 #[derive(
     Debug,
     Clone,
@@ -69,18 +54,16 @@ impl Address {
 }
 
 /// Service-level block envelope: the application payload plus the
-/// chain-position fields the service needs (parent hash, height) and
-/// a [`Self::reserved`] tail kept for future protocol extensions.
-///
-/// The block hash ([`Self::hash`]) is the [`gear_core::utils::hash`]
-/// (Blake2b-256) over a SCALE-encoded
-/// `(parent_hash, height, payload_hash, reserved)` tuple, where
-/// `payload_hash = gear_core::utils::hash(payload.encode())`.
+/// chain-position fields the service needs.
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct Block {
+    /// Hash of the parent block (zero for genesis).
     pub parent_hash: H256,
+    /// Block height (parent height + 1).
     pub height: u64,
+    /// Opaque application payload.
     pub payload: BlockPayload,
+    /// Reserved tail for future protocol extensions; currently zeroed.
     pub reserved: [u8; 64],
 }
 
@@ -95,9 +78,8 @@ impl Block {
         }
     }
 
-    /// Compute the canonical 32-byte block hash. Deterministic — two
-    /// nodes with the same `(parent_hash, height, payload, reserved)`
-    /// produce the same hash.
+    /// Canonical block hash: Blake2b-256 over the SCALE-encoded
+    /// `(parent_hash, height, payload_hash, reserved)` tuple.
     pub fn hash(&self) -> H256 {
         let payload_bytes = self.payload.encode();
         let payload_hash: H256 = gear_core::utils::hash(&payload_bytes).into();
@@ -107,14 +89,12 @@ impl Block {
 }
 
 /// Quorum-signed certificate proving a height was finalized.
-///
-/// `signatures` is a parallel-to-validators vector of raw 64-byte
-/// secp256k1 signatures (`r || s`); the application is responsible
-/// for reconstructing the validator-set ordering when verifying it on
-/// chain (or wherever else).
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, Serialize, Deserialize)]
 pub struct CommitCertificate {
+    /// Finalized height.
     pub height: u64,
+    /// Hash of the finalized block.
     pub block_hash: H256,
+    /// Raw 64-byte secp256k1 signatures (`r || s`), in validator-set order.
     pub signatures: Vec<Vec<u8>>,
 }

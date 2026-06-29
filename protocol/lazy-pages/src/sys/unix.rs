@@ -22,7 +22,7 @@ use std::{io, sync::OnceLock};
 static OLD_SIG_HANDLER: OnceLock<SigHandler> = OnceLock::new();
 
 cfg_if! {
-    if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
+    if #[cfg(all(any(target_os = "linux", target_os = "android"), target_arch = "x86_64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             let error_reg = nix::libc::REG_ERR as usize;
             let error_code = unsafe { *ucontext }.uc_mcontext.gregs[error_reg];
@@ -30,9 +30,25 @@ cfg_if! {
             // See https://wiki.osdev.org/Exceptions#Page_Fault.
             Some(error_code & 0b10 == 0b10)
         }
-    } else if #[cfg(all(target_os = "linux", target_arch = "aarch64"))] {
+    } else if #[cfg(all(any(target_os = "linux", target_os = "android"), target_arch = "aarch64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
-            let esr = linux_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
+            /// TODO: remove once https://github.com/rust-lang/libc/pull/5189 lands in `libc-0.2`
+            /// `libc::ucontext_t` is bit different on Android, it has `__padding`:
+            /// - https://github.com/rust-lang/libc/issues/5159
+            /// - https://android.googlesource.com/platform/bionic/+/refs/tags/ndk-r29/libc/include/sys/ucontext.h#102
+            #[cfg(target_os = "android")]
+            #[repr(C)]
+            struct android_ucontext_t {
+                uc_flags: nix::libc::c_ulong,
+                uc_link: *mut nix::libc::ucontext_t,
+                uc_stack: nix::libc::stack_t,
+                uc_sigmask: nix::libc::sigset_t,
+                __padding: [u8; 128 - size_of::<nix::libc::sigset_t>()],
+                uc_mcontext: nix::libc::mcontext_t,
+            }
+            #[cfg(target_os = "android")]
+            let ucontext = ucontext as *mut android_ucontext_t;
+            let esr = unix_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
             // Use the WNR bit to determine if it was a write access.
             // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-?lang=en#fieldset_0-24_0_15-6_6
             let is_wnr = (esr & 0b100_0000) != 0;
@@ -254,8 +270,11 @@ unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void)
     }
 }
 
-#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-mod linux_aarch64 {
+#[cfg(all(
+    any(target_os = "linux", target_os = "android"),
+    target_arch = "aarch64"
+))]
+mod unix_aarch64 {
     use std::{ptr, slice};
 
     const ESR_MAGIC: u32 = u32::from_be_bytes(*b"ESR\x01");
@@ -269,7 +288,7 @@ mod linux_aarch64 {
 
     /// Scan through the 4 KiB __reserved buffer looking for an `esr_context` record.
     /// Returns `Some(esr)` if we find a record whose magic == ESR_MAGIC, else `None`.
-    /// See: https://github.com/torvalds/linux/blob/7f9039c524a351c684149ecf1b3c5145a0dff2fe/arch/arm64/include/uapi/asm/sigcontext.h#L40
+    /// See: https://github.com/torvalds/linux/blob/v7.0/arch/arm64/include/uapi/asm/sigcontext.h#L40
     pub fn get_esr(mcontext: &nix::libc::mcontext_t) -> Option<usize> {
         // SAFETY: See `mcontext_t` definition:
         // ```C

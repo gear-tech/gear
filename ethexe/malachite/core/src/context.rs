@@ -218,7 +218,7 @@ impl malachitebft_core_types::ValidatorSet<MalachiteCtx> for ValidatorSet {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Vote {
-    pub typ: VoteType,
+    pub vote_type: VoteType,
     pub height: Height,
     pub round: Round,
     pub value: NilOrVal<ValueId>,
@@ -231,7 +231,7 @@ pub struct Vote {
 
 impl Encode for Vote {
     fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        encode_vote_type_to(self.typ, dest);
+        encode_vote_type_to(self.vote_type, dest);
         self.height.as_u64().encode_to(dest);
         encode_round_to(self.round, dest);
         encode_nil_or_val_value_id_to(&self.value, dest);
@@ -241,13 +241,13 @@ impl Encode for Vote {
 
 impl Decode for Vote {
     fn decode<I: Input>(input: &mut I) -> Result<Self, CodecError> {
-        let typ = decode_vote_type(input)?;
+        let vote_type = decode_vote_type(input)?;
         let height = Height::new(u64::decode(input)?);
         let round = decode_round(input)?;
         let value = decode_nil_or_val_value_id(input)?;
         let validator_address = decode_address(input)?;
         Ok(Self {
-            typ,
+            vote_type,
             height,
             round,
             value,
@@ -265,7 +265,7 @@ impl Vote {
         validator_address: Address,
     ) -> Self {
         Self {
-            typ: VoteType::Prevote,
+            vote_type: VoteType::Prevote,
             height,
             round,
             value,
@@ -281,7 +281,7 @@ impl Vote {
         validator_address: Address,
     ) -> Self {
         Self {
-            typ: VoteType::Precommit,
+            vote_type: VoteType::Precommit,
             height,
             round,
             value,
@@ -317,7 +317,7 @@ impl malachitebft_core_types::Vote<MalachiteCtx> for Vote {
     }
 
     fn vote_type(&self) -> VoteType {
-        self.typ
+        self.vote_type
     }
 
     fn validator_address(&self) -> &Address {

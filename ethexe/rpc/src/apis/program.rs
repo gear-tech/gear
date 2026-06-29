@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 #[cfg(feature = "server")]
-use crate::{errors, utils};
+use crate::{
+    apis::program_best_state::{BestStateManager, spawn_best_state_subscriber},
+    errors, utils,
+};
 use ethexe_common::gear::Message;
 #[cfg(feature = "server")]
 use ethexe_common::{
@@ -14,15 +17,18 @@ use ethexe_db::Database;
 #[cfg(feature = "server")]
 use ethexe_processor::{ExecutableDataForReply, OverlaidProcessor};
 use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Waitlist,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, UserMailbox, Waitlist,
 };
 #[cfg(feature = "server")]
 use ethexe_runtime_common::state::{QueryableStorage, Storage};
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};
-#[cfg(feature = "server")]
-use jsonrpsee::core::async_trait;
 use jsonrpsee::proc_macros::rpc;
+#[cfg(feature = "server")]
+use jsonrpsee::{
+    core::{SubscriptionResult, async_trait},
+    server::PendingSubscriptionSink,
+};
 #[cfg(feature = "server")]
 use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
@@ -46,6 +52,13 @@ pub struct CalculateReplyForHandleResult {
     pub messages: Vec<Message>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgramBestState {
+    pub mb_hash: H256,
+    pub new_state_hash: H256,
+    pub messages: Vec<Message>,
+}
+
 #[cfg_attr(all(feature = "server", feature = "client"), rpc(server, client))]
 #[cfg_attr(all(feature = "server", not(feature = "client")), rpc(server))]
 #[cfg_attr(all(not(feature = "server"), feature = "client"), rpc(client))]
@@ -58,6 +71,7 @@ pub trait Program {
         program_id: H160,
         payload: Bytes,
         value: u128,
+        top_up: Option<u128>,
     ) -> jsonrpsee::core::RpcResult<CalculateReplyForHandleResult>;
 
     #[method(name = "program_ids")]
@@ -81,6 +95,9 @@ pub trait Program {
     #[method(name = "program_readMailbox")]
     async fn read_mailbox(&self, hash: H256) -> jsonrpsee::core::RpcResult<Mailbox>;
 
+    #[method(name = "program_readUserMailbox")]
+    async fn read_user_mailbox(&self, hash: H256) -> jsonrpsee::core::RpcResult<UserMailbox>;
+
     #[method(name = "program_readFullState")]
     async fn read_full_state(&self, hash: H256) -> jsonrpsee::core::RpcResult<FullProgramState>;
 
@@ -89,6 +106,14 @@ pub trait Program {
 
     #[method(name = "program_readPageData")]
     async fn read_page_data(&self, hash: H256) -> jsonrpsee::core::RpcResult<Bytes>;
+
+    /// Subscribes to the program's best state, emitted on every newly computed MB.
+    #[subscription(
+        name = "program_subscribeBestState",
+        unsubscribe = "program_unsubscribeBestState",
+        item = ProgramBestState
+    )]
+    async fn subscribe_best_state(&self, program_id: H160) -> jsonrpsee::core::SubscriptionResult;
 }
 
 #[cfg(feature = "server")]
@@ -96,16 +121,24 @@ pub struct ProgramApi {
     db: Database,
     processor: OverlaidProcessor,
     gas_allowance: u64,
+    best_state: BestStateManager,
 }
 
 #[cfg(feature = "server")]
 impl ProgramApi {
     pub fn new(db: Database, processor: OverlaidProcessor, gas_allowance: u64) -> Self {
+        let best_state = BestStateManager::new(db.clone());
         Self {
             db,
             processor,
             gas_allowance,
+            best_state,
         }
+    }
+
+    /// Cloneable handle used by the service to push computed MBs into subscriptions.
+    pub fn best_state(&self) -> BestStateManager {
+        self.best_state.clone()
     }
 
     fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
@@ -123,6 +156,10 @@ impl ProgramApi {
     fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
         self.db.mailbox(unsafe { HashOf::new(hash) })
     }
+
+    fn read_user_mailbox(&self, hash: H256) -> Option<UserMailbox> {
+        self.db.user_mailbox(unsafe { HashOf::new(hash) })
+    }
 }
 
 #[cfg(feature = "server")]
@@ -135,6 +172,7 @@ impl ProgramServer for ProgramApi {
         program_id: H160,
         payload: Bytes,
         value: u128,
+        top_up: Option<u128>,
     ) -> jsonrpsee::core::RpcResult<CalculateReplyForHandleResult> {
         let mb_hash = utils::latest_computed_mb(&self.db)?;
         let block = utils::block_at_or_latest_synced(&self.db, None)?;
@@ -158,7 +196,7 @@ impl ProgramServer for ProgramApi {
 
         self.processor
             .clone()
-            .execute_for_reply(executable)
+            .execute_for_reply(executable, top_up)
             .await
             .map(|outcome| CalculateReplyForHandleResult {
                 reply: outcome.reply,
@@ -212,6 +250,11 @@ impl ProgramServer for ProgramApi {
             .ok_or_else(|| errors::db("Failed to read mailbox by hash"))
     }
 
+    async fn read_user_mailbox(&self, hash: H256) -> jsonrpsee::core::RpcResult<UserMailbox> {
+        self.read_user_mailbox(hash)
+            .ok_or_else(|| errors::db("Failed to read user mailbox by hash"))
+    }
+
     async fn read_full_state(&self, hash: H256) -> jsonrpsee::core::RpcResult<FullProgramState> {
         let Some(ProgramState {
             program,
@@ -256,5 +299,15 @@ impl ProgramServer for ProgramApi {
             .page_data(unsafe { HashOf::new(hash) })
             .map(|buf| buf.encode().into())
             .ok_or_else(|| errors::db("Failed to read page data by hash"))
+    }
+
+    async fn subscribe_best_state(
+        &self,
+        pending: PendingSubscriptionSink,
+        program_id: H160,
+    ) -> SubscriptionResult {
+        let sink = pending.accept().await?;
+        spawn_best_state_subscriber(sink, self.best_state(), program_id);
+        Ok(())
     }
 }

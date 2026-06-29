@@ -85,7 +85,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     let genesis_eb = SimpleBlockData {
         hash: genesis.hash,
         header: BlockHeader {
-            // genesis block header is not important in any way for ethexe
+            // IMPORTANT: set parent to zero is protocol invariant
             parent_hash: H256::zero(),
             height: genesis.number,
             timestamp: genesis.timestamp,
@@ -278,9 +278,7 @@ async fn genesis_data_initialization(
         );
     }
 
-    let schedule =
-        ScheduleRestorer::from_storage(&db.cas, &program_states, genesis_eb.header.height)?
-            .restore();
+    let schedule = ScheduleRestorer::from_storage(&db.cas, &program_states)?.restore();
     log::info!(
         "Genesis schedule restored, tasks amount {}",
         schedule.iter().flat_map(|(_, tasks)| tasks.iter()).count()

@@ -23,4 +23,3 @@ utils/**/fuzz/fuzz/*
 fuzz_run
 lazy_pages_fuzz_run
 seed.bin
-

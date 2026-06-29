@@ -2,26 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 //! secp256k1 / ECDSA signing primitives plus the libp2p identity
-//! derivation that the Malachite swarm uses.
+//! derivation for the Malachite swarm.
 //!
-//! The node's master secret enters the service via
-//! [`crate::MalachiteConfig::validator_secret`] (a
-//! `gsigner::secp256k1::PrivateKey`). The 32 raw bytes drive two
-//! separate identities:
-//!
-//! - the consensus signer ([`MalachiteSigner`]) — signs Malachite
-//!   votes / proposals / `Fin` parts;
-//! - a domain-separated libp2p keypair — independent peer-id so a
-//!   process running another libp2p swarm under the same key doesn't
-//!   collide.
-//!
-//! Address derivation is the standard
-//! `keccak256(uncompressed_pubkey[1..])[12..]` flow. The 20-byte
-//! address sits inside [`crate::Address`] as a gsigner newtype.
-//!
-//! The malachite-side `SigningProvider<MalachiteCtx>` impl for
-//! [`MalachiteSigner`] lives in [`crate::context`] alongside the
-//! `Context` type it parametrises.
+//! [`crate::MalachiteCoreConfig::validator_secret`] drives two identities:
+//! the consensus signer ([`MalachiteSigner`]) and a domain-separated
+//! libp2p keypair.
 
 use anyhow::{Context as _, Result};
 use libp2p_identity::{Keypair, PeerId};
@@ -38,10 +23,8 @@ pub type PublicKey = malachitebft_signing_ecdsa::PublicKey<K256Config>;
 /// Concrete ECDSA signature on the k256 curve.
 pub type Signature = malachitebft_signing_ecdsa::Signature<K256Config>;
 
-/// Local signing helper, the consensus side of the validator
-/// identity. Owns the private key for the lifetime of the service
-/// and exposes the small set of operations the malachite layer
-/// needs.
+/// Consensus-side signer of the validator identity; owns the private key
+/// for the lifetime of the service.
 #[derive(Debug)]
 pub struct MalachiteSigner {
     private_key: PrivateKey,
@@ -79,8 +62,7 @@ impl MalachiteSigner {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Pack a [`Signature`] into a `Vec<u8>` (raw `r || s` for the
-/// k256 curve, 64 bytes). Helper used by the SCALE codec layer.
+/// Pack a [`Signature`] into raw `r || s` bytes (64 bytes).
 pub fn signature_to_vec(s: &Signature) -> Vec<u8> {
     s.to_vec()
 }
@@ -90,28 +72,21 @@ pub fn signature_from_vec(bytes: &[u8]) -> Result<Signature> {
     Signature::from_slice(bytes).map_err(|e| anyhow::anyhow!("decoding signature from bytes: {e}"))
 }
 
-/// Construct an ECDSA private key from a raw 32-byte secret. Returns
-/// an error if the bytes are not a valid k256 scalar (zero or ≥ curve
-/// order); for randomly drawn secrets this is overwhelmingly unlikely
-/// (≈ 2^-128) but real input may come from anywhere.
+/// Construct an ECDSA private key from a raw 32-byte secret.
+/// Errors if the bytes are not a valid k256 scalar.
 pub fn private_key_from_bytes(secret: &[u8; 32]) -> Result<PrivateKey> {
     PrivateKey::from_slice(secret)
         .map_err(|e| anyhow::anyhow!("constructing ECDSA private key: {e}"))
 }
 
-/// Convert a `gsigner` secp256k1 [`PrivateKey`] into the malachite-
-/// side [`PrivateKey`]. Both are k256-backed, so this is a
-/// bytes-roundtrip.
+/// Convert a `gsigner` secp256k1 private key into the malachite-side one.
 pub fn private_key_from_gsigner(
     pk: &gsigner::schemes::secp256k1::PrivateKey,
 ) -> Result<PrivateKey> {
     private_key_from_bytes(&pk.to_bytes())
 }
 
-/// Convert a `gsigner` secp256k1 [`PublicKey`] into the malachite-
-/// side [`PublicKey`]. Both are k256-backed; gsigner stores the
-/// 33-byte SEC1 compressed form, which malachite accepts via
-/// `from_sec1_bytes`.
+/// Convert a `gsigner` secp256k1 public key into the malachite-side one.
 pub fn public_key_from_gsigner(pk: &gsigner::schemes::secp256k1::PublicKey) -> Result<PublicKey> {
     let bytes = pk.to_bytes();
     PublicKey::from_sec1_bytes(&bytes)
@@ -133,11 +108,8 @@ pub fn address_bytes_from_public_key(pk: &PublicKey) -> [u8; 20] {
     out
 }
 
-/// Derive the libp2p secp256k1 secret used by the Malachite swarm
-/// from the validator's master secret. Domain-separated so two
-/// libp2p swarms under the same validator key (e.g. an application
-/// network on QUIC plus the malachite TCP transport) don't collide
-/// peer-ids.
+/// Derive the Malachite swarm's libp2p secret from the validator's master
+/// secret; domain-separated so swarms under the same key don't collide.
 pub fn derive_libp2p_secret(validator_secret: &[u8; 32]) -> [u8; 32] {
     const DOMAIN: &[u8] = b"mala-svc-libp2p:v1:";
     let mut h = Keccak256::new();
@@ -159,11 +131,8 @@ pub fn libp2p_keypair_from(validator_secret: &[u8; 32]) -> Keypair {
     Keypair::from(inner)
 }
 
-/// Compute the libp2p [`PeerId`] of the Malachite swarm associated
-/// with `validator_secret` without spinning up the engine. Useful for
-/// offline tooling: operators preparing `--persistent-peer` multiaddrs
-/// can compute the `/p2p/<peer_id>` suffix from each validator's
-/// keystore without booting the node.
+/// Compute the Malachite swarm's libp2p [`PeerId`] offline — lets
+/// operators build `/p2p/<peer_id>` suffixes without booting a node.
 pub fn libp2p_peer_id(validator_secret: &[u8; 32]) -> PeerId {
     libp2p_keypair_from(validator_secret).public().to_peer_id()
 }

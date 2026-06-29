@@ -94,7 +94,9 @@ pub use journal::{
     RuntimeQueueReport, WAIT_UP_TO_SAFE_DURATION,
 };
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
-pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
+pub use transitions::{
+    FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition, TransitionsConfig,
+};
 
 #[cfg(any(test, feature = "mock"))]
 pub mod proptest;

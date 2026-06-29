@@ -33,18 +33,19 @@
 //! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
 //! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
 
+pub use crate::apis::RPC_VERSION;
 #[cfg(feature = "client")]
 pub use crate::apis::{
     BlockClient, CalculateReplyForHandleResult, CodeClient, DevClient, FullProgramState,
-    InjectedClient, ProgramClient,
+    InfoClient, InjectedClient, ProgramBestState, ProgramClient,
 };
 
 #[cfg(feature = "server")]
 use anyhow::Result;
 #[cfg(feature = "server")]
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InjectedApi, InjectedServer,
-    ProgramApi, ProgramServer,
+    BestStateManager, BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InfoApi,
+    InfoServer, InjectedApi, InjectedServer, ProgramApi, ProgramServer,
 };
 #[cfg(feature = "server")]
 use ethexe_common::injected::{
@@ -56,6 +57,8 @@ use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
 #[cfg(feature = "server")]
 use futures::{Stream, stream::FusedStream};
+#[cfg(feature = "server")]
+use gprimitives::H256;
 #[cfg(feature = "server")]
 use hyper::header::HeaderValue;
 #[cfg(feature = "server")]
@@ -84,6 +87,8 @@ mod metrics;
 #[cfg(feature = "server")]
 mod utils;
 
+#[cfg(test)]
+mod test_utils;
 #[cfg(all(test, feature = "client"))]
 mod tests;
 
@@ -147,15 +152,19 @@ impl RpcServer {
         )?
         .overlaid();
 
+        let program = ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance);
+        let best_state = program.best_state();
+
         let server_apis = RpcServerApis {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
-            program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
+            program,
             injected: InjectedApi::new(self.db.clone(), rpc_sender),
             dev: self
                 .config
                 .with_dev_api
                 .then(|| DevApi::new(self.db.clone())),
+            info: InfoApi,
         };
         let injected_api = server_apis.injected.clone();
 
@@ -169,7 +178,10 @@ impl RpcServer {
             .await?
             .start(server_apis.into_module());
 
-        Ok((server_handle, RpcService::new(rpc_receiver, injected_api)))
+        Ok((
+            server_handle,
+            RpcService::new(rpc_receiver, injected_api, best_state),
+        ))
     }
 
     fn cors_layer(&self) -> Result<CorsLayer> {
@@ -192,14 +204,21 @@ pub struct RpcService {
     receiver: mpsc::UnboundedReceiver<RpcEvent>,
     /// Injected API implementation.
     injected_api: InjectedApi,
+    /// Best-state fan-out shared with the program API subscriptions.
+    best_state: BestStateManager,
 }
 
 #[cfg(feature = "server")]
 impl RpcService {
-    pub fn new(receiver: mpsc::UnboundedReceiver<RpcEvent>, injected_api: InjectedApi) -> Self {
+    pub fn new(
+        receiver: mpsc::UnboundedReceiver<RpcEvent>,
+        injected_api: InjectedApi,
+        best_state: BestStateManager,
+    ) -> Self {
         Self {
             receiver,
             injected_api,
+            best_state,
         }
     }
 
@@ -209,6 +228,10 @@ impl RpcService {
 
     pub fn receive_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
         self.injected_api.on_tx_receipt(receipt);
+    }
+
+    pub fn receive_mb_computed(&self, mb_hash: H256) {
+        self.best_state.notify(mb_hash);
     }
 }
 
@@ -235,6 +258,7 @@ struct RpcServerApis {
     pub injected: InjectedApi,
     pub program: ProgramApi,
     pub dev: Option<DevApi>,
+    pub info: InfoApi,
 }
 
 #[cfg(feature = "server")]
@@ -259,6 +283,9 @@ impl RpcServerApis {
                 .merge(DevServer::into_rpc(dev))
                 .expect("No conflicts");
         }
+        module
+            .merge(InfoServer::into_rpc(self.info))
+            .expect("No conflicts");
 
         module
     }

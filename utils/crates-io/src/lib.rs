@@ -44,6 +44,20 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
     "gbuiltin-bls381",
 ];
 
+/// Local Polkadot SDK-compatible crates that Gear publishes under `g*` aliases.
+///
+/// NOTE: Each package in this array could possibly depend on the previous one,
+/// please be cautious about changing the order.
+pub const GEAR_SUBSTRATE_DEPENDENCIES: &[&str] = &[
+    "sp-wasm-interface-common",
+    "sp-allocator",
+    "sp-wasm-interface",
+    "sc-executor-common",
+    "sc-executor-polkavm",
+    "sc-executor-wasmtime",
+    "substrate-wasm-builder",
+];
+
 /// Required packages with local dependencies.
 ///
 /// NOTE: Each package in this array could possibly depend

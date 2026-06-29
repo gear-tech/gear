@@ -81,10 +81,11 @@
 //! [`OverlaidProcessor`] wraps a [`Processor`] whose database is swapped
 //! for an overlaid, copy-on-write view. Mutations are kept in memory and
 //! discarded when the overlay is dropped, so the underlying state is
-//! never touched. [`OverlaidProcessor::execute_for_reply`] synthesizes a
-//! single [`MessageQueueingRequestedEvent`] into the target program's
-//! canonical queue and runs against this overlay with the following
-//! simulation semantics:
+//! never touched. [`OverlaidProcessor::execute_for_reply`] synthesizes
+//! overlay-only events into the target program's canonical queue — an
+//! optional [`ExecutableBalanceTopUpRequestedEvent`] followed by a
+//! [`MessageQueueingRequestedEvent`] — and runs against this overlay with
+//! the following simulation semantics:
 //!
 //! - the target program's canonical queue is trimmed to only the
 //!   synthetic dispatch, so the simulation starts from a clean slate
@@ -145,16 +146,19 @@ pub use promise::BoundPromiseSink;
 
 use core::num::NonZero;
 use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, Schedule,
+    CodeAndIdUnchecked, MAILBOX_VALIDITY_VERSION_2, ProgramStates, Schedule,
     ecdsa::VerifiedData,
-    events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
+    events::{
+        BlockRequestEvent, MirrorRequestEvent,
+        mirror::{ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent},
+    },
     gear::Message,
     injected::InjectedTransaction,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
     FinalizedBlockTransitions, InBlockTransitions, ScheduleHandler, TransitionController,
-    state::Storage,
+    TransitionsConfig, state::Storage,
 };
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
@@ -316,9 +320,17 @@ impl Processor {
             injected_transactions,
             gas_allowance,
             events,
+            mailbox_validity,
+            event_destinations_autoreply,
         } = executable;
 
-        let mut transitions = InBlockTransitions::new(height, program_states, schedule);
+        let cfg = TransitionsConfig {
+            block_height: height,
+            mailbox_validity,
+            event_destinations_autoreply,
+        };
+
+        let mut transitions = InBlockTransitions::new(cfg, program_states, schedule);
 
         // First step: push injected to queues and handle block events.
         transitions =
@@ -389,7 +401,7 @@ impl Processor {
 
     fn process_tasks(&mut self, mut transitions: InBlockTransitions) -> InBlockTransitions {
         let tasks = transitions.take_actual_tasks();
-        let block_height = transitions.block_height();
+        let block_height = transitions.cfg().block_height;
 
         log::trace!("Running schedule for #{block_height}: tasks are {tasks:?}");
 
@@ -435,6 +447,8 @@ pub struct ExecutableData {
     pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
     pub gas_allowance: Option<u64>,
     pub events: Vec<BlockRequestEvent>,
+    pub mailbox_validity: NonZero<u32>,
+    pub event_destinations_autoreply: bool,
 }
 
 #[cfg(test)]
@@ -448,6 +462,8 @@ impl Default for ExecutableData {
             injected_transactions: vec![],
             gas_allowance: Some(ethexe_common::DEFAULT_BLOCK_GAS_LIMIT),
             events: vec![],
+            mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+            event_destinations_autoreply: false,
         }
     }
 }
@@ -482,8 +498,9 @@ impl OverlaidProcessor {
     pub async fn execute_for_reply(
         &mut self,
         executable: ExecutableDataForReply,
+        top_up: Option<u128>,
     ) -> Result<ExecuteForReplyOutcome, ExecuteForReplyError> {
-        log::debug!("{executable}");
+        log::debug!("{executable}, top_up: {top_up:?}");
 
         let ExecutableDataForReply {
             height,
@@ -513,24 +530,40 @@ impl OverlaidProcessor {
             return Err(ExecuteForReplyError::ProgramNotInitialized(program_id));
         }
 
-        let transitions = InBlockTransitions::new(height, program_states, Schedule::default());
+        let cfg = TransitionsConfig {
+            block_height: height,
+            mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+            event_destinations_autoreply: false,
+        };
 
-        let transitions = self.0.handle_injected_and_events(
-            transitions,
-            vec![],
-            vec![BlockRequestEvent::Mirror {
+        let transitions = InBlockTransitions::new(cfg, program_states, Schedule::default());
+
+        let top_up_value = top_up.filter(|&value| value > 0);
+        let mut events = Vec::with_capacity(if top_up_value.is_some() { 2 } else { 1 });
+
+        if let Some(value) = top_up_value {
+            events.push(BlockRequestEvent::Mirror {
                 actor_id: program_id,
-                event: MirrorRequestEvent::MessageQueueingRequested(
-                    MessageQueueingRequestedEvent {
-                        id: MessageId::zero(),
-                        source,
-                        payload: payload.clone(),
-                        value,
-                        call_reply: true,
-                    },
+                event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                    ExecutableBalanceTopUpRequestedEvent { value },
                 ),
-            }],
-        )?;
+            });
+        }
+
+        events.push(BlockRequestEvent::Mirror {
+            actor_id: program_id,
+            event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::zero(),
+                source,
+                payload: payload.clone(),
+                value,
+                call_reply: true,
+            }),
+        });
+
+        let transitions = self
+            .0
+            .handle_injected_and_events(transitions, vec![], events)?;
 
         let transitions = OverlaidRunContext::new(
             self.0.db.clone(),

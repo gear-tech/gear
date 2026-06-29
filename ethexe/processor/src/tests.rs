@@ -4,8 +4,9 @@
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
-    PrivateKey, ScheduledTask, SignedMessage,
+    DEFAULT_BLOCK_GAS_LIMIT, MAILBOX_VALIDITY_VERSION_2, OUTGOING_MESSAGES_SOFT_LIMIT,
+    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PrivateKey, ScheduledTask, SignedMessage,
+    StateHashWithQueueSize,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
@@ -16,7 +17,8 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_runtime_common::{
-    CODES_INSTRUMENTATION_VERSION, RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue,
+    CODES_INSTRUMENTATION_VERSION, RUNTIME_ID, TransitionsConfig, WAIT_UP_TO_SAFE_DURATION,
+    state::MessageQueue,
 };
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
@@ -104,7 +106,11 @@ mod utils {
     }
 
     pub fn setup_handler(db: Database, height: u32) -> ProcessingHandler {
-        let transitions = InBlockTransitions::new(height, Default::default(), Default::default());
+        let cfg = TransitionsConfig {
+            block_height: height,
+            ..Default::default()
+        };
+        let transitions = InBlockTransitions::new(cfg, Default::default(), Default::default());
 
         ProcessingHandler::new(db, transitions)
     }
@@ -1000,7 +1006,7 @@ async fn many_waits() {
     // Hack: change block height to wake up tasks.
     let transitions = handler
         .transitions
-        .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
+        .tap_mut(|ts| ts.cfg_mut().block_height = wake_block.header.height);
     let mut transitions = processor.process_tasks(transitions);
     // Hack: nullify modifications to avoid modifications limit.
     transitions.modifications_mut().clear();
@@ -1153,7 +1159,7 @@ async fn cross_height_wake_drain() {
     // `process_tasks` must still drain the wakes despite the height gap.
     let transitions = handler
         .transitions
-        .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
+        .tap_mut(|ts| ts.cfg_mut().block_height = wake_block.header.height);
     let mut transitions = processor.process_tasks(transitions);
     transitions.modifications_mut().clear();
     let transitions = processor
@@ -1298,9 +1304,13 @@ async fn overlay_execution() {
     // programs already have some state.
 
     let block2 = chain.blocks[2].to_simple();
+    let cfg = TransitionsConfig {
+        block_height: block2.header.height,
+        ..Default::default()
+    };
     let mut handler = ProcessingHandler::new(
         processor.db.clone(),
-        InBlockTransitions::new(block2.header.height, states, schedule),
+        InBlockTransitions::new(cfg, states, schedule),
     );
 
     // Manually add messages to programs queues
@@ -1422,7 +1432,7 @@ async fn overlay_execution() {
         gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
     };
     let reply_result = overlaid_processor
-        .execute_for_reply(executable)
+        .execute_for_reply(executable, None)
         .await
         .unwrap();
     assert_eq!(reply_result.reply.payload, MessageId::zero().encode());
@@ -1504,16 +1514,19 @@ async fn overlay_execution_returns_messages_sent_to_users() {
     let block2 = chain.blocks[2].to_simple();
     let mut overlaid_processor = processor.clone().overlaid();
     let reply_result = overlaid_processor
-        .execute_for_reply(ExecutableDataForReply {
-            height: block2.header.height,
-            timestamp: block2.header.timestamp,
-            program_states: states,
-            source: user_id,
-            program_id: actor_id,
-            payload: b"PING".to_vec(),
-            value: 0,
-            gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-        })
+        .execute_for_reply(
+            ExecutableDataForReply {
+                height: block2.header.height,
+                timestamp: block2.header.timestamp,
+                program_states: states,
+                source: user_id,
+                program_id: actor_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+            },
+            None,
+        )
         .await
         .unwrap();
 
@@ -1524,6 +1537,121 @@ async fn overlay_execution_returns_messages_sent_to_users() {
     assert_eq!(message.destination, user_id);
     assert_eq!(message.payload, b"USER");
     assert!(message.reply_details.is_none());
+}
+
+#[tokio::test]
+async fn overlay_execution_with_top_up_works_for_depleted_programs() {
+    init_logger();
+
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
+    let block1 = chain.blocks[1].to_simple();
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: user_id,
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue init");
+
+    let transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .expect("failed to initialize program");
+    processor.db.set_program_code_id(actor_id, code_id);
+    let FinalizedBlockTransitions { states, .. } = transitions.finalize();
+
+    let original_state = states
+        .get(&actor_id)
+        .copied()
+        .expect("initialized program state");
+    let mut depleted_program_state = processor
+        .db
+        .program_state(original_state.hash)
+        .expect("program state in database");
+    depleted_program_state.executable_balance = 0;
+    let depleted_hash = processor.db.write_program_state(depleted_program_state);
+    let mut depleted_states = states.clone();
+    depleted_states.insert(
+        actor_id,
+        StateHashWithQueueSize {
+            hash: depleted_hash,
+            canonical_queue_size: original_state.canonical_queue_size,
+            injected_queue_size: original_state.injected_queue_size,
+        },
+    );
+
+    let block2 = chain.blocks[2].to_simple();
+    let executable = ExecutableDataForReply {
+        height: block2.header.height,
+        timestamp: block2.header.timestamp,
+        program_states: depleted_states.clone(),
+        source: user_id,
+        program_id: actor_id,
+        payload: b"PING".to_vec(),
+        value: 0,
+        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+    };
+    let reply_without_top_up = processor
+        .clone()
+        .overlaid()
+        .execute_for_reply(executable, None)
+        .await
+        .expect("overlay execution without top-up returns an error reply");
+    assert!(reply_without_top_up.reply.code.is_error());
+
+    let reply_with_top_up = processor
+        .clone()
+        .overlaid()
+        .execute_for_reply(
+            ExecutableDataForReply {
+                height: block2.header.height,
+                timestamp: block2.header.timestamp,
+                program_states: depleted_states,
+                source: user_id,
+                program_id: actor_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+            },
+            Some(350_000_000_000),
+        )
+        .await
+        .expect("overlay execution with top-up succeeds");
+
+    assert_eq!(reply_with_top_up.reply.payload, b"PONG");
+    assert!(reply_with_top_up.reply.code.is_success());
 }
 
 #[tokio::test]
@@ -2284,6 +2412,8 @@ async fn injected_and_events_then_tasks_then_queues() {
         injected_transactions: vec![verified_injected],
         events: canonical_event,
         gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+        mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
+        event_destinations_autoreply: false,
     };
     let FinalizedBlockTransitions { transitions, .. } = processor
         .process_programs(executable, Some(promise_sink))
@@ -2397,7 +2527,7 @@ async fn call_wait_up_to_with_huge_duration() {
     // Huge duration
     let wat = get_wat(0xFFFFFFFF);
     let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
-    let block_height = transitions.block_height();
+    let block_height = transitions.cfg().block_height;
     let FinalizedBlockTransitions { schedule, .. } = transitions.finalize();
     let (block, tasks) = schedule.into_iter().next().unwrap();
     assert_eq!(
@@ -2412,7 +2542,7 @@ async fn call_wait_up_to_with_huge_duration() {
     let duration = WAIT_UP_TO_SAFE_DURATION + 20;
     let wat = get_wat(duration);
     let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
-    let block_height = transitions.block_height();
+    let block_height = transitions.cfg().block_height;
     let FinalizedBlockTransitions { schedule, .. } = transitions.finalize();
     let (block, tasks) = schedule.into_iter().next().unwrap();
     assert_eq!(

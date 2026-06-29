@@ -548,7 +548,14 @@ where
         // MB is not obligated to be computed; once it is, all per-MB
         // post-execution rows must exist.
         if computed {
-            try_push_node!(with_hash: self.mb_schedule(mb_hash));
+            // TODO: #5585 temporary allow schedules undefined for computed mb —
+            // `Database::cleanup` prunes schedules deeper than the safe depth.
+            if let Some(mb_schedule) = self.storage.mb_schedule(mb_hash) {
+                self.push_node(MbScheduleNode {
+                    mb_hash,
+                    mb_schedule,
+                });
+            }
             try_push_node!(with_hash: self.mb_outcome(mb_hash));
             try_push_node!(with_hash: self.mb_program_states(mb_hash));
         }

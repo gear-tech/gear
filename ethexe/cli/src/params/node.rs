@@ -95,7 +95,7 @@ pub struct NodeParams {
     #[serde(rename = "canonical-quarantine")]
     pub canonical_quarantine: Option<u8>,
 
-    /// See `MalachiteConfig::post_quarantine_delay`. Default 1.
+    /// See `MalachiteServiceConfig::post_quarantine_delay`. Default 1.
     #[arg(long)]
     #[serde(rename = "post-quarantine-delay")]
     pub post_quarantine_delay: Option<u32>,
@@ -131,6 +131,12 @@ pub struct NodeParams {
     #[arg(long)]
     #[serde(default, rename = "genesis-state-dump")]
     pub genesis_state_dump: Option<PathBuf>,
+
+    /// Prune old MB schedules on startup, right after the database is
+    /// opened. Temporary hot fix knob (#5585).
+    #[arg(long)]
+    #[serde(default, rename = "db-cleanup")]
+    pub db_cleanup: bool,
 }
 
 impl NodeParams {
@@ -155,6 +161,7 @@ impl NodeParams {
         Ok(NodeConfig {
             database_path: self.db_dir(),
             key_path: self.keys_dir(),
+            net_path: self.net_dir(),
             validator: ConfigPublicKey::new(&self.validator)
                 .with_context(|| "invalid `validator` key")?,
             validator_session: ConfigPublicKey::new(&self.validator_session)
@@ -177,7 +184,7 @@ impl NodeParams {
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             post_quarantine_delay: self
                 .post_quarantine_delay
-                .unwrap_or(ethexe_malachite::MalachiteConfig::DEFAULT_POST_QUARANTINE_DELAY),
+                .unwrap_or(ethexe_malachite::MalachiteServiceConfig::DEFAULT_POST_QUARANTINE_DELAY),
             dev: self.dev,
             pre_funded_accounts: self
                 .pre_funded_accounts
@@ -195,6 +202,7 @@ impl NodeParams {
                 .commitment_delay_limit
                 .unwrap_or(ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT),
             genesis_state_dump: self.genesis_state_dump,
+            db_cleanup: self.db_cleanup,
         })
     }
 
@@ -286,6 +294,8 @@ impl MergeParams for NodeParams {
             commitment_delay_limit: self.commitment_delay_limit.or(with.commitment_delay_limit),
 
             genesis_state_dump: self.genesis_state_dump.or(with.genesis_state_dump),
+
+            db_cleanup: self.db_cleanup || with.db_cleanup,
         }
     }
 }

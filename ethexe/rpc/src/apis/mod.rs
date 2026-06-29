@@ -4,16 +4,20 @@
 mod block;
 mod code;
 mod dev;
+mod info;
 mod injected;
 mod program;
+#[cfg(feature = "server")]
+mod program_best_state;
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
     block::BlockClient,
     code::CodeClient,
     dev::DevClient,
+    info::{InfoClient, RPC_VERSION},
     injected::InjectedClient,
-    program::{CalculateReplyForHandleResult, FullProgramState, ProgramClient},
+    program::{CalculateReplyForHandleResult, FullProgramState, ProgramBestState, ProgramClient},
 };
 #[cfg(feature = "server")]
 pub use block::{BlockApi, BlockServer};
@@ -22,6 +26,10 @@ pub use code::{CodeApi, CodeServer};
 #[cfg(feature = "server")]
 pub use dev::{DevApi, DevServer};
 #[cfg(feature = "server")]
+pub use info::{InfoApi, InfoServer};
+#[cfg(feature = "server")]
 pub use injected::{InjectedApi, InjectedServer};
 #[cfg(feature = "server")]
 pub use program::{ProgramApi, ProgramServer};
+#[cfg(feature = "server")]
+pub use program_best_state::BestStateManager;

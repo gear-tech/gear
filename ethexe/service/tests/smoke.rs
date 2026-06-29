@@ -31,6 +31,7 @@ async fn constructor() {
     let node_cfg = config::NodeConfig {
         database_path: tmp_dir.join("db"),
         key_path,
+        net_path: tmp_dir.join("net"),
         validator: Default::default(),
         validator_session: Default::default(),
         eth_max_sync_depth: 1_000,
@@ -48,6 +49,7 @@ async fn constructor() {
         commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
         batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
         genesis_state_dump: None,
+        db_cleanup: false,
     };
 
     let eth_cfg = EthereumConfig {

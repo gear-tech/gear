@@ -99,6 +99,13 @@ pub trait KVDatabase: Send + Sync {
     /// Must be used with caution.
     unsafe fn take(&self, key: &[u8]) -> Option<Vec<u8>>;
 
+    /// Remove value by key without reading it.
+    ///
+    /// # Safety
+    /// This method is unsafe because it may lead to data loss if used improperly.
+    /// Must be used with caution.
+    unsafe fn delete(&self, key: &[u8]);
+
     /// Check if data exists by key.
     fn contains(&self, key: &[u8]) -> bool;
 
@@ -109,6 +116,11 @@ pub trait KVDatabase: Send + Sync {
         &'a self,
         prefix: &'a [u8],
     ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a>;
+
+    /// Force compaction of the `[start, end]` key range so deleted entries
+    /// are physically dropped from disk. Blocking and I/O-heavy; no-op for
+    /// backends without compaction.
+    fn compact_range(&self, _start: &[u8], _end: &[u8]) {}
 
     fn is_empty(&self) -> bool;
 }
