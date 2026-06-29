@@ -7,7 +7,9 @@ use crate::{
         Dispatch, DispatchStash, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
         ProgramState, QueryableStorage, Storage, UserMailbox, Waitlist,
     },
-    transitions::is_event_destination,
+    transitions::{
+        is_eth_sails_event_destination, is_event_destination, is_gear_sails_event_destination,
+    },
 };
 use alloc::collections::{BTreeMap, BTreeSet};
 use anyhow::Context;
@@ -95,18 +97,15 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 });
 
                 if event_destinations && is_event_destination(user_id) {
-                    let value = dispatch.value;
                     let message_type = dispatch.message_type;
 
                     transitions.modify_transition(program_id, |transition| {
-                        transition
-                            .messages
-                            .push(dispatch.clone().into_message(storage, user_id));
-                        transition.claims.push(ValueClaim {
-                            message_id: stashed_message_id,
-                            destination: user_id,
-                            value,
-                        });
+                        let message = dispatch.clone().into_message(storage, user_id);
+                        if is_gear_sails_event_destination(user_id) {
+                            transition.events.push(message.payload);
+                        } else if is_eth_sails_event_destination(user_id) {
+                            transition.eth_events.push(message.payload);
+                        }
                     });
 
                     let reply = Dispatch::reply(

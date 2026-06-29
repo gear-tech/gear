@@ -15,12 +15,20 @@ use gprimitives::{ActorId, CodeId, H256};
 
 pub(crate) const GEAR_SAILS_EVENT: ActorId = ActorId::new([0; 32]);
 
-/// Must match `gstd`/`gcore` `ETH_EVENT_ADDR`
+/// Must match `sails-rs` `ETH_EVENT_ADDR`
 /// (`0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF` on Ethereum).
 pub(crate) const ETH_SAILS_EVENT: ActorId = ActorId::new([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 ]);
+
+pub(crate) fn is_gear_sails_event_destination(destination: ActorId) -> bool {
+    destination == GEAR_SAILS_EVENT
+}
+
+pub(crate) fn is_eth_sails_event_destination(destination: ActorId) -> bool {
+    destination == ETH_SAILS_EVENT
+}
 
 pub(crate) fn is_event_destination(destination: ActorId) -> bool {
     matches!(destination, GEAR_SAILS_EVENT | ETH_SAILS_EVENT)
@@ -242,6 +250,8 @@ impl InBlockTransitions {
                     value_to_receive_negative_sign: modification.value_to_receive < 0,
                     value_claims: modification.claims,
                     messages: modification.messages,
+                    events: modification.events,
+                    eth_events: modification.eth_events,
                 });
             }
         }
@@ -293,6 +303,8 @@ pub struct NonFinalTransition {
     pub value_to_receive: i128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
+    pub events: Vec<Vec<u8>>,
+    pub eth_events: Vec<Vec<u8>>,
 }
 
 impl NonFinalTransition {
@@ -302,7 +314,7 @@ impl NonFinalTransition {
             // check if state hash changed at final (always op)
             && current_state == self.initial_state
             // check if with unchanged state needs commitment (op)
-            && (self.inheritor.is_none() && self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty())
+            && (self.inheritor.is_none() && self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty() && self.events.is_empty() && self.eth_events.is_empty())
     }
 
     #[cfg(any(test, feature = "mock"))]
@@ -317,6 +329,8 @@ impl NonFinalTransition {
         value_to_receive: i128,
         claims: Vec<ValueClaim>,
         messages: Vec<Message>,
+        events: Vec<Vec<u8>>,
+        eth_events: Vec<Vec<u8>>,
     ) -> Self {
         Self {
             initial_state,
@@ -324,6 +338,8 @@ impl NonFinalTransition {
             value_to_receive,
             claims,
             messages,
+            events,
+            eth_events,
         }
     }
 }

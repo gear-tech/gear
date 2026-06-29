@@ -578,6 +578,7 @@ demo-reply-callback = { path = "sdk/examples/reply-callback" }
 demo-reservation-manager = { path = "sdk/examples/reservation-manager" }
 demo-reserve-gas = { path = "sdk/examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "sdk/examples/rwlock" }
+demo-sails-events = { path = "sdk/examples/sails-events" }
 demo-send-from-reservation = { path = "sdk/examples/send-from-reservation" }
 demo-signal-entry = { path = "sdk/examples/signal-entry", default-features = false }
 demo-staking-broker = { path = "sdk/examples/staking-broker" }

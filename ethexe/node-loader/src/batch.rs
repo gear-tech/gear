@@ -235,6 +235,7 @@ fn apply_mirror_event_update(context_update: &mut ContextUpdate, event: &Event) 
             stats.increment_claims_failed();
             stats.increment_failures();
         }
+        MirrorEvent::Gear(_) => {}
     }
 }
 

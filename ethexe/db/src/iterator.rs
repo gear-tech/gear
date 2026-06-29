@@ -733,6 +733,8 @@ where
             value_to_receive_negative_sign: _,
             value_claims: _,
             messages: _,
+            events: _,
+            eth_events: _,
         } = state_transition;
 
         let new_state_hash = *new_state_hash;
@@ -961,8 +963,10 @@ pub(crate) mod tests {
             inheritor: ActorId::zero(),
             value_to_receive: 0,
             value_to_receive_negative_sign: false,
-            value_claims: Vec::new(),
-            messages: Vec::new(),
+            value_claims: vec![],
+            messages: vec![],
+            events: vec![],
+            eth_events: vec![],
         };
 
         let nodes: Vec<_> =
@@ -992,8 +996,10 @@ pub(crate) mod tests {
             inheritor: ActorId::zero(),
             value_to_receive: 0,
             value_to_receive_negative_sign: false,
-            value_claims: Vec::new(),
-            messages: Vec::new(),
+            value_claims: vec![],
+            messages: vec![],
+            events: vec![],
+            eth_events: vec![],
         };
 
         let visited_states: Vec<_> =
@@ -1146,6 +1152,8 @@ pub(crate) mod tests {
                     value_to_receive_negative_sign: false,
                     value_claims: vec![],
                     messages: vec![],
+                    events: vec![],
+                    eth_events: vec![],
                 }],
             },
         )

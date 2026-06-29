@@ -186,6 +186,14 @@ fn message_strategy() -> BoxedStrategy<Message> {
         .boxed()
 }
 
+fn event_strategy() -> BoxedStrategy<Vec<u8>> {
+    collection::vec(any::<u8>(), 0..=64).boxed()
+}
+
+fn eth_event_strategy() -> BoxedStrategy<Vec<u8>> {
+    collection::vec(any::<u8>(), 0..=64).boxed()
+}
+
 #[cfg(test)]
 fn dispatch_kind_strategy() -> BoxedStrategy<DispatchKind> {
     prop_oneof![
@@ -414,8 +422,10 @@ fn transition_with_current_state_strategy(
             current_state.hash,
             None,
             0,
-            Vec::new(),
-            Vec::new(),
+            vec![],
+            vec![],
+            vec![],
+            vec![],
         )),
     ]
     .boxed()
@@ -1018,10 +1028,28 @@ impl Arbitrary for NonFinalTransition {
             any::<i128>(),
             collection::vec(value_claim_strategy(), 0..=4),
             collection::vec(message_strategy(), 0..=4),
+            collection::vec(event_strategy(), 0..=4),
+            collection::vec(eth_event_strategy(), 0..=4),
         )
             .prop_map(
-                |(initial_state, inheritor, value_to_receive, claims, messages)| {
-                    Self::new(initial_state, inheritor, value_to_receive, claims, messages)
+                |(
+                    initial_state,
+                    inheritor,
+                    value_to_receive,
+                    claims,
+                    messages,
+                    events,
+                    eth_events,
+                )| {
+                    Self::new(
+                        initial_state,
+                        inheritor,
+                        value_to_receive,
+                        claims,
+                        messages,
+                        events,
+                        eth_events,
+                    )
                 },
             )
             .boxed()

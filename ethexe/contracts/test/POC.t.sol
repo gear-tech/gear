@@ -241,7 +241,9 @@ contract POCTest is Base {
             uint128(0), // value to receive
             false, // value to receive negative sign
             new Gear.ValueClaim[](0), // value claims
-            _outgoingMessages // messages
+            _outgoingMessages, // messages
+            new bytes[](0), // events
+            new bytes[](0) // ethEvents
         );
 
         vm.expectEmit(true, false, false, false);
@@ -278,7 +280,9 @@ contract POCTest is Base {
             0, // value to receive
             false, // value to receive negative sign
             new Gear.ValueClaim[](0), // value claims
-            _outgoingMessages // messages
+            _outgoingMessages, // messages
+            new bytes[](0), // events
+            new bytes[](0) // ethEvents
         );
 
         vm.expectEmit(true, false, false, false);

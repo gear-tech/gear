@@ -7,7 +7,9 @@ use crate::{
         ActiveProgram, Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
         Program, ProgramState, Storage,
     },
-    transitions::is_event_destination,
+    transitions::{
+        is_eth_sails_event_destination, is_event_destination, is_gear_sails_event_destination,
+    },
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -181,15 +183,12 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
 
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
-
-                        transition
-                            .messages
-                            .push(Message::from_stored(stored, false));
-                        transition.claims.push(ethexe_common::gear::ValueClaim {
-                            message_id,
-                            destination,
-                            value,
-                        });
+                        let payload = stored.payload_bytes().to_vec();
+                        if is_gear_sails_event_destination(destination) {
+                            transition.events.push(payload);
+                        } else if is_eth_sails_event_destination(destination) {
+                            transition.eth_events.push(payload);
+                        }
                     });
 
                     let reply = Dispatch::reply(
