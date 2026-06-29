@@ -40,6 +40,7 @@ moka = {workspace = true, features = ["sync"]}
 jsonrpsee = { workspace = true, features = ["client"] }
 ethexe-common = { workspace = true, features = ["std", "mock"] }
 ntest.workspace = true
+serde_json.workspace = true
 tracing-subscriber.workspace = true
 
 ethexe-db = {workspace = true, features = ["mock"]}

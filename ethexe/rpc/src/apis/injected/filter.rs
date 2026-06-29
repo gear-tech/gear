@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 /// Server-side filter for `subscribe_promises`, applied per subscriber so each
 /// client receives only the promises it asked for. Omitted / `None` streams
 /// every promise.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PromiseSubscriptionFilter {
     /// Predicate on `promise.reply.code`. Named `reply_code` (not `code`) to
@@ -28,16 +28,18 @@ impl PromiseSubscriptionFilter {
 }
 
 /// Reply-code predicate. `Success` / `Error` match the coarse `ReplyCode`
-/// variant; `Exact` matches the canonical hex form that already appears in
+/// variant; `Exact` uses the canonical hex form that already appears in
 /// `promise.reply.code` on the wire: lowercase `"0x"` prefix followed by
-/// exactly 8 hex digits — e.g. `"0x00010000"` = `Success(Manual)`. Any other
-/// form (uppercase `"0X"`, fewer digits, non-hex characters) matches nothing.
+/// exactly 8 hex digits — e.g. `"0x00010000"` = `Success(Manual)`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum ReplyCodeFilter {
     Success,
     Error,
-    Exact { code: String },
+    Exact {
+        #[serde(with = "gear_core::rpc::serialize_reply_code")]
+        code: ReplyCode,
+    },
 }
 
 impl ReplyCodeFilter {
@@ -46,25 +48,9 @@ impl ReplyCodeFilter {
         match self {
             ReplyCodeFilter::Success => code.is_success(),
             ReplyCodeFilter::Error => code.is_error(),
-            ReplyCodeFilter::Exact { code: hex } => {
-                parse_hex_reply_code(hex).is_some_and(|expected| expected == *code)
-            }
+            ReplyCodeFilter::Exact { code: expected } => expected == code,
         }
     }
-}
-
-/// Parses the canonical `"0x"` + 8-hex-digit reply-code form into a
-/// [`ReplyCode`]. Malformed input returns `None`, which matches nothing.
-fn parse_hex_reply_code(code: &str) -> Option<ReplyCode> {
-    let hex = code.strip_prefix("0x").unwrap_or(code);
-    if hex.len() != 8 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
-        return None;
-    }
-    let mut bytes = [0u8; 4];
-    for (i, byte) in bytes.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()?;
-    }
-    Some(ReplyCode::from_bytes(bytes))
 }
 
 #[cfg(test)]
@@ -98,41 +84,39 @@ mod tests {
     }
 
     #[test]
-    fn parse_hex_reply_code_valid() {
-        // "0x00010000" encodes Success(Manual) in little-endian bytes.
-        let code = parse_hex_reply_code("0x00010000");
-        assert_eq!(code, Some(ReplyCode::Success(SuccessReplyReason::Manual)));
+    fn exact_filter_deserializes_hex_code() {
+        let filter = serde_json::from_value::<ReplyCodeFilter>(serde_json::json!({
+            "type": "exact",
+            "code": "0x00010000"
+        }))
+        .unwrap();
+
+        assert!(matches!(
+            filter,
+            ReplyCodeFilter::Exact {
+                code: ReplyCode::Success(SuccessReplyReason::Manual)
+            }
+        ));
     }
 
     #[test]
-    fn parse_hex_reply_code_malformed_returns_none() {
-        assert_eq!(parse_hex_reply_code(""), None);
-        assert_eq!(parse_hex_reply_code("0x"), None);
-        assert_eq!(parse_hex_reply_code("not-hex"), None);
-        // Too short (6 hex digits instead of 8).
-        assert_eq!(parse_hex_reply_code("0x000100"), None);
+    fn exact_filter_rejects_malformed_code_during_deserialization() {
+        let result = serde_json::from_value::<ReplyCodeFilter>(serde_json::json!({
+            "type": "exact",
+            "code": "not-a-code"
+        }));
+
+        assert!(result.is_err());
     }
 
     #[test]
     fn exact_filter_matches_correct_code() {
         let filter = PromiseSubscriptionFilter {
             reply_code: Some(ReplyCodeFilter::Exact {
-                code: "0x00010000".to_string(),
+                code: ReplyCode::Success(SuccessReplyReason::Manual),
             }),
         };
         assert!(filter.matches(&success_promise()));
-        assert!(!filter.matches(&error_promise()));
-    }
-
-    #[test]
-    fn exact_filter_malformed_code_matches_nothing() {
-        let filter = PromiseSubscriptionFilter {
-            reply_code: Some(ReplyCodeFilter::Exact {
-                code: "not-a-code".to_string(),
-            }),
-        };
-        // Malformed input must match nothing, not panic.
-        assert!(!filter.matches(&success_promise()));
         assert!(!filter.matches(&error_promise()));
     }
 }
