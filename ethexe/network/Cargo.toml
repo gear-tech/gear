@@ -48,7 +48,6 @@ prometheus-client = "0.23.1" # specific version that lip2p uses
 metrics.workspace = true
 metrics-derive.workspace = true
 assert_matches.workspace = true
-hex.workspace = true
 ractor.workspace = true
 seahash.workspace = true
 malachitebft-app-channel.workspace = true
@@ -69,4 +68,3 @@ tracing-subscriber.workspace = true
 proptest = { workspace = true }
 ethexe-common = { workspace = true, features = ["mock"] }
 ethexe-db = { workspace = true, features = ["mock"] }
-malachitebft-test.workspace = true

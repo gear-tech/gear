@@ -45,7 +45,6 @@ derive_more.workspace = true
 advisory-lock.workspace = true
 malachitebft-network.workspace = true
 proptest.workspace = true
-ractor.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

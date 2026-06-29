@@ -38,13 +38,11 @@ gear-workspace-hack.workspace = true
 # `Database::memory()` without `unsafe`.
 ethexe-db = { workspace = true, features = ["mock"] }
 malachitebft-app-channel.workspace = true
-malachitebft-core-consensus.workspace = true
 malachitebft-core-types.workspace = true
 malachitebft-engine.workspace = true
 malachitebft-network.workspace = true
 malachitebft-signing.workspace = true
 proptest.workspace = true
-ractor.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "test-util", "time"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
