@@ -16,7 +16,9 @@ use crate::{
 };
 use advisory_lock::{AdvisoryFileLock, FileLockMode};
 use anyhow::{Context as _, Result};
+use bytes::Bytes;
 use futures::{Stream, stream::FusedStream};
+use libp2p_identity::PeerId;
 use malachitebft_app_channel::{
     ConsensusContext, EngineBuilder, EngineHandle, NetworkMsg, RequestContext, SyncContext,
     WalContext,
@@ -28,7 +30,9 @@ use malachitebft_app_channel::{
         metrics::SharedRegistry,
     },
 };
+use malachitebft_core_types::ValidatorProof;
 use malachitebft_engine::network::NetworkRef;
+use malachitebft_signing::SigningProviderExt;
 use std::{
     fs::OpenOptions,
     path::{Path, PathBuf},
@@ -62,6 +66,8 @@ pub struct MalachiteCore<EXT: Externalities> {
     wal_path: PathBuf,
     /// Shared with the app loop; [`Self::update_validators`] writes here.
     validator_set: SharedValidatorSet,
+    /// Validator proof bytes intended for network.
+    validator_proof: Option<Bytes>,
     /// Keeps the externalities alive for the app task.
     _externalities: Arc<EXT>,
 }
@@ -132,6 +138,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
     pub async fn new(
         config: MalachiteCoreConfig,
         externalities: Arc<EXT>,
+        peer_id: PeerId,
         (network_ref, tx_network): MalachiteNetworkParts,
     ) -> Result<Self> {
         // The service owns `<base>/malachite/`. We `mkdir -p` it so
@@ -173,19 +180,37 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
         let in_set = initial_validator_set.get_by_address(&address).is_some();
         let validator_set = SharedValidatorSet::new(initial_validator_set);
 
-        match config.role {
-            NodeRole::Validator if !in_set => {
-                return Err(anyhow::anyhow!(
-                    "NodeRole::Validator: local address {address} not present in MalachiteCoreConfig::validators"
-                ));
+        // ---- network identity, role-dependent ----
+        let validator_proof = match config.role {
+            NodeRole::Validator => {
+                if !in_set {
+                    return Err(anyhow::anyhow!(
+                        "NodeRole::Validator: local address {address} not present in MalachiteCoreConfig::validators"
+                    ));
+                }
+                let peer_id_bytes = peer_id.to_bytes();
+                // Sign (validator_pubkey, peer_id_bytes) to bind
+                // libp2p identity to the validator's on-chain identity.
+                let proof = signer
+                    .sign_validator_proof(public_key.to_vec(), peer_id_bytes)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("signing validator proof: {e:?}"))?;
+                let proof_bytes: Bytes = {
+                    use malachitebft_app_channel::app::types::codec::Codec;
+                    <ScaleCodec as Codec<ValidatorProof<MalachiteCtx>>>::encode(&ScaleCodec, &proof)
+                        .map_err(|e| anyhow::anyhow!("encoding validator proof: {e}"))?
+                };
+                Some(proof_bytes)
             }
-            NodeRole::FullNode if in_set => {
-                return Err(anyhow::anyhow!(
-                    "NodeRole::FullNode: local address {address} must NOT be in MalachiteCoreConfig::validators"
-                ));
+            NodeRole::FullNode => {
+                if in_set {
+                    return Err(anyhow::anyhow!(
+                        "NodeRole::FullNode: local address {address} must NOT be in MalachiteCoreConfig::validators"
+                    ));
+                }
+                None
             }
-            NodeRole::Validator | NodeRole::FullNode => {}
-        }
+        };
 
         // ---- engine ----
         let inner_cfg = build_inner_config(&moniker);
@@ -231,8 +256,14 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             app_handle,
             wal_path,
             validator_set,
+            validator_proof,
             _externalities: externalities,
         })
+    }
+
+    /// Validator proof bytes intended for network.
+    pub fn validator_proof(&self) -> Option<Bytes> {
+        self.validator_proof.clone()
     }
 
     /// Swap the active validator set, taking effect at the next height start

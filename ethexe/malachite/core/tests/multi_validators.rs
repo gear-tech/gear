@@ -39,6 +39,7 @@ use ethexe_malachite_core::{
     Block, BlockPayload, CommitCertificate, EngineNetworkMsg, Externalities, H256, MalachiteCore,
     MalachiteCoreConfig, MalachiteCtx, MalachiteNetworkParts, NetworkMsg, NodeRole, ValidatorEntry,
 };
+use libp2p_identity::PeerId;
 use proptest::prelude::*;
 use tempfile::TempDir;
 use tokio::time::sleep;
@@ -310,7 +311,7 @@ async fn start_service(
 ) -> MalachiteCore<TestExt> {
     let config = build_config(setup, setups);
     let parts = fake_network_parts().await;
-    MalachiteCore::<TestExt>::new(config, ext, parts)
+    MalachiteCore::<TestExt>::new(config, ext, PeerId::random(), parts)
         .await
         .expect("service starts")
 }
@@ -503,9 +504,14 @@ async fn full_node_syncs_from_validators() {
         };
         let cfg = build_config_with_role(setup, validator_set.clone(), role);
         let network_parts = fake_network_parts().await;
-        let svc = MalachiteCore::<TestExt>::new(cfg, Arc::clone(&exts[i]), network_parts)
-            .await
-            .expect("service starts");
+        let svc = MalachiteCore::<TestExt>::new(
+            cfg,
+            Arc::clone(&exts[i]),
+            PeerId::random(),
+            network_parts,
+        )
+        .await
+        .expect("service starts");
         services.push(svc);
         sleep(Duration::from_millis(500)).await;
     }

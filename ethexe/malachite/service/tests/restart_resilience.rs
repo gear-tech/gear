@@ -30,7 +30,7 @@ use ethexe_malachite::{
     TxInsertionStatus, ValidatorConfig, ValidatorEntry,
 };
 use ethexe_malachite_core::{
-    EngineNetworkMsg, MalachiteCtx, NetworkEvent, NetworkMsg, NetworkRef, Subscriber,
+    EngineNetworkMsg, MalachiteCtx, NetworkEvent, NetworkMsg, NetworkRef, PeerId, Subscriber,
 };
 use futures::StreamExt as _;
 use gprimitives::H256;
@@ -337,6 +337,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         }),
         db.clone(),
         chain[0],
+        PeerId::random(),
         fake_network_parts().await,
     )
     .expect("create malachite service starter")
@@ -381,6 +382,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         }),
         db.clone(),
         chain[31],
+        PeerId::random(),
         fake_network_parts().await,
     )
     .expect("create malachite service starter after restart")

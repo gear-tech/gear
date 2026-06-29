@@ -16,6 +16,7 @@ derive_more.workspace = true
 futures.workspace = true
 parity-scale-codec.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+bytes.workspace = true
 tracing.workspace = true
 
 # Generic Malachite-backed consensus service. Carries the engine,

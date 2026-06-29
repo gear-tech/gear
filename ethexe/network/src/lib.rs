@@ -41,6 +41,7 @@ use crate::{
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
 use anyhow::{Context, anyhow};
+use bytes::Bytes;
 use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
@@ -613,6 +614,15 @@ impl NetworkService {
     /// Returns the local libp2p peer ID.
     pub fn local_peer_id(&self) -> PeerId {
         *self.swarm.local_peer_id()
+    }
+
+    /// Set Malachite validator proof
+    pub fn set_malachite_validator_proof(&mut self, validator_proof: Bytes) {
+        self.swarm
+            .behaviour_mut()
+            .malachite
+            .validator_proof
+            .set_proof(validator_proof);
     }
 
     /// Encode the libp2p metrics registry in Prometheus text format.

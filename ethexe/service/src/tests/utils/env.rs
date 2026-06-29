@@ -1254,6 +1254,7 @@ impl Node {
                 malachite_validator_config,
                 self.db.clone(),
                 latest_block,
+                network.local_peer_id(),
                 malachite_network,
             )
             .expect("MalachiteServiceStarter::new")

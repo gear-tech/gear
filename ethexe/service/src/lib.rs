@@ -529,6 +529,7 @@ impl Service {
                 validator_config,
                 db.clone(),
                 initial_chain_head,
+                network.local_peer_id(),
                 malachite_network,
             )
             .context("failed to create Malachite service starter")?
@@ -643,6 +644,10 @@ impl Service {
         let mut shutdown_rx = shutdown_rx;
 
         let mut malachite = malachite_starter.start().await?;
+
+        if let Some(validator_proof) = malachite.validator_proof() {
+            network.set_malachite_validator_proof(validator_proof);
+        }
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
