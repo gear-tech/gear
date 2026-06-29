@@ -88,6 +88,10 @@ pub struct ValidatorConfig {
     /// `last_advanced_eth_block` runs ahead of `last_committed_eb`
     /// by more than this many Eth blocks.
     pub uncommitted_chain_len_threshold: std::num::NonZero<u32>,
+    /// Coordinator-local cadence — when elected coordinator, this node only
+    /// builds a batch on blocks whose height is a multiple of this value
+    /// (`1` = every block). Participants ignore it.
+    pub batch_commitment_period: std::num::NonZero<u32>,
 }
 
 impl ValidatorService {
@@ -121,6 +125,7 @@ impl ValidatorService {
                 metrics: ValidatorMetrics::default(),
                 commitment_delay_limit: config.commitment_delay_limit,
                 coordinator_aggregation_delay: config.coordinator_aggregation_delay,
+                batch_commitment_period: config.batch_commitment_period,
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
