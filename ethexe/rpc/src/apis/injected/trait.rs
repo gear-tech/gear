@@ -48,7 +48,7 @@ pub trait Injected {
     #[subscription(
         name = "subscribePromises",
         unsubscribe = "unsubscribePromises",
-        item = ethexe_common::injected::Promise
+        item = crate::PromiseEnvelope
     )]
     async fn subscribe_promises(
         &self,

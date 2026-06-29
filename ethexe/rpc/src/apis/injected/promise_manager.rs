@@ -1,6 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+use super::filter::PromiseEnvelope;
 use anyhow::Result;
 use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
@@ -35,7 +36,7 @@ pub struct PromiseSubscriptionManager {
     /// Cached [UnfilledPromiseReceipt] waiting for local [Promise] computation.
     pending_receipts: PendingReceiptsCache,
     /// Broadcast sender for the global `subscribe_promises` fan-out.
-    promise_sender: broadcast::Sender<Promise>,
+    promise_sender: broadcast::Sender<Arc<PromiseEnvelope>>,
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -87,7 +88,7 @@ impl PromiseSubscriptionManager {
     /// Returns a receiver for the global promise broadcast. The manager owns
     /// `subscribe()`; [`spawner::spawn_promises_subscriber`] owns the receiver
     /// loop.
-    pub fn subscribe_promises(&self) -> broadcast::Receiver<Promise> {
+    pub fn subscribe_promises(&self) -> broadcast::Receiver<Arc<PromiseEnvelope>> {
         self.promise_sender.subscribe()
     }
 
@@ -151,8 +152,23 @@ impl PromiseSubscriptionManager {
     pub fn on_computed_promise(&self, promise: Promise) {
         trace!(?promise, "received new computed promise");
         self.db.set_promise(&promise);
-        // Err only means there are no subscribers right now — nothing to do.
-        let _ = self.promise_sender.send(promise.clone());
+
+        match self.db.injected_transaction(promise.tx_hash) {
+            Some(transaction) => {
+                let envelope = Arc::new(PromiseEnvelope {
+                    destination: transaction.data().destination,
+                    sender: transaction.address(),
+                    promise: promise.clone(),
+                });
+                // Err only means there are no global subscribers right now.
+                let _ = self.promise_sender.send(envelope);
+            }
+            // Absence means the node computed a promise for a tx it never stored — one warn per missing tx.
+            None => warn!(
+                tx_hash = ?promise.tx_hash,
+                "cannot enrich computed promise: originating transaction is absent"
+            ),
+        }
 
         let Some(unfilled_promise) = self.pending_receipts.remove(&promise.tx_hash) else {
             return;
@@ -281,7 +297,7 @@ mod tests {
     use super::*;
     use ethexe_common::{
         Address, SignedMessage, ValidatorsVec,
-        db::{GlobalsStorageRO, OnChainStorageRW, SetGlobals},
+        db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRW, SetGlobals},
         ecdsa::PrivateKey,
         injected::{InjectedTransaction, Receipt},
         mock::Mock,
@@ -514,5 +530,55 @@ mod tests {
         manager.on_tx_receipt(receipt.into());
 
         assert_eq!(db.receipt(tx_hash), None);
+    }
+
+    /// A computed promise for which the originating signed transaction is stored
+    /// broadcasts an enriched `PromiseEnvelope` with all three routing fields.
+    #[tokio::test]
+    async fn computed_promise_broadcasts_envelope() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let mut receiver = manager.subscribe_promises();
+
+        let tx = InjectedTransaction::mock(());
+        let tx_hash = tx.to_hash();
+        let signed_tx = SignedMessage::create(PrivateKey::random(), tx).unwrap();
+        let sender = signed_tx.address();
+        let destination = signed_tx.data().destination;
+        db.set_injected_transaction(signed_tx);
+
+        let promise = Promise::mock(tx_hash);
+        manager.on_computed_promise(promise.clone());
+
+        let envelope = tokio::time::timeout(std::time::Duration::from_millis(100), receiver.recv())
+            .await
+            .expect("envelope must arrive")
+            .expect("broadcast must not be closed");
+
+        assert_eq!(envelope.promise, promise);
+        assert_eq!(envelope.destination, destination);
+        assert_eq!(envelope.sender, sender);
+        assert_eq!(db.promise(tx_hash), Some(promise));
+    }
+
+    /// A computed promise whose originating transaction is not in the database
+    /// does not broadcast an envelope, but the promise itself is still persisted.
+    #[tokio::test]
+    async fn computed_promise_without_transaction_skips_envelope_but_is_stored() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let mut receiver = manager.subscribe_promises();
+
+        let tx_hash = InjectedTransaction::mock(()).to_hash();
+        let promise = Promise::mock(tx_hash);
+        manager.on_computed_promise(promise.clone());
+
+        let result =
+            tokio::time::timeout(std::time::Duration::from_millis(50), receiver.recv()).await;
+        assert!(
+            result.is_err(),
+            "no envelope should be broadcast when transaction is absent"
+        );
+        assert_eq!(db.promise(tx_hash), Some(promise));
     }
 }

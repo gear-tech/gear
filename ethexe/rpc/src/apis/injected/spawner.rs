@@ -1,12 +1,13 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use super::{filter::PromiseSubscriptionFilter, promise_manager::PendingSubscriber};
-use ethexe_common::{
-    HashOf,
-    injected::{InjectedTransaction, Promise},
+use super::{
+    filter::{PromiseEnvelope, PromiseSubscriptionFilter},
+    promise_manager::PendingSubscriber,
 };
+use ethexe_common::{HashOf, injected::InjectedTransaction};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
+use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::{error, trace, warn};
 
@@ -76,14 +77,14 @@ pub fn spawn_pending_subscriber<F>(
 /// is never closed on `Lagged`.
 pub fn spawn_promises_subscriber(
     sink: SubscriptionSink,
-    mut receiver: broadcast::Receiver<Promise>,
+    mut receiver: broadcast::Receiver<Arc<PromiseEnvelope>>,
     filter: Option<PromiseSubscriptionFilter>,
 ) {
     let _handle = tokio::spawn(async move {
         loop {
-            let promise = tokio::select! {
+            let envelope = tokio::select! {
                 result = receiver.recv() => match result {
-                    Ok(promise) => promise,
+                    Ok(envelope) => envelope,
                     Err(broadcast::error::RecvError::Lagged(skipped)) => {
                         warn!(skipped, "promise subscriber lagged, skipping missed promises");
                         continue;
@@ -96,11 +97,11 @@ pub fn spawn_promises_subscriber(
                 }
             };
 
-            if filter.as_ref().is_some_and(|f| !f.matches(&promise)) {
+            if filter.as_ref().is_some_and(|f| !f.matches(&envelope)) {
                 continue;
             }
 
-            match SubscriptionMessage::from_json(&promise) {
+            match SubscriptionMessage::from_json(envelope.as_ref()) {
                 Ok(message) => {
                     if let Err(err) = sink.send(message).await {
                         trace!("failed to send promise, client disconnected: err={err}");
@@ -109,9 +110,9 @@ pub fn spawn_promises_subscriber(
                 }
                 Err(err) => {
                     error!(
-                        ?promise,
+                        ?envelope,
                         ?err,
-                        "serialization error: failed to create `SubscriptionMessage` from promise; this must never happen"
+                        "serialization error: failed to create `SubscriptionMessage` from promise envelope; this must never happen"
                     );
                 }
             }

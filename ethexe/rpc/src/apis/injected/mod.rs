@@ -95,4 +95,4 @@ pub use r#trait::InjectedServer;
 #[cfg(feature = "client")]
 pub use r#trait::InjectedClient;
 
-pub use filter::{PromiseSubscriptionFilter, ReplyCodeFilter};
+pub use filter::{PromiseEnvelope, PromiseSubscriptionFilter, ReplyCodeFilter, ValueOrArray};
