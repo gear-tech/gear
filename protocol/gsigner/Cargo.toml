@@ -32,7 +32,7 @@ k256 = { version = "0.13.4", default-features = false, features = [
 ], optional = true }
 nacl = { workspace = true, optional = true }
 dirs = { workspace = true, optional = true }
-ferveo-common = { package = "ferveo-gear-common", git = "https://github.com/gear-tech/ferveo-nucypher.git", branch = "more-codec", features = [
+ferveo-common = { package = "ferveo-gear-common", version = "0.7.0", features = [
     "ark-serde-hex",
 ], optional = true }
 gear-tdec = { workspace = true, optional = true }
@@ -75,14 +75,7 @@ serde_json = { workspace = true, features = ["std"] }
 tempfile = { workspace = true }
 
 [features]
-default = [
-    "std",
-    "secp256k1",
-    "sr25519",
-    "ed25519",
-    "codec",
-    "keyring",
-]
+default = ["std", "secp256k1", "sr25519", "ed25519", "codec", "keyring"]
 std = [
     "dep:anyhow",
     "dep:rand",

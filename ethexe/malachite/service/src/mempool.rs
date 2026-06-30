@@ -206,7 +206,7 @@ impl InjectedTxMempool {
         }
     }
 
-    /// Delegates call to [Inner::len].
+    /// Delegates call to `Inner::len`.
     pub async fn len(&self) -> usize {
         self.inner.read().await.len()
     }
