@@ -1854,47 +1854,42 @@ async fn committable_filter_canonical_vs_injected_value0() {
         .await
         .unwrap();
 
-    // Both replies must be present in the collected messages.
-    let all_messages = handler.transitions.current_messages();
-    assert_eq!(
-        all_messages.len(),
-        2,
-        "expected exactly 2 outgoing PONG messages"
-    );
+    // Locate the two PONG replies by their derived reply ids. The block also
+    // carries the empty INIT auto-reply (to `canonical_user`), so we match on id
+    // rather than destination to avoid the ambiguity with the canonical PONG.
+    let canonical_reply_id = MessageId::generate_reply(canonical_msg_id);
+    let injected_reply_id = MessageId::generate_reply(injected_msg_id);
 
-    // Identify replies by their destination (source of the originating message).
+    let all_messages = handler.transitions.current_messages();
     let canonical_reply = all_messages
         .iter()
-        .find(|(_, m)| m.destination == canonical_user)
+        .find(|(_, m)| m.id == canonical_reply_id)
         .map(|(_, m)| m)
         .expect("canonical PONG reply must be present");
     let injected_reply = all_messages
         .iter()
-        .find(|(_, m)| m.destination == injected_user)
+        .find(|(_, m)| m.id == injected_reply_id)
         .map(|(_, m)| m)
         .expect("injected PONG reply must be present");
 
-    // Sanity: the replies carry correct payloads.
+    // Both replies are PONG and addressed to the originating users.
     assert_eq!(canonical_reply.payload, b"PONG");
+    assert_eq!(canonical_reply.destination, canonical_user);
     assert_eq!(injected_reply.payload, b"PONG");
+    assert_eq!(injected_reply.destination, injected_user);
 
     // Verify committed_message_ids: canonical committed, injected value-0 not committed.
     let finalized = handler.transitions.finalize();
     assert!(
         finalized
             .committed_message_ids
-            .contains(&canonical_reply.id),
+            .contains(&canonical_reply_id),
         "canonical PONG reply must be in committed_message_ids"
     );
     assert!(
-        !finalized.committed_message_ids.contains(&injected_reply.id),
+        !finalized.committed_message_ids.contains(&injected_reply_id),
         "injected value-0 PONG reply must NOT be in committed_message_ids"
     );
-    // Cross-check with generate_reply so that message ID derivation is also exercised.
-    let canonical_reply_id = MessageId::generate_reply(canonical_msg_id);
-    let injected_reply_id = MessageId::generate_reply(injected_msg_id);
-    assert_eq!(canonical_reply.id, canonical_reply_id);
-    assert_eq!(injected_reply.id, injected_reply_id);
 }
 
 #[cfg(debug_assertions)] // FIXME: test fails in release mode
