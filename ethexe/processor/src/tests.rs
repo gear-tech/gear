@@ -1754,155 +1754,9 @@ async fn injected_ping_pong() {
         promise.reply.code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
-
-    // Injected reply is served off-chain (local outcome), NOT committed on
-    // Ethereum. Canonical replies stay in the committed bucket.
-    // TODO: in the real flow these are read back via `db.mb_local_outcome(mb_hash)`.
-    let committed = handler.transitions.current_messages();
-    let local = handler.transitions.current_local_messages();
-
-    // Off-chain: only the injected PING -> PONG to user_2.
-    assert_eq!(local.len(), 1);
-    assert_eq!(local[0].1.destination, user_2);
-    assert_eq!(local[0].1.payload, b"PONG");
-
-    // Committed: the INIT auto-reply (empty) and the canonical PING -> PONG,
-    // both to user_1, in execution order.
-    assert_eq!(committed.len(), 2);
-    assert_eq!(committed[0].1.destination, user_1);
-    assert_eq!(committed[0].1.payload, b"");
-    assert_eq!(committed[1].1.destination, user_1);
-    assert_eq!(committed[1].1.payload, b"PONG");
 }
 
-/// Injected outgoing messages are kept off the on-chain commitment, surface in
-/// `FinalizedBlockTransitions::local_outcome`, and are retrievable off-chain by
-/// MB hash via `db.mb_local_outcome`.
-#[tokio::test]
-async fn injected_messages_excluded_from_commitment() {
-    init_logger();
-
-    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
-    let promise_sink = BoundPromiseSink::new(promise_sender, H256::zero());
-    let (mut processor, chain, [code_id]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
-    let block1 = chain.blocks[1].to_simple();
-
-    let init_user = ActorId::from(10);
-    let injected_user = ActorId::from(20);
-    let actor_id = ActorId::from(0x10000);
-
-    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
-
-    handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
-            actor_id,
-            code_id,
-        }))
-        .expect("failed to create new program");
-
-    handler
-        .handle_mirror_event(
-            actor_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
-                ExecutableBalanceTopUpRequestedEvent {
-                    value: 200_000_000_000,
-                },
-            ),
-        )
-        .expect("failed to top up balance");
-
-    // Canonical INIT — its reply is committed on-chain.
-    handler
-        .handle_mirror_event(
-            actor_id,
-            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
-                id: MessageId::from(1),
-                source: init_user,
-                payload: b"INIT".to_vec(),
-                value: 0,
-                call_reply: false,
-            }),
-        )
-        .expect("failed to send init message");
-
-    handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            block1.header.height,
-            block1.header.timestamp,
-            DEFAULT_BLOCK_GAS_LIMIT,
-            None,
-        )
-        .await
-        .unwrap();
-
-    // Injected PING -> PONG reply, which must stay off-chain.
-    let injected_tx = injected(actor_id, b"PING", 0);
-    handler
-        .handle_injected_transaction(injected_user, injected_tx.clone())
-        .expect("failed to send injected message");
-
-    handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            block1.header.height,
-            block1.header.timestamp,
-            DEFAULT_BLOCK_GAS_LIMIT,
-            Some(promise_sink.clone()),
-        )
-        .await
-        .unwrap();
-
-    let promise = promise_receiver
-        .recv()
-        .await
-        .expect("promise must be sent after processing")
-        .1;
-    assert_eq!(promise.tx_hash, injected_tx.to_hash());
-    assert_eq!(promise.reply.payload, b"PONG");
-
-    let FinalizedBlockTransitions {
-        transitions,
-        local_outcome,
-        ..
-    } = handler.transitions.finalize();
-
-    // Off-chain: the injected reply lives in the local outcome (one program).
-    assert_eq!(
-        local_outcome.len(),
-        1,
-        "exactly one program produced local messages"
-    );
-    let (local_actor, local_messages) = &local_outcome[0];
-    assert_eq!(*local_actor, actor_id);
-    assert_eq!(local_messages.len(), 1);
-    assert_eq!(local_messages[0].destination, injected_user);
-    assert_eq!(local_messages[0].payload, b"PONG");
-
-    // On-chain: the committed transition never carries the injected reply.
-    let committed: Vec<_> = transitions.iter().flat_map(|t| t.messages.iter()).collect();
-    assert!(
-        committed.iter().all(|m| m.destination != injected_user),
-        "injected reply must never be committed on Ethereum"
-    );
-    assert!(
-        committed.iter().all(|m| m.payload != b"PONG"),
-        "PONG reply is off-chain only"
-    );
-
-    // Retrievable off-chain by MB hash: a consumer can learn that local messages
-    // existed in the off-chain block and read them back.
-    let mb_hash = H256::random();
-    processor
-        .db
-        .set_mb_local_outcome(mb_hash, local_outcome.clone());
-    let loaded = processor
-        .db
-        .mb_local_outcome(mb_hash)
-        .expect("local outcome must be retrievable by mb hash");
-    assert_eq!(loaded, local_outcome);
-}
+// TODO(commit 3): re-add committable-filter coverage
 
 #[cfg(debug_assertions)] // FIXME: test fails in release mode
 #[tokio::test]
@@ -2548,11 +2402,7 @@ async fn injected_and_events_then_tasks_then_queues() {
         mailbox_validity: MAILBOX_VALIDITY_VERSION_2,
         event_destinations_autoreply: false,
     };
-    let FinalizedBlockTransitions {
-        transitions,
-        local_outcome,
-        ..
-    } = processor
+    let FinalizedBlockTransitions { transitions, .. } = processor
         .process_programs(executable, Some(promise_sink))
         .await
         .unwrap();
@@ -2565,7 +2415,8 @@ async fn injected_and_events_then_tasks_then_queues() {
     //   Phase 2: process_tasks — WakeMessage moves waiting dispatch to canonical queue
     //   Phase 3: process_queues — executes injected queue first, then canonical queue
     //
-    // We prove ordering by observing the output:
+    // All three replies land in one `messages` list (single bucket), in execution
+    // order, so we prove ordering by observing that list:
     //
     // ASSERT: Injected+events ran BEFORE queues.
     //   If queues ran first, no messages would be in queues → 0 replies.
@@ -2576,14 +2427,14 @@ async fn injected_and_events_then_tasks_then_queues() {
     //   back into the canonical queue → only 2 replies (injected + canonical event).
     //   We get 3 replies ⇒ tasks ran before queue processing.
     //
+    // ASSERT: Injected queue processed BEFORE canonical queue.
+    //   Injected reply is first in the list, before any canonical replies.
+    //
     // ASSERT: Injected+events ran BEFORE tasks (canonical queue is FIFO).
     //   The event message (phase 1) is queued to canonical queue before the woken dispatch
-    //   (phase 2). So in output, event reply appears before task-woken reply.
+    //   (phase 2). So in the list, event reply appears before task-woken reply.
     //   If tasks ran before events, the woken dispatch would be first in canonical queue,
     //   and we'd see task_user reply before canonical_user reply.
-    //
-    // ASSERT: Injected queue processed BEFORE canonical queue.
-    //   Injected reply is first in output, before any canonical replies.
 
     // Injected message must produce a promise (proves it was executed)
     let promise = promise_receiver
@@ -2597,65 +2448,50 @@ async fn injected_and_events_then_tasks_then_queues() {
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
 
-    // Committed (canonical) replies, in execution order.
+    // All outgoing replies live in the single `messages` list (committed +
+    // off-chain together), in execution order. The off-chain/on-chain split now
+    // happens later, at batch-commitment time — not here in `finalize()`.
     let to_users: Vec<_> = transitions
         .iter()
         .flat_map(|t| t.messages.iter().map(|m| (&t.actor_id, m)))
         .collect();
 
-    // Injected reply is served off-chain now (local outcome), not committed.
-    // TODO: in the real flow this is read back via `db.mb_local_outcome(mb_hash)`.
-    let to_users_local: Vec<_> = local_outcome
-        .iter()
-        .flat_map(|(actor_id, messages)| messages.iter().map(move |m| (actor_id, m)))
-        .collect();
-
-    // --- ASSERT: All three sources produced replies ---
+    // --- ASSERT: All three sources produced replies in one list ---
     // This proves both injected+events AND tasks ran BEFORE queue processing.
-    // The injected reply lives off-chain (1), the two canonical replies on-chain (2).
     // If queues ran before injected+events: 0 replies (nothing in queues).
-    // If queues ran before tasks: only 2 total (no woken dispatch in canonical queue).
+    // If queues ran before tasks: only 2 (no woken dispatch in canonical queue).
     assert_eq!(
-        to_users.len() + to_users_local.len(),
+        to_users.len(),
         3,
         "All 3 sources (injected, canonical event, task-woken) must produce replies. \
          Missing replies means queue processing ran before injected+events or tasks."
     );
 
-    // --- ASSERT: Injected queue processed (off-chain output present) ---
-    // The injected message produces exactly one off-chain reply. The tuple key
-    // is the producing program; the reply's destination is the injected user.
+    // --- ASSERT: Injected queue processed BEFORE canonical queue ---
+    // The injected queue runs first in phase 3, so its reply is first in the list.
     assert_eq!(
-        to_users_local.len(),
-        1,
-        "Injected message must produce exactly one off-chain reply"
+        to_users[0].1.destination, injected_user,
+        "Injected reply must come first: injected queue is processed before the canonical queue"
     );
-    assert_eq!(*to_users_local[0].0, actor_id);
-    assert_eq!(to_users_local[0].1.destination, injected_user);
-    assert_eq!(to_users_local[0].1.payload, b"DONE");
+    assert_eq!(to_users[0].1.payload, b"DONE");
 
     // --- ASSERT: Events (phase 1) ran BEFORE tasks (phase 2) ---
     // Canonical queue is FIFO. The event message was queued in phase 1 and the woken
     // dispatch was queued in phase 2. So the event reply MUST appear before the task reply.
-    // If tasks ran first, task_user reply would appear at position 0, not position 1.
+    // If tasks ran first, task_user reply would appear at position 1, not position 2.
     assert_eq!(
-        to_users.len(),
-        2,
-        "two committed (canonical) replies expected"
-    );
-    assert_eq!(
-        to_users[0].1.destination, canonical_user,
+        to_users[1].1.destination, canonical_user,
         "Canonical event reply must come before task-woken reply: \
          events (phase 1) must populate canonical queue before tasks (phase 2) add woken dispatches"
     );
-    assert_eq!(to_users[0].1.payload, b"DONE");
+    assert_eq!(to_users[1].1.payload, b"DONE");
 
     assert_eq!(
-        to_users[1].1.destination, task_user,
+        to_users[2].1.destination, task_user,
         "Task-woken reply must come last in canonical queue: \
          tasks (phase 2) enqueue woken dispatch after events (phase 1) already queued their messages"
     );
-    assert_eq!(to_users[1].1.payload, b"DONE");
+    assert_eq!(to_users[2].1.payload, b"DONE");
 }
 
 #[tokio::test]

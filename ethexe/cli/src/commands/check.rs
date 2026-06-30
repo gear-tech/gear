@@ -321,7 +321,6 @@ impl Checker {
                 states,
                 schedule,
                 program_creations: _,
-                local_outcome: _,
                 committed_message_ids: _,
             } = overlay
                 .as_mut()

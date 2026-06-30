@@ -67,10 +67,6 @@ pub struct FinalizedBlockTransitions {
     pub states: ProgramStates,
     pub schedule: Schedule,
     pub program_creations: Vec<(ActorId, CodeId)>,
-    /// Outgoing messages produced by Injected dispatches. Not committed
-    /// on-chain; persisted and served off-Ethereum instead.
-    /// Always empty now — kept for ABI compatibility until Commit 2.
-    pub local_outcome: Vec<(ActorId, Vec<Message>)>,
     /// Flat set of message ids that are committable to Ethereum for this block.
     ///
     /// A message is committable when `message_type.is_canonical() || msg.value != 0 || msg.call`.
@@ -113,22 +109,6 @@ impl InBlockTransitions {
         self.modifications
             .iter()
             .flat_map(|(id, trans)| trans.messages.iter().map(|message| (*id, message.clone())))
-            .collect()
-    }
-
-    /// Off-chain (Injected) outgoing messages currently accumulated, per program.
-    /// These are excluded from the on-chain commitment (see
-    /// [`NonFinalTransition::local_messages`]) and surface via
-    /// [`FinalizedBlockTransitions::local_outcome`] / `mb_local_outcome`.
-    pub fn current_local_messages(&self) -> Vec<(ActorId, Message)> {
-        self.modifications
-            .iter()
-            .flat_map(|(id, trans)| {
-                trans
-                    .local_messages
-                    .iter()
-                    .map(|message| (*id, message.clone()))
-            })
             .collect()
     }
 
@@ -282,8 +262,6 @@ impl InBlockTransitions {
             states,
             schedule,
             program_creations: program_creations.into_iter().collect(),
-            // Always empty: local_messages is no longer populated (Commit 2 removes this field).
-            local_outcome: Vec::new(),
             committed_message_ids,
         }
     }
@@ -327,9 +305,6 @@ pub struct NonFinalTransition {
     pub value_to_receive: i128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
-    /// Outgoing messages from Injected dispatches. No longer populated
-    /// (Commit 2 removes this field); kept for ABI compatibility.
-    pub local_messages: Vec<Message>,
     /// Ids of messages in `messages` that are committable to Ethereum.
     /// Populated by [`push_outgoing`] when `committable` is true.
     pub committed_message_ids: BTreeSet<MessageId>,
@@ -364,7 +339,6 @@ impl NonFinalTransition {
             value_to_receive,
             claims,
             messages,
-            local_messages: Vec::new(),
             committed_message_ids: BTreeSet::new(),
         }
     }

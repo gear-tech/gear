@@ -12,14 +12,11 @@
 //! cache only avoids repeated reads when many subscribers share an MB.
 
 use super::program::ProgramBestState;
-use ethexe_common::{
-    db::MbStorageRO,
-    gear::{Message, StateTransition},
-};
+use ethexe_common::{db::MbStorageRO, gear::StateTransition};
 use ethexe_db::Database;
-use gprimitives::{ActorId, H160, H256};
+use gprimitives::{H160, H256};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::{error, trace, warn};
 
@@ -30,9 +27,6 @@ const BROADCAST_CAPACITY: usize = 1024;
 const CACHE_CAPACITY: u64 = 128;
 
 type StateTransitionsCache = moka::sync::Cache<H256, Arc<Vec<StateTransition>>>;
-/// Local outcome pre-squashed into a per-program index so each subscriber does
-/// a single `BTreeMap` lookup instead of scanning the `Vec` on every MB.
-type LocalOutcomeCache = moka::sync::Cache<H256, Arc<BTreeMap<ActorId, Vec<Message>>>>;
 
 /// Cloneable handle shared between [`ProgramApi`](super::ProgramApi) (creates
 /// subscribers) and [`RpcService`](crate::RpcService) (pushes `mb_hash`es).
@@ -41,7 +35,6 @@ pub struct BestStateManager {
     db: Database,
     sender: broadcast::Sender<H256>,
     cache: StateTransitionsCache,
-    local_cache: LocalOutcomeCache,
 }
 
 impl BestStateManager {
@@ -50,15 +43,7 @@ impl BestStateManager {
         let cache = moka::sync::Cache::builder()
             .max_capacity(CACHE_CAPACITY)
             .build();
-        let local_cache = moka::sync::Cache::builder()
-            .max_capacity(CACHE_CAPACITY)
-            .build();
-        Self {
-            db,
-            sender,
-            cache,
-            local_cache,
-        }
+        Self { db, sender, cache }
     }
 
     /// Fan a freshly computed MB out to all active subscribers.
@@ -80,19 +65,6 @@ impl BestStateManager {
             })
             .ok()
     }
-
-    fn local_outcome(&self, mb_hash: H256) -> Option<Arc<BTreeMap<ActorId, Vec<Message>>>> {
-        // Squash the DB `Vec<(ActorId, _)>` into a per-program map once per MB,
-        // so each subscriber just does `get(&actor_id)` rather than a linear scan.
-        self.local_cache
-            .try_get_with(mb_hash, || {
-                self.db
-                    .mb_local_outcome(mb_hash)
-                    .map(|local| Arc::new(local.into_iter().collect()))
-                    .ok_or(())
-            })
-            .ok()
-    }
 }
 
 /// Spawns the background task driving a single best-state subscription until the
@@ -102,7 +74,7 @@ pub fn spawn_best_state_subscriber(
     manager: BestStateManager,
     program_id: H160,
 ) {
-    let actor_id: ActorId = program_id.into();
+    let actor_id = program_id.into();
     let mut receiver = manager.subscribe();
 
     let _handle = tokio::spawn(async move {
@@ -131,20 +103,10 @@ pub fn spawn_best_state_subscriber(
                 continue;
             };
 
-            // PoC: off-chain (Injected) messages for this program, concatenated
-            // into the single `messages` list below. Should be a separate field.
-            let local_messages = manager
-                .local_outcome(mb_hash)
-                .and_then(|local| local.get(&actor_id).cloned())
-                .unwrap_or_default();
-
-            let mut messages = transition.messages.clone();
-            messages.extend(local_messages);
-
             let best_state = ProgramBestState {
                 mb_hash,
                 new_state_hash: transition.new_state_hash,
-                messages,
+                messages: transition.messages.clone(),
             };
 
             match SubscriptionMessage::from_json(&best_state) {

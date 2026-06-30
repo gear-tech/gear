@@ -7,7 +7,7 @@ use crate::{
     Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
     SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
-    gear::{Message, StateTransition},
+    gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
     malachite::Operations,
 };
@@ -152,10 +152,6 @@ pub struct MbMeta {
     pub last_advanced_eb: H256,
 }
 
-/// Off-chain (Injected) outgoing messages per program for one MB. Not committed
-/// on Ethereum; persisted under the MB hash and served off-chain.
-pub type LocalOutcome = Vec<(ActorId, Vec<Message>)>;
-
 #[auto_impl::auto_impl(&, Box)]
 pub trait MbStorageRO {
     /// Static identity (parent + height + `operations_hash`).
@@ -166,8 +162,6 @@ pub trait MbStorageRO {
     fn operations(&self, operations_hash: H256) -> Option<Operations>;
     fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
     fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
-    /// Off-chain (Injected) outgoing messages for this MB. See [`LocalOutcome`].
-    fn mb_local_outcome(&self, mb_hash: H256) -> Option<LocalOutcome>;
     /// Ids of messages in `mb_outcome` that are committable to Ethereum.
     ///
     /// Written atomically with [`MbStorageRW::set_mb_outcome`] in `compute_one`.
@@ -185,7 +179,6 @@ pub trait MbStorageRW: MbStorageRO {
     fn set_operations(&self, operations: Operations) -> H256;
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
-    fn set_mb_local_outcome(&self, mb_hash: H256, local_outcome: LocalOutcome);
     fn set_mb_committed_message_ids(&self, mb_hash: H256, ids: BTreeSet<MessageId>);
     fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
     fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
