@@ -37,9 +37,18 @@ use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_common::Acceptance;
 use ethexe_malachite_core::{
-    Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteCore,
-    MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
+    Address, Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteCore,
+    MalachiteCoreConfig, MalachiteCtx, MalachiteNetworkParts, MalachiteSigner, Multiaddr, NodeRole,
+    PeerId, ScaleCodec, ValidatorEntry, libp2p_keypair_from, libp2p_peer_id,
+    private_key_from_gsigner, public_key_from_gsigner,
 };
+use malachitebft_app_channel::app::{metrics::SharedRegistry, types::codec::Codec};
+use malachitebft_engine::network::{Network, NetworkIdentity};
+use malachitebft_network::{
+    ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, ProtocolNames,
+    PubSubProtocol, TransportProtocol,
+};
+use malachitebft_signing::SigningProviderExt as _;
 use proptest::prelude::*;
 use tempfile::TempDir;
 use tokio::time::sleep;
@@ -200,7 +209,7 @@ struct ValidatorSetup {
     private_key: gsigner::schemes::secp256k1::PrivateKey,
     home: TempDir,
     listen_addr: SocketAddr,
-    peer_id: ethexe_malachite_core::PeerId,
+    peer_id: PeerId,
 }
 
 fn make_secret(i: u16) -> [u8; 32] {
@@ -273,30 +282,98 @@ fn build_multiaddrs_excluding(setups: &[ValidatorSetup], exclude: usize) -> Vec<
         .collect()
 }
 
-fn build_config(
-    setup: &ValidatorSetup,
-    setups: &[ValidatorSetup],
-    peers: Vec<Multiaddr>,
-) -> MalachiteCoreConfig {
-    build_config_with_role(setup, peers, validator_entries(setups), NodeRole::Validator)
+fn build_config(setup: &ValidatorSetup, setups: &[ValidatorSetup]) -> MalachiteCoreConfig {
+    build_config_with_role(setup, validator_entries(setups), NodeRole::Validator)
 }
 
 fn build_config_with_role(
     setup: &ValidatorSetup,
-    peers: Vec<Multiaddr>,
     validators: Vec<ValidatorEntry>,
     role: NodeRole,
 ) -> MalachiteCoreConfig {
     MalachiteCoreConfig {
         env: Default::default(),
-        listen_addr: setup.listen_addr,
         base: setup.home.path().to_path_buf(),
-        persistent_peers: peers,
         validator_secret: setup.private_key.clone(),
         validators,
         propose_timeout: Duration::from_secs(2),
         role,
     }
+}
+
+async fn default_network_parts(
+    setup: &ValidatorSetup,
+    peers: Vec<Multiaddr>,
+    role: NodeRole,
+) -> MalachiteNetworkParts {
+    let keypair = libp2p_keypair_from(&setup.private_key.to_bytes());
+    let peer_id = keypair.public().to_peer_id();
+    let moniker = format!("v-{}", setup.listen_addr.port());
+
+    let identity = match role {
+        NodeRole::Validator => {
+            let private_key =
+                private_key_from_gsigner(&setup.private_key).expect("malachite private key");
+            let signer = MalachiteSigner::new(private_key);
+            let public_key = public_key_from_gsigner(&setup.private_key.public_key())
+                .expect("malachite public key");
+            let proof = signer
+                .sign_validator_proof(public_key.to_vec(), peer_id.to_bytes())
+                .await
+                .expect("sign validator proof");
+            let proof_bytes = <ScaleCodec as Codec<
+                malachitebft_core_types::ValidatorProof<MalachiteCtx>,
+            >>::encode(&ScaleCodec, &proof)
+            .expect("encode validator proof");
+            NetworkIdentity::new_validator(
+                moniker.clone(),
+                keypair,
+                Address::from_public_key(&public_key).to_string(),
+                proof_bytes,
+            )
+        }
+        NodeRole::FullNode => NetworkIdentity::new(moniker.clone(), keypair, None),
+    };
+
+    let network_config = NetworkConfig {
+        listen_addr: format!("/ip4/127.0.0.1/tcp/{}", setup.listen_addr.port())
+            .parse()
+            .expect("valid listen multiaddr"),
+        persistent_peers: peers,
+        persistent_peers_only: false,
+        discovery: DiscoveryConfig::new(false),
+        idle_connection_timeout: Duration::from_secs(15 * 60),
+        transport: TransportProtocol::Tcp,
+        gossipsub: GossipSubConfig::default(),
+        pubsub_protocol: PubSubProtocol::GossipSub,
+        channel_names: ChannelNames::default(),
+        rpc_max_size: 10 * 1024 * 1024,
+        pubsub_max_size: 4 * 1024 * 1024,
+        enable_consensus: true,
+        enable_sync: true,
+        protocol_names: ProtocolNames::default(),
+    };
+
+    let network_ref = Network::<MalachiteCtx, ScaleCodec>::spawn(
+        identity,
+        network_config,
+        SharedRegistry::global().with_moniker(&moniker),
+        ScaleCodec,
+        tracing::Span::current(),
+    )
+    .await
+    .expect("default malachite network starts");
+    let (tx_network, mut rx_network) =
+        tokio::sync::mpsc::channel::<ethexe_malachite_core::NetworkMsg<MalachiteCtx>>(128);
+    tokio::spawn({
+        let network_ref = network_ref.clone();
+        async move {
+            while let Some(message) = rx_network.recv().await {
+                let _ = network_ref.cast(message.into());
+            }
+        }
+    });
+    (network_ref, tx_network)
 }
 
 async fn start_service(
@@ -306,8 +383,9 @@ async fn start_service(
     ext: Arc<TestExt>,
 ) -> MalachiteCore<TestExt> {
     let peers = build_multiaddrs_excluding(setups, idx);
-    let config = build_config(setup, setups, peers);
-    MalachiteCore::<TestExt>::new(config, ext)
+    let config = build_config(setup, setups);
+    let parts = default_network_parts(setup, peers, NodeRole::Validator).await;
+    MalachiteCore::<TestExt>::new(config, ext, setup.peer_id, parts)
         .await
         .expect("service starts")
 }
@@ -495,10 +573,12 @@ async fn full_node_syncs_from_validators() {
             NodeRole::FullNode
         };
         let peers = build_multiaddrs_excluding(&setups, i);
-        let cfg = build_config_with_role(setup, peers, validator_set.clone(), role);
-        let svc = MalachiteCore::<TestExt>::new(cfg, Arc::clone(&exts[i]))
-            .await
-            .expect("service starts");
+        let cfg = build_config_with_role(setup, validator_set.clone(), role);
+        let network_parts = default_network_parts(setup, peers, role).await;
+        let svc =
+            MalachiteCore::<TestExt>::new(cfg, Arc::clone(&exts[i]), setup.peer_id, network_parts)
+                .await
+                .expect("service starts");
         services.push(svc);
         sleep(Duration::from_millis(500)).await;
     }

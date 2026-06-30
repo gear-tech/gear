@@ -9,9 +9,7 @@ use crate::{
     config::{Environment, MalachiteCoreConfig, NodeRole},
     context::{MalachiteCtx, Validator, ValidatorSet},
     externalities::Externalities,
-    signing::{
-        MalachiteSigner, libp2p_keypair_from, private_key_from_gsigner, public_key_from_gsigner,
-    },
+    signing::{MalachiteSigner, private_key_from_gsigner, public_key_from_gsigner},
     state::{SharedValidatorSet, State},
     store::Store,
     types::{Address, H256},
@@ -20,18 +18,21 @@ use advisory_lock::{AdvisoryFileLock, FileLockMode};
 use anyhow::{Context as _, Result};
 use bytes::Bytes;
 use futures::{Stream, stream::FusedStream};
+use libp2p_identity::PeerId;
 use malachitebft_app_channel::{
-    ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
-    SigningProviderExt, SyncContext, WalContext,
+    ConsensusContext, EngineBuilder, EngineHandle, NetworkMsg, RequestContext, SyncContext,
+    WalContext,
     app::{
         config::{
-            ConsensusConfig, DiscoveryConfig, LoggingConfig, MetricsConfig, NodeConfig, P2pConfig,
-            PubSubProtocol, RuntimeConfig, TransportProtocol, ValuePayload, ValueSyncConfig,
+            ConsensusConfig, LoggingConfig, MetricsConfig, NodeConfig, P2pConfig, RuntimeConfig,
+            ValuePayload, ValueSyncConfig,
         },
         metrics::SharedRegistry,
     },
 };
 use malachitebft_core_types::ValidatorProof;
+use malachitebft_engine::network::NetworkRef;
+use malachitebft_signing::SigningProviderExt;
 use std::{
     fs::OpenOptions,
     path::{Path, PathBuf},
@@ -41,6 +42,11 @@ use std::{
     time::Duration,
 };
 use tokio::{sync::mpsc, task::JoinHandle};
+
+pub type MalachiteNetworkParts = (
+    NetworkRef<MalachiteCtx>,
+    mpsc::Sender<NetworkMsg<MalachiteCtx>>,
+);
 
 /// Trait-object-friendly facade for the service. The stream carries
 /// only fatal app-task errors — successful events reach the
@@ -64,6 +70,8 @@ pub struct MalachiteCore<EXT: Externalities> {
     /// startup decisions that need to inspect replay state before the
     /// app task is released.
     store: Store,
+    /// Validator proof bytes intended for network.
+    validator_proof: Option<Bytes>,
     /// Keeps the externalities alive for the app task.
     _externalities: Arc<EXT>,
 }
@@ -131,7 +139,12 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
 
 impl<EXT: Externalities> MalachiteCore<EXT> {
     /// Bootstrap the service.
-    pub async fn new(config: MalachiteCoreConfig, externalities: Arc<EXT>) -> Result<Self> {
+    pub async fn new(
+        config: MalachiteCoreConfig,
+        externalities: Arc<EXT>,
+        peer_id: PeerId,
+        (network_ref, tx_network): MalachiteNetworkParts,
+    ) -> Result<Self> {
         // The service owns `<base>/malachite/`. We `mkdir -p` it so
         // RocksDB and the WAL can land there.
         let svc_dir = config.base.join("malachite");
@@ -143,7 +156,6 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
         // ---- key + libp2p identity ----
         let private_key = private_key_from_gsigner(&config.validator_secret)
             .context("converting validator secret")?;
-        let validator_secret_bytes = config.validator_secret.to_bytes();
         let signer = MalachiteSigner::new(private_key);
         let public_key = signer.public_key();
         let address = Address::from_public_key(&public_key);
@@ -153,13 +165,10 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             target: "ethexe-malachite-core",
             %moniker,
             address = %address,
-            listen = %config.listen_addr,
             validators = config.validators.len(),
             role = ?config.role,
             "Bootstrapping Malachite engine",
         );
-
-        let libp2p_keypair = libp2p_keypair_from(&validator_secret_bytes);
 
         // ---- validator set from config ----
         if config.validators.is_empty() {
@@ -176,18 +185,17 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
         let validator_set = SharedValidatorSet::new(initial_validator_set);
 
         // ---- network identity, role-dependent ----
-        let identity = match config.role {
+        let validator_proof = match config.role {
             NodeRole::Validator => {
                 if !in_set {
                     return Err(anyhow::anyhow!(
                         "NodeRole::Validator: local address {address} not present in MalachiteCoreConfig::validators"
                     ));
                 }
-                let peer_id_bytes = libp2p_keypair.public().to_peer_id().to_bytes();
+                let peer_id_bytes = peer_id.to_bytes();
                 // Sign (validator_pubkey, peer_id_bytes) to bind
                 // libp2p identity to the validator's on-chain identity.
-                let signing_provider = MalachiteSigner::new(signer.private_key().clone());
-                let proof = signing_provider
+                let proof = signer
                     .sign_validator_proof(public_key.to_vec(), peer_id_bytes)
                     .await
                     .map_err(|e| anyhow::anyhow!("signing validator proof: {e:?}"))?;
@@ -196,12 +204,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
                     <ScaleCodec as Codec<ValidatorProof<MalachiteCtx>>>::encode(&ScaleCodec, &proof)
                         .map_err(|e| anyhow::anyhow!("encoding validator proof: {e}"))?
                 };
-                NetworkIdentity::new_validator(
-                    moniker.clone(),
-                    libp2p_keypair,
-                    address.to_string(),
-                    proof_bytes,
-                )
+                Some(proof_bytes)
             }
             NodeRole::FullNode => {
                 if in_set {
@@ -209,17 +212,17 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
                         "NodeRole::FullNode: local address {address} must NOT be in MalachiteCoreConfig::validators"
                     ));
                 }
-                NetworkIdentity::new(moniker.clone(), libp2p_keypair, None)
+                None
             }
         };
 
         // ---- engine ----
-        let inner_cfg = build_inner_config(&config, &moniker);
+        let inner_cfg = build_inner_config(&moniker, config.env);
         let ctx = MalachiteCtx::new();
         let consensus_signer = MalachiteSigner::new(signer.private_key().clone());
         let (channels, engine) = EngineBuilder::new(ctx.clone(), inner_cfg)
             .with_default_wal(WalContext::new(wal_path.clone(), ScaleCodec))
-            .with_default_network(NetworkContext::new(identity, ScaleCodec))
+            .with_custom_network(network_ref, tx_network)
             .with_default_consensus(ConsensusContext::new(address, consensus_signer))
             .with_default_sync(SyncContext::new(ScaleCodec))
             .with_default_request(RequestContext::new(100))
@@ -258,6 +261,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             wal_path,
             validator_set,
             store,
+            validator_proof,
             _externalities: externalities,
         })
     }
@@ -265,6 +269,11 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
     /// Whether `block_hash` is already finalized in the persistent app store.
     pub fn is_finalized(&self, block_hash: H256) -> Result<bool> {
         self.store.is_finalized(block_hash)
+    }
+
+    /// Validator proof bytes intended for network.
+    pub fn validator_proof(&self) -> Option<Bytes> {
+        self.validator_proof.clone()
     }
 
     /// Swap the active validator set, taking effect at the next height start
@@ -305,28 +314,15 @@ impl<EXT: Externalities> FusedStream for MalachiteCore<EXT> {
 
 impl<EXT: Externalities> MService for MalachiteCore<EXT> {}
 
-fn build_inner_config(cfg: &MalachiteCoreConfig, moniker: &str) -> InnerNodeConfig {
-    let transport = TransportProtocol::Tcp;
-    let listen_multiaddr = transport.multiaddr(
-        &cfg.listen_addr.ip().to_string(),
-        cfg.listen_addr.port() as usize,
-    );
+fn build_inner_config(moniker: &str, env: Environment) -> InnerNodeConfig {
     let consensus = ConsensusConfig {
         enabled: true,
         value_payload: ValuePayload::ProposalAndParts,
         queue_capacity: 100,
-        p2p: P2pConfig {
-            protocol: PubSubProtocol::default(),
-            listen_addr: listen_multiaddr,
-            persistent_peers: cfg.persistent_peers.clone(),
-            discovery: DiscoveryConfig {
-                enabled: false,
-                ..Default::default()
-            },
-            ..Default::default()
-        },
+        // NOTE: the config is actually unused because we have our own network implementation
+        p2p: P2pConfig::default(),
     };
-    let value_sync = match cfg.env {
+    let value_sync = match env {
         Environment::Production => ValueSyncConfig::default(),
         Environment::Test => ValueSyncConfig {
             // Service tests do not run Malachite's application task forever, so

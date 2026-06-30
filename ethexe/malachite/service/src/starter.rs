@@ -13,7 +13,9 @@ use ethexe_common::{
     db::{ConfigStorageRO, GlobalsStorageRO},
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{MalachiteCore, MalachiteCoreConfig, NodeRole};
+use ethexe_malachite_core::{
+    MalachiteCore, MalachiteCoreConfig, MalachiteNetworkParts, NodeRole, PeerId,
+};
 use gsigner::schemes::secp256k1::{PrivateKey, PublicKey};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{
@@ -31,6 +33,8 @@ pub struct MalachiteServiceStarter {
     validators: HashMap<Address, PublicKey>,
     active_era: u64,
     core_config: MalachiteCoreConfig,
+    peer_id: PeerId,
+    network_parts: MalachiteNetworkParts,
 }
 
 impl MalachiteServiceStarter {
@@ -42,6 +46,8 @@ impl MalachiteServiceStarter {
         validator_config: Option<ValidatorConfig<M>>,
         db: Database,
         initial_chain_head: SimpleBlockData,
+        peer_id: PeerId,
+        network_parts: MalachiteNetworkParts,
     ) -> Result<Self> {
         std::fs::create_dir_all(&config.home_dir)
             .with_context(|| format!("creating Malachite home dir {:?}", config.home_dir))?;
@@ -80,9 +86,7 @@ impl MalachiteServiceStarter {
 
         let core_config = MalachiteCoreConfig {
             env: config.env,
-            listen_addr: config.listen_addr,
             base: config.home_dir.clone(),
-            persistent_peers: config.persistent_peers.clone(),
             validator_secret,
             validators: config.validators.clone(),
             role,
@@ -124,6 +128,8 @@ impl MalachiteServiceStarter {
             validators,
             active_era,
             core_config,
+            peer_id,
+            network_parts,
         })
     }
 
@@ -137,8 +143,11 @@ impl MalachiteServiceStarter {
             validators,
             active_era,
             core_config,
+            peer_id,
+            network_parts,
         } = self;
-        let inner = MalachiteCore::new(core_config, externalities.clone())
+
+        let inner = MalachiteCore::new(core_config, externalities.clone(), peer_id, network_parts)
             .await
             .context("starting ethexe-malachite-core")?;
 

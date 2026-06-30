@@ -115,6 +115,8 @@ impl<Req, Resp> Clone for ParityScaleCodec<Req, Resp> {
 
 pub(crate) trait MultiaddrExt {
     fn is_global(&self) -> bool;
+
+    fn peer_id(&self) -> Option<PeerId>;
 }
 
 impl MultiaddrExt for Multiaddr {
@@ -124,6 +126,16 @@ impl MultiaddrExt for Multiaddr {
             multiaddr::Protocol::Ip4(ip) => IpNetwork::from(ip).is_global(),
             multiaddr::Protocol::Ip6(ip) => IpNetwork::from(ip).is_global(),
             _ => true,
+        })
+    }
+
+    fn peer_id(&self) -> Option<PeerId> {
+        self.iter().find_map(|protocol| {
+            if let multiaddr::Protocol::P2p(peer) = protocol {
+                Some(peer)
+            } else {
+                None
+            }
         })
     }
 }

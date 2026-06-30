@@ -89,14 +89,12 @@ async fn constructor() {
         })
         .collect();
 
+    let router_address = eth_cfg.router_address;
     let mut config = Config {
         node: node_cfg,
         ethereum: eth_cfg,
-        network: None,
-        malachite: config::MalachiteCliConfig {
-            validator_pub_keys,
-            ..Default::default()
-        },
+        network: ethexe_network::NetworkConfig::new_local(network_key, router_address),
+        malachite: config::MalachiteCliConfig { validator_pub_keys },
         rpc: None,
         prometheus: None,
     };
@@ -112,12 +110,7 @@ async fn constructor() {
     // the first to fully unwind.
     config.node.database_path = tmp_dir.join("db2");
 
-    // Enable all optional services
-    config.network = Some(ethexe_network::NetworkConfig::new_local(
-        network_key,
-        config.ethereum.router_address,
-    ));
-
+    // Enable remaining optional services.
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,

@@ -706,11 +706,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<Option<FastSyncReplayT
         sender,
         ..
     } = service;
-    let Some(network) = network else {
-        log::warn!("Network service is disabled. Skipping fast synchronization...");
-        return Ok(None);
-    };
-
     log::info!("Fast synchronization is in progress...");
 
     let finalized_block = observer
