@@ -250,12 +250,12 @@ impl Publisher {
             let mut is_published = false;
             let mut is_actualized = false;
 
+            let crates_io_name = handler::crates_io_name(name);
+
             if verify {
-                match crate::verify_owners(name).await? {
+                match crate::verify_owners(crates_io_name).await? {
                     PackageStatus::InvalidOwners => {
-                        // TODO: transfer ownership of crate https://crates.io/crates/gear-core-processor
-                        // bail!("Package {name} has invalid owners!")
-                        is_published = true;
+                        bail!("Package {crates_io_name} has invalid owners!")
                     }
                     PackageStatus::NotPublished => is_published = false,
                     PackageStatus::ValidOwners => is_published = true,

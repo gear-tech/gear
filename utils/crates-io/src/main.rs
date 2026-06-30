@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
                 .build(true, version)
                 .await?;
             publisher.prepare_publish().await?;
-            // TODO: For some reason, this isn't compiling.
+            // TODO #5611: For some reason, this isn't compiling.
             // It’s likely due to the `[patch.crates-io]` entries for `parity-wasm` and `wasm-instrument`.
             // It would probably be best to create two separate workspaces for the integration tests.
             // publisher.check().await?;

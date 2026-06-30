@@ -79,8 +79,8 @@ pub enum PackageStatus {
 }
 
 /// Verify if the package has valid owners.
-pub async fn verify_owners(name: &str) -> Result<PackageStatus> {
-    println!("Verifying {name} owners ...");
+pub async fn verify_owners(crates_io_name: &str) -> Result<PackageStatus> {
+    println!("Verifying {crates_io_name} owners ...");
 
     let client = Client::builder()
         .user_agent("gear-crates-io-manager")
@@ -88,8 +88,7 @@ pub async fn verify_owners(name: &str) -> Result<PackageStatus> {
 
     let response = client
         .get(format!(
-            "https://crates.io/api/v1/crates/{}/owners",
-            handler::crates_io_name(name)
+            "https://crates.io/api/v1/crates/{crates_io_name}/owners",
         ))
         .send()
         .await?;

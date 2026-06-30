@@ -1,13 +1,15 @@
 [package]
 name = "crates-io"
-description = "Utility for managing Gear packages on crates.io"
-edition.workspace = true
 version.workspace = true
 authors.workspace = true
-license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Utility for managing Gear packages on crates.io"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "crates-io", "publishing", "cargo", "ci"]
+categories = ["development-tools", "command-line-utilities"]
 
 [dependencies]
 anyhow.workspace = true
