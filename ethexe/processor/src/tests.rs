@@ -1756,7 +1756,146 @@ async fn injected_ping_pong() {
     );
 }
 
-// TODO(commit 3): re-add committable-filter coverage
+/// Verify that the committable-filter correctly partitions outgoing messages
+/// by message type.
+///
+/// A canonical PING reply (Canonical → committed) and an injected PING reply
+/// (Injected, value=0 → not committed) are both produced in a single block.
+/// After finalization, the canonical reply's id must appear in
+/// `committed_message_ids` while the injected reply's id must not.
+#[tokio::test]
+async fn committable_filter_canonical_vs_injected_value0() {
+    use gear_core::ids::prelude::MessageIdExt as _;
+
+    init_logger();
+
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
+    let block1 = chain.blocks[1].to_simple();
+
+    let canonical_user = ActorId::from(10);
+    let injected_user = ActorId::from(20);
+    let actor_id = ActorId::from(0x10000);
+
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 200_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+
+    // Init with non-PING payload so no reply is generated during init.
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: canonical_user,
+                payload: b"INIT".to_vec(),
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue init message");
+
+    handler.transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Send canonical PING (id=2) and injected PING (value=0).
+    let canonical_msg_id = MessageId::from(2);
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: canonical_msg_id,
+                source: canonical_user,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue canonical PING");
+
+    let injected_tx = injected(actor_id, b"PING", 0);
+    let injected_msg_id = injected_tx.to_message_id();
+    handler
+        .handle_injected_transaction(injected_user, injected_tx)
+        .expect("failed to queue injected PING");
+
+    handler.transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Both replies must be present in the collected messages.
+    let all_messages = handler.transitions.current_messages();
+    assert_eq!(
+        all_messages.len(),
+        2,
+        "expected exactly 2 outgoing PONG messages"
+    );
+
+    // Identify replies by their destination (source of the originating message).
+    let canonical_reply = all_messages
+        .iter()
+        .find(|(_, m)| m.destination == canonical_user)
+        .map(|(_, m)| m)
+        .expect("canonical PONG reply must be present");
+    let injected_reply = all_messages
+        .iter()
+        .find(|(_, m)| m.destination == injected_user)
+        .map(|(_, m)| m)
+        .expect("injected PONG reply must be present");
+
+    // Sanity: the replies carry correct payloads.
+    assert_eq!(canonical_reply.payload, b"PONG");
+    assert_eq!(injected_reply.payload, b"PONG");
+
+    // Verify committed_message_ids: canonical committed, injected value-0 not committed.
+    let finalized = handler.transitions.finalize();
+    assert!(
+        finalized
+            .committed_message_ids
+            .contains(&canonical_reply.id),
+        "canonical PONG reply must be in committed_message_ids"
+    );
+    assert!(
+        !finalized.committed_message_ids.contains(&injected_reply.id),
+        "injected value-0 PONG reply must NOT be in committed_message_ids"
+    );
+    // Cross-check with generate_reply so that message ID derivation is also exercised.
+    let canonical_reply_id = MessageId::generate_reply(canonical_msg_id);
+    let injected_reply_id = MessageId::generate_reply(injected_msg_id);
+    assert_eq!(canonical_reply.id, canonical_reply_id);
+    assert_eq!(injected_reply.id, injected_reply_id);
+}
 
 #[cfg(debug_assertions)] // FIXME: test fails in release mode
 #[tokio::test]

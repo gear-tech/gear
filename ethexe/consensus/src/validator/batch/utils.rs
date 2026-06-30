@@ -1078,4 +1078,102 @@ mod tests {
         assert_eq!(squashed[0].value_to_receive, 0);
         assert!(!squashed[0].value_to_receive_negative_sign);
     }
+
+    // -----------------------------------------------------------------------
+    // C: committed_mb_outcome filters out non-committable messages
+    // -----------------------------------------------------------------------
+
+    /// Three messages in one MB outcome:
+    ///   (a) canonical — committed
+    ///   (b) injected value-0 — off-chain, NOT committed
+    ///   (c) injected value-bearing — committed (value forces on-chain)
+    ///
+    /// The `mb_committed_message_ids` set contains only (a) and (c).
+    /// `committed_mb_outcome` must return (a) and (c) in original order, dropping (b).
+    ///
+    /// A second assertion checks that when `mb_committed_message_ids` is ABSENT,
+    /// all messages are dropped (unwrap_or_default gives an empty set → retain
+    /// nothing).
+    #[test]
+    fn committed_mb_outcome_filters_uncommitted_messages() {
+        use gprimitives::MessageId;
+
+        let db = Database::memory();
+
+        // Build the three synthetic messages.
+        let msg_a = Message {
+            id: MessageId::from([1; 32]),
+            destination: ActorId::from([0xAA; 32]),
+            payload: b"canonical".to_vec(),
+            value: 0,
+            reply_details: None,
+            call: false,
+        };
+        let msg_b = Message {
+            id: MessageId::from([2; 32]),
+            destination: ActorId::from([0xBB; 32]),
+            payload: b"injected-value0".to_vec(),
+            value: 0,
+            reply_details: None,
+            call: false,
+        };
+        let msg_c = Message {
+            id: MessageId::from([3; 32]),
+            destination: ActorId::from([0xCC; 32]),
+            payload: b"injected-with-value".to_vec(),
+            value: 100,
+            reply_details: None,
+            call: false,
+        };
+
+        let actor_id = ActorId::from([0x11; 32]);
+        let transition = StateTransition {
+            actor_id,
+            new_state_hash: H256::from([0xDE; 32]),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 0,
+            value_to_receive_negative_sign: false,
+            value_claims: vec![],
+            messages: vec![msg_a.clone(), msg_b.clone(), msg_c.clone()],
+        };
+
+        // MB 1: has committed ids for (a) and (c) only.
+        // write_mb returns H256::from_low_u64_be(0x1000 + height).
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![transition.clone()]);
+        let committed: BTreeSet<MessageId> = [msg_a.id, msg_c.id].into_iter().collect();
+        db.set_mb_committed_message_ids(mb1, committed);
+
+        let result = committed_mb_outcome(&db, mb1)
+            .expect("committed_mb_outcome must return Some when mb_outcome is set");
+
+        assert_eq!(result.len(), 1, "one StateTransition expected");
+        let filtered_msgs = &result[0].messages;
+        assert_eq!(
+            filtered_msgs.len(),
+            2,
+            "only (a) canonical and (c) value-bearing must survive the filter"
+        );
+        assert_eq!(
+            filtered_msgs[0].id, msg_a.id,
+            "canonical message must be first"
+        );
+        assert_eq!(
+            filtered_msgs[1].id, msg_c.id,
+            "value-bearing injected message must be second"
+        );
+
+        // MB 2: committed_message_ids is ABSENT → all messages dropped.
+        let mb2 = write_mb(&db, H256::zero(), 2, vec![transition]);
+        // Do NOT call set_mb_committed_message_ids for mb2.
+
+        let result2 = committed_mb_outcome(&db, mb2)
+            .expect("committed_mb_outcome must return Some when mb_outcome is set");
+
+        assert_eq!(result2.len(), 1, "one StateTransition expected");
+        assert!(
+            result2[0].messages.is_empty(),
+            "absent mb_committed_message_ids must cause all messages to be dropped"
+        );
+    }
 }
