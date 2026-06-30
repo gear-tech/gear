@@ -34,10 +34,18 @@ pub enum NodeRole {
     FullNode,
 }
 
+#[derive(Debug, Copy, Clone, Default)]
+pub enum Environment {
+    #[default]
+    Production,
+    Test,
+}
+
 /// All configuration the service needs to bootstrap the malachite engine.
 /// Application-specific knobs live behind [`crate::Externalities`].
 #[derive(Clone, Debug)]
 pub struct MalachiteCoreConfig {
+    pub env: Environment,
     /// Local libp2p listen address.
     pub listen_addr: SocketAddr,
 

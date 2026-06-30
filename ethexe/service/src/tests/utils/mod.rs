@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 pub use env::*;
-use ethexe_db::{GenesisInitializer, dump::StateDump};
-use ethexe_processor::Processor;
 pub use events::*;
-use futures::FutureExt;
 
 mod env;
 mod events;
 
+use ethexe_db::{GenesisInitializer, dump::StateDump};
+use ethexe_processor::Processor;
+use futures::FutureExt;
 use tracing_subscriber::EnvFilter;
 
 pub fn init_logger() {

@@ -98,6 +98,11 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
         };
 
         if let Poll::Ready(result) = self.prepare_sub_service.poll_next(cx) {
+            // A freshly prepared EB may unblock MBs that were deferred
+            // waiting for it (the gate Malachite used to own).
+            if let Ok(crate::prepare::Event::BlockPrepared(hash)) = &result {
+                self.mb_compute_sub_service.receive_prepared_block(*hash);
+            }
             return Poll::Ready(Some(result.map(ComputeEvent::from)));
         };
 
@@ -135,8 +140,8 @@ mod tests {
     use ethexe_common::{
         BlockHeader, CodeAndIdUnchecked,
         db::{
-            BlockMetaStorageRO, CodesStorageRO, CompactMb, MbStorageRO, MbStorageRW,
-            OnChainStorageRW,
+            BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, CompactMb, MbStorageRO,
+            MbStorageRW, OnChainStorageRW,
         },
         malachite::{Operation, Operations},
         mock::{Tap, seed_genesis_zero_mb},
@@ -172,6 +177,9 @@ mod tests {
             },
         );
         db.set_block_events(eth_block_hash, &[]);
+        // Compute defers an MB until its advanced EB is prepared; mark it so the
+        // `compute_mb` test (which never pumps a `BlockPrepared`) runs immediately.
+        db.mutate_block_meta(eth_block_hash, |m| m.prepared = true);
 
         let operations_hash = db.set_operations(Operations::new(vec![
             Operation::AdvanceTillEthereumBlock {

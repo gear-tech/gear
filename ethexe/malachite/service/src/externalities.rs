@@ -57,8 +57,10 @@ use ethexe_db::Database;
 use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
 use gprimitives::H256;
 use parity_scale_codec::{DecodeAll, Encode};
-use std::{collections::VecDeque, sync::Arc};
-use tokio::sync::{RwLock, mpsc::UnboundedSender};
+use std::sync::Arc;
+#[cfg(test)]
+use tokio::sync::RwLock;
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, trace, warn};
 
 /// Constant parameters for [`EthexeExternalities`];
@@ -81,21 +83,8 @@ pub(crate) struct EthexeExternalities {
     pub mempool: Option<Arc<dyn Mempool>>,
     /// Reference to the latest chain head data.
     pub chain_head: Arc<ChainHead>,
-    /// Pending service events queue.
-    /// Release events from here only when their prerequisite EB is prepared.
-    pub pending_events: RwLock<VecDeque<PendingEvent>>,
     /// Channel to poll events in MalachiteService.
     pub event_tx: UnboundedSender<Result<MalachiteEvent>>,
-}
-
-/// One outbound [`MalachiteEvent`] that can't be released until its
-/// `prerequisite` Eth block is prepared in local DB.
-pub(crate) struct PendingEvent {
-    /// Event body
-    pub event: MalachiteEvent,
-    /// Prerequisite Eth block hash
-    /// that must be prepared before this event can be emitted
-    pub prerequisite: H256,
 }
 
 #[async_trait]
@@ -132,14 +121,15 @@ impl Externalities for EthexeExternalities {
             meta.last_advanced_eb = last_advanced;
         });
 
-        self.try_emit_or_queue(
-            MalachiteEvent::BlockProposal {
-                height: mb.height,
-                mb_hash,
-            },
-            last_advanced,
-        )
-        .await;
+        // Emit immediately: the "wait until the advanced EB is prepared"
+        // gating now lives in ethexe-compute, which defers MB execution
+        // (not event emission) until the prerequisite EB is ready. Emitting
+        // here unconditionally keeps events strictly ordered and lets the
+        // service drain fast-sync replay without head-of-line stalls.
+        let _ = self.event_tx.send(Ok(MalachiteEvent::BlockProposal {
+            height: mb.height,
+            mb_hash,
+        }));
         Ok(())
     }
 
@@ -173,7 +163,6 @@ impl Externalities for EthexeExternalities {
                 pool.forget(&injected).await;
             }
         }
-
         self.db
             .globals_mutate(|g| g.latest_finalized_mb_hash = mb_hash);
 
@@ -182,16 +171,12 @@ impl Externalities for EthexeExternalities {
             mb_hash,
             signatures: cert.signatures,
         };
-        let last_advanced = self.db.mb_meta(mb_hash).last_advanced_eb;
-        self.try_emit_or_queue(
-            MalachiteEvent::BlockFinalized {
-                cert: app_cert,
-                height: cert.height,
-                mb_hash,
-            },
-            last_advanced,
-        )
-        .await;
+        // Emit immediately; see the note in `process_mb_proposal`.
+        let _ = self.event_tx.send(Ok(MalachiteEvent::BlockFinalized {
+            cert: app_cert,
+            height: cert.height,
+            mb_hash,
+        }));
 
         Ok(())
     }
@@ -470,39 +455,6 @@ impl Externalities for EthexeExternalities {
 }
 
 impl EthexeExternalities {
-    /// Check whether the prerequisite EB is prepared in local DB.
-    /// Zero hash is a special case that always passes.
-    fn prerequisite_satisfied(&self, prerequisite: H256) -> bool {
-        use ethexe_common::db::BlockMetaStorageRO;
-        prerequisite.is_zero() || self.db.block_meta(prerequisite).prepared
-    }
-
-    /// Send event immediately if prerequisite is satisfied, otherwise queue it for later emission.
-    pub(crate) async fn try_emit_or_queue(&self, event: MalachiteEvent, prerequisite: H256) {
-        let mut queue = self.pending_events.write().await;
-        if queue.is_empty() && self.prerequisite_satisfied(prerequisite) {
-            // Channel receiver dropped only on shutdown — best-effort.
-            let _ = self.event_tx.send(Ok(event));
-        } else {
-            queue.push_back(PendingEvent {
-                event,
-                prerequisite,
-            });
-        }
-    }
-
-    /// Check the pending events queue and release any events whose prerequisites are now satisfied.
-    pub(crate) async fn drain_pending_events(&self) {
-        let mut queue = self.pending_events.write().await;
-        while let Some(front) = queue.front() {
-            if !self.prerequisite_satisfied(front.prerequisite) {
-                break;
-            }
-            let entry = queue.pop_front().expect("just peeked");
-            let _ = self.event_tx.send(Ok(entry.event));
-        }
-    }
-
     // Wait for either a new EB candidate past quarantine
     // or any suitable injected tx to include in the next proposal.
     async fn wait_for_proposable_content(
@@ -640,7 +592,6 @@ mod tests {
             mempool: Some(Arc::new(EmptyMempool)),
             chain_head: make_chain_head(),
             event_tx,
-            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 0,
@@ -1055,7 +1006,6 @@ mod tests {
             mempool: Some(Arc::clone(&tracker) as Arc<dyn Mempool>),
             chain_head: make_chain_head(),
             event_tx,
-            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 0,
@@ -1122,7 +1072,6 @@ mod tests {
             mempool: Some(mempool as Arc<dyn Mempool>),
             chain_head: make_chain_head(),
             event_tx,
-            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 0,
@@ -1876,7 +1825,6 @@ mod tests {
             mempool: Some(Arc::new(EmptyMempool)),
             chain_head: make_chain_head(),
             event_tx,
-            pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
                 canonical_quarantine: 2,

@@ -22,7 +22,6 @@
 //! - [`ObserverEvent`] — Stream item: `Block` on a new head, `BlockSynced` after back-fill
 //! - [`SyncError`] — Error classifier: `RpcError` (recoverable, skipped) vs `Fatal` (propagated)
 //! - [`utils::BlockLoader`] — Trait abstracting block-data loading from Ethereum
-//! - [`utils::BlockId`] — Block selector for `BlockLoader::load_simple`: `Hash(H256)`, `Latest`, `Finalized`
 //! - [`utils::EthereumBlockLoader`] — alloy-backed [`utils::BlockLoader`] impl
 //!
 //! ## Invariants

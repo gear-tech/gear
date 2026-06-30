@@ -189,6 +189,9 @@ pub enum ComputeError {
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
+
+    #[error("other: {0}")]
+    Other(&'static str),
 }
 
 type Result<T> = std::result::Result<T, ComputeError>;

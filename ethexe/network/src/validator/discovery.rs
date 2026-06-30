@@ -6,7 +6,6 @@
 //! Heavily based on Substrate authority discovery mechanism.
 
 use crate::{
-    db_sync::PeerId,
     kad::{
         self, GetRecordResult, PutRecordFuture, RecordKey, ValidatorIdentityKey,
         ValidatorIdentityRecord,
@@ -27,7 +26,7 @@ use futures::{
 use gsigner::secp256k1::{PrivateKey, Secp256k1SignerExt, Signer};
 use indexmap::IndexSet;
 use libp2p::{
-    Multiaddr,
+    Multiaddr, PeerId,
     core::{Endpoint, transport::PortUse},
     identity::Keypair,
     multiaddr,

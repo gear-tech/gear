@@ -6,7 +6,7 @@
 use crate::{
     app,
     codec::ScaleCodec,
-    config::{MalachiteCoreConfig, NodeRole},
+    config::{Environment, MalachiteCoreConfig, NodeRole},
     context::{MalachiteCtx, Validator, ValidatorSet},
     externalities::Externalities,
     signing::{
@@ -14,7 +14,7 @@ use crate::{
     },
     state::{SharedValidatorSet, State},
     store::Store,
-    types::Address,
+    types::{Address, H256},
 };
 use advisory_lock::{AdvisoryFileLock, FileLockMode};
 use anyhow::{Context as _, Result};
@@ -60,6 +60,10 @@ pub struct MalachiteCore<EXT: Externalities> {
     wal_path: PathBuf,
     /// Shared with the app loop; [`Self::update_validators`] writes here.
     validator_set: SharedValidatorSet,
+    /// Persistent app store, shared with the app task. Kept here for
+    /// startup decisions that need to inspect replay state before the
+    /// app task is released.
+    store: Store,
     /// Keeps the externalities alive for the app task.
     _externalities: Arc<EXT>,
 }
@@ -233,7 +237,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             signer,
             validator_set.clone(),
             address,
-            store,
+            store.clone(),
             config.propose_timeout,
         )?;
 
@@ -253,8 +257,14 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             app_handle,
             wal_path,
             validator_set,
+            store,
             _externalities: externalities,
         })
+    }
+
+    /// Whether `block_hash` is already finalized in the persistent app store.
+    pub fn is_finalized(&self, block_hash: H256) -> Result<bool> {
+        self.store.is_finalized(block_hash)
     }
 
     /// Swap the active validator set, taking effect at the next height start
@@ -316,10 +326,23 @@ fn build_inner_config(cfg: &MalachiteCoreConfig, moniker: &str) -> InnerNodeConf
             ..Default::default()
         },
     };
+    let value_sync = match cfg.env {
+        Environment::Production => ValueSyncConfig::default(),
+        Environment::Test => ValueSyncConfig {
+            // Service tests do not run Malachite's application task forever, so
+            // use short value-sync waits and small batches to make missing replay
+            // data fail fast instead of blocking the event queue.
+            status_update_interval: Duration::from_millis(500),
+            request_timeout: Duration::from_secs(3),
+            parallel_requests: 16,
+            batch_size: 32,
+            ..Default::default()
+        },
+    };
     InnerNodeConfig {
         moniker: moniker.to_string(),
         consensus,
-        value_sync: ValueSyncConfig::default(),
+        value_sync,
         logging: LoggingConfig::default(),
         metrics: MetricsConfig::default(),
         runtime: RuntimeConfig::default(),

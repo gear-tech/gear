@@ -8,13 +8,17 @@
 //! is wired in directly — there is no separate genesis file — so the
 //! caller is the single source of truth for who can vote.
 
+pub use ethexe_malachite_core::{Multiaddr, ValidatorEntry};
+
 use crate::Mempool;
 use ethexe_common::ecdsa::{PublicKey, Signer};
-pub use ethexe_malachite_core::{Multiaddr, ValidatorEntry};
+use ethexe_malachite_core::MalachiteConfigEnvironment;
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
 #[derive(Clone, Debug)]
 pub struct MalachiteServiceConfig {
+    pub env: MalachiteConfigEnvironment,
+
     /// Gas allowance per block.
     pub gas_allowance: u64,
 
@@ -69,6 +73,7 @@ impl MalachiteServiceConfig {
     /// The validator set is left empty — fill it in with [`Self::with_validators`].
     pub fn from_home_dir(home_dir: PathBuf) -> Self {
         Self {
+            env: Default::default(),
             gas_allowance: Self::DEFAULT_GAS_ALLOWANCE,
             canonical_quarantine: Self::DEFAULT_CANONICAL_QUARANTINE,
             post_quarantine_delay: Self::DEFAULT_POST_QUARANTINE_DELAY,

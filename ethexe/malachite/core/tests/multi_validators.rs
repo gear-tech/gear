@@ -288,6 +288,7 @@ fn build_config_with_role(
     role: NodeRole,
 ) -> MalachiteCoreConfig {
     MalachiteCoreConfig {
+        env: Default::default(),
         listen_addr: setup.listen_addr,
         base: setup.home.path().to_path_buf(),
         persistent_peers: peers,

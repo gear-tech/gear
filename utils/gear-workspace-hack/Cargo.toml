@@ -210,6 +210,7 @@ features = ["rocksdb", "test-helpers"]
 
 ### BEGIN HAKARI SECTION
 [target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies]
+aead = { version = "0.5", default-features = false, features = ["getrandom", "std"] }
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -250,10 +251,12 @@ byte-slice-cast = { version = "1", default-features = false, features = ["std"] 
 bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive", "min_const_generics", "must_cast"] }
 byteorder = { version = "1", features = ["i128"] }
 bytes = { version = "1", features = ["serde"] }
+cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
 clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
+core2 = { git = "https://github.com/bbqsrc/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7", default-features = false, features = ["std"] }
 cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
 cranelift-codegen = { version = "0.131", default-features = false, features = ["host-arch", "pulley", "std", "timing", "unwind"] }
 crc32fast = { version = "1" }
@@ -304,7 +307,7 @@ hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
-hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["default-hasher"] }
+hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["allocator-api2", "default-hasher", "inline-more"] }
 hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16", features = ["serde"] }
 hex = { version = "0.4", features = ["serde"] }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
@@ -484,6 +487,7 @@ x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [target.'cfg(not(any(target_arch = "wasm32", loom)))'.build-dependencies]
+aead = { version = "0.5", default-features = false, features = ["getrandom", "std"] }
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -528,10 +532,12 @@ bytemuck = { version = "1", default-features = false, features = ["const_zeroed"
 byteorder = { version = "1", features = ["i128"] }
 bytes = { version = "1", features = ["serde"] }
 cc = { version = "1", default-features = false, features = ["parallel"] }
+cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
 clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
+core2 = { git = "https://github.com/bbqsrc/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7", default-features = false, features = ["std"] }
 cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
 cranelift-codegen = { version = "0.131", default-features = false, features = ["host-arch", "pulley", "std", "timing", "unwind"] }
 cranelift-codegen-meta = { version = "0.131", default-features = false, features = ["pulley"] }
@@ -586,7 +592,7 @@ hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
-hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["default-hasher"] }
+hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["allocator-api2", "default-hasher", "inline-more"] }
 hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16", features = ["serde"] }
 hex = { version = "0.4", features = ["serde"] }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }

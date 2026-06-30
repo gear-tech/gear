@@ -36,17 +36,16 @@ use crate::{
     pending_tx::PendingNetworkInjectedTx,
 };
 use alloy::{
+    eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::Metadata,
 };
 use anyhow::{Context, Result, bail};
-use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO},
-    gear::CodeState,
     injected::{CompactPromise, InjectedTransactionAcceptance, Receipt},
     network::VerifiedValidatorMessage,
 };
@@ -60,23 +59,17 @@ use ethexe_malachite::{
     InjectedTxMempool, MalachiteEvent, MalachiteServiceConfig, MalachiteServiceStarter,
     ValidatorEntry,
 };
-use ethexe_network::{
-    NetworkEvent, NetworkRuntimeConfig, NetworkService, TransportType,
-    db_sync::ExternalDataProvider,
-};
-use ethexe_observer::{
-    ObserverConfig, ObserverEvent, ObserverService,
-    utils::{BlockId, BlockLoader},
-};
+use ethexe_network::{NetworkEvent, NetworkRuntimeConfig, NetworkService, TransportType};
+use ethexe_observer::{ObserverConfig, ObserverEvent, ObserverService, utils::BlockLoader};
 use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeInfo};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{FutureExt, StreamExt};
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::CodeId;
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     num::NonZero,
     path::PathBuf,
     pin::Pin,
@@ -101,32 +94,6 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Rpc(RpcEvent),
     Prometheus(PrometheusEvent),
-}
-
-#[derive(Clone)]
-struct RouterDataProvider(RouterQuery);
-
-#[async_trait]
-impl ExternalDataProvider for RouterDataProvider {
-    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
-        Box::new(self.clone())
-    }
-
-    async fn programs_code_ids_at(
-        self: Box<Self>,
-        program_ids: BTreeSet<ActorId>,
-        block: H256,
-    ) -> Result<Vec<CodeId>> {
-        self.0.programs_code_ids_at(program_ids, block).await
-    }
-
-    async fn codes_states_at(
-        self: Box<Self>,
-        code_ids: BTreeSet<CodeId>,
-        block: H256,
-    ) -> Result<Vec<CodeState>> {
-        self.0.codes_states_at(code_ids, block).await
-    }
 }
 
 /// Build the Malachite validator set from the on-chain validator
@@ -370,7 +337,7 @@ impl Service {
 
         let initial_chain_head = observer
             .block_loader()
-            .load_simple(BlockId::Latest)
+            .load_simple(BlockId::latest())
             .await
             .context("failed to get latest block")?;
 
@@ -474,7 +441,6 @@ impl Service {
                 validator_key: validator_pub_key,
                 general_signer: signer.clone(),
                 network_signer,
-                external_data_provider: Box::new(RouterDataProvider(router_query)),
                 db: db.clone(),
             };
 
@@ -623,16 +589,18 @@ impl Service {
     }
 
     pub async fn run(mut self) -> Result<()> {
-        if self.fast_sync {
-            fast_sync::sync(&mut self).await?;
-        }
+        let replay_target = if self.fast_sync {
+            fast_sync::sync(&mut self).await?
+        } else {
+            None
+        };
 
-        self.run_inner().await.inspect_err(|err| {
+        self.run_inner(replay_target).await.inspect_err(|err| {
             log::error!("Service finished work with error: {err:?}");
         })
     }
 
-    async fn run_inner(self) -> Result<()> {
+    async fn run_inner(self, replay_target: Option<fast_sync::FastSyncReplayTarget>) -> Result<()> {
         let Service {
             db,
             mut network,
@@ -646,12 +614,10 @@ impl Service {
             rpc,
             fast_sync: _,
             validator_pub_key,
-            shutdown_rx,
+            mut shutdown_rx,
             #[cfg(test)]
             sender,
         } = self;
-
-        let mut shutdown_rx = shutdown_rx;
 
         let mut malachite = malachite_starter.start().await?;
 
@@ -677,6 +643,10 @@ impl Service {
             .await;
 
         let mut network_injected_txs: HashMap<_, PendingNetworkInjectedTx> = HashMap::new();
+
+        // Suppresses Malachite's startup replay of the chain fast sync already
+        // restored, up to and including the committed target MB.
+        let mut replay_gate = fast_sync::ReplayGate::new(replay_target);
 
         loop {
             let event: Event = tokio::select! {
@@ -742,8 +712,9 @@ impl Service {
                         if let Some(c) = consensus.as_mut() {
                             c.receive_prepared_block(block_hash)?;
                         }
-
-                        malachite.receive_eb_prepared(block_hash).await;
+                        // Compute owns the "wait for the prerequisite EB" gate
+                        // now (see `ComputeSubService`), so Malachite no longer
+                        // needs a prepared-block notification.
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
@@ -972,6 +943,13 @@ impl Service {
                             mb_hash = %mb_hash,
                             "Malachite: BlockProposal",
                         );
+
+                        // Suppress replay of the chain fast sync already
+                        // restored, up to and including the committed target MB.
+                        if !replay_gate.allow(&db, mb_hash)? {
+                            tracing::debug!(mb_hash = %mb_hash, "fast-sync replay gate: skipping replayed proposal");
+                            continue;
+                        }
 
                         compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }

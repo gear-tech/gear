@@ -79,6 +79,7 @@ impl MalachiteServiceStarter {
         };
 
         let core_config = MalachiteCoreConfig {
+            env: config.env,
             listen_addr: config.listen_addr,
             base: config.home_dir.clone(),
             persistent_peers: config.persistent_peers.clone(),
@@ -105,7 +106,6 @@ impl MalachiteServiceStarter {
             },
             mempool: mempool.clone(),
             chain_head: chain_head.clone(),
-            pending_events: Default::default(),
             event_tx,
         });
 
@@ -138,7 +138,6 @@ impl MalachiteServiceStarter {
             active_era,
             core_config,
         } = self;
-
         let inner = MalachiteCore::new(core_config, externalities.clone())
             .await
             .context("starting ethexe-malachite-core")?;

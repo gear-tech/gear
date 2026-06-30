@@ -1,18 +1,14 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{
-    db_sync::{Multiaddr, PeerId},
-    utils::ParityScaleCodec,
-    validator::discovery::ValidatorIdentities,
-};
+use crate::{utils::ParityScaleCodec, validator::discovery::ValidatorIdentities};
 use ethexe_common::{
     Address, HashOf,
     injected::{InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction},
 };
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use libp2p::{
-    StreamProtocol,
+    Multiaddr, PeerId, StreamProtocol,
     core::{Endpoint, transport::PortUse},
     request_response,
     request_response::{

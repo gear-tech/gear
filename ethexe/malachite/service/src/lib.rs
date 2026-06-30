@@ -28,7 +28,7 @@
 //! - [`TxValidity`] (enum) — Validity verdict: `Valid`, `Duplicate`, `Outdated`, …
 //!
 //! Driver methods on [`MalachiteService`]: `receive_injected_transaction`,
-//! `receive_new_eb`, `receive_eb_synced`, `receive_eb_prepared`, `shutdown`.
+//! `receive_new_eb`, `receive_eb_synced`, `shutdown`.
 //!
 //! [`TxValidity`] gates inclusion: a producer drops any non-`Valid` tx when
 //! building an MB, and a validator rejects an entire MB that contains one.
@@ -61,12 +61,13 @@ mod types;
 
 pub use crate::{
     config::{MalachiteServiceConfig, ValidatorConfig, ValidatorEntry},
-    mempool::{InjectedTxMempool, Mempool, TxInsertionStatus},
+    mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
     service::MalachiteService,
     starter::MalachiteServiceStarter,
-    tx_validity::{TxValidity, TxValidityChecker},
+    tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
     types::{CommitCertificate, MalachiteEvent},
 };
 pub use ethexe_malachite_core::{
-    Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
+    MalachiteConfigEnvironment, Multiaddr, PeerId, derive_libp2p_secret,
+    libp2p_peer_id as malachite_libp2p_peer_id,
 };
