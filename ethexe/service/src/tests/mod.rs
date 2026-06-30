@@ -2097,7 +2097,6 @@ async fn validators_election() {
 
     stop_nodes(validators).await;
 
-    env.extend_malachite_endpoints(&next_validators_configs);
     env.validators = next_validators_configs;
     let mut new_validators = vec![];
     for (i, v) in env.validators.clone().into_iter().enumerate() {
@@ -2795,6 +2794,7 @@ async fn program_subscribe_best_state() {
         .rpc_ws_client()
         .await
         .expect("RPC client provide by node");
+    let mut node_events = node.new_events();
 
     // Upload demo_ping and create the program.
     let uploaded_code = env
@@ -2815,7 +2815,18 @@ async fn program_subscribe_best_state() {
         .unwrap();
     let ping_id = program.program_id;
 
-    // Subscribe after creation so the first emitted state is the PING handle.
+    node_events
+        .find_map_with_db(|db, event| match event {
+            TestingEvent::Compute(ethexe_compute::ComputeEvent::MbComputed(mb_hash)) => db
+                .mb_outcome(mb_hash)?
+                .iter()
+                .any(|transition| transition.actor_id == ping_id)
+                .then_some(mb_hash),
+            _ => None,
+        })
+        .await;
+
+    // Subscribe after local creation is computed so the first emitted state is the PING handle.
     let mut subscription = rpc_client
         .subscribe_best_state(ping_id.to_address_lossy())
         .await
@@ -2831,18 +2842,28 @@ async fn program_subscribe_best_state() {
         .unwrap();
     assert_eq!(reply.payload, b"PONG");
 
+    let expected_mb_hash = node_events
+        .find_map_with_db(|db, event| match event {
+            TestingEvent::Compute(ethexe_compute::ComputeEvent::MbComputed(mb_hash)) => db
+                .mb_outcome(mb_hash)?
+                .iter()
+                .any(|transition| {
+                    transition.actor_id == ping_id
+                        && transition.messages.iter().any(|msg| msg.payload == b"PONG")
+                })
+                .then_some(mb_hash),
+            _ => None,
+        })
+        .await;
     let best_state = subscription
         .next()
         .await
         .expect("subscription produces a best state")
         .expect("no RPC subscription error");
 
+    assert_eq!(best_state.mb_hash, expected_mb_hash);
     assert_ne!(best_state.mb_hash, H256::zero());
     assert_ne!(best_state.new_state_hash, H256::zero());
-    assert!(
-        best_state.messages.iter().any(|msg| msg.payload == b"PONG"),
-        "expected the PONG reply in the best state messages"
-    );
     tracing::info!("✅ Best state successfully received from RPC subscription");
 
     // Now send the same PING as an injected transaction: it must yield a PONG
@@ -2877,11 +2898,25 @@ async fn program_subscribe_best_state() {
     assert_eq!(promise.reply.payload, b"PONG");
     tracing::info!("✅ Injected PING promise received from RPC subscription");
 
+    let expected_injected_mb_hash = node_events
+        .find_map_with_db(|db, event| match event {
+            TestingEvent::Compute(ethexe_compute::ComputeEvent::MbComputed(mb_hash)) => db
+                .mb_outcome(mb_hash)?
+                .iter()
+                .any(|transition| {
+                    transition.actor_id == ping_id
+                        && transition.messages.iter().any(|msg| msg.payload == b"PONG")
+                })
+                .then_some(mb_hash),
+            _ => None,
+        })
+        .await;
     let injected_best_state = subscription
         .next()
         .await
         .expect("subscription produces a best state for the injected ping")
         .expect("no RPC subscription error");
+    assert_eq!(injected_best_state.mb_hash, expected_injected_mb_hash);
     assert_ne!(injected_best_state.mb_hash, H256::zero());
     assert_ne!(injected_best_state.new_state_hash, H256::zero());
     assert!(
