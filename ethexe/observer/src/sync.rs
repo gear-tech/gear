@@ -24,7 +24,7 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use gprimitives::H256;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque, hash_map::Entry};
 
 /// Outcome of one chain-sync attempt. `RpcError` is recoverable (caller
 /// retries on the next chain head); `Fatal` propagates.
@@ -97,13 +97,8 @@ impl ChainSync {
 
         let blocks_data = self.pre_load_data(&block.header).await?;
         let chain = self.load_chain(&block, blocks_data).await?;
-        self.ensure_validators(block).await?;
-        // Backfill on-chain validators for every era spanned by the freshly
-        // loaded chain — a node joining mid-chain must hold the validator set
-        // of each historical era so the consensus resolver can verify the
-        // certificates of MBs anchored to those eras' Ethereum blocks.
-        self.ensure_validators_for_chain(&chain).await?;
-        self.mark_chain_as_synced(chain.into_iter().rev());
+        self.ensure_validators(&chain).await?;
+        self.mark_chain_as_synced(chain);
 
         Ok(block.hash)
     }
@@ -111,13 +106,13 @@ impl ChainSync {
     async fn load_chain(
         &self,
         block: &SimpleBlockData,
-        mut blocks_data: HashMap<H256, BlockData>,
-    ) -> Result<Vec<SimpleBlockData>> {
-        let mut chain = Vec::new();
+        mut pre_loaded_blocks_data: HashMap<H256, BlockData>,
+    ) -> Result<VecDeque<SimpleBlockData>> {
+        let mut chain = VecDeque::new();
 
         let mut current_block_hash = block.hash;
         while !self.db.block_synced(current_block_hash) {
-            let block_data = match blocks_data.remove(&current_block_hash) {
+            let block_data = match pre_loaded_blocks_data.remove(&current_block_hash) {
                 Some(data) => data,
                 None => {
                     self.block_loader
@@ -155,7 +150,8 @@ impl ChainSync {
             self.db
                 .set_block_events(current_block_hash, &block_data.events);
 
-            chain.push(SimpleBlockData {
+            // Push front so the chain is in order from oldest to newest
+            chain.push_front(SimpleBlockData {
                 hash: current_block_hash,
                 header: block_data.header,
             });
@@ -200,67 +196,79 @@ impl ChainSync {
     }
 
     /// This function guarantees the next things:
-    /// 1. if there is no validators for current era in database - it fetches them.
+    /// 1. if there is no validators for `block_chain` eras - it fetches them.
     /// 2. if the election result is `finalized` it requests for next era validators and sets them in database.
     ///
     /// See [`Self::election_timestamp_finalized`] for the our timestamp `finalization` rules.
-    async fn ensure_validators(&self, block_data: SimpleBlockData) -> Result<()> {
-        let chain_head_era = self
-            .config
-            .timelines
-            .era_from_ts(block_data.header.timestamp)
-            .context("failed to calculate era from timestamp")?;
-
-        // If we don't have validators for current era - set them.
-        if self.db.validators(chain_head_era).is_none() {
-            let validators = self.router_query.validators_at(block_data.hash).await?;
-            self.db.set_validators(chain_head_era, validators);
+    async fn ensure_validators(&self, chain: &VecDeque<SimpleBlockData>) -> Result<()> {
+        if cfg!(debug_assertions) {
+            // Check timestamps are in ascending order
+            let mut timestamp = 0;
+            for block in chain {
+                let block_timestamp = block.header.timestamp;
+                if block_timestamp < timestamp {
+                    return Err(anyhow!(
+                        "Block timestamps are not in ascending order: {block_timestamp} < {timestamp}"
+                    ));
+                }
+                timestamp = block_timestamp;
+            }
         }
 
+        let Some(chain_head) = chain.back().copied() else {
+            return Ok(());
+        };
+
+        let timelines = &self.config.timelines;
+        let mut era_validators_map = HashMap::new();
+        for block in chain.iter().rev() {
+            let era = timelines
+                .era_from_ts(block.header.timestamp)
+                .context("block timestamp is before genesis")?;
+            if self.db.validators(era).is_some() {
+                // We already have validators for this era, and that means we have validators
+                // for all previous eras too, so we can stop here.
+                break;
+            }
+            if let Entry::Vacant(entry) = era_validators_map.entry(era) {
+                entry.insert(self.router_query.validators_at(block.hash).await?);
+            }
+        }
+
+        for (era, validators) in era_validators_map {
+            self.db.set_validators(era, validators);
+        }
+
+        let next_era = self
+            .config
+            .timelines
+            .era_from_ts(chain_head.header.timestamp)
+            .context("failed to calculate era from timestamp")?
+            .checked_add(1)
+            .context("u64 era index overflow")?;
+
         // Fetch next era validators if timestamp `finalized` and we don't set them in database already.
-        if let Some(election_ts) = self.election_timestamp_finalized(block_data.header.timestamp)
-            && self.db.validators(chain_head_era + 1).is_none()
+        if let Some(election_ts) = self.election_timestamp_finalized(chain_head.header.timestamp)
+            && self.db.validators(next_era).is_none()
         {
             let next_era_validators = self
                 .middleware_query
                 .make_election_at(election_ts, 10)
                 .await?;
-            self.db
-                .set_validators(chain_head_era + 1, next_era_validators);
+            self.db.set_validators(next_era, next_era_validators);
         }
 
         Ok(())
     }
 
-    /// Ensure the on-chain validator set is stored for every era spanned by
-    /// `chain`. Unlike [`Self::ensure_validators`] (which only covers the head's
-    /// era and the next one), this walks the whole freshly synced range so a
-    /// node that joins mid-chain — and thus loads historical eras in one sync —
-    /// holds each era's validators for certificate verification.
-    async fn ensure_validators_for_chain(&self, chain: &[SimpleBlockData]) -> Result<()> {
-        let mut ensured = std::collections::HashSet::new();
-        for block in chain {
-            let Some(era) = self.config.timelines.era_from_ts(block.header.timestamp) else {
-                continue;
-            };
-            // One query per distinct era, and only when missing.
-            if !ensured.insert(era) || self.db.validators(era).is_some() {
-                continue;
-            }
-            let validators = self.router_query.validators_at(block.hash).await?;
-            self.db.set_validators(era, validators);
-        }
-        Ok(())
-    }
-
-    fn mark_chain_as_synced(&self, chain: impl Iterator<Item = SimpleBlockData>) {
+    fn mark_chain_as_synced(&self, chain: impl IntoIterator<Item = SimpleBlockData>) {
         for data in chain {
             let SimpleBlockData { hash, header } = data;
 
             self.db.set_block_synced(hash);
 
             log::trace!(
-                "✅ block {hash} synced, events: {:?}",
+                "⛓️ block {hash} synced, events: {:?}",
                 self.db.block_events(hash)
             );
 
