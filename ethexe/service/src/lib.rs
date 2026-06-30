@@ -58,7 +58,7 @@ use ethexe_db::{
 use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_malachite::{
     InjectedTxMempool, MalachiteEvent, MalachiteServiceConfig, MalachiteServiceStarter,
-    ValidatorEntry,
+    ValidatorPublicKey,
 };
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService, TransportType,
@@ -134,26 +134,22 @@ impl ExternalDataProvider for RouterDataProvider {
 /// `address -> public key` table loaded from the
 /// `--validators-malachite-pub-keys` JSON file.
 ///
-/// Voting power is fixed at 1 — Malachite quorum is `> 2/3` of the
-/// total, which under uniform weights matches the Router's
-/// signature threshold. If/when the Router exposes per-validator
-/// stake, the lookup here is the natural place to plumb it through.
+/// The set is unweighted — Malachite quorum is `> 2/3` of the
+/// validator count, which matches the Router's signature threshold.
+/// If/when the Router exposes per-validator stake, the lookup here is
+/// the natural place to plumb it through.
 fn build_malachite_validator_set(
     on_chain_validators: impl IntoIterator<Item = Address>,
     pub_keys: &BTreeMap<Address, PublicKey>,
-) -> Result<Vec<ValidatorEntry>> {
+) -> Result<Vec<ValidatorPublicKey>> {
     on_chain_validators
         .into_iter()
         .map(|addr| {
-            let pub_key = pub_keys.get(&addr).copied().with_context(|| {
+            pub_keys.get(&addr).copied().with_context(|| {
                 format!(
                     "validator address {addr} has no entry in --validators-malachite-pub-keys; \
                      every on-chain validator must be present in the table"
                 )
-            })?;
-            Ok(ValidatorEntry {
-                public_key: pub_key,
-                voting_power: 1,
             })
         })
         .collect()

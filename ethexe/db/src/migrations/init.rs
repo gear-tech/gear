@@ -10,7 +10,9 @@ use anyhow::{Context as _, Result, ensure};
 use ethexe_common::{
     BlockHeader, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
     StateHashWithQueueSize,
-    db::{CodesStorageRO, CodesStorageRW, CompactMb, MbStorageRW, PreparedBlockData},
+    db::{
+        CodesStorageRO, CodesStorageRW, CompactMb, MbStorageRW, OnChainStorageRW, PreparedBlockData,
+    },
     gear::{GenesisBlockInfo, Timelines},
     malachite::Operations,
 };
@@ -75,7 +77,8 @@ async fn validate_db(config: InitConfig, db: &RawDatabase) -> Result<()> {
 pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result<()> {
     let provider = RootProvider::connect(&config.ethereum_rpc).await?;
     let chain_id = provider.get_chain_id().await?;
-    let storage_view = RouterQuery::from_provider(config.router_address, provider)
+    let router_query = RouterQuery::from_provider(config.router_address, provider);
+    let storage_view = router_query
         .storage_view_at(alloy::eips::BlockId::latest())
         .await
         .context("Empty db init, failed read router data")?;
@@ -125,7 +128,8 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     db.set_mb_outcome(genesis_parent_mb_hash, Vec::new());
     db.mutate_mb_meta(genesis_parent_mb_hash, |m| {
         m.computed = true;
-        m.last_advanced_eb = H256::zero();
+        m.finalized = true;
+        m.last_advanced_eb = Some(H256::zero());
     });
 
     ethexe_common::setup_block_in_db(
@@ -174,6 +178,15 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         latest_finalized_mb_hash: genesis_parent_mb_hash,
         latest_computed_mb_hash: genesis_parent_mb_hash,
     };
+
+    // Seed the genesis era's on-chain validator set. A synced block must always
+    // have its era's validators in the db (the consensus resolver relies on it),
+    // and the genesis block is synced at init — so set it here rather than
+    // waiting on the first live observer sync.
+    if let Some(genesis_era) = db_config.timelines.era_from_ts(genesis_eb.header.timestamp) {
+        let genesis_validators = router_query.validators_at(genesis_eb.hash).await?;
+        db.set_validators(genesis_era, genesis_validators);
+    }
 
     db.kv.set_globals(globals);
     db.kv.set_config(db_config);

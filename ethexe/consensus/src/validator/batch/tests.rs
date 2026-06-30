@@ -14,7 +14,7 @@ use crate::validator::core::MiddlewareWrapper;
 use ethexe_common::{
     Address, Digest, ProgramStates, Schedule, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRW, MbStorageRW, SetConfig},
+    db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRW, MbStorageRO, MbStorageRW, SetConfig},
     gear::StateTransition,
     malachite::{Operation, Operations},
     mock::*,
@@ -81,7 +81,8 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
     db.set_mb_program_states(mb_hash, ProgramStates::default());
     db.mutate_mb_meta(mb_hash, |meta| {
         meta.computed = true;
-        meta.last_advanced_eb = H256::zero();
+        meta.finalized = true;
+        meta.last_advanced_eb = Some(H256::zero());
     });
     mb_hash
 }
@@ -191,7 +192,7 @@ async fn rejects_duplicate_code_ids() {
         .unwrap();
     assert_eq!(
         unwrap_rejected(status),
-        ValidationRejectReason::CodesHaveDuplicates
+        ValidationRejectReason::HaveDuplicates
     );
 }
 
@@ -304,6 +305,183 @@ async fn rejects_head_mb_not_finalized_locally() {
 }
 
 #[tokio::test]
+async fn accepts_head_finalized_by_reachability_when_cache_flag_unset() {
+    // A freshly-started validator (e.g. right after a validator-set handover)
+    // learns the prior chain's finality indirectly — sync / on-chain
+    // `MBCommitted` — without replaying `process_mb_finalized` for every MB, so
+    // the per-MB `finalized` cache can be unset on MBs that are nonetheless
+    // reachable from the finalized tip. Such a head MUST be accepted, otherwise
+    // the new validator set can never commit and the handover stalls.
+    let db = Database::memory();
+    let (block, batch) = prepare_canonical_batch(&db).await;
+
+    // Simulate the synced node: clear the `finalized` cache on the whole chain.
+    // `globals.latest_finalized_mb_hash` (set by `setup_mb_chain`) still points
+    // at the head, so reachability holds.
+    let head = batch
+        .chain_commitment
+        .as_ref()
+        .expect("canonical batch has a chain commitment")
+        .head;
+    let mut cursor = head;
+    while !cursor.is_zero() {
+        db.mutate_mb_meta(cursor, |m| m.finalized = false);
+        cursor = db
+            .mb_compact_block(cursor)
+            .map(|c| c.parent)
+            .unwrap_or(H256::zero());
+    }
+
+    let manager = mock_batch_manager(db);
+    let request = BatchCommitmentValidationRequest::new(&batch);
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    match status {
+        ValidationStatus::Accepted(_) => {}
+        ValidationStatus::Rejected { reason, .. } => {
+            panic!("expected acceptance via reachability, got rejection: {reason:?}")
+        }
+    }
+}
+
+#[tokio::test]
+async fn builds_chain_commitment_when_committed_anchor_compact_absent() {
+    // Regression for the validator-set handover stall: a freshly joined
+    // validator learns `last_committed_mb` only from the on-chain `MBCommitted`
+    // event (propagated into `BlockMeta.last_committed_mb`) and never computed
+    // that MB, so it has no `mb_compact_block` for the anchor. The producer must
+    // still build a chain commitment for the computed MBs descending from the
+    // anchor — terminating the parent walk on the anchor hash — instead of
+    // bailing with "last committed MB is still not synced locally".
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    // The committed anchor is known only by hash: no compact block, no meta.
+    let anchor = H256::from([0x87; 32]);
+    let mb2 = append_mb(&db, anchor, 2, vec![nonempty_transition(2)]);
+    let mb3 = append_mb(&db, mb2, 3, vec![nonempty_transition(3)]);
+    db.globals_mutate(|g| g.latest_finalized_mb_hash = mb3);
+    db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_mb = Some(anchor);
+    });
+    // Sanity: the anchor genuinely has no local compact block.
+    assert!(db.mb_compact_block(anchor).is_none());
+
+    let manager = mock_batch_manager(db.clone());
+    let batch = manager
+        .create_batch_commitment(block)
+        .await
+        .expect("must not error when the committed anchor compact block is absent")
+        .expect("expected a non-empty batch");
+
+    let chain_commitment = batch
+        .chain_commitment
+        .expect("computed MBs descend from the anchor → chain commitment expected");
+    assert_eq!(
+        chain_commitment.head, mb3,
+        "chain commitment head must be the finalized tip"
+    );
+    assert!(
+        !chain_commitment.transitions.is_empty(),
+        "transitions from the MBs after the anchor must be committed"
+    );
+}
+
+#[tokio::test]
+async fn validates_chain_commitment_when_committed_anchor_compact_absent() {
+    // Validator-side counterpart: a participant that knows the committed anchor
+    // only by hash (no local compact block) must still accept a well-formed
+    // request whose head descends from that anchor, rather than hard-erroring.
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    let anchor = H256::from([0x87; 32]);
+    let mb2 = append_mb(&db, anchor, 2, vec![nonempty_transition(2)]);
+    let mb3 = append_mb(&db, mb2, 3, vec![nonempty_transition(3)]);
+    db.globals_mutate(|g| g.latest_finalized_mb_hash = mb3);
+    db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_mb = Some(anchor);
+    });
+    assert!(db.mb_compact_block(anchor).is_none());
+
+    // Build the request from a node that did produce the batch.
+    let request = {
+        let manager = mock_batch_manager(db.clone());
+        let batch = manager
+            .create_batch_commitment(block)
+            .await
+            .unwrap()
+            .expect("expected a non-empty batch");
+        BatchCommitmentValidationRequest::new(&batch)
+    };
+
+    let manager = mock_batch_manager(db);
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    match status {
+        ValidationStatus::Accepted(_) => {}
+        ValidationStatus::Rejected { reason, .. } => {
+            panic!("expected acceptance with anchor compact absent, got rejection: {reason:?}")
+        }
+    }
+}
+
+#[tokio::test]
+async fn does_not_hang_when_finalized_chain_does_not_reach_committed_anchor() {
+    // Reproduces the validator-set handover stall: the new set's finalized MB
+    // chain is rooted at the seeded genesis sentinel (the zero MB, which db init
+    // gives a SELF-parent), while `last_committed_mb` still points at the old
+    // set's on-chain committed MB that is NOT on this chain. The producer walk
+    // must stop at the zero sentinel and skip — not spin forever dereferencing
+    // its self-parent (which would wedge the single-threaded runtime).
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    // Seed the zero MB exactly like db init: a computed MB whose parent is itself.
+    db.set_mb_compact_block(
+        H256::zero(),
+        CompactMb {
+            parent: H256::zero(),
+            height: 0,
+            operations_hash: db.set_operations(Operations::default()),
+        },
+    );
+    db.mutate_mb_meta(H256::zero(), |m| {
+        m.computed = true;
+        m.finalized = true;
+        m.last_advanced_eb = Some(H256::zero());
+    });
+
+    // Finalized chain rooted at the zero sentinel (mb1.parent == zero).
+    setup_mb_chain(
+        &db,
+        vec![vec![nonempty_transition(1)], vec![nonempty_transition(2)]],
+    );
+
+    // Committed anchor is a nonzero MB that is NOT on the finalized chain.
+    let foreign_anchor = H256::from([0xDE; 32]);
+    db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_mb = Some(foreign_anchor);
+    });
+
+    // Must return promptly (no hang) and produce no batch — the finalized chain
+    // does not descend from the committed anchor, so there is nothing to commit.
+    let manager = mock_batch_manager(db.clone());
+    let batch = manager.create_batch_commitment(block).await.unwrap();
+    assert!(
+        batch.is_none(),
+        "a finalized chain disconnected from the committed anchor must skip, not hang"
+    );
+}
+
+#[tokio::test]
 async fn rejects_head_mb_at_or_below_last_committed_mb() {
     // The coordinator must always advance past `last_committed_mb`. If
     // its `head_mb` lands at or below that height, the participant rejects
@@ -337,10 +515,10 @@ async fn rejects_head_mb_at_or_below_last_committed_mb() {
         .validate_batch_commitment(block, request)
         .await
         .unwrap();
-    assert_eq!(
-        unwrap_rejected(status),
-        ValidationRejectReason::HeadMbAlreadyCommitted(head)
-    );
+    // With head_mb == last_committed_mb there is nothing left to commit:
+    // the chain walk is empty, no chain/code/validators/rewards commitment
+    // is produced, so the batch is rejected as empty.
+    assert_eq!(unwrap_rejected(status), ValidationRejectReason::EmptyBatch);
 }
 
 #[tokio::test]
@@ -421,29 +599,29 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
     let chain = test_block_chain(3).setup(&db);
     let block = chain.blocks[3].to_simple();
 
-    // Pile up a chain of MBs with many transitions each so the squashed
-    // batch easily exceeds a tight size limit.
-    let mut outcomes = Vec::new();
-    for mb_idx in 0..5u8 {
-        let mut o = Vec::new();
-        for actor in 0..40u8 {
-            // distinct actor per transition so squashing keeps them all
-            o.push(nonempty_transition(mb_idx * 50 + actor + 1));
-        }
-        outcomes.push(o);
-    }
-    setup_mb_chain(&db, outcomes);
+    // Validation tolerates batches above the local `batch_size_limit` up to
+    // the protocol-wide `MAX_BATCH_SIZE_LIMIT`. To get a rejection, the batch
+    // must exceed that hard cap — pack one transition with a payload bigger
+    // than `MAX_BATCH_SIZE_LIMIT`.
+    let mut oversize = nonempty_transition(1);
+    oversize.messages = vec![ethexe_common::gear::Message {
+        id: Default::default(),
+        destination: ActorId::zero(),
+        payload: vec![0u8; ethexe_common::consensus::MAX_BATCH_SIZE_LIMIT as usize + 1024],
+        value: 0,
+        reply_details: None,
+        call: false,
+    }];
+    setup_mb_chain(&db, vec![vec![oversize]]);
 
-    // First build under a generous limit, then validate under a tight
-    // one — that's how the manager catches an oversize batch from a
-    // misbehaving coordinator.
+    // The coordinator builds the oversize batch under a generous local limit;
+    // the validator must still reject it for breaching the hard cap.
     let big_manager = mock_batch_manager_with_limits(
         db.clone(),
         BatchLimits {
             commitment_delay_limit: std::num::NonZero::new(100).unwrap(),
-            batch_size_limit: BLOCK_GAS_LIMIT, // large
-            // Large enough that the checkpoint path doesn't fire in this size-limit scenario.
-            uncommitted_chain_len_threshold: NonZero::new(u32::MAX).unwrap(),
+            batch_size_limit: u64::MAX,
+            checkpoint_threshold: NonZero::new(u32::MAX).unwrap(),
         },
     );
     let batch = big_manager
@@ -453,16 +631,8 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
         .expect("expected non-empty batch");
     let request = BatchCommitmentValidationRequest::new(&batch);
 
-    let strict_manager = mock_batch_manager_with_limits(
-        db,
-        BatchLimits {
-            commitment_delay_limit: std::num::NonZero::new(100).unwrap(),
-            batch_size_limit: 256, // intentionally tiny
-            // Large enough that the checkpoint path doesn't fire in this size-limit scenario.
-            uncommitted_chain_len_threshold: NonZero::new(u32::MAX).unwrap(),
-        },
-    );
-    let status = strict_manager
+    let manager = mock_batch_manager(db);
+    let status = manager
         .validate_batch_commitment(block, request)
         .await
         .unwrap();
@@ -559,7 +729,7 @@ async fn idle_chain_below_threshold_yields_no_batch_commitment() {
     // Anchor advance lands 2 Eth heights past the last committed anchor.
     let advanced = chain.blocks[4].hash;
     let last_committed_eb = chain.blocks[2].hash;
-    db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = advanced);
+    db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = Some(advanced));
     db.mutate_block_meta(block.hash, |m| {
         m.last_committed_eb = Some(last_committed_eb)
     });
@@ -570,7 +740,7 @@ async fn idle_chain_below_threshold_yields_no_batch_commitment() {
         BatchLimits {
             commitment_delay_limit: std::num::NonZero::new(16).unwrap(),
             batch_size_limit: BLOCK_GAS_LIMIT,
-            uncommitted_chain_len_threshold: NonZero::new(10).unwrap(),
+            checkpoint_threshold: NonZero::new(10).unwrap(),
         },
     );
 
@@ -602,7 +772,7 @@ async fn idle_chain_above_threshold_emits_checkpoint_batch_commitment() {
     // gap = height(blocks[5]) - height(blocks[1]) = 4
     let advanced = chain.blocks[5].hash;
     let last_committed_eb = chain.blocks[1].hash;
-    db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = advanced);
+    db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = Some(advanced));
     db.mutate_block_meta(block.hash, |m| {
         m.last_committed_eb = Some(last_committed_eb)
     });
@@ -613,7 +783,7 @@ async fn idle_chain_above_threshold_emits_checkpoint_batch_commitment() {
         BatchLimits {
             commitment_delay_limit: std::num::NonZero::new(16).unwrap(),
             batch_size_limit: BLOCK_GAS_LIMIT,
-            uncommitted_chain_len_threshold: threshold,
+            checkpoint_threshold: threshold,
         },
     );
 
@@ -701,14 +871,14 @@ async fn test_aggregate_validators_commitment() {
 
     // Before election start (era 0, ts < genesis+50) → no commitment.
     let commitment = manager
-        .aggregate_validators_commitment(&chain.blocks[4].to_simple())
+        .aggregate_validators_commitment(chain.blocks[4].to_simple())
         .await
         .unwrap();
     assert!(commitment.is_none(), "expected None before election period");
 
     // Right at election start for era 1 → commits validators1.
     let commitment = manager
-        .aggregate_validators_commitment(&chain.blocks[5].to_simple())
+        .aggregate_validators_commitment(chain.blocks[5].to_simple())
         .await
         .unwrap()
         .expect("validators commitment expected");
@@ -720,7 +890,7 @@ async fn test_aggregate_validators_commitment() {
 
     // Inside era 1 election period → still validators1.
     let commitment = manager
-        .aggregate_validators_commitment(&chain.blocks[7].to_simple())
+        .aggregate_validators_commitment(chain.blocks[7].to_simple())
         .await
         .unwrap()
         .expect("validators commitment expected");
@@ -735,7 +905,7 @@ async fn test_aggregate_validators_commitment() {
         meta.latest_era_validators_committed = Some(1);
     });
     let commitment = manager
-        .aggregate_validators_commitment(&chain.blocks[7].to_simple())
+        .aggregate_validators_commitment(chain.blocks[7].to_simple())
         .await
         .unwrap();
     assert!(
@@ -749,7 +919,7 @@ async fn test_aggregate_validators_commitment() {
         meta.latest_era_validators_committed = Some(0);
     });
     let commitment = manager
-        .aggregate_validators_commitment(&chain.blocks[15].to_simple())
+        .aggregate_validators_commitment(chain.blocks[15].to_simple())
         .await
         .unwrap()
         .expect("validators commitment expected");
@@ -764,7 +934,7 @@ async fn test_aggregate_validators_commitment() {
         meta.latest_era_validators_committed = Some(3);
     });
     manager
-        .aggregate_validators_commitment(&chain.blocks[15].to_simple())
+        .aggregate_validators_commitment(chain.blocks[15].to_simple())
         .await
         .unwrap_err();
 }

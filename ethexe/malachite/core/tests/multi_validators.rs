@@ -38,7 +38,7 @@ use async_trait::async_trait;
 use ethexe_common::Acceptance;
 use ethexe_malachite_core::{
     Block, BlockPayload, CommitCertificate, Externalities, H256, MalachiteCore,
-    MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
+    MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorPublicKey, libp2p_peer_id,
 };
 use proptest::prelude::*;
 use tempfile::TempDir;
@@ -87,12 +87,21 @@ struct TestState {
     violations: Vec<String>,
 }
 
-#[derive(Default)]
 struct TestExt {
     state: Mutex<TestState>,
+    /// Active validator set, returned by [`Externalities::validators_for_child_of`]
+    /// (the resolver no longer falls back to the engine's shared set).
+    validators: Vec<ValidatorPublicKey>,
 }
 
 impl TestExt {
+    fn new(validators: Vec<ValidatorPublicKey>) -> Self {
+        Self {
+            state: Mutex::new(TestState::default()),
+            validators,
+        }
+    }
+
     fn finalized_count(&self) -> usize {
         self.state.lock().unwrap().finalized.len()
     }
@@ -190,6 +199,12 @@ impl Externalities for TestExt {
         }
         Ok(Acceptance::Accepted(()))
     }
+
+    async fn validators_for_child_of(&self, _parent_hash: H256) -> Result<Vec<ValidatorPublicKey>> {
+        // These tests run a single era; every height resolves to the same
+        // configured validator set.
+        Ok(self.validators.clone())
+    }
 }
 
 // --------------------------------------------------------------------
@@ -247,14 +262,8 @@ fn make_validators(n: usize) -> Vec<ValidatorSetup> {
         .collect()
 }
 
-fn validator_entries(setups: &[ValidatorSetup]) -> Vec<ValidatorEntry> {
-    setups
-        .iter()
-        .map(|s| ValidatorEntry {
-            public_key: s.private_key.public_key(),
-            voting_power: 1,
-        })
-        .collect()
+fn validator_entries(setups: &[ValidatorSetup]) -> Vec<ValidatorPublicKey> {
+    setups.iter().map(|s| s.private_key.public_key()).collect()
 }
 
 fn build_multiaddrs_excluding(setups: &[ValidatorSetup], exclude: usize) -> Vec<Multiaddr> {
@@ -284,7 +293,7 @@ fn build_config(
 fn build_config_with_role(
     setup: &ValidatorSetup,
     peers: Vec<Multiaddr>,
-    validators: Vec<ValidatorEntry>,
+    validators: Vec<ValidatorPublicKey>,
     role: NodeRole,
 ) -> MalachiteCoreConfig {
     MalachiteCoreConfig {
@@ -351,7 +360,9 @@ fn assert_no_violations(name: &str, ext: &TestExt) {
 async fn three_validators_make_progress() {
     init_tracing();
     let setups = make_validators(3);
-    let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
+    let exts: Vec<Arc<TestExt>> = (0..3)
+        .map(|_| Arc::new(TestExt::new(validator_entries(&setups))))
+        .collect();
     let mut services = Vec::with_capacity(3);
     for (i, setup) in setups.iter().enumerate() {
         let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
@@ -381,7 +392,9 @@ async fn seven_validators_full_network_restart() {
     let setups = make_validators(7);
     // One Arc<TestExt> per validator slot — reused across the
     // restart so the contract checks accumulate.
-    let exts: Vec<Arc<TestExt>> = (0..7).map(|_| Arc::new(TestExt::default())).collect();
+    let exts: Vec<Arc<TestExt>> = (0..7)
+        .map(|_| Arc::new(TestExt::new(validator_entries(&setups))))
+        .collect();
 
     // ---- first run ------------------------------------------------
     let mut services = Vec::with_capacity(7);
@@ -431,7 +444,9 @@ async fn seven_validators_full_network_restart() {
 async fn restart_one_validator_mid_run() {
     let setups = make_validators(3);
 
-    let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
+    let exts: Vec<Arc<TestExt>> = (0..3)
+        .map(|_| Arc::new(TestExt::new(validator_entries(&setups))))
+        .collect();
     let mut services: Vec<Option<MalachiteCore<TestExt>>> = Vec::with_capacity(3);
     for (i, setup) in setups.iter().enumerate() {
         let svc = start_service(setup, &setups, i, Arc::clone(&exts[i])).await;
@@ -477,15 +492,14 @@ async fn restart_one_validator_mid_run() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn full_node_syncs_from_validators() {
     let setups = make_validators(4);
-    let validator_set: Vec<ValidatorEntry> = setups[..3]
+    let validator_set: Vec<ValidatorPublicKey> = setups[..3]
         .iter()
-        .map(|s| ValidatorEntry {
-            public_key: s.private_key.public_key(),
-            voting_power: 1,
-        })
+        .map(|s| s.private_key.public_key())
         .collect();
 
-    let exts: Vec<Arc<TestExt>> = (0..4).map(|_| Arc::new(TestExt::default())).collect();
+    let exts: Vec<Arc<TestExt>> = (0..4)
+        .map(|_| Arc::new(TestExt::new(validator_set.clone())))
+        .collect();
     let mut services = Vec::with_capacity(4);
     for (i, setup) in setups.iter().enumerate() {
         let role = if i < 3 {
@@ -564,7 +578,9 @@ fn run_churn_scenario(events: Vec<ChurnEvent>) {
         let quorum = 2 * n / 3 + 1;
 
         let setups = make_validators(n);
-        let exts: Vec<Arc<TestExt>> = (0..n).map(|_| Arc::new(TestExt::default())).collect();
+        let exts: Vec<Arc<TestExt>> = (0..n)
+            .map(|_| Arc::new(TestExt::new(validator_entries(&setups))))
+            .collect();
         let mut services: Vec<Option<MalachiteCore<TestExt>>> = (0..n).map(|_| None).collect();
 
         // Bootstrap all validators with a stagger.
@@ -648,7 +664,9 @@ async fn shutdown_releases_wal_advisory_lock() {
 
     init_tracing();
     let setups = make_validators(3);
-    let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
+    let exts: Vec<Arc<TestExt>> = (0..3)
+        .map(|_| Arc::new(TestExt::new(validator_entries(&setups))))
+        .collect();
     let wal_paths: Vec<std::path::PathBuf> = setups
         .iter()
         .map(|s| s.home.path().join("malachite").join("consensus.wal"))

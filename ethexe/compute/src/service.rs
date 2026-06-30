@@ -159,7 +159,7 @@ mod tests {
             },
         );
         db.set_block_events(genesis_eb, &[]);
-        db.mutate_mb_meta(H256::zero(), |m| m.last_advanced_eb = genesis_eb);
+        db.mutate_mb_meta(H256::zero(), |m| m.last_advanced_eb = Some(genesis_eb));
 
         // The EB this MB advances to, chained onto the genesis Eth block.
         let eth_block_hash = H256::from_low_u64_be(0xEB01);

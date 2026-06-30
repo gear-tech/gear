@@ -9,10 +9,7 @@
 //! cascade-save / cascade-finalize flows live in [`crate::app`]
 //! which calls into this struct.
 
-use std::{
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 use malachitebft_app_channel::app::{
@@ -27,8 +24,8 @@ use malachitebft_core_types::CommitCertificate;
 
 use crate::{
     context::{
-        Height, MalachiteCtx, ProposalData, ProposalFin, ProposalInit, ProposalPart, ValidatorSet,
-        Value, sign_proposal_fin,
+        Height, MalachiteCtx, ProposalData, ProposalFin, ProposalInit, ProposalPart, Value,
+        sign_proposal_fin,
     },
     signing::MalachiteSigner,
     store::Store,
@@ -49,32 +46,10 @@ pub struct DecidedValue {
     pub certificate: CommitCertificate<MalachiteCtx>,
 }
 
-/// Shared validator set handle — an external writer swaps the set
-/// in [`Self::update`], and the next `ConsensusReady` / `Finalized`
-/// reply via [`State::get_validator_set`] picks it up.
-#[derive(Clone)]
-pub(crate) struct SharedValidatorSet(Arc<RwLock<ValidatorSet>>);
-
-impl SharedValidatorSet {
-    pub fn new(set: ValidatorSet) -> Self {
-        Self(Arc::new(RwLock::new(set)))
-    }
-
-    pub fn get(&self) -> ValidatorSet {
-        self.0.read().expect("validator set lock poisoned").clone()
-    }
-
-    pub fn update(&self, set: ValidatorSet) {
-        *self.0.write().expect("validator set lock poisoned") = set;
-    }
-}
-
 /// Volatile bookkeeping of the app event loop.
 pub(crate) struct State {
     /// Consensus signer of the local node.
     pub signer: MalachiteSigner,
-    /// Active validator set handle.
-    pub validator_set: SharedValidatorSet,
     /// Local node's address.
     pub address: Address,
     /// Persistent block store.
@@ -94,7 +69,6 @@ pub(crate) struct State {
 impl State {
     pub fn new(
         signer: MalachiteSigner,
-        validator_set: SharedValidatorSet,
         address: Address,
         store: Store,
         propose_timeout: Duration,
@@ -105,7 +79,6 @@ impl State {
             .unwrap_or_else(|| Height::INITIAL);
         Ok(Self {
             signer,
-            validator_set,
             address,
             store,
             streams_map: PartStreamsMap::new(),
@@ -114,10 +87,6 @@ impl State {
             current_proposer: None,
             propose_timeout,
         })
-    }
-
-    pub fn get_validator_set(&self, _height: Height) -> ValidatorSet {
-        self.validator_set.get()
     }
 
     /// Round timeouts. Propose phase is bounded by the configured

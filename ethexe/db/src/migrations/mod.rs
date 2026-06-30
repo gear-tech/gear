@@ -16,12 +16,13 @@ pub use init::initialize_db;
 mod init;
 mod migration;
 mod v1;
+mod v2;
 
-pub const LATEST_VERSION: u32 = v1::VERSION;
+pub const LATEST_VERSION: u32 = v2::VERSION;
 
 pub const OLDEST_SUPPORTED_VERSION: u32 = v1::VERSION;
 
-pub const MIGRATIONS: &[&dyn Migration] = &[];
+pub const MIGRATIONS: &[&dyn Migration] = &[&v2::MigrationFromV1];
 
 const _: () = assert!(
     (LATEST_VERSION - OLDEST_SUPPORTED_VERSION) as usize == MIGRATIONS.len(),

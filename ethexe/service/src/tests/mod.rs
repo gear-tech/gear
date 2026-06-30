@@ -2008,6 +2008,9 @@ async fn validators_election() {
 
     let env_config = TestEnvConfig {
         validators: ValidatorsConfig::ProvidedValidators(current_validators),
+        // Reserve malachite endpoints for the next-era set too, so all nodes
+        // boot at once and the handover needs no restart.
+        future_validators: next_validators.clone(),
         deploy_params,
         network: EnvNetworkConfig::Enabled,
         signer: signer.clone(),
@@ -2031,9 +2034,20 @@ async fn validators_election() {
         .header
         .timestamp;
 
-    // Start initial validators
+    // Start the full validator universe up front: the initial on-chain set
+    // (current era) plus the validators elected for the next era. All run
+    // continuously; the per-era resolver rotates who votes, so the handover
+    // happens in place with no restart.
+    let current_validators_configs = env.validators.clone();
+    let next_validators_configs = TestEnv::define_session_keys(next_validators.clone());
+
     let mut validators = vec![];
-    for (i, v) in env.validators.clone().into_iter().enumerate() {
+    for (i, v) in current_validators_configs
+        .iter()
+        .chain(next_validators_configs.iter())
+        .cloned()
+        .enumerate()
+    {
         test_info!("📗 Starting validator-{i}");
         let mut validator = env
             .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
@@ -2042,13 +2056,8 @@ async fn validators_election() {
         validators.push(validator);
     }
 
-    // Setup next validators to be elected for previous era
-    let next_validators_configs = TestEnv::define_session_keys(next_validators);
-
-    let next_validator_addrs: Vec<_> = next_validators_configs
-        .iter()
-        .map(|cfg| cfg.public_key.to_address())
-        .collect();
+    // Elect the next validator set during the current era's election window.
+    let next_validator_addrs: Vec<_> = next_validators.iter().map(|pk| pk.to_address()).collect();
 
     env.election_provider
         .set_predefined_election_at(
@@ -2095,20 +2104,7 @@ async fn validators_election() {
         .unwrap();
     assert_eq!(ping_actor.code_id, uploaded_code.code_id);
 
-    stop_nodes(validators).await;
-
-    env.extend_malachite_endpoints(&next_validators_configs);
-    env.validators = next_validators_configs;
-    let mut new_validators = vec![];
-    for (i, v) in env.validators.clone().into_iter().enumerate() {
-        test_info!("📗 Starting next validator-{i}");
-        let mut validator = env
-            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
-            .await;
-        validator.start_service().await;
-        new_validators.push(validator);
-    }
-
+    // Cross into the next era; the elected set takes over consensus in place.
     env.provider
         .anvil_set_next_block_timestamp(era_duration + genesis_ts)
         .await
@@ -2126,7 +2122,7 @@ async fn validators_election() {
     assert_eq!(reply.payload, b"PONG");
     assert_eq!(reply.program_id, ping_actor.program_id);
 
-    stop_nodes(new_validators).await;
+    stop_nodes(validators).await;
 }
 
 /// Validators must NOT fold an Ethereum event into MB execution before the

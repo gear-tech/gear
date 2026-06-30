@@ -30,14 +30,17 @@
 
 use crate::{
     codec::{decode_value, encode_value},
-    context::{Height, MalachiteCtx, ProposalPart, ValueId},
+    context::{
+        EQUAL_VOTING_POWER, Height, MalachiteCtx, ProposalPart, Validator, ValidatorSet, ValueId,
+    },
     externalities::Externalities,
+    signing::public_key_from_gsigner,
     state::State,
     store::BlockEntry,
     streaming::ProposalParts,
     types::{Address, Block, CommitCertificate, H256},
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, ensure};
 use bytes::Bytes;
 use ethexe_common::Acceptance;
 use malachitebft_app_channel::{
@@ -130,8 +133,15 @@ where
         match msg {
             // ConsensusReady
             AppMsg::ConsensusReady { reply } => {
+                let start_height = self.state.current_height;
+                info!(%start_height, "Consensus ready");
+                let params = HeightParams::new(
+                    self.validator_set_for_height(start_height).await?,
+                    self.state.get_timeouts(start_height),
+                    None,
+                );
                 reply
-                    .send(self.process_consensus_ready())
+                    .send((start_height, params))
                     .map_err(|e| anyhow!("failed to send ConsensusReady reply: {e:?}"))?;
             }
 
@@ -245,32 +255,26 @@ where
                     evidence = ?evidence,
                     "Finalized"
                 );
-                let next = match self.process_finalized(certificate).await {
-                    Ok(()) => {
-                        let h = self.state.current_height;
-                        Next::Start(
-                            h,
-                            HeightParams::new(
-                                self.state.get_validator_set(h),
-                                self.state.get_timeouts(h),
-                                None,
-                            ),
-                        )
-                    }
-                    Err(FinalizationError::NonFatal(e)) => {
-                        let h = self.state.current_height;
-                        error!(?e, height = %h, "Finalized: commit failed — restarting height");
-                        Next::Restart(
-                            h,
-                            HeightParams::new(
-                                self.state.get_validator_set(h),
-                                self.state.get_timeouts(h),
-                                None,
-                            ),
-                        )
-                    }
+
+                let res = match self.process_finalized(certificate).await {
+                    Ok(()) => Ok(()),
+                    Err(FinalizationError::NonFatal(e)) => Err(e),
                     Err(FinalizationError::Fatal(e)) => {
-                        return Err(anyhow!("Fatal error during finalization: {e:?}"));
+                        Err(anyhow!("Fatal error during finalization: {e:?}"))?
+                    }
+                };
+
+                let h = self.state.current_height;
+                let validators_set = self.validator_set_for_height(h).await.with_context(|| {
+                    format!("FATAL: failed to resolve validator set for height {h}")
+                })?;
+                let params = HeightParams::new(validators_set, self.state.get_timeouts(h), None);
+
+                let next = match res {
+                    Ok(()) => Next::Start(h, params),
+                    Err(err) => {
+                        error!(%err, height = %h, "Finalized: commit failed — restarting height");
+                        Next::Restart(h, params)
                     }
                 };
                 reply
@@ -334,20 +338,35 @@ where
         Ok(())
     }
 
-    // --------------------------- processors ---------------------------
+    async fn validator_set_for_height(&self, height: Height) -> Result<ValidatorSet> {
+        let parent_mb_hash = if height.as_u64() <= 1 {
+            // The parent of the genesis MB is the zero hash.
+            H256::zero()
+        } else {
+            let parent_height = height.as_u64() - 1;
+            self.state
+                .store
+                .finalized_block_at(parent_height)?
+                .with_context(|| format!("no finalized MB at height {parent_height}"))?
+        };
 
-    /// Infallible: the start height was resolved at [`State::new`]
-    /// and lives in `self.state.current_height`. Nothing here touches
-    /// the store, so this can never fail at message-handling time.
-    fn process_consensus_ready(&self) -> (Height, HeightParams<MalachiteCtx>) {
-        let start_height = self.state.current_height;
-        info!(%start_height, "Consensus ready");
-        let params = HeightParams::new(
-            self.state.get_validator_set(start_height),
-            self.state.get_timeouts(start_height),
-            None,
+        let public_keys = self
+            .externalities
+            .validators_for_child_of(parent_mb_hash)
+            .await?;
+
+        ensure!(
+            !public_keys.is_empty(),
+            "empty validator set resolved for height {height}"
         );
-        (start_height, params)
+
+        let mut validators = Vec::with_capacity(public_keys.len());
+        for public_key in &public_keys {
+            let pk = public_key_from_gsigner(public_key)
+                .context("converting gsigner pub key to malachite key")?;
+            validators.push(Validator::new(pk, EQUAL_VOTING_POWER));
+        }
+        Ok(ValidatorSet::new(validators))
     }
 
     async fn process_started_round(
@@ -767,9 +786,8 @@ fn compute_value_id_from_parts(parts: &ProposalParts) -> ValueId {
 mod tests {
     use super::*;
     use crate::{
-        context::{ProposalData, ProposalInit, Validator, ValidatorSet, Value},
+        context::{ProposalData, ProposalInit, Value},
         signing::{MalachiteSigner, libp2p_peer_id, private_key_from_bytes},
-        state::SharedValidatorSet,
         store::Store,
         types::BlockPayload,
     };
@@ -805,6 +823,12 @@ mod tests {
             _: &BlockPayload,
         ) -> Result<Acceptance<(), String>> {
             Ok(Acceptance::Accepted(()))
+        }
+        async fn validators_for_child_of(
+            &self,
+            _: H256,
+        ) -> Result<Vec<crate::config::ValidatorPublicKey>> {
+            Err(anyhow!("test mock does not resolve era validators"))
         }
     }
 
@@ -859,18 +883,7 @@ mod tests {
         let store = Store::open(dir.path()).unwrap();
         let signer = test_signer(1);
         let address = Address::from_public_key(&signer.public_key());
-        let validator_set = SharedValidatorSet::new(ValidatorSet::new(vec![Validator::new(
-            signer.public_key(),
-            1,
-        )]));
-        let mut state = State::new(
-            signer,
-            validator_set,
-            address,
-            store,
-            Duration::from_secs(1),
-        )
-        .unwrap();
+        let mut state = State::new(signer, address, store, Duration::from_secs(1)).unwrap();
         state.current_height = Height::new(current_height);
 
         let (_consensus_tx, consensus_rx) = mpsc::channel::<AppMsg<MalachiteCtx>>(1);
@@ -993,6 +1006,12 @@ mod tests {
         ) -> Result<Acceptance<(), String>> {
             Ok(Acceptance::Accepted(()))
         }
+        async fn validators_for_child_of(
+            &self,
+            _: H256,
+        ) -> Result<Vec<crate::config::ValidatorPublicKey>> {
+            Err(anyhow!("test mock does not resolve era validators"))
+        }
     }
 
     /// Same shape as [`make_handler`] but with a caller-supplied
@@ -1006,18 +1025,7 @@ mod tests {
         let store = Store::open(dir.path()).unwrap();
         let signer = test_signer(1);
         let address = Address::from_public_key(&signer.public_key());
-        let validator_set = SharedValidatorSet::new(ValidatorSet::new(vec![Validator::new(
-            signer.public_key(),
-            1,
-        )]));
-        let mut state = State::new(
-            signer,
-            validator_set,
-            address,
-            store,
-            Duration::from_secs(1),
-        )
-        .unwrap();
+        let mut state = State::new(signer, address, store, Duration::from_secs(1)).unwrap();
         state.current_height = Height::new(current_height);
 
         let (_consensus_tx, consensus_rx) = mpsc::channel::<AppMsg<MalachiteCtx>>(1);

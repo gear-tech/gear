@@ -244,7 +244,13 @@ pub fn prepare_executable_for_mb(
     let schedule = db
         .mb_schedule(parent)
         .ok_or(ComputeError::ParentMbScheduleMissing(parent))?;
-    let advanced_block = db.mb_meta(parent).last_advanced_eb;
+    // `process_mb_proposal` always propagates `last_advanced_eb` when it stores
+    // an MB (and init seeds the zero genesis parent), so a computed parent
+    // missing it is a DB-invariant violation.
+    let advanced_block = db
+        .mb_meta(parent)
+        .last_advanced_eb
+        .expect("parent MB must have last_advanced_eb set");
 
     build_executable_data(db, mb_payload, program_states, schedule, advanced_block)
 }
@@ -252,8 +258,8 @@ pub fn prepare_executable_for_mb(
 /// Walk the MB's `Operations` list and prepare processor input.
 ///
 /// Synthetic block height/timestamp come from `last_advanced_eb` (the latest
-/// EB pinned by this MB or any ancestor); if none, fall back to the router's
-/// genesis block from [`ConfigStorageRO::config`].
+/// EB pinned by this MB or any ancestor); the zero sentinel falls back to the
+/// router's genesis block from [`ConfigStorageRO::config`].
 fn build_executable_data(
     db: &Database,
     operations: Operations,
@@ -265,6 +271,8 @@ fn build_executable_data(
     let mut injected_transactions = Vec::new();
     let mut gas_allowance: Option<u64> = None;
 
+    // The zero sentinel (MB never advanced past pre-genesis) means "no anchor
+    // yet" — the genesis-block fallback below stands in.
     let mut current_anchor = if advanced_block.is_zero() {
         None
     } else {
@@ -565,7 +573,7 @@ mod tests {
     /// via the `Some` branch — exactly as the malachite service propagates it.
     fn seed_genesis_eth(db: &Database) -> H256 {
         let gen_eb = synthetic_eb(db, 1, vec![]);
-        db.mutate_mb_meta(H256::zero(), |m| m.last_advanced_eb = gen_eb);
+        db.mutate_mb_meta(H256::zero(), |m| m.last_advanced_eb = Some(gen_eb));
         gen_eb
     }
 
@@ -595,13 +603,18 @@ mod tests {
                 operations_hash,
             },
         );
+        // Mimic `process_mb_proposal`, which always populates `last_advanced_eb`
+        // before an MB is computed.
+        db.mutate_mb_meta(mb_hash, |meta| {
+            meta.last_advanced_eb = Some(H256::zero());
+        });
     }
 
     /// `seed_mb` plus the malachite-side bookkeeping: record the advanced EB
     /// as this MB's `last_advanced_eb`, so its child walks a depth-1 chain.
     fn seed_mb_advancing(db: &Database, mb_hash: H256, parent: H256, height: u64, eb_height: u32) {
         seed_mb(db, mb_hash, parent, height, dummy_ops(db, eb_height));
-        db.mutate_mb_meta(mb_hash, |m| m.last_advanced_eb = eb_hash(eb_height));
+        db.mutate_mb_meta(mb_hash, |m| m.last_advanced_eb = Some(eb_hash(eb_height)));
     }
 
     /// Tail-only queue still computes all uncomputed predecessors.
@@ -866,7 +879,7 @@ mod tests {
         }];
         ops.extend(mb_bookend());
         seed_mb(db, creator, H256::zero(), 0, Operations::new(ops));
-        db.mutate_mb_meta(creator, |m| m.last_advanced_eb = create_eb);
+        db.mutate_mb_meta(creator, |m| m.last_advanced_eb = Some(create_eb));
         mb_hashes.push(creator);
 
         // MB #1.. — each injects a single PING into the ping program.
@@ -886,7 +899,7 @@ mod tests {
                 i,
                 Operations::new(ops),
             );
-            db.mutate_mb_meta(mb_hash, |m| m.last_advanced_eb = eb);
+            db.mutate_mb_meta(mb_hash, |m| m.last_advanced_eb = Some(eb));
             mb_hashes.push(mb_hash);
         }
 

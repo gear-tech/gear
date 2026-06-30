@@ -111,6 +111,10 @@ impl fmt::Debug for ValueId {
     }
 }
 
+/// Voting power every validator is given. The set is unweighted, so quorum
+/// reduces to a plain `> 2/3` of the validator count.
+pub const EQUAL_VOTING_POWER: VotingPower = 1;
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Validator {
     pub address: Address,

@@ -46,18 +46,25 @@ use crate::{
 use anyhow::{Context, Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
-    Acceptance, MAX_TOUCHED_PROGRAMS_PER_MB,
+    Acceptance, Address, MAX_TOUCHED_PROGRAMS_PER_MB,
     db::{
-        CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRO,
+        CompactMb, ConfigStorageRO, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW,
+        OnChainStorageRO,
     },
     injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, SignedInjectedTransaction},
     malachite::{Operation, Operations},
 };
 use ethexe_db::Database;
-use ethexe_malachite_core::{Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES};
+use ethexe_malachite_core::{
+    Block, BlockPayload, Externalities, MAX_BLOCK_PAYLOAD_BYTES, ValidatorPublicKey,
+};
 use gprimitives::H256;
+use gsigner::schemes::secp256k1::PublicKey;
 use parity_scale_codec::{DecodeAll, Encode};
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 use tokio::sync::{RwLock, mpsc::UnboundedSender};
 use tracing::{debug, error, trace, warn};
 
@@ -86,6 +93,10 @@ pub(crate) struct EthexeExternalities {
     pub pending_events: RwLock<VecDeque<PendingEvent>>,
     /// Channel to poll events in MalachiteService.
     pub event_tx: UnboundedSender<Result<MalachiteEvent>>,
+    /// On-chain address → pub key for every validator across all eras this node
+    /// knows. Lets [`Externalities::validators_for_child_of`] turn a stored era
+    /// validator set (addresses) back into engine [`ValidatorPublicKey`]s.
+    pub validators: HashMap<Address, PublicKey>,
 }
 
 /// One outbound [`MalachiteEvent`] that can't be released until its
@@ -106,10 +117,17 @@ impl Externalities for EthexeExternalities {
 
         let parent = mb.parent_hash;
 
-        let parent_advanced = parent
-            .is_zero()
-            .then(H256::zero)
-            .unwrap_or_else(|| self.db.mb_meta(parent).last_advanced_eb);
+        // Propagate `last_advanced_eb` forward — the latest
+        // `AdvanceTillEthereumBlock` in this MB wins; otherwise we
+        // inherit the parent's value (zero if pre-genesis).
+        let parent_advanced = if parent.is_zero() {
+            H256::zero()
+        } else {
+            self.db
+                .mb_meta(parent)
+                .last_advanced_eb
+                .ok_or_else(|| anyhow!("proposed parent MB must have last_advanced_eb set"))?
+        };
         let last_advanced = payload
             .iter()
             .rev()
@@ -129,7 +147,7 @@ impl Externalities for EthexeExternalities {
             },
         );
         self.db.mutate_mb_meta(mb_hash, |meta| {
-            meta.last_advanced_eb = last_advanced;
+            meta.last_advanced_eb = Some(last_advanced);
         });
 
         self.try_emit_or_queue(
@@ -174,6 +192,12 @@ impl Externalities for EthexeExternalities {
             }
         }
 
+        // Mark this MB finalized so the batch-commitment path can gate on it
+        // directly, and advance the canonical finalized pointer downstream
+        // consumers (compute, batch commitment) walk.
+        self.db.mutate_mb_meta(mb_hash, |meta| {
+            meta.finalized = true;
+        });
         self.db
             .globals_mutate(|g| g.latest_finalized_mb_hash = mb_hash);
 
@@ -182,7 +206,13 @@ impl Externalities for EthexeExternalities {
             mb_hash,
             signatures: cert.signatures,
         };
-        let last_advanced = self.db.mb_meta(mb_hash).last_advanced_eb;
+        // Same prerequisite as the matching BlockProposal — by the
+        // time `process_mb_finalized` runs, `process_mb_proposal` has
+        // already populated `mb_meta(block_hash).last_advanced_eb`.
+        let last_advanced =
+            self.db.mb_meta(mb_hash).last_advanced_eb.ok_or_else(|| {
+                anyhow!("finalized MB must have last_advanced_eb set by proposal")
+            })?;
         self.try_emit_or_queue(
             MalachiteEvent::BlockFinalized {
                 cert: app_cert,
@@ -199,14 +229,22 @@ impl Externalities for EthexeExternalities {
     async fn build_block_above(&self, parent_mb_hash: H256) -> Result<BlockPayload> {
         ensure!(
             self.mempool.is_some(),
-            "build_block_above must not be called when node is not validator"
+            "build_block_above must not be called when node is not a validator"
         );
 
-        let parent_advanced = parent_mb_hash
-            .is_zero()
-            .then(H256::zero)
-            .unwrap_or_else(|| self.db.mb_meta(parent_mb_hash).last_advanced_eb);
-        let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await?;
+        let parent_advanced = if parent_mb_hash.is_zero() {
+            // The parent of the genesis MB is the zero hash, advanced is zero too.
+            H256::zero()
+        } else {
+            self.db
+                .mb_meta(parent_mb_hash)
+                .last_advanced_eb
+                .with_context(|| {
+                    format!("parent MB {parent_mb_hash:?} must have last_advanced_eb in mb meta")
+                })?
+        };
+
+        let (mut advance, injected) = self.wait_for_proposable_content(parent_advanced).await?;
 
         debug!(
             %parent_mb_hash,
@@ -215,6 +253,72 @@ impl Externalities for EthexeExternalities {
             injected_count = injected.len(),
             "build_block_above: proposable content resolved",
         );
+
+        // In case advance changes era, only advancing can be only till first block of the `era + 1`.
+        if let Some(advance) = advance.as_mut() {
+            let timelines = self.db.config().timelines;
+
+            let parent_advanced_era = if parent_advanced.is_zero() {
+                // The parent of the genesis MB is the zero hash, which is in era 0.
+                0
+            } else {
+                let parent_advanced_timestamp = self
+                    .db
+                    .block_header(parent_advanced)
+                    .with_context(|| {
+                        format!("parent advanced EB {parent_advanced} header not found in DB")
+                    })?
+                    .timestamp;
+                timelines
+                    .era_from_ts(parent_advanced_timestamp)
+                    .with_context(|| {
+                        format!("parent advanced EB {parent_advanced} is beyond genesis")
+                    })?
+            };
+
+            let advance_eb = self
+                .db
+                .block_simple_data(*advance)
+                .with_context(|| format!("advance EB {advance} header not found in DB"))?;
+
+            let new_advanced_era = timelines
+                .era_from_ts(advance_eb.header.timestamp)
+                .with_context(|| format!("advance EB {advance} is beyond genesis"))?;
+
+            if new_advanced_era > parent_advanced_era {
+                // Bypass blocks till the first block of `era + 1`
+                // wait_for_proposable_content - already checked
+                // that `advance_eb` is strict descendant of `parent_advanced`, so we can safely walk back.
+                let mut cursor = advance_eb;
+                loop {
+                    let parent_timestamp = self
+                        .db
+                        .block_header(cursor.header.parent_hash)
+                        .with_context(|| format!("{cursor} parent header not found in DB"))?
+                        .timestamp;
+
+                    let parent_era = timelines
+                        .era_from_ts(parent_timestamp)
+                        .with_context(|| format!("{cursor} parent is beyond genesis"))?;
+
+                    if parent_era == parent_advanced_era {
+                        break;
+                    }
+
+                    ensure!(
+                        parent_era > parent_advanced_era,
+                        "reached previous era while searching for first block of next era"
+                    );
+
+                    cursor = self
+                        .db
+                        .block_simple_data(cursor.header.parent_hash)
+                        .with_context(|| format!("{cursor} parent header not found in DB"))?;
+                }
+
+                *advance = cursor.hash;
+            }
+        }
 
         // Filter the fetched injected txs down to the valid ones before we start MB assembly
         let valid_injected_txs = {
@@ -317,8 +421,7 @@ impl Externalities for EthexeExternalities {
             }
         };
 
-        // Reject operations not allowed at this protocol version (e.g. the
-        // deprecated `ProcessQueues` v1 with the old mailbox validity).
+        // Reject operations not allowed at this protocol version
         for op in payload.iter() {
             match op {
                 Operation::AdvanceTillEthereumBlock { .. }
@@ -406,10 +509,15 @@ impl Externalities for EthexeExternalities {
                 )));
             }
 
-            let parent_advanced = parent_hash
-                .is_zero()
-                .then(H256::zero)
-                .unwrap_or_else(|| self.db.mb_meta(parent_hash).last_advanced_eb);
+            let parent_advanced = if parent_hash.is_zero() {
+                H256::zero()
+            } else {
+                self.db
+                    .mb_meta(parent_hash)
+                    .last_advanced_eb
+                    .ok_or_else(|| anyhow!("proposed parent MB must have last_advanced_eb set"))?
+            };
+
             let start_block_hash = self.db.globals().start_block_hash;
             match quarantine::is_strict_descendant_of(
                 &self.db,
@@ -424,6 +532,57 @@ impl Externalities for EthexeExternalities {
                     )));
                 }
                 Err(e) => return Err(e),
+            }
+
+            let timelines = self.db.config().timelines;
+
+            let previous_era = if parent_advanced.is_zero() {
+                // The parent of the genesis MB is the zero hash, which resolves to era 0.
+                0
+            } else {
+                let timestamp = self
+                    .db
+                    .block_header(parent_advanced)
+                    .with_context(|| {
+                        format!("missing eth header for last_advanced_eb {parent_advanced}")
+                    })?
+                    .timestamp;
+                timelines
+                    .era_from_ts(timestamp)
+                    .with_context(|| format!("eb {parent_advanced} timestamp before genesis"))?
+            };
+            let advanced_to_era = timelines
+                .era_from_ts(advance.header.timestamp)
+                .with_context(|| format!("eb {advance} timestamp before genesis"))?;
+
+            let diff = advanced_to_era
+                .checked_sub(previous_era)
+                .context("advanced timestamp is earlier than parent advanced timestamp")?;
+
+            if diff > 1 {
+                return Ok(Acceptance::Rejected(format!(
+                    "advance EB {advance} jumps eras too far: parent era {previous_era}, advanced to era {advanced_to_era}"
+                )));
+            }
+
+            // If era advanced, ensure that the advance is the first block of the new era.
+            if diff == 1 {
+                let advance_parent_eb_timestamp = self
+                    .db
+                    .block_header(advance.header.parent_hash)
+                    .with_context(|| format!("missing eth header for advance EB {advance} parent"))?
+                    .timestamp;
+                let era_of_advanced_block_parent = timelines
+                    .era_from_ts(advance_parent_eb_timestamp)
+                    .with_context(|| {
+                        format!("advance EB {advance} parent timestamp is before genesis")
+                    })?;
+
+                if era_of_advanced_block_parent != previous_era {
+                    return Ok(Acceptance::Rejected(format!(
+                        "advance {advance} is advancing to the next era, but advance is not the first block of that era"
+                    )));
+                }
             }
         }
 
@@ -444,10 +603,19 @@ impl Externalities for EthexeExternalities {
             }
         }
 
-        let parent_advanced = parent_hash
-            .is_zero()
-            .then(H256::zero)
-            .unwrap_or_else(|| self.db.mb_meta(parent_hash).last_advanced_eb);
+        // (4) Touched-programs cap. Only enforced on the validator side — the
+        // proposer in `build_block_above` already shapes the MB to stay within
+        // the cap; this is the participant's guard against a malicious proposer.
+        // `limit = max(initial_touched.len(), MAX_*)`: the proposer can't avoid
+        // programs already touched by EB events, so those set the floor.
+        let parent_advanced = if parent_hash.is_zero() {
+            H256::zero()
+        } else {
+            self.db
+                .mb_meta(parent_hash)
+                .last_advanced_eb
+                .ok_or_else(|| anyhow!("proposed parent MB must have last_advanced_eb set"))?
+        };
         let mut touched = match advance {
             Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
             None => Default::default(),
@@ -466,6 +634,73 @@ impl Externalities for EthexeExternalities {
         }
 
         Ok(Acceptance::Accepted(()))
+    }
+
+    async fn validators_for_child_of(
+        &self,
+        parent_mb_hash: H256,
+    ) -> Result<Vec<ValidatorPublicKey>> {
+        let parent_era = if parent_mb_hash.is_zero() {
+            // The parent of the genesis MB is the zero hash, which resolves to era 0.
+            0
+        } else {
+            let advanced_eb_hash = self
+                .db
+                .mb_meta(parent_mb_hash)
+                .last_advanced_eb
+                .with_context(|| format!("parent MB {parent_mb_hash} has no last_advanced_eb"))?;
+
+            if advanced_eb_hash.is_zero() {
+                // The advanced EB is parent of genesis EB - resolve to era 0.
+                0
+            } else {
+                // Wait for the advanced EB to be synced in local DB
+
+                let mut counter = 0;
+                loop {
+                    let notified = self.chain_head.notify.notified();
+                    tokio::pin!(notified);
+                    notified.as_mut().enable();
+                    if self.db.block_synced(advanced_eb_hash) {
+                        break;
+                    }
+                    notified.await;
+
+                    counter += 1;
+                    if counter % 100 == 0 {
+                        warn!(
+                            advanced_eb_hash = %advanced_eb_hash,
+                            counter,
+                            "waiting for advanced EB to be synced in local DB, counter={counter} synced EB notifications received...",
+                        );
+                    }
+                }
+
+                let timelines = self.db.config().timelines;
+                self.db
+                    .block_header(advanced_eb_hash)
+                    .with_context(|| format!("missing header for advanced eb {advanced_eb_hash}"))
+                    .map(|header| timelines.era_from_ts(header.timestamp))?
+                    .with_context(|| {
+                        format!("advanced eb {advanced_eb_hash} timestamp before genesis")
+                    })?
+            }
+        };
+
+        let validator_addresses = self
+            .db
+            .validators(parent_era)
+            .with_context(|| format!("no validators stored for era {parent_era}"))?;
+
+        validator_addresses
+            .iter()
+            .map(|addr| {
+                self.validators
+                    .get(addr)
+                    .copied()
+                    .with_context(|| format!("validator pool missing pub key for {addr}"))
+            })
+            .collect()
     }
 }
 
@@ -640,6 +875,7 @@ mod tests {
             mempool: Some(Arc::new(EmptyMempool)),
             chain_head: make_chain_head(),
             event_tx,
+            validators: Default::default(),
             pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
@@ -839,15 +1075,15 @@ mod tests {
         }
         while rx.try_recv().is_ok() {}
 
-        assert!(db.mb_meta(chain[0]).last_advanced_eb.is_zero());
+        assert_eq!(db.mb_meta(chain[0]).last_advanced_eb, Some(H256::zero()));
         assert_eq!(
             db.mb_meta(chain[1]).last_advanced_eb,
-            H256::repeat_byte(0xAB),
+            Some(H256::repeat_byte(0xAB)),
             "h2 should anchor to its own AdvanceTillEthereumBlock"
         );
         assert_eq!(
             db.mb_meta(chain[2]).last_advanced_eb,
-            H256::repeat_byte(0xAB),
+            Some(H256::repeat_byte(0xAB)),
             "h3 inherits h2's anchor"
         );
     }
@@ -1055,6 +1291,7 @@ mod tests {
             mempool: Some(Arc::clone(&tracker) as Arc<dyn Mempool>),
             chain_head: make_chain_head(),
             event_tx,
+            validators: Default::default(),
             pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
@@ -1122,6 +1359,7 @@ mod tests {
             mempool: Some(mempool as Arc<dyn Mempool>),
             chain_head: make_chain_head(),
             event_tx,
+            validators: Default::default(),
             pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,
@@ -1195,7 +1433,10 @@ mod tests {
             );
         }
         db.set_mb_program_states(mb_hash, program_states);
-        db.mutate_mb_meta(mb_hash, |meta| meta.computed = true);
+        db.mutate_mb_meta(mb_hash, |meta| {
+            meta.computed = true;
+            meta.last_advanced_eb = Some(H256::zero());
+        });
         mb_hash
     }
 
@@ -1740,7 +1981,7 @@ mod tests {
         db.set_mb_program_states(parent_mb, ethexe_common::ProgramStates::default());
         db.mutate_mb_meta(parent_mb, |meta| {
             meta.computed = true;
-            meta.last_advanced_eb = chain[3].0;
+            meta.last_advanced_eb = Some(chain[3].0);
         });
 
         let (ext, _rx) = make_externalities(db.clone());
@@ -1876,6 +2117,7 @@ mod tests {
             mempool: Some(Arc::new(EmptyMempool)),
             chain_head: make_chain_head(),
             event_tx,
+            validators: Default::default(),
             pending_events: RwLock::new(VecDeque::new()),
             cfg: ExternalitiesConfig {
                 gas_allowance: 1_000_000,

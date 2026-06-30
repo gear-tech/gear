@@ -3,7 +3,10 @@
 
 //! Application callbacks the service makes to the outside world.
 
-use crate::types::{Block, BlockPayload, CommitCertificate, H256};
+use crate::{
+    config::ValidatorPublicKey,
+    types::{Block, BlockPayload, CommitCertificate, H256},
+};
 use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_common::Acceptance;
@@ -51,4 +54,16 @@ pub trait Externalities: Send + Sync + 'static {
         parent_mb_hash: H256,
         payload: &BlockPayload,
     ) -> Result<Acceptance<(), String>>;
+
+    /// Resolve the on-chain validator set that governs the **child** MB of
+    /// `parent_mb_hash` (zero = the genesis MB's parent). The governing era is
+    /// the one the parent's last `AdvanceTillEthereumBlock` landed in, so once
+    /// a producer advances into the next era every descendant MB is built and
+    /// validated against that era's set. Used by the consensus layer to verify
+    /// each height's commit certificate against the correct historical set
+    /// during sync, not just the live shared set.
+    async fn validators_for_child_of(
+        &self,
+        parent_mb_hash: H256,
+    ) -> Result<Vec<ValidatorPublicKey>>;
 }

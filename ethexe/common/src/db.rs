@@ -149,7 +149,8 @@ pub struct CompactMb {
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct MbMeta {
     pub computed: bool,
-    pub last_advanced_eb: H256,
+    pub finalized: bool,
+    pub last_advanced_eb: Option<H256>,
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -267,7 +268,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "cbf21dc97ec57cc6f653a7808672dc2c086fdfae28d1435e93f0dfe812de21c3";
+            "6f7363ba820e33c8b6acfa633b782f998f530fcf6fe15f19afe141996261baf4";
 
         let types = [
             meta_type::<BlockMeta>(),

@@ -1,7 +1,12 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use super::types::{BatchLimits, BatchParts, BatchSizeCounter, ValidationRejectReason};
+use std::{mem, num::NonZero};
+
+use super::{
+    types::{BatchParts, BatchSizeCounter},
+    utils,
+};
 
 use ethexe_common::gear::{
     ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
@@ -29,42 +34,29 @@ pub enum BatchIncludeError {
     SizeLimitExceeded,
 }
 
-impl From<BatchIncludeError> for ValidationRejectReason {
-    fn from(value: BatchIncludeError) -> Self {
-        match value {
-            BatchIncludeError::SizeLimitExceeded => Self::BatchSizeLimitExceeded,
-        }
-    }
-}
-
 type FillerResult = Result<(), BatchIncludeError>;
 
 impl BatchFiller {
-    pub fn new(limits: BatchLimits) -> Self {
+    pub fn new(batch_size_limit: u64) -> Self {
         Self {
             parts: BatchParts::default(),
-            size_counter: BatchSizeCounter::new(limits.batch_size_limit),
+            size_counter: BatchSizeCounter::new(batch_size_limit),
         }
     }
 
     pub fn into_parts(mut self) -> BatchParts {
-        if let Some(chain) = &mut self.parts.chain_commitment {
+        if let Some((chain, _len)) = &mut self.parts.chain_commitment {
             chain.transitions =
-                super::utils::squash_transitions_by_actor(std::mem::take(&mut chain.transitions));
-            super::utils::sort_transitions_by_value_to_receive(&mut chain.transitions);
+                utils::squash_transitions_by_actor(mem::take(&mut chain.transitions));
+            utils::sort_transitions_by_value_to_receive(&mut chain.transitions);
         }
         self.parts
-    }
-
-    pub fn has_chain_commitment(&self) -> bool {
-        self.parts.chain_commitment.is_some()
     }
 
     pub fn include_validators_commitment(
         &mut self,
         commitment: ValidatorsCommitment,
     ) -> FillerResult {
-        let commitment = Some(commitment);
         if !self
             .size_counter
             .charge_for_validators_commitment(&commitment)
@@ -72,28 +64,17 @@ impl BatchFiller {
             return Err(BatchIncludeError::SizeLimitExceeded);
         }
 
-        self.parts.validators_commitment = commitment;
+        self.parts.validators_commitment = Some(commitment);
         Ok(())
     }
 
     pub fn include_rewards_commitment(&mut self, commitment: RewardsCommitment) -> FillerResult {
-        let commitment = Some(commitment);
         if !self.size_counter.charge_for_rewards_commitment(&commitment) {
             return Err(BatchIncludeError::SizeLimitExceeded);
         }
 
-        self.parts.rewards_commitment = commitment;
+        self.parts.rewards_commitment = Some(commitment);
         Ok(())
-    }
-
-    /// Probe whether a hypothetical chain commitment with `transitions` would
-    /// still fit the remaining batch budget. Used by the producer to grow the
-    /// chain commitment one MB at a time and stop *before* the size limit is
-    /// breached, so the call to [`Self::include_chain_commitment`] is
-    /// guaranteed to succeed.
-    pub fn would_fit_chain_commitment(&self, candidate: &ChainCommitment) -> bool {
-        let mut probe = self.size_counter.clone();
-        probe.charge_for_chain_commitment(&Some(candidate.clone()))
     }
 
     pub fn include_code_commitment(&mut self, commitment: CodeCommitment) -> FillerResult {
@@ -105,24 +86,33 @@ impl BatchFiller {
         Ok(())
     }
 
-    /// Include a freshly aggregated chain commitment in the batch.
-    ///
-    /// A commitment with neither transitions nor an Ethereum-anchor
-    /// advance carries no payload and is dropped — the next coordinator
-    /// round will re-walk and pick up whatever has finalized since.
-    /// Empty-transitions checkpoints **with** a non-zero
-    /// `last_advanced_eth_block` are kept: they exist specifically to push
-    /// the on-chain Ethereum anchor forward during long quiet stretches.
-    pub fn include_chain_commitment(&mut self, commitment: ChainCommitment) -> FillerResult {
-        if commitment.transitions.is_empty() && commitment.last_advanced_eth_block.is_zero() {
-            return Ok(());
+    pub fn append_chain_commitment(&mut self, commitment: ChainCommitment) -> FillerResult {
+        if let Some((existing, len)) = &mut self.parts.chain_commitment {
+            let ChainCommitment {
+                head,
+                transitions,
+                last_advanced_eth_block,
+            } = commitment;
+
+            if !self.size_counter.charge_for_transitions(&transitions) {
+                return Err(BatchIncludeError::SizeLimitExceeded);
+            }
+
+            existing.head = head;
+            existing.transitions.extend(transitions);
+            existing.last_advanced_eth_block = last_advanced_eth_block;
+
+            *len = len
+                .checked_add(1)
+                .expect("u32 chain commitment len overflow");
+        } else {
+            if !self.size_counter.charge_for_chain_commitment(&commitment) {
+                return Err(BatchIncludeError::SizeLimitExceeded);
+            }
+
+            self.parts.chain_commitment = Some((commitment, NonZero::new(1).expect("1 != 0")));
         }
 
-        let commitment = Some(commitment);
-        if !self.size_counter.charge_for_chain_commitment(&commitment) {
-            return Err(BatchIncludeError::SizeLimitExceeded);
-        }
-        self.parts.chain_commitment = commitment;
         Ok(())
     }
 }
@@ -134,24 +124,36 @@ mod tests {
     use ethexe_ethereum::abi::Gear;
     use gprimitives::{CodeId, H256};
 
-    /// Checkpoint chain commitments carry empty transitions but a
-    /// non-zero `last_advanced_eth_block` — they exist *specifically*
-    /// to push the on-chain Ethereum anchor forward when the chain has
-    /// been quiet for a long stretch. The filler must keep them.
+    const BIG_LIMIT: u64 = u64::MAX;
+
+    /// Appending a single chain commitment seeds the parts with a length of 1,
+    /// and a subsequent append extends it (head + anchor follow the newest MB).
     #[test]
-    fn include_chain_commitment_keeps_checkpoint_with_no_transitions() {
-        let mut filler = BatchFiller::new(BatchLimits::default());
-        let checkpoint = ChainCommitment {
+    fn append_chain_commitment_seeds_then_extends() {
+        let mut filler = BatchFiller::new(BIG_LIMIT);
+        let first = ChainCommitment {
             head: H256::from_low_u64_be(0xC0DE),
             transitions: Vec::new(),
             last_advanced_eth_block: H256::from_low_u64_be(0xEB),
         };
+        let second = ChainCommitment {
+            head: H256::from_low_u64_be(0xBEEF),
+            transitions: Vec::new(),
+            last_advanced_eth_block: H256::from_low_u64_be(0xEC),
+        };
 
-        filler.include_chain_commitment(checkpoint).unwrap();
-        assert!(
-            filler.has_chain_commitment(),
-            "checkpoint with empty transitions but a non-zero advanced anchor must \
-             be retained — dropping it strands the Ethereum-side anchor advance"
+        filler.append_chain_commitment(first).unwrap();
+        filler.append_chain_commitment(second.clone()).unwrap();
+
+        let (chain, len) = filler
+            .into_parts()
+            .chain_commitment
+            .expect("chain commitment must be retained");
+        assert_eq!(len.get(), 2);
+        assert_eq!(chain.head, second.head);
+        assert_eq!(
+            chain.last_advanced_eth_block,
+            second.last_advanced_eth_block
         );
     }
 
@@ -166,10 +168,7 @@ mod tests {
         };
         let encoded: Gear::CodeCommitment = first.clone().into();
         // Budget fits exactly one commitment; the second include must fail.
-        let mut filler = BatchFiller::new(BatchLimits {
-            batch_size_limit: encoded.abi_encoded_size() as u64,
-            ..BatchLimits::default()
-        });
+        let mut filler = BatchFiller::new(encoded.abi_encoded_size() as u64);
 
         filler.include_code_commitment(first.clone()).unwrap();
         assert_eq!(
