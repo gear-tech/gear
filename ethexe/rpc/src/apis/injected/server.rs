@@ -4,7 +4,9 @@
 use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
 
 use super::{
-    InjectedServer, promise_manager::PromiseSubscriptionManager, relay::TransactionsRelayer,
+    InjectedServer,
+    promise_manager::{PromiseSubscriptionManager, RegisterSubscriberResult},
+    relay::TransactionsRelayer,
     spawner,
 };
 use ethexe_common::{
@@ -95,7 +97,6 @@ impl InjectedApi {
         self.relayer.relay(transaction).await
     }
 
-    // TODO: Issue #5386.
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
@@ -104,33 +105,40 @@ impl InjectedApi {
         let tx_hash = transaction.data().to_hash();
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
-            Ok(subscriber) => subscriber,
-            Err(err) => {
-                return Err(errors::bad_request(err).into());
+            RegisterSubscriberResult::Ready(receipt) => {
+                let sink = pending.accept().await?;
+                spawner::spawn_ready_receipt_subscriber(sink, receipt);
+                return Ok(());
             }
+            RegisterSubscriberResult::Pending(subscriber) => subscriber,
         };
 
+        let subscriber_id = pending_subscriber.subscriber_id();
         let acceptance = self.relayer.relay(transaction).await.inspect_err(|_err| {
-            self.manager.cancel_registration(tx_hash);
+            self.manager.cancel_registration(tx_hash, subscriber_id);
         })?;
         let sink = match acceptance {
             InjectedTransactionAcceptance::Accept => {
                 pending.accept().await.inspect_err(|_err| {
-                    self.manager.cancel_registration(tx_hash);
+                    self.manager.cancel_registration(tx_hash, subscriber_id);
                 })?
             }
             InjectedTransactionAcceptance::Reject { reason } => {
-                self.manager.cancel_registration(tx_hash);
+                self.manager.cancel_registration(tx_hash, subscriber_id);
                 return Err(reason.into());
             }
         };
 
         self.metrics.injected_tx_active_subscriptions.increment(1);
         let (manager, metrics) = (self.manager.clone(), self.metrics.clone());
-        spawner::spawn_pending_subscriber(sink, pending_subscriber, move |tx_hash| {
-            manager.cancel_registration(tx_hash);
-            metrics.injected_tx_active_subscriptions.decrement(1);
-        });
+        spawner::spawn_pending_subscriber(
+            sink,
+            pending_subscriber,
+            move |tx_hash, subscriber_id| {
+                manager.cancel_registration(tx_hash, subscriber_id);
+                metrics.injected_tx_active_subscriptions.decrement(1);
+            },
+        );
         Ok(())
     }
 

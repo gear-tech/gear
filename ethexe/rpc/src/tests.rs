@@ -271,6 +271,189 @@ async fn test_cleanup_promise_subscribers() {
     }
 }
 
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_same_transaction_multiple_and_late_watchers() {
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8014);
+    let MockService {
+        mut rpc,
+        handle,
+        validator_key,
+    } = MockService::new(listen_addr).await;
+
+    // Inject promises/receipts through a clone of the API; the server holds the
+    // same Arc-shared manager, so dispatch reaches the registered subscribers.
+    // rpc.injected_api is accessible here because tests is a submodule of lib.rs.
+    let injected_api = rpc.injected_api.clone();
+
+    // Manual acceptance pump: answers `Accept` only, never produces promises.
+    let pump = tokio::spawn(async move {
+        while let Some(RpcEvent::InjectedTransaction {
+            response_sender, ..
+        }) = rpc.next().await
+        {
+            let _ = response_sender.send(InjectedTransactionAcceptance::Accept);
+        }
+    });
+
+    let first_client = WsClientBuilder::new()
+        .build(format!("ws://{listen_addr}"))
+        .await
+        .expect("first WS client will be created");
+    let second_client = WsClientBuilder::new()
+        .build(format!("ws://{listen_addr}"))
+        .await
+        .expect("second WS client will be created");
+
+    let tx = mock_signed_transaction();
+    let tx_hash = tx.data().to_hash();
+
+    // Two concurrent watchers for the SAME transaction. Each blocks until the
+    // pump accepts its relayed tx; both then register as Pending (no receipt yet).
+    let (first, second) = tokio::join!(
+        first_client.send_transaction_and_watch(tx.clone()),
+        second_client.send_transaction_and_watch(tx.clone()),
+    );
+    let mut first = first.expect("first subscription will be created");
+    let mut second = second.expect("second subscription will be created");
+
+    // Deterministic proof of two *active* pending subscribers before any receipt.
+    assert_eq!(injected_api.subscribers_count(), 2);
+
+    // Exactly one promise + one receipt, fanned out to both subscribers.
+    let promise = Promise::mock(tx_hash);
+    let receipt =
+        SignedMessage::create(validator_key, Receipt::Promise(promise.to_compact())).unwrap();
+    injected_api.on_computed_promise(promise.clone());
+    injected_api.on_tx_receipt(receipt.into());
+
+    let first_receipt = first.next().await.expect("first item").expect("decodes");
+    let second_receipt = second.next().await.expect("second item").expect("decodes");
+    assert_eq!(first_receipt.data(), &Receipt::Promise(promise.clone()));
+    assert_eq!(second_receipt.data(), &Receipt::Promise(promise.clone()));
+
+    wait_for_closed_subscriptions(injected_api.clone()).await;
+
+    // Kill the acceptance pump BEFORE the late watcher so the "Ready path does not
+    // re-relay" guarantee is actually exercised: with no acceptor, an accidental
+    // relay errors/hangs instead of being silently accepted. Aborting drops the
+    // pump's captured `rpc` (and thus the relay `mpsc::Receiver`); awaiting the
+    // join handle ensures that drop has completed before the call below, so a
+    // regression that relays hits a closed channel rather than racing the drop.
+    pump.abort();
+    let _ = pump.await;
+
+    // Late watcher for the same tx: the receipt is now stored, so it must be served
+    // from the cached `Ready` path immediately, without relaying.
+    let mut late = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        first_client.send_transaction_and_watch(tx.clone()),
+    )
+    .await
+    .expect("late subscription must not block on a relay")
+    .expect("late subscription will be created");
+    let late_receipt = tokio::time::timeout(std::time::Duration::from_secs(5), late.next())
+        .await
+        .expect("cached receipt must arrive without a relay")
+        .expect("late item")
+        .expect("decodes");
+    assert_eq!(late_receipt.data(), &Receipt::Promise(promise));
+
+    handle.stop().expect("RPC server must stop");
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_relay_failure_cleans_pending_subscriber() {
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8015);
+    let MockService { rpc, handle, .. } = MockService::new(listen_addr).await;
+    let injected_api = rpc.injected_api.clone();
+    // Dropping `rpc` closes the relay receiver; the ERROR log from relay.rs is expected here.
+    drop(rpc);
+
+    let client = WsClientBuilder::new()
+        .build(format!("ws://{listen_addr}"))
+        .await
+        .expect("WS client will be created");
+
+    let result = client
+        .send_transaction_and_watch(mock_signed_transaction())
+        .await;
+
+    assert!(
+        result.is_err(),
+        "relay must fail after its receiver is dropped"
+    );
+    assert_eq!(injected_api.subscribers_count(), 0);
+    handle.stop().expect("RPC server must stop");
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_rejection_keeps_other_same_transaction_watcher() {
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8016);
+    let MockService {
+        mut rpc,
+        handle,
+        validator_key,
+    } = MockService::new(listen_addr).await;
+    let injected_api = rpc.injected_api.clone();
+
+    let pump = tokio::spawn(async move {
+        let RpcEvent::InjectedTransaction {
+            response_sender, ..
+        } = rpc.next().await.expect("first relay event");
+        response_sender
+            .send(InjectedTransactionAcceptance::Accept)
+            .expect("first response receiver remains open");
+
+        let RpcEvent::InjectedTransaction {
+            response_sender, ..
+        } = tokio::time::timeout(std::time::Duration::from_secs(1), rpc.next())
+            .await
+            .expect("second same-tx watcher must reach the relayer")
+            .expect("second relay event");
+        response_sender
+            .send(InjectedTransactionAcceptance::Reject {
+                reason: "rejected by test".into(),
+            })
+            .expect("second response receiver remains open");
+    });
+
+    let first_client = WsClientBuilder::new()
+        .build(format!("ws://{listen_addr}"))
+        .await
+        .expect("first WS client will be created");
+    let second_client = WsClientBuilder::new()
+        .build(format!("ws://{listen_addr}"))
+        .await
+        .expect("second WS client will be created");
+    let tx = mock_signed_transaction();
+    let tx_hash = tx.data().to_hash();
+
+    let (first, second) = tokio::join!(
+        first_client.send_transaction_and_watch(tx.clone()),
+        second_client.send_transaction_and_watch(tx),
+    );
+    let mut accepted = match (first, second) {
+        (Ok(subscription), Err(_)) | (Err(_), Ok(subscription)) => subscription,
+        _ => panic!("exactly one watcher must be accepted"),
+    };
+    pump.await.expect("acceptance pump must finish");
+    assert_eq!(injected_api.subscribers_count(), 1);
+
+    let promise = Promise::mock(tx_hash);
+    let receipt =
+        SignedMessage::create(validator_key, Receipt::Promise(promise.to_compact())).unwrap();
+    injected_api.on_computed_promise(promise.clone());
+    injected_api.on_tx_receipt(receipt.into());
+
+    let delivered = accepted.next().await.expect("item").expect("decodes");
+    assert_eq!(delivered.data(), &Receipt::Promise(promise));
+    wait_for_closed_subscriptions(injected_api).await;
+    handle.stop().expect("RPC server must stop");
+}
+
 // Setup worker-threads=4 to simulate concurrent clients.
 #[tokio::test]
 #[ntest::timeout(120_000)]
