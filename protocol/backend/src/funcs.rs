@@ -7,7 +7,7 @@ use crate::{
     BackendExternalities,
     accessors::{
         Read, ReadAs, ReadAsOption, ReadPayloadLimited, SyscallArg, SyscallValue, WriteAs,
-        WriteInGrRead,
+        WriteBuffer, WriteInGrRead,
     },
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
@@ -32,12 +32,12 @@ use gear_core::{
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::WasmPage,
 };
-use gear_core_errors::{MessageError, ReplyCode, SignalCode};
+use gear_core_errors::{ExtError, MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{AsContextExt, ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
 use gear_wasm_instrument::{SyscallName, SystemBreakCode};
 use gsys::{
-    BlockNumberWithHash, ErrorBytes, ErrorWithGas, ErrorWithHandle, ErrorWithHash,
+    BlockNumberWithHash, CryptoOp, ErrorBytes, ErrorWithGas, ErrorWithHandle, ErrorWithHash,
     ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash, HashWithValue,
     TwoHashesWithValue,
 };
@@ -1184,6 +1184,25 @@ where
                     MessageWaitedType::WaitUpTo
                 };
                 Err(ActorTerminationReason::Wait(Some(duration), waited_type).into())
+            },
+        )
+    }
+
+    pub fn crypto(op: u32, input: Read, output: WriteBuffer) -> impl Syscall<Caller> {
+        FallibleSyscall::new::<ErrorBytes>(
+            CostToken::Crypto(CryptoOp::from_u32(op), input.size().into()),
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let op = CryptoOp::from_u32(op)
+                    .ok_or(RunFallibleError::FallibleExt(ExtError::Unsupported))?;
+
+                if output.size() != op.output_len() {
+                    return Err(RunFallibleError::FallibleExt(ExtError::Unsupported));
+                }
+
+                let input = input.into_inner()?;
+                let result = ctx.caller_wrap.ext_mut().crypto(op, &input)?;
+
+                output.write(ctx, &result).map_err(Into::into)
             },
         )
     }

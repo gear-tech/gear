@@ -53,4 +53,4 @@ demo-delayed-sender.workspace = true
 gear-core = { workspace = true, features = ["mock"] }
 
 [features]
-ethexe = ["dep:ethexe-common", "dep:ethexe-runtime-common"]
+ethexe = ["dep:ethexe-common", "dep:ethexe-runtime-common", "ethexe-runtime-common/std"]

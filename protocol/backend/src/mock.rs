@@ -210,6 +210,13 @@ impl Externalities for MockExt {
     fn wake(&mut self, _waker_id: MessageId, _delay: u32) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
+    fn crypto(
+        &mut self,
+        _op: gsys::CryptoOp,
+        _input: &[u8],
+    ) -> Result<Vec<u8>, Self::FallibleError> {
+        Err(Error)
+    }
     fn create_program(
         &mut self,
         _packet: InitPacket,

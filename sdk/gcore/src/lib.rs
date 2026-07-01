@@ -54,6 +54,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
+#[cfg(feature = "ethexe")]
+pub mod crypto;
 #[cfg(target_arch = "wasm32")]
 pub mod ctor;
 pub mod errors;

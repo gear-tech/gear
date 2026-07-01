@@ -102,6 +102,8 @@ pub use transitions::{
 pub mod proptest;
 pub mod state;
 
+#[cfg(feature = "std")]
+pub mod crypto_ops;
 mod ext;
 mod journal;
 mod schedule;
@@ -110,10 +112,10 @@ mod transitions;
 /// Runtime ID
 /// MUST BE BUMPED IF:
 /// - any instrumentation logic changes ([`CODES_INSTRUMENTATION_VERSION`] is updated);
-pub const RUNTIME_ID: u32 = 2;
+pub const RUNTIME_ID: u32 = 3;
 
 /// Gear program wasm codes instrumentation version.
-pub const CODES_INSTRUMENTATION_VERSION: u32 = 2;
+pub const CODES_INSTRUMENTATION_VERSION: u32 = 3;
 
 /// Maximum number of outgoing messages per execution of one dispatch.
 pub const MAX_OUTGOING_MESSAGES_PER_EXECUTION: u32 = 4;
@@ -150,6 +152,9 @@ pub trait RuntimeInterface: Storage {
     /// Publish a promise produced during execution to the compute service layer.
     /// The implementation is expected to forward it to external subscribers.
     fn publish_promise(&self, promise: &Promise);
+    /// Perform a `gr_crypto` operation natively on the host.
+    /// `None` means malformed input (e.g. an invalid curve point).
+    fn crypto(op: gsys::CryptoOp, input: &[u8]) -> Option<Vec<u8>>;
 }
 
 /// A main low-level interface to perform state changes
@@ -565,6 +570,10 @@ mod tests {
         fn update_state_hash(&self, _state_hash: &H256) {}
 
         fn publish_promise(&self, _promise: &Promise) {}
+
+        fn crypto(_op: gsys::CryptoOp, _input: &[u8]) -> Option<Vec<u8>> {
+            None
+        }
     }
 
     fn empty_queue_context(storage: &MemStorage) -> ProcessQueueContext {

@@ -59,6 +59,53 @@ pub struct BlockNumberWithHash {
     pub hash: Hash,
 }
 
+/// Cryptographic operation id for the `gr_crypto` syscall (ethexe-only).
+///
+/// The raw `u32` value is the wire format of the syscall's first argument;
+/// variants are append-only — never reorder or reuse discriminants.
+///
+/// Input/output layouts (raw bytes, no codec):
+/// - `Keccak256` / `Sha256` / `Blake2b256`: input — arbitrary bytes,
+///   output — 32-byte digest.
+/// - `Bls12381Verify`: input — 48-byte compressed G1 public key ++ 96-byte
+///   compressed G2 signature ++ message bytes; output — 1 byte (1 if the
+///   signature is valid, 0 otherwise). Hash-to-curve per the
+///   `BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_` ciphersuite.
+/// - `Bls12381AggregateG1`: input — concatenated 48-byte compressed G1
+///   points; output — 48-byte compressed aggregate.
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CryptoOp {
+    Keccak256 = 0,
+    Sha256 = 1,
+    Blake2b256 = 2,
+    Bls12381Verify = 3,
+    Bls12381AggregateG1 = 4,
+}
+
+impl CryptoOp {
+    /// Exact output size in bytes the host writes for this operation.
+    pub const fn output_len(self) -> Length {
+        match self {
+            Self::Keccak256 | Self::Sha256 | Self::Blake2b256 => 32,
+            Self::Bls12381Verify => 1,
+            Self::Bls12381AggregateG1 => 48,
+        }
+    }
+
+    /// Decodes the wire value; `None` for unknown ops.
+    pub const fn from_u32(raw: u32) -> Option<Self> {
+        Some(match raw {
+            0 => Self::Keccak256,
+            1 => Self::Sha256,
+            2 => Self::Blake2b256,
+            3 => Self::Bls12381Verify,
+            4 => Self::Bls12381AggregateG1,
+            _ => return None,
+        })
+    }
+}
+
 impl BlockNumberWithHash {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
@@ -951,4 +998,25 @@ syscalls! {
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for error code.
     pub fn gr_wake(message_id: *const Hash, delay: BlockNumber, err: *mut ErrorCode);
+
+    /// Fallible `gr_crypto` syscall: forwards a cryptographic operation
+    /// to the host and writes the result into `output`.
+    ///
+    /// Arguments type:
+    /// - `op`: `u32` crypto operation id (see [`CryptoOp`]).
+    /// - `input`: `const ptr` for the operation input buffer.
+    /// - `input_len`: `u32` length of the input buffer.
+    /// - `output`: `mut ptr` for the op-specific result.
+    /// - `output_len`: `u32` capacity of `output`; must equal
+    ///   [`CryptoOp::output_len`] for the given `op`.
+    /// - `err`: `mut ptr` for error code.
+    #[cfg(feature = "ethexe")]
+    pub fn gr_crypto(
+        op: u32,
+        input: *const SizedBufferStart,
+        input_len: Length,
+        output: *mut SizedBufferStart,
+        output_len: Length,
+        err: *mut ErrorCode,
+    );
 }

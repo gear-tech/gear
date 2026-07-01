@@ -7,6 +7,9 @@ pub(crate) mod allocator_ri;
 #[path = "database.rs"]
 pub(crate) mod database_ri;
 
+#[path = "crypto.rs"]
+pub(crate) mod crypto_ri;
+
 #[path = "logging.rs"]
 pub(crate) mod logging_ri;
 

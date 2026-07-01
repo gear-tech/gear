@@ -49,6 +49,15 @@ pub struct WasmProject {
     profile: String,
     features: Option<Vec<String>>,
     pre_processors: Vec<Box<dyn PreProcessor>>,
+    syscall_kind_override: Option<SyscallKind>,
+}
+
+impl WasmProject {
+    /// Validate the produced WASM against an explicit syscall set instead
+    /// of the autodetected one.
+    pub fn override_syscall_kind(&mut self, kind: SyscallKind) {
+        self.syscall_kind_override = Some(kind);
+    }
 }
 
 /// Pre-processor result.
@@ -136,6 +145,7 @@ impl WasmProject {
             profile,
             features: None,
             pre_processors: vec![],
+            syscall_kind_override: None,
         }
     }
 
@@ -417,7 +427,13 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
             .dependencies
             .iter()
             .any(|dep| dep.name == "gear-workspace-hack");
-        let syscall_kind = if is_workspace_hack {
+        // Explicit opt-in from the program's build.rs (`build_ethexe()`)
+        // beats autodetection; the workspace-hack check keeps in-tree Vara
+        // programs on Vara validation even when feature unification enables
+        // the builder's `ethexe` feature.
+        let syscall_kind = if let Some(kind) = self.syscall_kind_override {
+            kind
+        } else if is_workspace_hack {
             SyscallKind::Vara
         } else {
             SYSCALL_KIND

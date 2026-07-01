@@ -236,6 +236,16 @@ pub(super) fn expected_syscall_weights_count() -> usize {
         gr_create_program_wgas: _,
         gr_create_program_wgas_payload_per_byte: _,
         gr_create_program_wgas_salt_per_byte: _,
+        gr_crypto_keccak256: _,
+        gr_crypto_keccak256_per_byte: _,
+        gr_crypto_sha256: _,
+        gr_crypto_sha256_per_byte: _,
+        gr_crypto_blake2b256: _,
+        gr_crypto_blake2b256_per_byte: _,
+        gr_crypto_bls12_381_verify: _,
+        gr_crypto_bls12_381_verify_per_byte: _,
+        gr_crypto_bls12_381_aggregate_g1: _,
+        gr_crypto_bls12_381_aggregate_g1_per_byte: _,
         _phantom: __phantom,
     } = SyscallWeights::<Runtime>::default();
 
