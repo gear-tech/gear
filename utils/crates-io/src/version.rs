@@ -1,13 +1,13 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Crate verifier
+//! Crate verifier.
 
 use crate::{EXPECTED_OWNERS, Simulator, handler};
 use anyhow::{Result, anyhow};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
-use std::process::Command;
+use tokio::process::Command;
 
 #[derive(Debug, Deserialize)]
 struct VersionsResponse {
@@ -79,8 +79,8 @@ pub enum PackageStatus {
 }
 
 /// Verify if the package has valid owners.
-pub async fn verify_owners(name: &str) -> Result<PackageStatus> {
-    println!("Verifying {name} owners ...");
+pub async fn verify_owners(crates_io_name: &str) -> Result<PackageStatus> {
+    println!("Verifying {crates_io_name} owners ...");
 
     let client = Client::builder()
         .user_agent("gear-crates-io-manager")
@@ -88,8 +88,7 @@ pub async fn verify_owners(name: &str) -> Result<PackageStatus> {
 
     let response = client
         .get(format!(
-            "https://crates.io/api/v1/crates/{}/owners",
-            handler::crates_io_name(name)
+            "https://crates.io/api/v1/crates/{crates_io_name}/owners",
         ))
         .send()
         .await?;
@@ -113,12 +112,15 @@ pub async fn verify_owners(name: &str) -> Result<PackageStatus> {
 }
 
 /// Get the short hash of the current commit.
-pub fn hash() -> Result<String> {
-    Ok(Command::new("git")
+pub async fn hash() -> Result<String> {
+    let output = Command::new("git")
         .args(["rev-parse", "--short", "HEAD"])
         .output()
+        .await
         .map_err(|e| anyhow!("failed to execute command git, {e}"))?
-        .stdout
+        .stdout;
+
+    Ok(output
         .iter()
         .filter_map(|&c| (!c.is_ascii_whitespace()).then_some(c as char))
         .collect())

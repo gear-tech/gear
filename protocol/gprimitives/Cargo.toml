@@ -1,14 +1,16 @@
 [package]
 name = "gprimitives"
-description = "Gear programs' primitives"
-documentation = "https://docs.rs/gprimitives"
-edition.workspace = true
 version.workspace = true
 authors.workspace = true
-license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Gear programs' primitives"
+documentation = "https://docs.rs/gprimitives"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "primitives", "actor", "message", "no-std"]
+categories = ["data-structures", "no-std"]
 
 [dependencies]
 alloy-primitives = { workspace = true, optional = true }

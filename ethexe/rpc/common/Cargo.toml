@@ -1,0 +1,24 @@
+[package]
+name = "ethexe-rpc-common"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Shared JSON-RPC types for ethexe"
+documentation = "https://docs.rs/ethexe-rpc-common"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords = ["ethexe", "json-rpc", "rpc", "types"]
+categories = ["api-bindings", "network-programming"]
+
+[dependencies]
+ethexe-common = { workspace = true, features = ["std"] }
+ethexe-runtime-common = { workspace = true, features = ["std"] }
+gear-core = { workspace = true, features = ["std"] }
+gprimitives = { workspace = true, features = ["serde", "ethexe"] }
+serde = { workspace = true, features = ["std"] }
+gear-workspace-hack.workspace = true
+
+[lints]
+workspace = true

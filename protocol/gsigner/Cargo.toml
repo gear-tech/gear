@@ -1,15 +1,17 @@
 [package]
 name = "gsigner"
-description = "Universal cryptographic signer supporting secp256k1 (Ethereum), ed25519, and sr25519 (Substrate)"
-documentation = "https://docs.rs/gsigner"
-keywords = ["cryptography", "ethereum", "substrate", "signing", "keystore"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Universal cryptographic signer supporting secp256k1 (Ethereum), ed25519, and sr25519 (Substrate)"
+documentation = "https://docs.rs/gsigner"
+readme = "README.md"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["cryptography", "ethereum", "substrate", "signing", "keystore"]
+categories = ["cryptography", "cryptography::cryptocurrencies", "command-line-utilities"]
 
 [[bin]]
 name = "gsigner"

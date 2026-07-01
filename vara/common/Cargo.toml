@@ -1,16 +1,16 @@
 [package]
 name = "gear-common"
-description = "Gear common library for the runtime"
-documentation = "https://docs.rs/gear-common"
-keywords = ["gear", "wasm"]
-categories = ["wasm"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Gear common library for the runtime"
+documentation = "https://docs.rs/gear-common"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "runtime", "gas", "storage", "no-std"]
+categories = ["wasm", "data-structures", "no-std"]
 
 [lints]
 workspace = true

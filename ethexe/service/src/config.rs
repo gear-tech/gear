@@ -6,7 +6,7 @@
 use anyhow::Result;
 use ethexe_network::NetworkConfig;
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::RpcConfig;
+use ethexe_rpc_server::RpcConfig;
 use gsigner::secp256k1::{Address, PublicKey};
 use std::{collections::BTreeMap, path::PathBuf, str::FromStr, time::Duration};
 

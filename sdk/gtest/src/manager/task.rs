@@ -5,7 +5,6 @@
 
 use super::ExtManager;
 use crate::{Gas, state::programs::ProgramsStorageManager};
-use core_processor::common::JournalHandler;
 use gear_common::{Gas as GearCommonGas, scheduler::StorageType};
 use gear_core::{
     gas_metering::TaskWeights,
@@ -14,6 +13,7 @@ use gear_core::{
     tasks::{ScheduledTask, TaskHandler, VaraScheduledTask},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
+use gear_core_processor::common::JournalHandler;
 
 pub(crate) fn get_maximum_task_gas(task: &VaraScheduledTask<ActorId>) -> Gas {
     use ScheduledTask::*;

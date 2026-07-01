@@ -77,7 +77,7 @@ pub fn process_chunk_execution_journals(
             let break_flag = ctx.break_early(&journal);
 
             let mut journal_handler = ctx.journal_handler(program_id, message_type, call_reply);
-            core_processor::handle_journal(journal, &mut journal_handler);
+            gear_core_processor::handle_journal(journal, &mut journal_handler);
 
             if break_flag {
                 return ChunkJournalsProcessingOutput::EarlyBreak;
