@@ -3,7 +3,7 @@
 
 //! Service configuration.
 
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 pub use malachitebft_app_channel::app::net::Multiaddr;
 
@@ -38,16 +38,9 @@ pub enum NodeRole {
 /// Application-specific knobs live behind [`crate::Externalities`].
 #[derive(Clone, Debug)]
 pub struct MalachiteCoreConfig {
-    /// Local libp2p listen address.
-    pub listen_addr: SocketAddr,
-
     /// Base directory; the service owns `<base>/malachite/` (consensus WAL
     /// + RocksDB store), created on first run and resumed on restarts.
     pub base: PathBuf,
-
-    /// Multiaddrs of peers to keep persistent connections to; each entry
-    /// must include a `/p2p/<peer_id>` suffix (discovery is off).
-    pub persistent_peers: Vec<Multiaddr>,
 
     /// This node's secp256k1 secret: libp2p peer identity in both roles,
     /// plus vote / proposal signing in [`NodeRole::Validator`] mode.
@@ -69,11 +62,4 @@ pub struct MalachiteCoreConfig {
 impl MalachiteCoreConfig {
     /// Default propose timeout.
     pub const DEFAULT_PROPOSE_TIMEOUT: Duration = Duration::from_secs(13);
-
-    /// Default libp2p listen address — TCP next to the typical
-    /// 20333/udp application QUIC port.
-    pub const DEFAULT_LISTEN_ADDR: SocketAddr = SocketAddr::new(
-        std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
-        20334,
-    );
 }
