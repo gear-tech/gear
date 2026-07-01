@@ -5730,6 +5730,7 @@ dependencies = [
  "metrics",
  "metrics-derive",
  "parity-scale-codec",
+ "proptest",
  "tokio",
  "tracing",
 ]
