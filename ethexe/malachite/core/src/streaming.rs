@@ -98,7 +98,7 @@ impl StreamState {
         }
         if msg.is_fin() {
             self.fin_received = true;
-            self.total_messages = msg.sequence as usize + 1;
+            self.total_messages = (msg.sequence as usize).saturating_add(1);
         }
         self.buffer.push(msg);
         if self.is_done() {
@@ -351,5 +351,13 @@ mod tests {
              needs per-peer cap + GC for never-finalised / bogus-Fin streams",
             map.streams.len(),
         );
+    }
+
+    #[test]
+    fn fin_at_u64_max_sequence_does_not_panic() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(13);
+        let s = sid(0xDEADBEEF);
+        let _ = map.insert(p, fin_msg(s, u64::MAX));
     }
 }
