@@ -24,7 +24,7 @@ ethexe-ethereum.workspace = true
 ethexe-common = { workspace = true, features = ["std", "mock"] }
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
-ethexe-rpc = { workspace = true, features = ["server"] }
+ethexe-rpc-server.workspace = true
 gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["std", "ethexe"] }
@@ -64,7 +64,8 @@ ntest.workspace = true
 gear-core-errors.workspace = true
 ethexe-network.workspace = true
 ethexe-db = { workspace = true, features = ["mock"] }
-ethexe-rpc = { workspace = true, features = ["client", "server"] }
+ethexe-rpc-client.workspace = true
+ethexe-rpc-server.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }

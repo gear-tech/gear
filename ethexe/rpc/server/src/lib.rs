@@ -1,9 +1,9 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! Vara.eth RPC client and server APIs.
+//! Vara.eth RPC server APIs.
 //!
-//! The crate provide both client and server APIs for the Vara.eth node.
+//! The crate provides server APIs for the Vara.eth node.
 //!
 //! ## Crate modules
 //! The crate has the following structure:
@@ -20,11 +20,6 @@
 //! By design the RPC server has no write access to the node database. So it must be just
 //! a read-only proxy for the external users.
 //!
-//! ## Features
-//! The following features are available:
-//! - `client` - enables the client APIs generate from [`jsonrpsee::proc_macros::rpc`] macro.
-//! - `server` - enables the RPC server implementation.
-//!
 //! ### RPC server configuration details
 //! The RPC server is configured from [`RpcConfig`]. It provides the following configuration:
 //! - [`RpcConfig::listen_addr`] - the address of RPC server running on
@@ -33,68 +28,49 @@
 //! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
 //! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
 
-#[cfg(feature = "client")]
-pub use crate::apis::{
-    BlockClient, CalculateReplyForHandleResult, CodeClient, DevClient, FullProgramState,
-    InfoClient, InjectedClient, ProgramBestState, ProgramClient,
-};
 pub use crate::apis::{PromiseEnvelope, PromiseSubscriptionFilter, RPC_VERSION, ReplyCodeFilter};
 
-#[cfg(feature = "server")]
+pub use ethexe_rpc_common as types;
+
 use anyhow::Result;
-#[cfg(feature = "server")]
+
 use apis::{
     BestStateManager, BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InfoApi,
     InfoServer, InjectedApi, InjectedServer, ProgramApi, ProgramServer,
 };
-#[cfg(feature = "server")]
 use ethexe_common::injected::{
     InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt, SignedInjectedTransaction,
 };
-#[cfg(feature = "server")]
 use ethexe_db::Database;
-#[cfg(feature = "server")]
 use ethexe_processor::{Processor, ProcessorConfig};
-#[cfg(feature = "server")]
 use futures::{Stream, stream::FusedStream};
-#[cfg(feature = "server")]
 use gprimitives::H256;
-#[cfg(feature = "server")]
 use hyper::header::HeaderValue;
-#[cfg(feature = "server")]
 use jsonrpsee::{
     RpcModule as JsonrpcModule,
     server::{PingConfig, RpcServiceBuilder, Server, ServerHandle},
 };
-#[cfg(feature = "server")]
 use metrics::RpcMetricsLayer;
-#[cfg(feature = "server")]
 use std::{
     net::SocketAddr,
     pin::Pin,
     task::{Context, Poll},
 };
-#[cfg(feature = "server")]
 use tokio::sync::{mpsc, oneshot};
-#[cfg(feature = "server")]
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod apis;
-#[cfg(feature = "server")]
 mod errors;
-#[cfg(feature = "server")]
 mod metrics;
-#[cfg(feature = "server")]
 mod utils;
 
 #[cfg(test)]
 mod test_utils;
-#[cfg(all(test, feature = "client"))]
+#[cfg(test)]
 mod tests;
 
 pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
 
-#[cfg(feature = "server")]
 #[derive(Debug)]
 pub enum RpcEvent {
     InjectedTransaction {
@@ -104,7 +80,6 @@ pub enum RpcEvent {
 }
 
 /// Configuration of the RPC endpoint.
-#[cfg(feature = "server")]
 #[derive(Debug, Clone)]
 pub struct RpcConfig {
     /// Listen address.
@@ -120,13 +95,11 @@ pub struct RpcConfig {
     pub with_dev_api: bool,
 }
 
-#[cfg(feature = "server")]
 pub struct RpcServer {
     config: RpcConfig,
     db: Database,
 }
 
-#[cfg(feature = "server")]
 impl RpcServer {
     pub fn new(config: RpcConfig, db: Database) -> Self {
         Self { config, db }
@@ -198,7 +171,6 @@ impl RpcServer {
     }
 }
 
-#[cfg(feature = "server")]
 pub struct RpcService {
     /// Receiver for incoming RPC events to forward to the main service.
     receiver: mpsc::UnboundedReceiver<RpcEvent>,
@@ -208,7 +180,6 @@ pub struct RpcService {
     best_state: BestStateManager,
 }
 
-#[cfg(feature = "server")]
 impl RpcService {
     pub fn new(
         receiver: mpsc::UnboundedReceiver<RpcEvent>,
@@ -235,7 +206,6 @@ impl RpcService {
     }
 }
 
-#[cfg(feature = "server")]
 impl Stream for RpcService {
     type Item = RpcEvent;
 
@@ -244,14 +214,12 @@ impl Stream for RpcService {
     }
 }
 
-#[cfg(feature = "server")]
 impl FusedStream for RpcService {
     fn is_terminated(&self) -> bool {
         self.receiver.is_closed()
     }
 }
 
-#[cfg(feature = "server")]
 struct RpcServerApis {
     pub block: BlockApi,
     pub code: CodeApi,
@@ -261,7 +229,6 @@ struct RpcServerApis {
     pub info: InfoApi,
 }
 
-#[cfg(feature = "server")]
 impl RpcServerApis {
     pub fn into_module(self) -> jsonrpsee::server::RpcModule<()> {
         let mut module = JsonrpcModule::new(());

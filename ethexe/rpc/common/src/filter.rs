@@ -33,7 +33,7 @@ pub struct PromiseEnvelope {
 /// `From<Vec<T>>` impls so it works with any item type, not only alloy primitives.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum ValueOrArray<T> {
+pub enum ValueOrArray<T> {
     Value(T),
     Array(Vec<T>),
 }
@@ -138,9 +138,8 @@ where
     }
 }
 
-/// Server-side filter for `subscribe_promises`, applied per subscriber so each
-/// client receives only the promises it asked for. Omitted / `None` streams every
-/// promise.
+/// Filter for `subscribe_promises`, applied per subscriber so each client
+/// receives only the promises it asked for. Omitted / `None` streams every promise.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PromiseSubscriptionFilter {
@@ -179,7 +178,7 @@ impl PromiseSubscriptionFilter {
     }
 
     /// Returns `true` if `envelope` passes all predicates in this filter.
-    pub(crate) fn matches(&self, envelope: &PromiseEnvelope) -> bool {
+    pub fn matches(&self, envelope: &PromiseEnvelope) -> bool {
         self.sender.matches(&envelope.sender)
             && self.destination.matches(&envelope.destination)
             && self
@@ -217,7 +216,7 @@ impl ReplyCodeFilter {
     }
 
     /// Returns `true` if `code` satisfies this predicate.
-    pub(crate) fn matches(&self, code: &ReplyCode) -> bool {
+    pub fn matches(&self, code: &ReplyCode) -> bool {
         match self {
             ReplyCodeFilter::Success => code.is_success(),
             ReplyCodeFilter::Error => code.is_error(),

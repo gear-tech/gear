@@ -46,12 +46,9 @@ CONTAINER_NETWORK_PORT="20333"
 CONTAINER_RPC_PORT="9944"
 CONTAINER_PROMETHEUS_PORT="9635"
 
-# Malachite BFT consensus uses a separate libp2p TCP swarm (ethexe-network
-# is QUIC/UDP). Port 20334 is the default malachite listen address; we
-# also pre-derive a `validators -> pubkey` JSON file per node (the
+# Malachite BFT consensus uses the shared ethexe-network libp2p swarm.
+# We still pre-derive a `validators -> pubkey` JSON file per node (the
 # `--validators-malachite-pub-keys` operand).
-MALACHITE_PORT_START="20334"
-CONTAINER_MALACHITE_PORT="20334"
 
 ETHEXE_CLI="target/release/ethexe"
 ETHEXE_CLI_IN_CONTAINER="/workspace/target/release/ethexe"
@@ -167,7 +164,6 @@ Options:
   --network-port-start PORT               Host start port for node p2p (default: 20333)
   --rpc-port-start PORT                   Host start port for node RPC (default: 10000)
   --prometheus-port-start PORT            Host start port for metrics (default: 11000)
-  --malachite-port-start PORT             Host start port for Malachite BFT swarm (default: 20334)
 
   --anvil-port PORT                       Host port mapped to anvil (default: 8545)
   --anvil-block-time SEC                  Anvil block time (default: 2)
@@ -262,11 +258,6 @@ parse_args() {
 		--prometheus-port-start)
 			require_option_value "$1" "${2:-}"
 			PROMETHEUS_PORT_START="$2"
-			shift 2
-			;;
-		--malachite-port-start)
-			require_option_value "$1" "${2:-}"
-			MALACHITE_PORT_START="$2"
 			shift 2
 			;;
 		--anvil-port)
@@ -584,7 +575,6 @@ declare -a VALIDATOR_PUB_KEYS=()
 declare -a VALIDATOR_ADDRESSES=()
 declare -a NETWORK_PUB_KEYS=()
 declare -a PEER_IDS=()
-declare -a MALACHITE_PEER_IDS=()
 declare -a NODE_CONTAINER_NAMES=()
 
 generate_keys() {
@@ -656,27 +646,7 @@ generate_keys() {
 
 		PEER_IDS+=("$peer_id")
 
-		# Derive the Malachite swarm peer-id (different domain
-		# separator from the standard libp2p one — keccak over
-		# `b"mala-svc-libp2p:v1:" + secret`). The `ethexe malachite
-		# peer-id` subcommand reads the secret from the validator
-		# keystore for us; the first non-blank line of stdout is the
-		# peer-id, the remaining help block is decoration.
-		local malachite_peer_id_result
-		malachite_peer_id_result=$("$ETHEXE_CLI" malachite \
-			--key-store "$keys_dir" \
-			peer-id "$validator_pub_key" 2>&1)
-		local malachite_peer_id
-		malachite_peer_id=$(echo "$malachite_peer_id_result" | head -n1 | tr -d '[:space:]')
-
-		if [[ -z "$malachite_peer_id" ]]; then
-			log_error "Failed to derive Malachite peer ID for node $i"
-			echo "$malachite_peer_id_result"
-			exit 1
-		fi
-
-		MALACHITE_PEER_IDS+=("$malachite_peer_id")
-		log_info "Node $i: validator=$validator_pub_key peer_id=$peer_id malachite_peer_id=$malachite_peer_id"
+		log_info "Node $i: validator=$validator_pub_key peer_id=$peer_id"
 	done
 
 	# Generate one shared `malachite-validators.json` that lists every
@@ -726,13 +696,12 @@ start_nodes() {
 		local network_port=$((NETWORK_PORT_START + i))
 		local rpc_port=$((RPC_PORT_START + i))
 		local prometheus_port=$((PROMETHEUS_PORT_START + i))
-		local malachite_port=$((MALACHITE_PORT_START + i))
 		local validator_pub_key="${VALIDATOR_PUB_KEYS[$i]}"
 		local network_pub_key="${NETWORK_PUB_KEYS[$i]}"
 		local container_name="${NODE_CONTAINER_PREFIX}-${i}"
 		NODE_CONTAINER_NAMES+=("$container_name")
 
-		log_info "Starting node $i on ports: network=$network_port rpc=$rpc_port prometheus=$prometheus_port malachite=$malachite_port"
+		log_info "Starting node $i on ports: network=$network_port rpc=$rpc_port prometheus=$prometheus_port"
 
 		remove_container_if_exists "$container_name"
 
@@ -758,7 +727,6 @@ start_nodes() {
 		# In a docker compose with deterministic container names we
 		# can advertise the container DNS multiaddr directly.
 		cmd+=" --network-public-addr /dns4/${NODE_CONTAINER_PREFIX}-${i}/udp/$CONTAINER_NETWORK_PORT/quic-v1"
-		cmd+=" --malachite-listen-addr 0.0.0.0:$CONTAINER_MALACHITE_PORT"
 		cmd+=" --validators-malachite-pub-keys /data/malachite-validators.json"
 
 		if [[ "$ETHEXE_VERBOSE" == "true" ]]; then
@@ -773,18 +741,6 @@ start_nodes() {
 			done
 		fi
 
-		# Malachite has no DHT discovery yet — every other validator
-		# must be listed explicitly via `--malachite-persistent-peer`
-		# (one repeat per peer). Use container DNS names so docker's
-		# resolver can find peers regardless of host IP.
-		for ((j = 0; j < NUM_VALIDATORS; j++)); do
-			if [[ $j -ne $i ]]; then
-				local mb_peer_id="${MALACHITE_PEER_IDS[$j]}"
-				local mb_peer_container="${NODE_CONTAINER_PREFIX}-${j}"
-				cmd+=" --malachite-persistent-peer /dns4/$mb_peer_container/tcp/$CONTAINER_MALACHITE_PORT/p2p/$mb_peer_id"
-			fi
-		done
-
 		docker run -d \
 			--name "$container_name" \
 			--network "$DOCKER_NETWORK_NAME" \
@@ -793,7 +749,6 @@ start_nodes() {
 			-p "$network_port:$CONTAINER_NETWORK_PORT/udp" \
 			-p "$rpc_port:$CONTAINER_RPC_PORT" \
 			-p "$prometheus_port:$CONTAINER_PROMETHEUS_PORT" \
-			-p "$malachite_port:$CONTAINER_MALACHITE_PORT/tcp" \
 			-e HOME=/workspace \
 			-e RUST_LOG_STYLE=never \
 			-e RUST_BACKTRACE=1 \

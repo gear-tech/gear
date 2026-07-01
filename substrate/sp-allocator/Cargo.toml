@@ -4,12 +4,14 @@ version = "29.0.0"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license = "Apache-2.0"
-homepage.workspace = true
-repository.workspace = true
 description = "Collection of allocator implementations."
 documentation = "https://docs.rs/sp-allocator"
 readme = "README.md"
+homepage.workspace = true
+repository.workspace = true
+license = "Apache-2.0"
+keywords = ["allocator", "wasm", "memory", "substrate", "no-std"]
+categories = ["memory-management", "wasm", "no-std"]
 
 [lints]
 workspace = true
@@ -24,5 +26,5 @@ thiserror = { workspace = true, optional = true }
 sp-wasm-interface-common = { workspace = true, default-features = false }
 
 [features]
-default = [ "std" ]
-std = [ "codec/std", "log/std", "sp-wasm-interface-common/std", "thiserror" ]
+default = ["std"]
+std = ["codec/std", "log/std", "sp-wasm-interface-common/std", "thiserror"]

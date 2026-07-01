@@ -1,7 +1,6 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use super::filter::PromiseEnvelope;
 use anyhow::Result;
 use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
@@ -15,6 +14,7 @@ use ethexe_common::{
     },
 };
 use ethexe_db::Database;
+use ethexe_rpc_common::PromiseEnvelope;
 use std::sync::Arc;
 use tokio::sync::{broadcast, oneshot};
 use tracing::{trace, warn};

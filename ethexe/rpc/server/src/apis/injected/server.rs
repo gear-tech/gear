@@ -4,8 +4,8 @@
 use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
 
 use super::{
-    InjectedServer, filter::PromiseSubscriptionFilter, promise_manager::PromiseSubscriptionManager,
-    relay::TransactionsRelayer, spawner,
+    InjectedServer, promise_manager::PromiseSubscriptionManager, relay::TransactionsRelayer,
+    spawner,
 };
 use ethexe_common::{
     HashOf,
@@ -16,6 +16,7 @@ use ethexe_common::{
     },
 };
 use ethexe_db::Database;
+use ethexe_rpc_common::PromiseSubscriptionFilter;
 use jsonrpsee::{
     core::{RpcResult, SubscriptionResult, async_trait},
     server::PendingSubscriptionSink,

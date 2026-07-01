@@ -1,11 +1,9 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use super::{
-    filter::{PromiseEnvelope, PromiseSubscriptionFilter},
-    promise_manager::PendingSubscriber,
-};
+use super::promise_manager::PendingSubscriber;
 use ethexe_common::{HashOf, injected::InjectedTransaction};
+use ethexe_rpc_common::{PromiseEnvelope, PromiseSubscriptionFilter};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
 use std::sync::Arc;
 use tokio::sync::broadcast;

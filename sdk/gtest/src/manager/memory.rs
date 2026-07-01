@@ -47,7 +47,7 @@ impl ExtManager {
                 .instrumented_code(code_id)
                 .cloned()
                 .expect("internal error: instrumented code not found for existing active program");
-            core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
+            gear_core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
                 String::from("state"),
                 instrumented_code,
                 code_metadata,

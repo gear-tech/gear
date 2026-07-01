@@ -1,14 +1,16 @@
 [package]
 name = "gear-node-wrapper"
-description = "Gear protocol node wrapper"
-documentation = "https://docs.rs/gear-node-wrapper"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Gear protocol node wrapper"
+documentation = "https://docs.rs/gear-node-wrapper"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "vara", "node", "process", "testing"]
+categories = ["development-tools::testing"]
 
 [dependencies]
 anyhow = { workspace = true, features = ["std"] }

@@ -3,15 +3,16 @@
 
 //! Top-level configuration of the [`crate::MalachiteService`].
 //!
-//! User-facing knobs (listen address, persistent peers, gas allowance,
-//! quarantine depth, **validator set**) live here. The validator set
+//! User-facing knobs (persistent peers, gas allowance, quarantine
+//! depth, **validator set**) live here. The validator set
 //! is wired in directly — there is no separate genesis file — so the
 //! caller is the single source of truth for who can vote.
 
+pub use ethexe_malachite_core::ValidatorEntry;
+
 use crate::Mempool;
-use ethexe_common::ecdsa::{PublicKey, Signer};
-pub use ethexe_malachite_core::{Multiaddr, ValidatorEntry};
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use gsigner::{PublicKey, secp256k1::Signer};
+use std::{path::PathBuf, time::Duration};
 
 #[derive(Clone, Debug)]
 pub struct MalachiteServiceConfig {
@@ -30,15 +31,8 @@ pub struct MalachiteServiceConfig {
     //       per `wait_for_proposable_content` invocation.
     pub post_quarantine_delay: u32,
 
-    /// Local libp2p listen address for the Malachite swarm.
-    pub listen_addr: SocketAddr,
-
     /// Directory for the consensus core's WAL and RocksDB store.
     pub home_dir: PathBuf,
-
-    /// Multiaddrs of peers to keep persistent connections to; each entry
-    /// must include a `/p2p/<peer_id>` suffix (discovery is off).
-    pub persistent_peers: Vec<Multiaddr>,
 
     /// The complete validator set. Quorum is `> 2/3` of total voting power.
     /// A validator node's own public key must appear in this list.
@@ -55,11 +49,6 @@ impl MalachiteServiceConfig {
     pub const DEFAULT_CANONICAL_QUARANTINE: u8 = ethexe_common::gear::CANONICAL_QUARANTINE;
     /// One block is enough to absorb the typical observer skew between validators.
     pub const DEFAULT_POST_QUARANTINE_DELAY: u32 = 1;
-    /// TCP listener next to the typical ethexe-network 20333/udp QUIC port.
-    pub const DEFAULT_LISTEN_ADDR: SocketAddr = SocketAddr::new(
-        std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
-        20334,
-    );
     /// Ethereum block time occasionally stretches past one slot, so give
     /// the producer more than `SLOT_DURATION` to find a fresh EB.
     pub const DEFAULT_PROPOSE_TIMEOUT: Duration =
@@ -72,26 +61,10 @@ impl MalachiteServiceConfig {
             gas_allowance: Self::DEFAULT_GAS_ALLOWANCE,
             canonical_quarantine: Self::DEFAULT_CANONICAL_QUARANTINE,
             post_quarantine_delay: Self::DEFAULT_POST_QUARANTINE_DELAY,
-            listen_addr: Self::DEFAULT_LISTEN_ADDR,
             home_dir,
-            persistent_peers: Vec::new(),
             validators: Vec::new(),
             propose_timeout: Self::DEFAULT_PROPOSE_TIMEOUT,
         }
-    }
-
-    /// Replace the Malachite libp2p listen address.
-    #[must_use]
-    pub fn with_listen_addr(mut self, addr: SocketAddr) -> Self {
-        self.listen_addr = addr;
-        self
-    }
-
-    /// Replace the Malachite persistent peers list.
-    #[must_use]
-    pub fn with_persistent_peers(mut self, peers: Vec<Multiaddr>) -> Self {
-        self.persistent_peers = peers;
-        self
     }
 
     /// Replace the validator set.
@@ -132,10 +105,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn from_home_dir_default_listen_addr() {
+    fn from_home_dir_defaults() {
         let cfg = MalachiteServiceConfig::from_home_dir(PathBuf::from("/tmp"));
-        assert_eq!(cfg.listen_addr, MalachiteServiceConfig::DEFAULT_LISTEN_ADDR);
-        assert!(cfg.persistent_peers.is_empty());
         assert!(cfg.validators.is_empty());
     }
 }
