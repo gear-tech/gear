@@ -6051,6 +6051,7 @@ dependencies = [
  "gear-workspace-hack",
  "gprimitives",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
