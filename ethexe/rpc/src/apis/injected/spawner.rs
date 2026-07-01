@@ -73,8 +73,10 @@ pub fn spawn_pending_subscriber<F>(
 /// applied here, just before the sink, so the broadcast itself stays
 /// filter-agnostic. There is no replay of historical promises — only promises
 /// computed after the subscription was accepted are delivered. A slow subscriber
-/// that exhausts the broadcast buffer receives `Lagged` and the subscription is
-/// closed; the client should fall back to `get_transaction_receipt` for any gaps.
+/// that exhausts the broadcast buffer receives `Lagged`; rather than closing the
+/// subscription, the missed promises are skipped and streaming resumes from the
+/// next one — the client should fall back to `get_transaction_receipt` for any
+/// specific promise it needs from the gap.
 pub fn spawn_promises_subscriber(
     sink: SubscriptionSink,
     mut receiver: broadcast::Receiver<Arc<PromiseEnvelope>>,
@@ -86,9 +88,8 @@ pub fn spawn_promises_subscriber(
                 result = receiver.recv() => match result {
                     Ok(envelope) => envelope,
                     Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                        // Close rather than skip: missed promises are unrecoverable from this stream.
-                        warn!(skipped, "promise subscriber lagged; closing subscription");
-                        return;
+                        warn!(skipped, "promise subscriber lagged, skipping missed promises");
+                        continue;
                     }
                     Err(broadcast::error::RecvError::Closed) => return,
                 },

@@ -59,6 +59,10 @@ impl<T> From<Vec<T>> for ValueOrArray<T> {
 #[derive(Debug, Clone)]
 pub struct FilterSet<T>(HashSet<T>);
 
+/// Maximum number of elements accepted in a single `FilterSet` during deserialization.
+/// Guards against unbounded memory allocation from a single subscription request.
+const MAX_FILTER_SET_SIZE: usize = 100;
+
 impl<T> Default for FilterSet<T> {
     fn default() -> Self {
         Self(HashSet::new())
@@ -74,26 +78,14 @@ impl<T: Eq + Hash> From<ValueOrArray<T>> for FilterSet<T> {
     }
 }
 
-impl From<Address> for FilterSet<Address> {
-    fn from(v: Address) -> Self {
+impl<T: Eq + Hash> From<T> for FilterSet<T> {
+    fn from(v: T) -> Self {
         Self(std::iter::once(v).collect())
     }
 }
 
-impl From<Vec<Address>> for FilterSet<Address> {
-    fn from(vs: Vec<Address>) -> Self {
-        Self(vs.into_iter().collect())
-    }
-}
-
-impl From<ActorId> for FilterSet<ActorId> {
-    fn from(v: ActorId) -> Self {
-        Self(std::iter::once(v).collect())
-    }
-}
-
-impl From<Vec<ActorId>> for FilterSet<ActorId> {
-    fn from(vs: Vec<ActorId>) -> Self {
+impl<T: Eq + Hash> From<Vec<T>> for FilterSet<T> {
+    fn from(vs: Vec<T>) -> Self {
         Self(vs.into_iter().collect())
     }
 }
@@ -131,10 +123,18 @@ where
 {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         // null => empty set (wildcard); scalar or array => populated set.
-        Ok(match Option::<ValueOrArray<T>>::deserialize(d)? {
+        let set = match Option::<ValueOrArray<T>>::deserialize(d)? {
             Some(voa) => Self::from(voa),
             None => Self::default(),
-        })
+        };
+
+        if set.0.len() > MAX_FILTER_SET_SIZE {
+            return Err(serde::de::Error::custom(format!(
+                "filter set exceeds maximum size of {MAX_FILTER_SET_SIZE} elements"
+            )));
+        }
+
+        Ok(set)
     }
 }
 
@@ -361,6 +361,18 @@ mod tests {
         assert!(back.is_empty());
         // Empty set is a wildcard — verify the semantic is preserved after the round-trip.
         assert!(back.matches(&Address::from([1u8; 20])));
+    }
+
+    #[test]
+    fn filter_set_rejects_more_than_max_elements() {
+        let addresses: Vec<Address> = (0..=MAX_FILTER_SET_SIZE)
+            .map(|i| Address::from([i as u8; 20]))
+            .collect();
+
+        let result =
+            serde_json::from_value::<FilterSet<Address>>(serde_json::to_value(&addresses).unwrap());
+
+        assert!(result.is_err());
     }
 
     #[test]

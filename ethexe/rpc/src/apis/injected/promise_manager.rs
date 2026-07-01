@@ -163,7 +163,7 @@ impl PromiseSubscriptionManager {
                 // Err only means there are no global subscribers right now.
                 let _ = self.promise_sender.send(envelope);
             }
-            // Absence means the node computed a promise for a tx it never stored — one warn per missing tx.
+            // Absent when the tx reached the executor via synced `Operations` but never this node's own mempool/gossip (fast-sync, restart, missed gossip).
             None => warn!(
                 tx_hash = ?promise.tx_hash,
                 "cannot enrich computed promise: originating transaction is absent"
