@@ -46,7 +46,7 @@ where
     .unwrap();
 
     let dispatch =
-        core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
+        gear_core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
             .unwrap()
             .into_iter()
             .find_map(|note| match note {

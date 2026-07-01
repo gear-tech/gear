@@ -6,7 +6,6 @@ use crate::{
     Gas,
     log::{BlockRunResult, CoreLog},
 };
-use core_processor::common::DispatchOutcome;
 use ethexe_common::{
     PromisePolicy, StateHashWithQueueSize,
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
@@ -18,6 +17,7 @@ use ethexe_runtime_common::{
     process_queue_with_report, state::Storage,
 };
 use gear_core::{gas::GasAllowanceCounter, ids::ActorId};
+use gear_core_processor::common::DispatchOutcome;
 
 // Keep this local to avoid depending on `ethexe-processor`.
 const DEFAULT_CHUNK_SIZE: usize = 16;
@@ -206,7 +206,7 @@ impl EthexeBackend {
                             call_reply_limiter: &mut call_reply_limiter,
                         };
 
-                        core_processor::handle_journal(journal, &mut journal_handler);
+                        gear_core_processor::handle_journal(journal, &mut journal_handler);
                     }
                 }
 

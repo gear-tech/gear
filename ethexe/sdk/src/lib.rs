@@ -13,7 +13,7 @@
 //! behind a single [`VaraEthApi`] handle.
 //!
 //! This is a thin, `std`-only convenience layer for external consumers: it holds no execution,
-//! consensus, or storage logic and delegates to `ethexe-ethereum`, `ethexe-rpc`, and
+//! consensus, or storage logic and delegates to `ethexe-ethereum`, `ethexe-rpc-client`, and
 //! `ethexe-node-wrapper`. The primary in-workspace consumer is `ethexe-node-loader`, which
 //! builds [`VaraEthApi`] clients for integration and fuzz testing.
 //!

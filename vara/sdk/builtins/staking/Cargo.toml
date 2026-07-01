@@ -1,14 +1,16 @@
 [package]
 name = "gbuiltin-staking"
-description = "Types and traits to interact with staking builtin actor."
-documentation = "https://docs.rs/gbuiltin-staking"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Types and traits to interact with staking builtin actor."
+documentation = "https://docs.rs/gbuiltin-staking"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "staking", "builtin", "blockchain", "no-std"]
+categories = ["cryptography::cryptocurrencies", "encoding", "no-std"]
 
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }

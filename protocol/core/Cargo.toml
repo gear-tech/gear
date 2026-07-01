@@ -1,16 +1,17 @@
 [package]
 name = "gear-core"
-description = "Gear core library"
-documentation = "https://docs.rs/gear-core"
-keywords = ["gear", "wasm"]
-categories = ["wasm"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Gear core library"
+documentation = "https://docs.rs/gear-core"
+readme = "README.md"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "wasm", "actor", "runtime", "no-std"]
+categories = ["wasm", "data-structures", "no-std"]
 
 [dependencies]
 gear-core-errors = { workspace = true, features = ["codec"] }

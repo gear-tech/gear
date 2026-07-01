@@ -4,12 +4,14 @@ version = "0.40.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
-homepage.workspace = true
-repository.workspace = true
 description = "A crate that provides means of executing/dispatching calls into the runtime."
 documentation = "https://docs.rs/sc-executor"
 readme = "README.md"
+homepage.workspace = true
+repository.workspace = true
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+keywords = ["substrate", "runtime", "executor", "wasm", "wasmtime"]
+categories = ["wasm"]
 
 [lib]
 name = "sc_executor"

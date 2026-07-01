@@ -1,14 +1,16 @@
 [package]
 name = "gear-wasmtime-cache"
-description = "Wasmtime executor's in-memory module cache used by Gear nodes"
-documentation = "https://docs.rs/gear-wasmtime-cache"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Wasmtime executor's in-memory module cache used by Gear nodes"
+documentation = "https://docs.rs/gear-wasmtime-cache"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "wasmtime", "cache", "wasm", "runtime"]
+categories = ["caching", "concurrency", "wasm"]
 
 [lints]
 workspace = true

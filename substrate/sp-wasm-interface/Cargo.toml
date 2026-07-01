@@ -4,12 +4,14 @@ version = "21.0.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license = "Apache-2.0"
-homepage.workspace = true
-repository.workspace = true
 description = "Types and traits for interfacing between the host and the wasm runtime."
 documentation = "https://docs.rs/sp-wasm-interface"
 readme = "README.md"
+homepage.workspace = true
+repository.workspace = true
+license = "Apache-2.0"
+keywords = ["wasm", "substrate", "runtime", "interface", "wasmtime"]
+categories = ["wasm", "no-std"]
 
 [lints]
 workspace = true
@@ -26,7 +28,6 @@ anyhow = { optional = true, workspace = true }
 sp-wasm-interface-common = { workspace = true, default-features = false }
 sp-allocator = { workspace = true, default-features = false }
 
-
 [features]
 default = ["std"]
 std = [
@@ -37,4 +38,4 @@ std = [
 	"sp-wasm-interface-common/std",
 ]
 wasmtime = ["anyhow", "dep:wasmtime"]
-wasmi = [ "sp-wasm-interface-common/wasmi" ]
+wasmi = ["sp-wasm-interface-common/wasmi"]

@@ -4,7 +4,7 @@
 use ethexe_common::consensus::DEFAULT_BATCH_SIZE_LIMIT;
 use ethexe_ethereum::{Ethereum, router::RouterQuery};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
+use ethexe_rpc_server::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
 use ethexe_service::{
     Service,
     config::{self, Config, EthereumConfig},

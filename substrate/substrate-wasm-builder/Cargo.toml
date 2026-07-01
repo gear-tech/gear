@@ -2,13 +2,16 @@
 name = "substrate-wasm-builder"
 version = "24.0.2"
 authors.workspace = true
-description = "Utility for building WASM binaries"
 edition.workspace = true
 rust-version.workspace = true
+description = "Utility for building WASM binaries"
+documentation = "https://docs.rs/substrate-wasm-builder"
+readme = "README.md"
+homepage.workspace = true
 repository.workspace = true
 license = "Apache-2.0"
-homepage.workspace = true
-documentation = "https://docs.rs/substrate-wasm-builder"
+keywords = ["substrate", "wasm", "builder", "runtime", "cargo"]
+categories = ["development-tools::build-utils", "wasm"]
 
 [lints]
 workspace = true
@@ -24,8 +27,7 @@ strum = { features = ["derive"], workspace = true, default-features = true }
 tempfile = { workspace = true }
 toml = { workspace = true }
 walkdir = { workspace = true }
-sp-maybe-compressed-blob.workspace = true
-sp-maybe-compressed-blob.default-features = true
+sp-maybe-compressed-blob = { workspace = true, default-features = true }
 filetime = { workspace = true }
 wasm-opt = { workspace = true }
 parity-wasm = { workspace = true }

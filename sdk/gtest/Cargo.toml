@@ -1,14 +1,16 @@
 [package]
 name = "gtest"
-description = "Testing utils for developing Gear programs."
-documentation = "https://docs.rs/gtest"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Testing utils for developing Gear programs."
+documentation = "https://docs.rs/gtest"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "testing", "wasm", "smart-contracts", "simulation"]
+categories = ["development-tools::testing", "wasm"]
 
 [dependencies]
 # Gear related dependencies
@@ -17,7 +19,7 @@ gprimitives = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 gear-common = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
-core-processor = { workspace = true, features = ["std", "gtest"] }
+gear-core-processor = { workspace = true, features = ["std", "gtest"] }
 gear-lazy-pages.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages-native-interface.workspace = true

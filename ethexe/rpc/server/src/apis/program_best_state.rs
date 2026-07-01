@@ -11,7 +11,7 @@
 //! by the time `MbComputed` is emitted, so the DB is the source of truth and the
 //! cache only avoids repeated reads when many subscribers share an MB.
 
-use super::program::ProgramBestState;
+use crate::types::ProgramBestState;
 use ethexe_common::{db::MbStorageRO, gear::StateTransition};
 use ethexe_db::Database;
 use gprimitives::{ActorId, H160, H256};
