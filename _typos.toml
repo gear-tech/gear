@@ -21,6 +21,9 @@ extend-exclude = [
   "sdk/galloc/optimization/fungible_token.ipynb",
   "ethexe/ethereum/abi/*.json",
   "ethexe/contracts/lib/*",
+  # Working log on the bug-hunt branch; carries lots of short git SHAs
+  # that the typos lexicon can't tell from real words.
+  "corner-case-hunt-log.md",
 ]
 
 [default.extend-words]
