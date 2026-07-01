@@ -268,7 +268,7 @@ metrics = "0.24.0"
 metrics-derive = "0.1"
 metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
 
-gear-tdec = { package = "ferveo-gear-tdec", version = "0.7.0" }
+gear-tdec = { package = "ferveo-gear-tdec", version = "0.8.0", default-features = false}
 # Published deps
 #
 # https://github.com/gear-tech/gear-dlmalloc/tree/0.2.1

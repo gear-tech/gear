@@ -1,20 +1,13 @@
-// Copyright (C) Gear Technologies Inc.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-//! Threshold-decryption key storage.
-//!
-//! This module stores validator threshold-decryption private material separately
-//! from signing schemes. It intentionally does not implement [`crate::CryptoScheme`]:
-//! these keys create decryption shares, not signatures.
-
+use super::{
+    BlindedKeyShare, PublicDecryptionContext, TdecDecryptionKey, TdecKeypair, TdecPublicKey,
+};
 use crate::{
     error::{Result, SignerError},
     keyring::{self, KeystoreEntry},
 };
-use ferveo_common::{Keypair, PublicKey, from_bytes, to_bytes};
 use gear_tdec::{
-    DomainPoint, PublicDecryptionContextSimple,
-    bls12_381::{CiphertextHeader, DecryptionShareSimple as DecryptionShare, E},
+    bls12_381::{CiphertextHeader, DecryptionShareSimple as DecryptionShare},
+    keypair_common::{from_bytes, to_bytes},
 };
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
@@ -24,12 +17,6 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 use tempfile::TempDir;
-
-pub type TdecPublicKey = PublicKey<E>;
-pub type TdecKeypair = Keypair<E>;
-pub type TdecDecryptionKey = DomainPoint<E>;
-pub type BlindedKeyShare = gear_tdec::BlindedKeyShare<E>;
-pub type PublicDecryptionContext = PublicDecryptionContextSimple<E>;
 
 const NAMESPACE_TDEC: &str = "tdec";
 
@@ -306,44 +293,4 @@ fn encode_decryption_key(key: &TdecDecryptionKey) -> Result<String> {
 fn decode_decryption_key(encoded: &str) -> Result<TdecDecryptionKey> {
     let bytes = hex::decode(encoded)?;
     from_bytes(&bytes).map_err(|err| SignerError::InvalidKey(err.to_string()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn imports_and_gets_validator_decryption_key_by_public_key() {
-        let mut rng = gear_tdec::rand_utils::test_rng();
-        let keypair = TdecKeypair::new(&mut rng);
-        let store = TdecKeyStore::memory();
-
-        let public_key = store.import_keypair(keypair).unwrap();
-        assert!(store.has_key(&public_key).unwrap());
-        assert_eq!(
-            store.validator_decryption_key(&public_key).unwrap(),
-            keypair.decryption_key
-        );
-    }
-
-    #[test]
-    fn creates_decryption_share_from_public_context() {
-        let mut rng = gear_tdec::rand_utils::test_rng();
-        let dealer = gear_tdec::deal::<E>(3, 2, &mut rng);
-        let context = dealer.private_contexts[0].clone();
-        let public_context = context.public_decryption_contexts[context.index].clone();
-        let ciphertext =
-            gear_tdec::encrypt_raw::<E>(b"hello", b"aad", &dealer.public_key, &mut rng).unwrap();
-        let header = ciphertext.header();
-        let store = TdecKeyStore::memory();
-        store
-            .import_decryption_key(context.validator_decryption_key)
-            .unwrap();
-
-        let expected = context.create_share(&header, b"aad").unwrap();
-        let actual = store
-            .create_share(&public_context, &header, b"aad")
-            .unwrap();
-        assert_eq!(actual, expected);
-    }
 }

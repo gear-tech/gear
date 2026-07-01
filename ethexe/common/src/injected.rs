@@ -6,11 +6,9 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-#[cfg(feature = "shielded")]
 use ark_serialize::CanonicalSerialize;
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
-#[cfg(feature = "shielded")]
 use gear_tdec::{
     Result as TdecResult,
     bls12_381::{Ciphertext, DkgPublicKey, SharedSecret},
@@ -132,7 +130,6 @@ impl InjectedTransaction {
         MessageId::new(self.to_hash().inner().0)
     }
 
-    #[cfg(feature = "shielded")]
     pub fn shield(
         self,
         public_key: &DkgPublicKey,
@@ -251,7 +248,6 @@ impl PromiseKind for CompactPromise {
 /// **Important**: `Receipt<CompactPromise>` and `Receipt<Promise>` have the same
 ///     digest. So it helps to reuses the producer's signature to construct the full
 ///     version from compact.
-#[cfg(feature = "shielded")]
 #[derive(
     Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::IsVariant, derive_more::Unwrap,
 )]
@@ -262,7 +258,6 @@ pub enum Receipt<P> {
     Purged(PurgedTransaction),
 }
 
-#[cfg(feature = "shielded")]
 impl<P: PromiseKind> Receipt<P> {
     pub fn tx_hash(&self) -> TransactionHash {
         match self {
@@ -272,7 +267,6 @@ impl<P: PromiseKind> Receipt<P> {
     }
 }
 
-#[cfg(feature = "shielded")]
 impl<P: ToDigest> ToDigest for Receipt<P> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         match self {
@@ -290,7 +284,6 @@ impl<P: ToDigest> ToDigest for Receipt<P> {
 
 /// Signed [Receipt] with a [Promise] generic.
 /// End RPC user always receives this object.
-#[cfg(feature = "shielded")]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Deref)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(transparent))]
@@ -298,7 +291,6 @@ pub struct SignedTxReceipt(pub SignedMessage<Receipt<Promise>>);
 
 /// Signed [Receipt] with a [CompactPromise] generic.
 /// It is used as a lightweight transfer type
-#[cfg(feature = "shielded")]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
 pub struct SignedCompactTxReceipt(SignedMessage<Receipt<CompactPromise>>);
 
@@ -307,14 +299,12 @@ pub struct SignedCompactTxReceipt(SignedMessage<Receipt<CompactPromise>>);
 /// to full version.
 /// [Pending](Self::Pending) means that receipt contains a promise and requires the
 /// full promise body to restore receipt.
-#[cfg(feature = "shielded")]
 #[derive(Debug, PartialEq, Eq, derive_more::From)]
 pub enum UpgradedReceipt {
     Pending(UnfilledPromiseReceipt),
     Ready(SignedTxReceipt),
 }
 
-#[cfg(feature = "shielded")]
 impl SignedCompactTxReceipt {
     /// Upgrades the compact receipt to its full version ([SignedTxReceipt]).
     pub fn upgrade(self) -> UpgradedReceipt {
@@ -342,13 +332,11 @@ pub struct UnfilledPromiseReceipt(#[deref] CompactPromise, Signature, Address);
 /// The result of [try_fill_with](UnfilledPromiseReceipt::try_fill_with) function.
 /// [Filled](Self::Filled) means the successful result.
 /// [HashesMismatch](Self::HashesMismatch) means that raw promise body and stored compact are not the same promise.
-#[cfg(feature = "shielded")]
 pub enum TryFillPromiseResult {
     Filled(SignedTxReceipt),
     HashesMismatch(UnfilledPromiseReceipt),
 }
 
-#[cfg(feature = "shielded")]
 impl UnfilledPromiseReceipt {
     pub fn try_fill_with(self, promise: Promise) -> TryFillPromiseResult {
         if self.0 != promise.to_compact() {
@@ -363,7 +351,6 @@ impl UnfilledPromiseReceipt {
 }
 
 /// Represents the reason why transaction was not included.
-#[cfg(feature = "shielded")]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[display("Injected transaction wasn't executed: tx_hash={tx_hash}, reason={reason}")]
@@ -374,7 +361,6 @@ pub struct PurgedTransaction {
     pub reason: TransactionPurgedReason,
 }
 
-#[cfg(feature = "shielded")]
 impl ToDigest for PurgedTransaction {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self { tx_hash, reason } = self;
@@ -413,7 +399,6 @@ impl TransactionPurgedReason {
     }
 }
 
-#[cfg(feature = "shielded")]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ShieldedFields {
@@ -422,7 +407,6 @@ pub struct ShieldedFields {
     pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
 }
 
-#[cfg(feature = "shielded")]
 impl ToDigest for ShieldedFields {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
@@ -436,7 +420,6 @@ impl ToDigest for ShieldedFields {
     }
 }
 
-#[cfg(feature = "shielded")]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -455,7 +438,6 @@ pub struct ShieldedTransaction {
     pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
 }
 
-#[cfg(feature = "shielded")]
 impl ShieldedTransaction {
     fn append_compressed_point<P: CanonicalSerialize>(buffer: &mut Vec<u8>, point: &P) {
         point
@@ -490,17 +472,14 @@ impl ShieldedTransaction {
     }
 }
 
-#[cfg(feature = "shielded")]
 pub type SignedShieldedTransaction = SignedMessage<ShieldedTransaction>;
 
-#[cfg(feature = "shielded")]
 impl ToDigest for ShieldedTransaction {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self.to_hashable_bytes());
     }
 }
 
-#[cfg(feature = "shielded")]
 impl ShieldedTransaction {
     /// Decrypts [Ciphertext] with provided [SharedSecret].
     /// Returns initial [InjectedTransaction].
@@ -522,7 +501,6 @@ impl ShieldedTransaction {
     }
 }
 
-#[cfg(feature = "shielded")]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::From)]
 #[allow(clippy::large_enum_variant)]
@@ -531,11 +509,9 @@ pub enum Transaction {
     Shielded(SignedShieldedTransaction),
 }
 
-#[cfg(feature = "shielded")]
 /// Type alias over [EitherHashOf].
 pub type TransactionHash = EitherHashOf<InjectedTransaction, ShieldedTransaction>;
 
-#[cfg(feature = "shielded")]
 impl Transaction {
     pub fn as_ref(&self) -> TransactionRef<'_> {
         match self {
@@ -559,14 +535,12 @@ impl Transaction {
 /// This type must be used to transform [Operation] type into [Option<TransactionRef>].
 ///
 /// [Operation]: crate::malachite::Operation
-#[cfg(feature = "shielded")]
 #[derive(Clone, Copy)]
 pub enum TransactionRef<'op> {
     Injected(&'op SignedInjectedTransaction),
     Shielded(&'op SignedShieldedTransaction),
 }
 
-#[cfg(feature = "shielded")]
 impl<'t> TransactionRef<'t> {
     pub fn hash(&self) -> TransactionHash {
         match self {

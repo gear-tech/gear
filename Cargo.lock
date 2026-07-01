@@ -6233,27 +6233,26 @@ dependencies = [
 
 [[package]]
 name = "ferveo-gear-common"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7221252bf540ec9de204fc7f3da82bfbf13bdec2d3ad8f44d58aab8cace39ae3"
+checksum = "30a17e50cd62653ecf51f3123b4b9950e6873aa2fa6c7266e04a6000fa9ff941"
 dependencies = [
  "ark-ec 0.5.0",
  "ark-serialize 0.5.0",
  "ark-std 0.5.0",
- "bincode",
  "const-hex",
  "generic-array 0.14.7",
  "parity-scale-codec",
  "rand 0.8.5",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "ferveo-gear-tdec"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76505fcc520805d312c411d54318856b32fd6dbd2caa5e9e6130eeb927aab6c9"
+checksum = "8eedc637ff20af20c9aea6b9d82b8740311ed634309739cbd886809932314ad8"
 dependencies = [
  "ark-bls12-381 0.5.0",
  "ark-ec 0.5.0",
@@ -6261,7 +6260,6 @@ dependencies = [
  "ark-poly 0.5.0",
  "ark-serialize 0.5.0",
  "ark-std 0.5.0",
- "bincode",
  "chacha20poly1305",
  "const-hex",
  "ferveo-gear-common",
@@ -6272,7 +6270,7 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "subproductdomain-gear",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "zeroize",
 ]
 
@@ -8566,7 +8564,6 @@ dependencies = [
  "colored",
  "derive_more 2.1.1",
  "dirs",
- "ferveo-gear-common",
  "ferveo-gear-tdec",
  "gear-workspace-hack",
  "gprimitives",
@@ -18882,9 +18879,9 @@ dependencies = [
 
 [[package]]
 name = "subproductdomain-gear"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f01cef670a1b7a6ed0e5eb516d5b0b60b85ca3c7e6c8fe438e1ec667995c4d6"
+checksum = "cfba387009bc87f6ba69c9461d62da844f7c81904d319e7348a59b15fdd535dc"
 dependencies = [
  "anyhow",
  "ark-ec 0.5.0",

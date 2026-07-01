@@ -3,14 +3,15 @@
 
 //! Common db types and traits.
 
-#[cfg(feature = "shielded")]
-use crate::injected::{ShieldedTransaction, SignedShieldedTransaction, SignedTxReceipt};
 use crate::{
     Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
     SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
+    injected::{
+        InjectedTransaction, Promise, ShieldedTransaction, SignedInjectedTransaction,
+        SignedShieldedTransaction, SignedTxReceipt,
+    },
     malachite::Operations,
 };
 use alloc::{
@@ -21,7 +22,6 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
 };
-#[cfg(feature = "shielded")]
 use gear_tdec::bls12_381::DkgPublicKey;
 use gprimitives::H256;
 use gsigner::VerifiedData;
@@ -120,7 +120,6 @@ pub trait InjectedStorageRO {
         hash: HashOf<InjectedTransaction>,
     ) -> Option<SignedInjectedTransaction>;
 
-    #[cfg(feature = "shielded")]
     /// Returns the shielded transaction by its hash.
     fn shielded_transaction(
         &self,
@@ -130,7 +129,6 @@ pub trait InjectedStorageRO {
     /// Returns the promise by its transaction hash.
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 
-    #[cfg(feature = "shielded")]
     /// Returns the receipt by its transaction hash.
     fn receipt(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedTxReceipt>;
 }
@@ -139,22 +137,18 @@ pub trait InjectedStorageRO {
 pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
 
-    #[cfg(feature = "shielded")]
     fn set_shielded_transaction(&self, tx: SignedShieldedTransaction);
 
     fn set_promise(&self, promise: &Promise);
 
-    #[cfg(feature = "shielded")]
     fn set_receipt(&self, receipt: &SignedTxReceipt);
 }
 
-#[cfg(feature = "shielded")]
 #[auto_impl::auto_impl(&)]
 pub trait TdecStorageRO {
     fn shielding_key(&self) -> Option<DkgPublicKey>;
 }
 
-#[cfg(feature = "shielded")]
 #[auto_impl::auto_impl(&)]
 pub trait TdecStorageRW: TdecStorageRO {
     fn set_shielding_key(&self, key: DkgPublicKey);
