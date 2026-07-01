@@ -6078,8 +6078,6 @@ dependencies = [
  "ntest",
  "parity-scale-codec",
  "scopeguard",
- "serde",
- "serde_json",
  "sp-core",
  "thiserror 2.0.17",
  "tokio",
