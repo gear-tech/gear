@@ -25,4 +25,5 @@ futures.workspace = true
 gsigner.workspace = true
 gprimitives.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
+parity-scale-codec.workspace = true
 gear-workspace-hack.workspace = true

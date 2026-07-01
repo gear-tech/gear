@@ -17,10 +17,13 @@ use ethexe_db::Database;
 #[cfg(feature = "server")]
 use ethexe_processor::{ExecutableDataForReply, OverlaidProcessor};
 use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, UserMailbox, Waitlist,
+    DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue, Program, ProgramState,
+    UserMailbox, Waitlist,
 };
 #[cfg(feature = "server")]
 use ethexe_runtime_common::state::{QueryableStorage, Storage};
+#[cfg(feature = "server")]
+use gear_core::buffer::Payload;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};
 use jsonrpsee::proc_macros::rpc;
@@ -104,8 +107,14 @@ pub trait Program {
     #[method(name = "program_readPages")]
     async fn read_pages(&self, hash: H256) -> jsonrpsee::core::RpcResult<MemoryPages>;
 
+    #[method(name = "program_readPageRegion")]
+    async fn read_page_region(&self, hash: H256) -> jsonrpsee::core::RpcResult<MemoryPagesRegion>;
+
     #[method(name = "program_readPageData")]
     async fn read_page_data(&self, hash: H256) -> jsonrpsee::core::RpcResult<Bytes>;
+
+    #[method(name = "program_readPayload")]
+    async fn read_payload(&self, hash: H256) -> jsonrpsee::core::RpcResult<Bytes>;
 
     /// Subscribes to the program's best state, emitted on every newly computed MB.
     #[subscription(
@@ -159,6 +168,14 @@ impl ProgramApi {
 
     fn read_user_mailbox(&self, hash: H256) -> Option<UserMailbox> {
         self.db.user_mailbox(unsafe { HashOf::new(hash) })
+    }
+
+    fn read_page_region(&self, hash: H256) -> Option<MemoryPagesRegion> {
+        self.db.memory_pages_region(unsafe { HashOf::new(hash) })
+    }
+
+    fn read_payload(&self, hash: H256) -> Option<Payload> {
+        self.db.payload(unsafe { HashOf::new(hash) })
     }
 }
 
@@ -294,11 +311,22 @@ impl ProgramServer for ProgramApi {
             .ok_or_else(|| errors::db("Failed to read pages by hash"))
     }
 
+    async fn read_page_region(&self, hash: H256) -> jsonrpsee::core::RpcResult<MemoryPagesRegion> {
+        self.read_page_region(hash)
+            .ok_or_else(|| errors::db("Failed to read page region by hash"))
+    }
+
     async fn read_page_data(&self, hash: H256) -> jsonrpsee::core::RpcResult<Bytes> {
         self.db
             .page_data(unsafe { HashOf::new(hash) })
             .map(|buf| buf.encode().into())
             .ok_or_else(|| errors::db("Failed to read page data by hash"))
+    }
+
+    async fn read_payload(&self, hash: H256) -> jsonrpsee::core::RpcResult<Bytes> {
+        self.read_payload(hash)
+            .map(|payload| payload.into_vec().into())
+            .ok_or_else(|| errors::db("Failed to read payload by hash"))
     }
 
     async fn subscribe_best_state(
