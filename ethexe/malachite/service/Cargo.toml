@@ -18,6 +18,7 @@ parity-scale-codec.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
 bytes.workspace = true
 tracing.workspace = true
+gear-tdec.workspace = true
 
 # Generic Malachite-backed consensus service. Carries the engine,
 # libp2p swarm, store, and codec; ethexe-malachite only ships the
@@ -28,7 +29,7 @@ ethexe-malachite-core.workspace = true
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-db = { workspace = true, default-features = false }
 ethexe-runtime-common = { workspace = true, features = ["std"] }
-gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde", "tdec"] }
 gprimitives = { workspace = true, features = ["std"] }
 
 gear-workspace-hack.workspace = true
@@ -37,6 +38,7 @@ gear-workspace-hack.workspace = true
 # Enable the `mock` feature on the in-mem database so tests can call
 # `Database::memory()` without `unsafe`.
 ethexe-db = { workspace = true, features = ["mock"] }
+gear-tdec.workspace = true
 malachitebft-app-channel.workspace = true
 malachitebft-core-types.workspace = true
 malachitebft-engine.workspace = true

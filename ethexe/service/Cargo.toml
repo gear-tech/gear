@@ -28,6 +28,7 @@ ethexe-rpc-server.workspace = true
 gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["std", "ethexe"] }
+gear-tdec.workspace = true
 
 log.workspace = true
 tracing.workspace = true
@@ -73,6 +74,8 @@ jsonrpsee = { workspace = true, features = ["client"] }
 async-broadcast.workspace = true
 wat.workspace = true
 tempfile.workspace = true
+rand.workspace = true
+gsigner = { workspace = true, features = ["tdec"] }
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-value-sender-ethexe = { workspace = true, features = ["debug", "ethexe"] }

@@ -22,6 +22,21 @@ pub type BlockPayload = LimitedVec<u8, MAX_BLOCK_PAYLOAD_BYTES>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Address(pub gsigner::schemes::secp256k1::Address);
 
+/// Decryption shares attached to a Malachite precommit.
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct EthexeVoteExtension {
+    /// Validator that created and signed this extension.
+    pub sender: gsigner::Address,
+    /// Shares for shielded transactions in the voted block.
+    pub shares: Vec<ethexe_common::malachite::ShieldedTxDecryptionShare>,
+}
+
+impl malachitebft_core_types::Extension for EthexeVoteExtension {
+    fn size_bytes(&self) -> usize {
+        self.encoded_size()
+    }
+}
+
 impl Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0x{}", hex::encode(self.0.0))

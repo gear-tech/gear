@@ -25,8 +25,8 @@ use malachitebft_codec::{Codec, HasEncodedLen};
 use malachitebft_core_consensus::{LivenessMsg, ProposedValue, SignedConsensusMsg};
 use malachitebft_core_types::{
     CommitCertificate, CommitSignature, NilOrVal, PolkaCertificate, PolkaSignature, Round,
-    RoundCertificate, RoundCertificateType, RoundSignature, SignedProposal, SignedVote,
-    ValidatorProof, Validity, VoteType,
+    RoundCertificate, RoundCertificateType, RoundSignature, SignedMessage, SignedProposal,
+    SignedVote, ValidatorProof, Validity, VoteType,
 };
 use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
 use malachitebft_sync::{
@@ -36,7 +36,7 @@ use malachitebft_sync::{
 use crate::{
     context::{Height, MalachiteCtx, Proposal, ProposalPart, Value, ValueId, Vote},
     signing::{Signature, signature_from_vec, signature_to_vec},
-    types::Address,
+    types::{Address, EthexeVoteExtension},
 };
 
 /// SCALE codec for malachite wire types. Zero-sized handle.
@@ -228,18 +228,46 @@ struct RawSignedMessage {
     signature: RawSignature,
 }
 
+#[derive(Encode)]
+struct RawSignedVote {
+    message: Vec<u8>,
+    signature: RawSignature,
+    extension: Option<(EthexeVoteExtension, RawSignature)>,
+}
+
+impl Decode for RawSignedVote {
+    fn decode<I: parity_scale_codec::Input>(input: &mut I) -> Result<Self, CodecError> {
+        let message = Vec::<u8>::decode(input)?;
+        let signature = RawSignature::decode(input)?;
+        let extension = match input.remaining_len()? {
+            // Votes persisted before vote-extension support end after the base signature.
+            Some(0) => None,
+            _ => Option::decode(input)?,
+        };
+        Ok(Self {
+            message,
+            signature,
+            extension,
+        })
+    }
+}
+
 #[derive(Encode, Decode)]
 enum RawSignedConsensusMsg {
-    Vote(RawSignedMessage),
+    Vote(RawSignedVote),
     Proposal(RawSignedMessage),
 }
 
 impl From<SignedConsensusMsg<MalachiteCtx>> for RawSignedConsensusMsg {
     fn from(value: SignedConsensusMsg<MalachiteCtx>) -> Self {
         match value {
-            SignedConsensusMsg::Vote(vote) => Self::Vote(RawSignedMessage {
+            SignedConsensusMsg::Vote(vote) => Self::Vote(RawSignedVote {
                 message: vote.message.to_sign_bytes().to_vec(),
                 signature: RawSignature::from(&vote.signature),
+                extension: vote
+                    .message
+                    .extension
+                    .map(|extension| (extension.message, RawSignature::from(&extension.signature))),
             }),
             SignedConsensusMsg::Proposal(proposal) => Self::Proposal(RawSignedMessage {
                 message: proposal.message.to_sign_bytes().to_vec(),
@@ -253,10 +281,20 @@ impl TryFrom<RawSignedConsensusMsg> for SignedConsensusMsg<MalachiteCtx> {
     type Error = CodecError;
     fn try_from(value: RawSignedConsensusMsg) -> Result<Self, Self::Error> {
         match value {
-            RawSignedConsensusMsg::Vote(raw) => Ok(SignedConsensusMsg::Vote(SignedVote {
-                message: Vote::from_sign_bytes(&raw.message)?,
-                signature: Signature::try_from(raw.signature)?,
-            })),
+            RawSignedConsensusMsg::Vote(raw) => {
+                let mut message = Vote::from_sign_bytes(&raw.message)?;
+                message.extension = match raw.extension {
+                    Some((extension, signature)) => Some(SignedMessage::new(
+                        extension,
+                        Signature::try_from(signature)?,
+                    )),
+                    None => None,
+                };
+                Ok(SignedConsensusMsg::Vote(SignedVote {
+                    message,
+                    signature: Signature::try_from(raw.signature)?,
+                }))
+            }
             RawSignedConsensusMsg::Proposal(raw) => {
                 Ok(SignedConsensusMsg::Proposal(SignedProposal {
                     message: Proposal::from_sign_bytes(&raw.message)?,
@@ -792,12 +830,83 @@ mod tests {
     use crate::signing::{MalachiteSigner, private_key_from_bytes};
     use proptest::prelude::*;
 
+    #[derive(Encode)]
+    enum LegacyRawSignedConsensusMsg {
+        Vote(RawSignedMessage),
+    }
+
     #[test]
     fn value_round_trip() {
         let v = Value::new(b"hello".to_vec());
         let bytes = encode_value(&v);
         let back = decode_value(bytes).unwrap();
         assert_eq!(v, back);
+    }
+
+    #[test]
+    fn signed_vote_round_trip_preserves_extension() {
+        let mut bytes = [0u8; 32];
+        bytes[31] = 9;
+        let signer = MalachiteSigner::new(private_key_from_bytes(&bytes).unwrap());
+        let address = Address::from_public_key(&signer.public_key());
+        let extension = EthexeVoteExtension {
+            sender: address.0,
+            shares: Vec::new(),
+        };
+        let mut vote = Vote::new_precommit(
+            Height::new(3),
+            Round::new(1),
+            NilOrVal::Val(ValueId([7; 32])),
+            address,
+        );
+        vote.extension = Some(SignedMessage::new(
+            extension.clone(),
+            signer.sign(&extension.encode()),
+        ));
+        let message = SignedConsensusMsg::Vote(SignedVote::new(
+            vote.clone(),
+            signer.sign(&vote.to_sign_bytes()),
+        ));
+
+        let codec = ScaleCodec;
+        let encoded =
+            <ScaleCodec as Codec<SignedConsensusMsg<MalachiteCtx>>>::encode(&codec, &message)
+                .unwrap();
+        let decoded =
+            <ScaleCodec as Codec<SignedConsensusMsg<MalachiteCtx>>>::decode(&codec, encoded)
+                .unwrap();
+
+        assert_eq!(decoded, message);
+    }
+
+    #[test]
+    fn decodes_legacy_vote_without_extension() {
+        let mut bytes = [0u8; 32];
+        bytes[31] = 10;
+        let signer = MalachiteSigner::new(private_key_from_bytes(&bytes).unwrap());
+        let address = Address::from_public_key(&signer.public_key());
+        let vote = Vote::new_precommit(
+            Height::new(3),
+            Round::new(1),
+            NilOrVal::Val(ValueId([8; 32])),
+            address,
+        );
+        let legacy = LegacyRawSignedConsensusMsg::Vote(RawSignedMessage {
+            message: vote.to_sign_bytes().to_vec(),
+            signature: RawSignature::from(&signer.sign(&vote.to_sign_bytes())),
+        });
+
+        let decoded = <ScaleCodec as Codec<SignedConsensusMsg<MalachiteCtx>>>::decode(
+            &ScaleCodec,
+            legacy.encode().into(),
+        )
+        .unwrap();
+
+        let SignedConsensusMsg::Vote(decoded) = decoded else {
+            panic!("expected vote")
+        };
+        assert_eq!(decoded.message, vote);
+        assert!(decoded.message.extension.is_none());
     }
 
     #[test]

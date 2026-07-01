@@ -19,6 +19,7 @@ mod network;
 mod node;
 mod prometheus;
 mod rpc;
+mod tdec;
 
 pub use ethereum::EthereumParams;
 pub use malachite::MalachiteParams;
@@ -26,6 +27,7 @@ pub use network::NetworkParams;
 pub use node::NodeParams;
 pub use prometheus::PrometheusParams;
 pub use rpc::RpcParams;
+pub use tdec::TdecParams;
 
 /// CLI/TOML-config parameters for the ethexe service.
 #[derive(Clone, Debug, Default, Deserialize, Parser)]
@@ -57,6 +59,9 @@ pub struct Params {
     /// Prometheus (metrics) service parameters.
     #[clap(flatten)]
     pub prometheus: Option<PrometheusParams>,
+
+    #[clap(flatten)]
+    pub tdec: Option<TdecParams>,
 }
 
 impl Params {
@@ -81,6 +86,7 @@ impl Params {
             malachite,
             rpc,
             prometheus,
+            tdec,
         } = self;
 
         let node = node.context("missing node params")?;
@@ -97,6 +103,7 @@ impl Params {
         let malachite = malachite.unwrap_or_default().into_config()?;
         let rpc = rpc.and_then(|p| p.into_config(&node));
         let prometheus = prometheus.and_then(|p| p.into_config());
+        let tdec = tdec.map(|p| p.into_config());
         Ok(Config {
             node,
             ethereum,
@@ -104,6 +111,7 @@ impl Params {
             malachite,
             rpc,
             prometheus,
+            tdec,
         })
     }
 }
@@ -117,6 +125,7 @@ impl MergeParams for Params {
             malachite: MergeParams::optional_merge(self.malachite, with.malachite),
             rpc: MergeParams::optional_merge(self.rpc, with.rpc),
             prometheus: MergeParams::optional_merge(self.prometheus, with.prometheus),
+            tdec: MergeParams::optional_merge(self.tdec, with.tdec),
         }
     }
 }

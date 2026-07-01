@@ -47,7 +47,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
     db::{GlobalsStorageRW, MbStorageRO},
     gear::CodeState,
-    injected::{CompactPromise, InjectedTransactionAcceptance, Receipt},
+    injected::{CompactPromise, Receipt, TransactionAcceptance},
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -58,7 +58,7 @@ use ethexe_db::{
 use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_malachite::{
     InjectedTxMempool, MalachiteEvent, MalachiteServiceConfig, MalachiteServiceStarter,
-    ValidatorEntry,
+    ValidatorEntry, ValidatorTdecSetup,
 };
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService, TransportType,
@@ -74,7 +74,10 @@ use ethexe_rpc_server::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{FutureExt, StreamExt};
 use gprimitives::{ActorId, CodeId, H256};
-use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer};
+use gsigner::{
+    TdecKeyStore,
+    secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer},
+};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     num::NonZero,
@@ -92,6 +95,7 @@ mod pending_tx;
 mod tests;
 
 #[derive(Debug, derive_more::From)]
+#[allow(clippy::large_enum_variant)]
 pub enum Event {
     Compute(ComputeEvent),
     Consensus(ConsensusEvent),
@@ -410,9 +414,17 @@ impl Service {
         );
 
         let signer = Signer::fs(config.node.key_path.clone())?;
+        let tdec_store = TdecKeyStore::fs(config.node.key_path.clone())?;
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
+
+        let validator_tdec_setup = config.tdec.clone().map(|config| ValidatorTdecSetup {
+            threshold: config.threshold,
+            dkg_public_key: config.dkg_public_key,
+            validators_contexts: config.validators_contexts,
+            key_store: tdec_store,
+        });
 
         // TODO #4642: use validator session key
         let _validator_pub_key_session =
@@ -515,6 +527,7 @@ impl Service {
                     pub_key,
                     mempool: InjectedTxMempool::new(db.clone()),
                     signer: signer.clone(),
+                    validator_tdec_setup,
                 });
 
             let role = validator_config
@@ -823,10 +836,8 @@ impl Service {
                             transaction,
                             channel,
                         } => {
-                            let acceptance = malachite
-                                .receive_injected_transaction(*transaction)
-                                .await
-                                .into();
+                            let acceptance =
+                                malachite.receive_transaction(*transaction).await.into();
                             if let Err(err) = channel.send(acceptance) {
                                 tracing::error!(
                                     ?err,
@@ -865,17 +876,15 @@ impl Service {
                     log::trace!("Received RPC event: {event:?}");
 
                     match event {
-                        RpcEvent::InjectedTransaction {
+                        RpcEvent::Transaction {
                             transaction,
                             response_sender,
                         } => {
-                            let status = malachite
-                                .receive_injected_transaction(transaction.clone())
-                                .await;
-                            let local_acceptance = InjectedTransactionAcceptance::from(status);
+                            let status = malachite.receive_transaction(transaction.clone()).await;
+                            let local_acceptance = TransactionAcceptance::from(status);
 
                             match local_acceptance {
-                                acceptance @ InjectedTransactionAcceptance::Accept => {
+                                acceptance @ TransactionAcceptance::Accept => {
                                     // local consensus handle transaction, no need to wait for other acceptances
                                     if let Err(err) =
                                         network.broadcast_injected_transaction(transaction)
@@ -893,7 +902,7 @@ impl Service {
                                 }
                                 _ => {
                                     // local malachite rejected the transaction, wait for other acceptances
-                                    let tx_hash = transaction.data().to_hash();
+                                    let tx_hash = transaction.as_ref().hash();
                                     if let Some(pending) = network_injected_txs.get_mut(&tx_hash) {
                                         pending.add_response_sender(response_sender);
                                         continue;
@@ -909,10 +918,9 @@ impl Service {
                                             network_injected_txs.insert(tx_hash, pending);
                                         }
                                         Err(err) => {
-                                            let acceptance =
-                                                InjectedTransactionAcceptance::Reject {
-                                                    reason: err.to_string(),
-                                                };
+                                            let acceptance = TransactionAcceptance::Reject {
+                                                reason: err.to_string(),
+                                            };
 
                                             if let Err(err) = response_sender.send(acceptance) {
                                                 tracing::error!(
@@ -945,7 +953,6 @@ impl Service {
                             mb_hash = %mb_hash,
                             "Malachite: BlockProposal",
                         );
-
                         compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                     MalachiteEvent::BlockFinalized {
@@ -994,6 +1001,42 @@ impl Service {
                                 Err(err) => {
                                     tracing::error!(
                                         "failed to sign purged transaction receipt: {err}"
+                                    );
+                                }
+                            }
+                        });
+                    }
+                    MalachiteEvent::UnshieldingOutput {
+                        mb_hash,
+                        unshielded_hash_mapping,
+                        not_unshielded,
+                    } => {
+                        let Some(rpc) = rpc.as_ref() else {
+                            tracing::trace!(
+                                %mb_hash,
+                                "can not handle unshielding output without RPC service"
+                            );
+                            continue;
+                        };
+
+                        rpc.receive_unshielded_transactions(unshielded_hash_mapping);
+
+                        let Some(pub_key) = validator_pub_key else {
+                            tracing::trace!(
+                                %mb_hash,
+                                "validator public key not found, can not sign failed unshielding receipts"
+                            );
+                            continue;
+                        };
+
+                        not_unshielded.into_iter().for_each(|purged_tx| {
+                            let receipt = Receipt::<CompactPromise>::Purged(purged_tx);
+                            match signer.signed_message(pub_key, receipt, None) {
+                                Ok(signed_receipt) => rpc.receive_tx_receipt(signed_receipt.into()),
+                                Err(err) => {
+                                    tracing::error!(
+                                        %mb_hash,
+                                        "failed to sign unshielding receipt: {err}"
                                     );
                                 }
                             }

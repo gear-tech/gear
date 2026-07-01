@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
-use ark_ec::Group;
+use ark_ec::PrimeGroup as Group;
 use ark_serialize::CanonicalSerialize;
 use ark_std::{UniformRand, ops::Mul};
 use demo_bls381::*;

@@ -37,7 +37,7 @@ pub use malachitebft_test::Height;
 
 use crate::{
     signing::{MalachiteSigner, PublicKey, Signature, signature_from_vec, signature_to_vec},
-    types::Address,
+    types::{Address, EthexeVoteExtension},
 };
 
 // Address — adopt the foreign trait via our local newtype.
@@ -567,7 +567,7 @@ impl Context for MalachiteCtx {
     type ValidatorSet = ValidatorSet;
     type Value = Value;
     type Vote = Vote;
-    type Extension = Bytes;
+    type Extension = EthexeVoteExtension;
     type SigningScheme = K256;
     type Timeouts = LinearTimeouts;
 
@@ -679,20 +679,22 @@ impl SigningProvider<MalachiteCtx> for MalachiteSigner {
 
     async fn sign_vote_extension(
         &self,
-        extension: Bytes,
+        extension: EthexeVoteExtension,
     ) -> Result<SignedExtension<MalachiteCtx>, SigningError> {
-        let signature = self.sign(extension.as_ref());
+        let signature = self.sign(&extension.encode());
         Ok(SignedMessage::new(extension, signature))
     }
 
     async fn verify_signed_vote_extension(
         &self,
-        extension: &Bytes,
+        extension: &EthexeVoteExtension,
         signature: &Signature,
         public_key: &PublicKey,
     ) -> Result<VerificationResult, SigningError> {
+        let sender = Address::from_public_key(public_key);
         Ok(VerificationResult::from_bool(
-            public_key.verify(extension.as_ref(), signature).is_ok(),
+            sender.0 == extension.sender
+                && public_key.verify(&extension.encode(), signature).is_ok(),
         ))
     }
 }
@@ -865,6 +867,24 @@ mod tests {
         let bytes = vote.to_sign_bytes();
         let sig = signer.sign(&bytes);
         assert!(signer.verify(&bytes, &sig, &pk));
+    }
+
+    #[tokio::test]
+    async fn vote_extension_sender_must_match_signer() {
+        let (pk, signer) = mk_keypair(7);
+        let (other_pk, _) = mk_keypair(8);
+        let extension = EthexeVoteExtension {
+            sender: Address::from_public_key(&other_pk).0,
+            shares: Vec::new(),
+        };
+        let signature = signer.sign(&extension.encode());
+
+        let result = signer
+            .verify_signed_vote_extension(&extension, &signature, &pk)
+            .await
+            .unwrap();
+
+        assert!(result.is_invalid());
     }
 
     #[test]

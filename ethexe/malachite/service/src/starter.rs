@@ -4,19 +4,24 @@
 use crate::{
     MalachiteService, MalachiteServiceConfig, Mempool,
     config::ValidatorConfig,
+    decryption_shares::DecryptionSharesStore,
     externalities::{EthexeExternalities, ExternalitiesConfig},
     types::{ChainHead, MalachiteEvent},
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
     Address, SimpleBlockData,
-    db::{ConfigStorageRO, GlobalsStorageRO},
+    db::{ConfigStorageRO, GlobalsStorageRO, TdecStorageRW},
+    malachite::MalachiteTdecContext,
 };
 use ethexe_db::Database;
 use ethexe_malachite_core::{
     MalachiteCore, MalachiteCoreConfig, MalachiteNetworkParts, NodeRole, PeerId,
 };
-use gsigner::schemes::secp256k1::{PrivateKey, PublicKey};
+use gsigner::{
+    TdecKeyStore,
+    schemes::secp256k1::{PrivateKey, PublicKey},
+};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{
     Notify, RwLock,
@@ -65,23 +70,56 @@ impl MalachiteServiceStarter {
         // Validators sign votes/proposals using their on-chain key;
         // full nodes get an ephemeral secret used only as the libp2p
         // peer identity.
-        let (role, validator_secret, mempool) = match validator_config {
-            Some(ValidatorConfig {
-                pub_key: public_key,
-                mempool,
-                signer,
-            }) => {
-                let secret = signer
-                    .private_key(public_key)
-                    .context("extracting validator private key from signer")?;
+        let (role, validator_secret, validator_pub_key, mempool, validator_tdec_setup) =
+            match validator_config {
+                Some(ValidatorConfig {
+                    pub_key: public_key,
+                    mempool,
+                    signer,
+                    validator_tdec_setup,
+                }) => {
+                    let secret = signer
+                        .private_key(public_key)
+                        .context("extracting validator private key from signer")?;
 
+                    (
+                        NodeRole::Validator,
+                        secret,
+                        Some(public_key),
+                        Some(Arc::new(mempool) as Arc<dyn Mempool>),
+                        validator_tdec_setup,
+                    )
+                }
+                None => (NodeRole::FullNode, PrivateKey::random(), None, None, None),
+            };
+
+        if let Some(setup) = &validator_tdec_setup {
+            db.set_shielding_key(setup.dkg_public_key);
+        }
+
+        let (tdec_ctx, tdec_store) = match validator_tdec_setup {
+            Some(setup) => {
+                let contexts = setup
+                    .validators_contexts
+                    .context("validator must have decryption contexts")?;
+                let my_address = validator_pub_key
+                    .expect("threshold decryption setup belongs to a validator")
+                    .to_address();
+                let my_context = contexts
+                    .get(&my_address)
+                    .cloned()
+                    .context("current validator decryption context not found")?;
                 (
-                    NodeRole::Validator,
-                    secret,
-                    Some(Arc::new(mempool) as Arc<dyn Mempool>),
+                    Some(MalachiteTdecContext {
+                        threshold: setup.threshold,
+                        my_context,
+                        contexts,
+                    }),
+                    setup.key_store,
                 )
             }
-            None => (NodeRole::FullNode, PrivateKey::random(), None),
+            None if role.is_validator() => bail!("validator must have a tdec context"),
+            None => (None, TdecKeyStore::memory()),
         };
 
         let core_config = MalachiteCoreConfig {
@@ -108,6 +146,9 @@ impl MalachiteServiceStarter {
                 post_quarantine_delay: config.post_quarantine_delay,
             },
             mempool: mempool.clone(),
+            tdec_ctx,
+            tdec_store,
+            decryption_shares: Arc::new(DecryptionSharesStore::new()),
             chain_head: chain_head.clone(),
             pending_events: Default::default(),
             event_tx,

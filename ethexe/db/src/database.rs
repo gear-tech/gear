@@ -10,16 +10,19 @@ use crate::{
 use anyhow::{Context, Result};
 use delegate::delegate;
 use ethexe_common::{
-    BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
+    BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec, VerifiedData,
     db::{
         BlockMeta, BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, CodesStorageRW,
         CompactMb, ConfigStorageRO, DBConfig, DBGlobals, GlobalsStorageRO, GlobalsStorageRW,
         HashStorageRO, InjectedStorageRO, InjectedStorageRW, MbMeta, MbStorageRO, MbStorageRW,
-        OnChainStorageRO, OnChainStorageRW,
+        OnChainStorageRO, OnChainStorageRW, TdecStorageRO, TdecStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
+    injected::{
+        InjectedTransaction, Promise, ShieldedTransaction, SignedInjectedTransaction,
+        SignedShieldedTransaction, SignedTxReceipt, TransactionHash,
+    },
     malachite::Operations,
 };
 use ethexe_runtime_common::state::{
@@ -32,6 +35,7 @@ use gear_core::{
     ids::{ActorId, CodeId, prelude::CodeIdExt as _},
     memory::PageBuf,
 };
+use gear_tdec::bls12_381::DkgPublicKey;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -41,6 +45,7 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard},
 };
 
+#[allow(clippy::enum_variant_names)]
 #[repr(u64)]
 enum Key {
     BlockSmallData(H256) = 0,
@@ -67,6 +72,11 @@ enum Key {
 
     Promise(HashOf<InjectedTransaction>) = 26,
     TxReceipt(HashOf<InjectedTransaction>) = 27,
+    ShieldedTransaction(HashOf<ShieldedTransaction>) = 28,
+
+    MbUnshieldedTxs(H256) = 29,
+
+    ShieldingKey = 30,
 }
 
 impl Key {
@@ -94,11 +104,13 @@ impl Key {
             | Self::MbOutcome(hash)
             | Self::MbSchedule(hash)
             | Self::MbMeta(hash)
-            | Self::MbCompactBlock(hash) => bytes.extend(hash.as_ref()),
+            | Self::MbCompactBlock(hash)
+            | Self::MbUnshieldedTxs(hash) => bytes.extend(hash.as_ref()),
 
             Self::InjectedTransaction(hash) | Self::Promise(hash) | Self::TxReceipt(hash) => {
                 bytes.extend(hash.as_ref())
             }
+            Self::ShieldedTransaction(hash) => bytes.extend(hash.as_ref()),
 
             Self::ProgramToCodeId(program_id) => bytes.extend(program_id.as_ref()),
 
@@ -110,7 +122,7 @@ impl Key {
                 bytes.extend(runtime_id.to_le_bytes());
                 bytes.extend(code_id.as_ref());
             }
-            Self::Globals | Self::Config => {
+            Self::Globals | Self::Config | Self::ShieldingKey => {
                 // append additional zero bytes to avoid intersection with CAS
                 bytes.extend([0; 8])
             }
@@ -405,6 +417,16 @@ impl MbStorageRO for RawDatabase {
             })
     }
 
+    fn mb_unshielded_txs(&self, mb_hash: H256) -> Vec<VerifiedData<InjectedTransaction>> {
+        self.kv
+            .get(&Key::MbUnshieldedTxs(mb_hash).to_bytes())
+            .map(|data| {
+                Vec::<_>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<VerifiedData<InjectedTransaction>>`")
+            })
+            .unwrap_or_default()
+    }
+
     fn mb_meta(&self, mb_hash: H256) -> MbMeta {
         self.kv
             .get(&Key::MbMeta(mb_hash).to_bytes())
@@ -444,6 +466,12 @@ impl MbStorageRW for RawDatabase {
         tracing::trace!(mb_hash = %mb_hash, "Set MB schedule");
         self.kv
             .put(&Key::MbSchedule(mb_hash).to_bytes(), schedule.encode());
+    }
+
+    fn set_mb_unshielded_txs(&self, mb_hash: H256, txs: Vec<VerifiedData<InjectedTransaction>>) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB unshielded transactions");
+        self.kv
+            .put(&Key::MbUnshieldedTxs(mb_hash).to_bytes(), txs.encode());
     }
 
     fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta)) {
@@ -671,6 +699,18 @@ impl InjectedStorageRO for RawDatabase {
             })
     }
 
+    fn shielded_transaction(
+        &self,
+        hash: HashOf<ShieldedTransaction>,
+    ) -> Option<SignedShieldedTransaction> {
+        self.kv
+            .get(&Key::ShieldedTransaction(hash).to_bytes())
+            .map(|data| {
+                SignedShieldedTransaction::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `SignedShieldedTransaction`")
+            })
+    }
+
     fn promise(&self, tx_hash: HashOf<InjectedTransaction>) -> Option<Promise> {
         self.kv.get(&Key::Promise(tx_hash).to_bytes()).map(|data| {
             Promise::decode(&mut data.as_slice()).expect("Failed to decode data into Promise")
@@ -696,6 +736,14 @@ impl InjectedStorageRW for RawDatabase {
             .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
     }
 
+    fn set_shielded_transaction(&self, tx: SignedShieldedTransaction) {
+        let tx_hash = tx.data().to_hash();
+
+        tracing::trace!(shielded_tx_hash = ?tx_hash, "Set shielded transaction");
+        self.kv
+            .put(&Key::ShieldedTransaction(tx_hash).to_bytes(), tx.encode());
+    }
+
     fn set_promise(&self, promise: &Promise) {
         tracing::trace!(?promise, "Set promise for injected transaction");
 
@@ -704,11 +752,32 @@ impl InjectedStorageRW for RawDatabase {
     }
 
     fn set_receipt(&self, receipt: &SignedTxReceipt) {
-        let tx_hash = receipt.data().tx_hash();
+        let TransactionHash::Left(tx_hash) = receipt.data().tx_hash() else {
+            panic!("only injected transaction receipts can be stored");
+        };
         tracing::trace!(?receipt, "Set receipt for injected transaction");
 
         self.kv
             .put(&Key::TxReceipt(tx_hash).to_bytes(), receipt.encode())
+    }
+}
+
+impl TdecStorageRO for RawDatabase {
+    fn shielding_key(&self) -> Option<DkgPublicKey> {
+        self.kv.get(&Key::ShieldingKey.to_bytes()).map(|data| {
+            String::from_utf8(data)
+                .expect("Failed to decode shielding key as UTF-8")
+                .parse()
+                .expect("Failed to parse DkgPublicKey")
+        })
+    }
+}
+
+impl TdecStorageRW for RawDatabase {
+    fn set_shielding_key(&self, key: DkgPublicKey) {
+        tracing::trace!("Set shielding key");
+        self.kv
+            .put(&Key::ShieldingKey.to_bytes(), key.to_string().into_bytes());
     }
 }
 
@@ -961,6 +1030,7 @@ impl OnChainStorageRW for Database {
 impl InjectedStorageRO for Database {
     delegate!(to self.raw {
         fn injected_transaction(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedInjectedTransaction>;
+        fn shielded_transaction(&self, hash: HashOf<ShieldedTransaction>) -> Option<SignedShieldedTransaction>;
         fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
         fn receipt(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedTxReceipt>;
     });
@@ -973,6 +1043,7 @@ impl MbStorageRO for Database {
         fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
         fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
         fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
+            fn mb_unshielded_txs(&self, mb_hash: H256) -> Vec<VerifiedData<InjectedTransaction>>;
         fn mb_meta(&self, mb_hash: H256) -> MbMeta;
     });
 }
@@ -984,6 +1055,7 @@ impl MbStorageRW for Database {
         fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
         fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
         fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
+        fn set_mb_unshielded_txs(&self, mb_hash: H256, txs: Vec<VerifiedData<InjectedTransaction>>);
         fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
     });
 }
@@ -991,8 +1063,21 @@ impl MbStorageRW for Database {
 impl InjectedStorageRW for Database {
     delegate!(to self.raw {
         fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
+        fn set_shielded_transaction(&self, tx: SignedShieldedTransaction);
         fn set_promise(&self, promise: &Promise);
         fn set_receipt(&self, receipt: &SignedTxReceipt);
+    });
+}
+
+impl TdecStorageRO for Database {
+    delegate!(to self.raw {
+        fn shielding_key(&self) -> Option<DkgPublicKey>;
+    });
+}
+
+impl TdecStorageRW for Database {
+    delegate!(to self.raw {
+        fn set_shielding_key(&self, key: DkgPublicKey);
     });
 }
 
@@ -1079,31 +1164,52 @@ mod tests {
     use ethexe_common::{
         ecdsa::PrivateKey,
         events::{RouterEvent, router::StorageSlotChangedEvent},
+        mock::Mock,
     };
-    use gear_core::{
-        code::{InstantiatedSectionSizes, InstrumentationStatus},
-        limited::LimitedVec,
-    };
+    use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
+    use gsigner::SignedMessage;
 
     #[test]
     fn test_injected_transaction() {
         let db = Database::memory();
 
         let private_key = PrivateKey::from_seed([1; 32]).expect("valid seed");
-        let tx = SignedInjectedTransaction::create(
-            private_key,
-            InjectedTransaction {
-                destination: ActorId::zero(),
-                payload: LimitedVec::new(),
-                value: 0,
-                reference_block: H256::random(),
-                salt: LimitedVec::new(),
-            },
-        )
-        .unwrap();
+        let tx = SignedMessage::create(private_key, InjectedTransaction::mock(())).unwrap();
         let tx_hash = tx.data().to_hash();
         db.set_injected_transaction(tx.clone());
         assert_eq!(db.injected_transaction(tx_hash), Some(tx));
+    }
+
+    #[test]
+    fn test_shielded_transaction() {
+        let db = Database::memory();
+
+        let mut rng = gear_tdec::rand_utils::test_rng();
+        let dealer_out = gear_tdec::deal::<gear_tdec::bls12_381::E>(3, 2, &mut rng);
+
+        let shielded_tx = InjectedTransaction::mock(())
+            .shield(&dealer_out.public_key, &mut rng)
+            .unwrap();
+        let tx = SignedMessage::create(PrivateKey::random(), shielded_tx).unwrap();
+        let tx_hash = tx.data().to_hash();
+
+        db.set_shielded_transaction(tx.clone());
+
+        assert_eq!(db.shielded_transaction(tx_hash), Some(tx));
+    }
+
+    #[test]
+    fn test_shielding_key() {
+        let db = Database::memory();
+
+        let mut rng = gear_tdec::rand_utils::test_rng();
+        let dealer_out = gear_tdec::deal::<gear_tdec::bls12_381::E>(3, 2, &mut rng);
+
+        assert_eq!(db.shielding_key(), None);
+
+        db.set_shielding_key(dealer_out.public_key);
+
+        assert_eq!(db.shielding_key(), Some(dealer_out.public_key));
     }
 
     #[test]

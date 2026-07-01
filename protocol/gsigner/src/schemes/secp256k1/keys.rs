@@ -11,6 +11,7 @@ use alloc::{format, vec::Vec};
 use core::{fmt, str::FromStr};
 use derive_more::{From, Into};
 use k256::ecdsa::VerifyingKey;
+use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sp_core::{
@@ -115,7 +116,7 @@ impl<'de> Deserialize<'de> for PrivateKey {
 }
 
 /// secp256k1 public key backed by `sp_core::ecdsa::Public` (compressed form).
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, From, Into)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, From, Into, Encode, Decode)]
 pub struct PublicKey(SpPublic);
 
 impl PublicKey {

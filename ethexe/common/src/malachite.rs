@@ -27,41 +27,62 @@
 //! `ethexe-malachite`) so `ethexe-processor` can accept them without
 //! depending on the consensus layer.
 
-use crate::injected::SignedInjectedTransaction;
-use alloc::vec::Vec;
+use crate::{
+    Address, HashOf, ToDigest,
+    injected::{ShieldedTransaction, SignedInjectedTransaction, SignedShieldedTransaction},
+};
+use alloc::{collections::BTreeMap, vec::Vec};
 use derive_more::{Deref, DerefMut, IntoIterator};
+use gear_tdec::bls12_381::SharedSecret;
 use gprimitives::H256;
+use gsigner::{DecryptionShare, SignedMessage};
 use parity_scale_codec::{Decode, Encode};
-use scale_info::TypeInfo;
+use sha3::{Digest as _, Keccak256};
+#[cfg(feature = "std")]
+use {gsigner::PublicDecryptionContext, std::collections::HashMap};
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 /// A single operation in the malachite block.
-#[derive(Clone, Debug, PartialEq, Eq, TypeInfo, derive_more::IsVariant)]
+#[derive(Clone, Debug, PartialEq, Eq, derive_more::IsVariant)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[repr(u32)]
+#[allow(clippy::large_enum_variant)]
 pub enum Operation {
     /// Pin executor's view to a quarantine-passed Ethereum block.
-    AdvanceTillEthereumBlock { block_hash: H256 } = 0,
+    AdvanceTillEthereumBlock {
+        block_hash: H256,
+    } = 0,
 
     /// Progress scheduled tasks (mailbox/waitlist/reservation cleanup).
     ProgressTasks = 1,
 
     /// Execute queued message within `gas_allowance`.
-    ProcessQueues { gas_allowance: u64 } = 2,
+    ProcessQueues {
+        gas_allowance: u64,
+    } = 2,
 
     /// User-submitted transaction from the mempool.
     Injected(SignedInjectedTransaction) = 3,
 
     /// Execute queued messages within `gas_allowance`.
     /// V2 - changes mailbox validity, from one week to 15 minutes
-    ProcessQueuesV2 { gas_allowance: u64 } = 4,
+    ProcessQueuesV2 {
+        gas_allowance: u64,
+    } = 4,
 
     /// Execute queued messages within `gas_allowance`.
     /// V3 - auto-replies to Sails event destinations without mailboxing and
     /// emits Ethereum event destinations via transition messages.
-    ProcessQueuesV3 { gas_allowance: u64 } = 5,
+    ProcessQueuesV3 {
+        gas_allowance: u64,
+    } = 5,
+
+    /// User-submitted shielded transaction from mempool.
+    Shielded(SignedShieldedTransaction) = 6,
+
+    DecryptionKeys(BTreeMap<HashOf<ShieldedTransaction>, SharedSecret>) = 7,
 }
 
 impl Operation {
@@ -75,13 +96,21 @@ impl Operation {
         // Mirrors the `#[repr(u32)]` discriminants below and the `Decode`
         // arms. These three must agree; `operation_encoding_is_frozen` pins
         // the bytes so a divergence can't slip through.
+        unsafe { (self as *const Operation).cast::<u32>().read() }
+    }
+
+    /// Returns `Some` if `Self` contains shielded transaction.
+    pub fn as_shielded(&self) -> Option<&SignedShieldedTransaction> {
         match self {
-            Self::AdvanceTillEthereumBlock { .. } => 0,
-            Self::ProgressTasks => 1,
-            Self::ProcessQueues { .. } => 2,
-            Self::Injected(_) => 3,
-            Self::ProcessQueuesV2 { .. } => 4,
-            Self::ProcessQueuesV3 { .. } => 5,
+            Self::Shielded(tx) => Some(tx),
+            _ => None,
+        }
+    }
+
+    pub fn into_shielded(self) -> Option<SignedShieldedTransaction> {
+        match self {
+            Self::Shielded(tx) => Some(tx),
+            _ => None,
         }
     }
 }
@@ -112,6 +141,12 @@ impl Decode for Operation {
             5 => Ok(Operation::ProcessQueuesV3 {
                 gas_allowance: u64::decode(input)?,
             }),
+            6 => Ok(Operation::Shielded(SignedShieldedTransaction::decode(
+                input,
+            )?)),
+            7 => Ok(Operation::DecryptionKeys(
+                <BTreeMap<_, _> as Decode>::decode(input)?,
+            )),
             _ => Err(parity_scale_codec::Error::from("invalid operation tag")),
         }
     }
@@ -127,14 +162,14 @@ impl Encode for Operation {
             Operation::Injected(signed_tx) => signed_tx.encode_to(dest),
             Operation::ProcessQueuesV2 { gas_allowance } => gas_allowance.encode_to(dest),
             Operation::ProcessQueuesV3 { gas_allowance } => gas_allowance.encode_to(dest),
+            Operation::Shielded(shielded_tx) => shielded_tx.encode_to(dest),
+            Operation::DecryptionKeys(keys) => keys.encode_to(dest),
         }
     }
 }
 
 /// Ordered list of [`Operation`]s; CAS key = Blake2b-256 of the SCALE-encoded list.
-#[derive(
-    Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo, Deref, DerefMut, IntoIterator,
-)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, Deref, DerefMut, IntoIterator)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct Operations(pub Vec<Operation>);
 
@@ -148,6 +183,52 @@ impl Operations {
         gear_core::utils::hash(&self.encode()).into()
     }
 }
+
+/// Validator's context for shielded transactions decryption.
+#[cfg(feature = "std")]
+#[derive(Debug, Clone)]
+pub struct MalachiteTdecContext {
+    /// Minimal number of decryption shares required to decrypt transaction.
+    pub threshold: core::num::NonZeroUsize,
+    /// Current validator's public decryption context.
+    /// Private data stored in [TdecKeyStore].
+    ///
+    /// [TdecKeyStore]: gsigner::tdec::TdecKeyStore
+    pub my_context: PublicDecryptionContext,
+    /// Public decryption context of every validator involved in decryption,
+    /// including the current validator.
+    pub contexts: HashMap<Address, PublicDecryptionContext>,
+}
+
+/// One validator's decryption-share payload for one shielded transaction.
+/// Holds [`DecryptionShare`] over [`ShieldedTransaction`].
+///
+/// [ShieldedTransaction]: crate::injected::ShieldedTransaction
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub struct ShieldedTxDecryptionShare {
+    /// Transaction hash decryption share belongs to.
+    pub tx_hash: HashOf<ShieldedTransaction>,
+    pub share: DecryptionShare,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub struct BlockDecryptionData {
+    /// Malachite block hash the decryption shares belong to.
+    pub mb_hash: H256,
+    /// Decryption shares for [`ShieldedTransaction`]s in the Malachite block.
+    pub shares: Vec<ShieldedTxDecryptionShare>,
+}
+
+impl ToDigest for BlockDecryptionData {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
+        hasher.update(self.encode());
+    }
+}
+
+/// Validator-signed decryption shares for one Malachite block.
+pub type SignedBlockDecryptionShares = SignedMessage<BlockDecryptionData>;
 
 #[cfg(test)]
 mod tests {

@@ -7,8 +7,8 @@ use crate::{
     validator::discovery::ValidatorIdentities,
 };
 use ethexe_common::{
-    Address, HashOf,
-    injected::{InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction},
+    Address,
+    injected::{Transaction, TransactionAcceptance, TransactionHash},
 };
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use libp2p::{
@@ -66,24 +66,24 @@ impl Metrics {
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Encode, Decode)]
-pub(crate) struct InnerRequest(SignedInjectedTransaction);
+pub(crate) struct InnerRequest(Transaction);
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Encode, Decode)]
-pub(crate) struct InnerResponse(InjectedTransactionAcceptance);
+pub(crate) struct InnerResponse(TransactionAcceptance);
 
 #[derive(Debug)]
 pub enum Event {
     /// Peer sent a new transaction to us
     InboundTransaction {
         peer: PeerId,
-        transaction: Box<SignedInjectedTransaction>,
-        channel: oneshot::Sender<InjectedTransactionAcceptance>,
+        transaction: Box<Transaction>,
+        channel: oneshot::Sender<TransactionAcceptance>,
     },
     /// We got a response from a validator we sent transaction to
     OutboundAcceptance {
-        transaction_hash: HashOf<InjectedTransaction>,
-        acceptance: InjectedTransactionAcceptance,
+        transaction_hash: TransactionHash,
+        acceptance: TransactionAcceptance,
     },
 }
 
@@ -91,11 +91,7 @@ pub enum Event {
 impl Event {
     fn unwrap_new_injected_transaction(
         self,
-    ) -> (
-        PeerId,
-        SignedInjectedTransaction,
-        oneshot::Sender<InjectedTransactionAcceptance>,
-    ) {
+    ) -> (PeerId, Transaction, oneshot::Sender<TransactionAcceptance>) {
         match self {
             Event::InboundTransaction {
                 peer,
@@ -106,9 +102,7 @@ impl Event {
         }
     }
 
-    fn unwrap_injected_transaction_acceptance(
-        self,
-    ) -> (HashOf<InjectedTransaction>, InjectedTransactionAcceptance) {
+    fn unwrap_injected_transaction_acceptance(self) -> (TransactionHash, TransactionAcceptance) {
         match self {
             Event::OutboundAcceptance {
                 transaction_hash,
@@ -134,9 +128,9 @@ type PendingResponseFuture = BoxFuture<'static, (ResponseChannel<InnerResponse>,
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    pending_requests: HashMap<OutboundRequestId, HashOf<InjectedTransaction>>,
+    pending_requests: HashMap<OutboundRequestId, TransactionHash>,
     pending_responses: FuturesUnordered<PendingResponseFuture>,
-    transaction_cache: LruCache<HashOf<InjectedTransaction>, LruCache<Address, ()>>,
+    transaction_cache: LruCache<TransactionHash, LruCache<Address, ()>>,
     metrics: Metrics,
 }
 
@@ -155,14 +149,14 @@ impl Behaviour {
         }
     }
 
-    /// Broadcasts [SignedInjectedTransaction] to all known validators.
+    /// Broadcasts [Transaction] to all known validators.
     /// Returns the number of sent requests.
     pub fn broadcast_transaction(
         &mut self,
         identities: &ValidatorIdentities,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> Result<NonZeroUsize, SendTransactionError> {
-        let tx_hash = transaction.data().to_hash();
+        let tx_hash = transaction.as_ref().hash();
 
         if identities.is_empty() {
             return Err(SendTransactionError::NoValidatorsFound);
@@ -400,7 +394,7 @@ mod tests {
         utils::tests::{arb_value, init_logger},
         validator::discovery::{SignedValidatorIdentity, ValidatorAddresses, ValidatorIdentity},
     };
-    use ethexe_common::injected::InjectedTransaction;
+    use ethexe_common::injected::{InjectedTransaction, Transaction};
     use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use libp2p::{
         Swarm, Transport,
@@ -410,12 +404,12 @@ mod tests {
     use libp2p_swarm_test::SwarmExt;
     use std::time::Duration;
 
-    fn signed_injected_tx() -> SignedInjectedTransaction {
+    fn signed_injected_tx() -> Transaction {
         let signer = Signer::memory();
         let pub_key = signer.generate().unwrap();
 
         let tx = arb_value::<InjectedTransaction>(());
-        signer.signed_message(pub_key, tx, None).unwrap()
+        Transaction::Injected(signer.signed_message(pub_key, tx, None).unwrap())
     }
 
     async fn new_swarm() -> (Swarm<Behaviour>, SignedValidatorIdentity) {
@@ -472,7 +466,7 @@ mod tests {
                 .next_behaviour_event()
                 .await
                 .unwrap_injected_transaction_acceptance();
-            assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
+            assert_eq!(acceptance, TransactionAcceptance::Accept);
         });
 
         let (peer, new_tx, channel) = bob
@@ -481,7 +475,7 @@ mod tests {
             .unwrap_new_injected_transaction();
         assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction);
-        channel.send(InjectedTransactionAcceptance::Accept).unwrap();
+        channel.send(TransactionAcceptance::Accept).unwrap();
         tokio::spawn(bob.loop_on_next());
 
         alice_handle.await.unwrap();
@@ -513,7 +507,7 @@ mod tests {
                     .next_behaviour_event()
                     .await
                     .unwrap_injected_transaction_acceptance();
-                assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
+                assert_eq!(acceptance, TransactionAcceptance::Accept);
             }
         });
 
@@ -523,7 +517,7 @@ mod tests {
             .unwrap_new_injected_transaction();
         assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction);
-        channel.send(InjectedTransactionAcceptance::Accept).unwrap();
+        channel.send(TransactionAcceptance::Accept).unwrap();
         tokio::spawn(bob.loop_on_next());
 
         let (peer, new_tx, channel) = carol
@@ -532,7 +526,7 @@ mod tests {
             .unwrap_new_injected_transaction();
         assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction);
-        channel.send(InjectedTransactionAcceptance::Accept).unwrap();
+        channel.send(TransactionAcceptance::Accept).unwrap();
         tokio::spawn(carol.loop_on_next());
 
         alice_handle.await.unwrap();
@@ -560,7 +554,7 @@ mod tests {
                 .unwrap_injected_transaction_acceptance();
             assert_eq!(
                 acceptance,
-                InjectedTransactionAcceptance::Reject {
+                TransactionAcceptance::Reject {
                     reason: REJECT_REASON.to_string(),
                 }
             );
@@ -573,7 +567,7 @@ mod tests {
         assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction);
         channel
-            .send(InjectedTransactionAcceptance::Reject {
+            .send(TransactionAcceptance::Reject {
                 reason: REJECT_REASON.to_string(),
             })
             .unwrap();
@@ -602,7 +596,7 @@ mod tests {
                 .unwrap_injected_transaction_acceptance();
             assert_eq!(
                 acceptance,
-                InjectedTransactionAcceptance::Reject {
+                TransactionAcceptance::Reject {
                     reason: OutboundFailure::ConnectionClosed.to_string(),
                 }
             );

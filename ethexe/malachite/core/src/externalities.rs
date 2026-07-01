@@ -3,7 +3,7 @@
 
 //! Application callbacks the service makes to the outside world.
 
-use crate::types::{Block, BlockPayload, CommitCertificate, H256};
+use crate::types::{Block, BlockPayload, CommitCertificate, EthexeVoteExtension, H256};
 use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_common::Acceptance;
@@ -23,6 +23,20 @@ use ethexe_common::Acceptance;
 ///    only after the parent has been finalized.
 #[async_trait]
 pub trait Externalities: Send + Sync + 'static {
+    /// Build this validator's extension for a precommit on `mb_hash`.
+    async fn extend_vote(&self, _mb_hash: H256) -> Result<Option<EthexeVoteExtension>> {
+        Ok(None)
+    }
+
+    /// Validate and ingest an extension attached to a precommit on `mb_hash`.
+    async fn verify_vote_extension(
+        &self,
+        _mb_hash: H256,
+        _extension: &EthexeVoteExtension,
+    ) -> Result<Acceptance<(), String>> {
+        Ok(Acceptance::Accepted(()))
+    }
+
     /// Persist `block` indexed by `mb_hash`; called exactly once per hash
     /// at proposal-assembly time.
     async fn process_mb_proposal(&self, mb_hash: H256, block: Block) -> Result<()>;

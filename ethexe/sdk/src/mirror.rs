@@ -9,8 +9,7 @@ use ethexe_common::{
     gear::ValueClaim,
     gear_core::rpc::ReplyInfo,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, Promise, Receipt,
-        SignedInjectedTransaction,
+        InjectedTransaction, Promise, Receipt, SignedInjectedTransaction, TransactionAcceptance,
     },
 };
 use ethexe_ethereum::{
@@ -293,22 +292,22 @@ impl<'a> Mirror<'a> {
         let message_id = injected_transaction.to_message_id();
         let tx_hash = injected_transaction.to_hash().into();
 
-        let result: InjectedTransactionAcceptance = self
+        let result: TransactionAcceptance = self
             .api
             .vara_eth_client()
-            .send_transaction(transaction)
+            .send_transaction(transaction.into())
             .await
             .with_context(|| "failed to send injected transaction")?;
 
         match result {
-            InjectedTransactionAcceptance::Accept => Ok(InjectedMessageResult {
+            TransactionAcceptance::Accept => Ok(InjectedMessageResult {
                 message_id,
                 tx_hash,
                 reference_block_number,
                 reference_block_hash,
                 promise: None,
             }),
-            InjectedTransactionAcceptance::Reject { reason } => {
+            TransactionAcceptance::Reject { reason } => {
                 Err(anyhow!("injected transaction was rejected: {reason}"))
             }
         }
@@ -330,7 +329,7 @@ impl<'a> Mirror<'a> {
         let mut subscription = self
             .api
             .vara_eth_client()
-            .send_transaction_and_watch(transaction)
+            .send_transaction_and_watch(transaction.into())
             .await
             .with_context(|| "failed to send injected transaction and subscribe to it's promise")?;
 

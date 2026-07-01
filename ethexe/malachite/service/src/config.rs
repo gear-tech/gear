@@ -10,7 +10,7 @@
 
 pub use ethexe_malachite_core::ValidatorEntry;
 
-use crate::Mempool;
+use crate::{Mempool, ValidatorTdecSetup};
 use gsigner::{PublicKey, secp256k1::Signer};
 use std::{path::PathBuf, time::Duration};
 
@@ -98,6 +98,8 @@ pub struct ValidatorConfig<M: Mempool> {
     pub mempool: M,
     /// Keystore holding the validator's signing key.
     pub signer: Signer,
+    /// Threshold-decryption configuration for shielded transactions.
+    pub validator_tdec_setup: Option<ValidatorTdecSetup>,
 }
 
 #[cfg(test)]

@@ -9,13 +9,14 @@ use super::{
 };
 use ethexe_common::{
     HashOf,
-    db::InjectedStorageRO,
+    db::{InjectedStorageRO, TdecStorageRO},
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
-        SignedTxReceipt,
+        InjectedTransaction, ShieldedTransaction, SignedInjectedTransaction, SignedTxReceipt,
+        Transaction, TransactionAcceptance,
     },
 };
 use ethexe_db::Database;
+use gear_tdec::bls12_381::DkgPublicKey;
 use jsonrpsee::{
     core::{RpcResult, SubscriptionResult, async_trait},
     server::PendingSubscriptionSink,
@@ -37,17 +38,18 @@ pub struct InjectedApi {
 // TODO: Issue #5387
 #[async_trait]
 impl InjectedServer for InjectedApi {
-    async fn send_transaction(
-        &self,
-        transaction: SignedInjectedTransaction,
-    ) -> RpcResult<InjectedTransactionAcceptance> {
+    async fn shielding_key(&self) -> RpcResult<Option<DkgPublicKey>> {
+        Ok(self.db.shielding_key())
+    }
+
+    async fn send_transaction(&self, transaction: Transaction) -> RpcResult<TransactionAcceptance> {
         self.send_transaction(transaction).await
     }
 
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> SubscriptionResult {
         self.send_transaction_and_watch(pending, transaction).await
     }
@@ -88,10 +90,7 @@ impl InjectedApi {
 
 // RPC API implementation.
 impl InjectedApi {
-    async fn send_transaction(
-        &self,
-        transaction: SignedInjectedTransaction,
-    ) -> RpcResult<InjectedTransactionAcceptance> {
+    async fn send_transaction(&self, transaction: Transaction) -> RpcResult<TransactionAcceptance> {
         self.relayer.relay(transaction).await
     }
 
@@ -99,9 +98,9 @@ impl InjectedApi {
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> SubscriptionResult {
-        let tx_hash = transaction.data().to_hash();
+        let tx_hash = transaction.as_ref().hash();
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
             Ok(subscriber) => subscriber,
@@ -114,12 +113,10 @@ impl InjectedApi {
             self.manager.cancel_registration(tx_hash);
         })?;
         let sink = match acceptance {
-            InjectedTransactionAcceptance::Accept => {
-                pending.accept().await.inspect_err(|_err| {
-                    self.manager.cancel_registration(tx_hash);
-                })?
-            }
-            InjectedTransactionAcceptance::Reject { reason } => {
+            TransactionAcceptance::Accept => pending.accept().await.inspect_err(|_err| {
+                self.manager.cancel_registration(tx_hash);
+            })?,
+            TransactionAcceptance::Reject { reason } => {
                 self.manager.cancel_registration(tx_hash);
                 return Err(reason.into());
             }
@@ -132,6 +129,13 @@ impl InjectedApi {
             metrics.injected_tx_active_subscriptions.decrement(1);
         });
         Ok(())
+    }
+
+    pub fn on_unshielded_transactions(
+        &self,
+        hash_mapping: Vec<(HashOf<ShieldedTransaction>, HashOf<InjectedTransaction>)>,
+    ) {
+        self.manager.on_unshielded_transactions(hash_mapping);
     }
 
     async fn get_transaction_receipt(
@@ -173,7 +177,7 @@ mod tests {
     use super::*;
     use ethexe_common::{
         Address, PrivateKey, SignedMessage, ValidatorsVec,
-        db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRW, SetGlobals},
+        db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRW, SetGlobals, TdecStorageRW},
         injected::{Promise, Receipt},
         mock::Mock,
     };
@@ -268,6 +272,21 @@ mod tests {
 
         let result = api.get_transactions(ids).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_shielding_key_returns_stored_key() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+        let dealer = gear_tdec::deal::<gear_tdec::bls12_381::E>(
+            3,
+            2,
+            &mut gear_tdec::rand_utils::test_rng(),
+        );
+
+        db.set_shielding_key(dealer.public_key);
+
+        assert_eq!(api.shielding_key().await.unwrap(), Some(dealer.public_key));
     }
 
     #[tokio::test]

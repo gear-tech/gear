@@ -9,8 +9,8 @@ use crate::{
     validator::list::ValidatorListSnapshot,
 };
 use ethexe_common::{
-    Address, HashOf,
-    injected::{InjectedTransaction, SignedCompactTxReceipt},
+    Address,
+    injected::{SignedCompactTxReceipt, TransactionHash},
     network::VerifiedValidatorMessage,
 };
 use lru::LruCache;
@@ -84,7 +84,7 @@ enum VerifyTxReceiptError {
     #[display("unknown validator: address={address}, tx_hash={tx_hash}")]
     UnknownValidator {
         address: Address,
-        tx_hash: HashOf<InjectedTransaction>,
+        tx_hash: TransactionHash,
     },
 }
 
