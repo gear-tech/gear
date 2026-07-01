@@ -1,14 +1,16 @@
 [package]
 name = "gear-utils"
-description = "Utils of gear network"
-documentation = "https://docs.rs/gear-utils"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Utils of gear network"
+documentation = "https://docs.rs/gear-utils"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "utils", "testing", "memory", "logging"]
+categories = ["development-tools", "development-tools::testing"]
 
 [dependencies]
 nonempty.workspace = true

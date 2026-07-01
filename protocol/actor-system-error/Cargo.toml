@@ -1,14 +1,16 @@
 [package]
 name = "actor-system-error"
-description = "Helper crate for implementation of errors on gear backend"
-documentation = "https://docs.rs/actor-system-error"
-edition.workspace = true
 version.workspace = true
 authors.workspace = true
-license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Helper crate for implementation of errors on gear backend"
+documentation = "https://docs.rs/actor-system-error"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "actor-system", "errors", "result", "no-std"]
+categories = ["no-std", "rust-patterns"]
 
 [dependencies]
 derive_more.workspace = true

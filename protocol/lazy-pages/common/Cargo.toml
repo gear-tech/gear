@@ -1,14 +1,16 @@
 [package]
 name = "gear-lazy-pages-common"
-description = "Gear lazy-pages commons"
-documentation = "https://docs.rs/gear-lazy-pages-common"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Gear lazy-pages commons"
+documentation = "https://docs.rs/gear-lazy-pages-common"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "lazy-pages", "memory", "wasm", "no-std"]
+categories = ["memory-management", "wasm", "no-std"]
 
 [dependencies]
 gear-core.workspace = true

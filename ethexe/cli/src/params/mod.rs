@@ -76,8 +76,8 @@ impl Params {
     /// Converts merged CLI/TOML parameters into a runtime [`Config`].
     ///
     /// `node` and `ethereum` are required because every service configuration depends on them.
-    /// The remaining sections are optional and are omitted when the corresponding service is
-    /// disabled or not configured.
+    /// Network and Malachite sections use defaults when omitted. RPC and
+    /// Prometheus are omitted when the corresponding service is not configured.
     pub fn into_config(self) -> Result<Config> {
         let Params {
             node,
@@ -96,12 +96,10 @@ impl Params {
         let ethereum = ethereum.context("missing ethereum params")?;
         let node = node.into_config()?;
         let ethereum = ethereum.into_config()?;
-        let network = network
-            .and_then(|p| {
-                p.into_config(net_dir, ethereum.router_address, is_dev)
-                    .transpose()
-            })
-            .transpose()?;
+        let network =
+            network
+                .unwrap_or_default()
+                .into_config(net_dir, ethereum.router_address, is_dev)?;
         let malachite = malachite.unwrap_or_default().into_config()?;
         let rpc = rpc.and_then(|p| p.into_config(&node));
         let prometheus = prometheus.and_then(|p| p.into_config());

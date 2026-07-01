@@ -12,7 +12,6 @@ use crate::{
         programs::{GTestProgram, ProgramsStorageManager},
     },
 };
-use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
     ActiveProgram, Origin,
     event::{MessageWaitedRuntimeReason, RuntimeReason},
@@ -29,6 +28,7 @@ use gear_core::{
     tasks::{ScheduledTask, TaskHandler},
 };
 use gear_core_errors::SignalCode;
+use gear_core_processor::common::{DispatchOutcome, JournalHandler};
 use std::collections::BTreeMap;
 
 impl JournalHandler for ExtManager {

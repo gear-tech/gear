@@ -43,6 +43,7 @@ derive_more = { workspace = true, features = ["is_variant"] }
 
 [dev-dependencies]
 advisory-lock.workspace = true
+malachitebft-network.workspace = true
 proptest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }

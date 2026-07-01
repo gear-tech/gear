@@ -4,10 +4,9 @@
 //! Application config in one place.
 
 use anyhow::Result;
-use ethexe_malachite::Multiaddr;
 use ethexe_network::NetworkConfig;
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::RpcConfig;
+use ethexe_rpc_server::RpcConfig;
 use gear_tdec::bls12_381::DkgPublicKey;
 use gsigner::{
     PublicDecryptionContext,
@@ -15,7 +14,6 @@ use gsigner::{
 };
 use std::{
     collections::{BTreeMap, HashMap},
-    net::SocketAddr,
     path::PathBuf,
     str::FromStr,
     time::Duration,
@@ -25,7 +23,7 @@ use std::{
 pub struct Config {
     pub node: NodeConfig,
     pub ethereum: EthereumConfig,
-    pub network: Option<NetworkConfig>,
+    pub network: NetworkConfig,
     pub malachite: MalachiteCliConfig,
     pub rpc: Option<RpcConfig>,
     pub prometheus: Option<PrometheusConfig>,
@@ -35,16 +33,8 @@ pub struct Config {
 /// User-facing subset of [`ethexe_malachite::MalachiteServiceConfig`],
 /// resolved at CLI/TOML parse time. The rest of the runtime fields
 /// (home directory, mempool) are filled in by the service itself.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MalachiteCliConfig {
-    /// Listen address for the Malachite libp2p TCP swarm.
-    pub listen_addr: SocketAddr,
-    /// Persistent peers the local Malachite swarm should always
-    /// connect to. Each entry must include a `/p2p/<peer_id>` suffix.
-    /// Discovery is currently disabled, so for a multi-validator
-    /// deployment every peer must be listed (or transitively
-    /// reachable through the listed ones).
-    pub persistent_peers: Vec<Multiaddr>,
     /// Map from validator Ethereum [`Address`] to its Malachite
     /// secp256k1 [`PublicKey`]. The on-chain Router contract stores
     /// the validator set as Ethereum addresses; Malachite needs the
@@ -56,16 +46,6 @@ pub struct MalachiteCliConfig {
     pub validator_pub_keys: BTreeMap<Address, PublicKey>,
 }
 
-impl Default for MalachiteCliConfig {
-    fn default() -> Self {
-        Self {
-            listen_addr: ethexe_malachite::MalachiteServiceConfig::DEFAULT_LISTEN_ADDR,
-            persistent_peers: Vec::new(),
-            validator_pub_keys: BTreeMap::new(),
-        }
-    }
-}
-
 impl Config {
     pub fn log_info(&self) {
         log::info!("💾 Database: {}", self.node.database_path.display());
@@ -75,9 +55,7 @@ impl Config {
             "📡 Ethereum router address: {}",
             self.ethereum.router_address
         );
-        if let Some(network) = &self.network {
-            log::info!("🛜  Network public key: {}", network.public_key);
-        }
+        log::info!("🛜  Network public key: {}", self.network.public_key);
     }
 }
 

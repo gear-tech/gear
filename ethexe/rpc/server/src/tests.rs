@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    CodeClient, InjectedApi, InjectedClient, RpcConfig, RpcEvent, RpcServer, RpcService,
-    TransactionAcceptance, test_utils::wasm_with_custom_section,
+    InjectedApi, RpcConfig, RpcEvent, RpcServer, RpcService, test_utils::wasm_with_custom_section,
 };
 use ethexe_common::{
     SignedMessage, ValidatorsVec,
@@ -12,11 +11,12 @@ use ethexe_common::{
     gear::MAX_BLOCK_GAS_LIMIT,
     injected::{
         InjectedTransaction, Promise, Receipt, SignedCompactTxReceipt, SignedInjectedTransaction,
-        Transaction,
+        Transaction, TransactionAcceptance,
     },
     mock::Mock,
 };
 use ethexe_db::Database;
+use ethexe_rpc_client::{CodeClient, InjectedClient};
 use futures::StreamExt;
 use gear_core::message::{ReplyCode, SuccessReplyReason};
 use jsonrpsee::{core::ClientError, server::ServerHandle, ws_client::WsClientBuilder};

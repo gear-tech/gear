@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use super::*;
-use core_processor::common::JournalNote;
 use gear_core::{ids::ActorId, message::StoredDispatch};
+use gear_core_processor::common::JournalNote;
 
 /// The result of a builtin actor `handle` call.
 #[derive(Debug)]

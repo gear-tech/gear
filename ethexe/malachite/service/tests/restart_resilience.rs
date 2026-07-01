@@ -16,7 +16,7 @@
 //!    `globals.latest_finalized_mb_hash` is gap-free across the
 //!    restart boundary, and the latest pointer never rewinds.
 
-use std::{path::Path, time::Duration};
+use std::{collections::HashMap, num::NonZeroUsize, path::Path, time::Duration};
 
 use async_trait::async_trait;
 use ethexe_common::{
@@ -29,11 +29,21 @@ use ethexe_malachite::{
     MalachiteEvent, MalachiteService, MalachiteServiceConfig, MalachiteServiceStarter, Mempool,
     TxInsertionStatus, ValidatorConfig, ValidatorEntry, ValidatorTdecSetup,
 };
+use ethexe_malachite_core::{
+    Address, MalachiteCtx, MalachiteNetworkParts, MalachiteSigner, PeerId, ScaleCodec,
+    libp2p_keypair_from, private_key_from_gsigner, public_key_from_gsigner,
+};
 use futures::StreamExt as _;
 use gear_tdec::bls12_381::E as Bls12_381;
 use gprimitives::H256;
 use gsigner::{Signer, TdecKeyStore, schemes::secp256k1::Secp256k1};
-use std::{collections::HashMap, num::NonZeroUsize};
+use malachitebft_app_channel::app::{metrics::SharedRegistry, types::codec::Codec};
+use malachitebft_engine::network::{Network, NetworkIdentity};
+use malachitebft_network::{
+    ChannelNames, Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, ProtocolNames,
+    PubSubProtocol, TransportProtocol,
+};
+use malachitebft_signing::SigningProviderExt as _;
 
 /// Test-local no-op mempool. The crate's own [`EmptyMempool`] is not part
 /// of the public API on purpose — production should never assemble a
@@ -149,19 +159,13 @@ fn build_tdec_setup(pub_key: gsigner::schemes::secp256k1::PublicKey) -> Validato
 /// single-validator set so the local node can decide on its own.
 fn build_config(
     home: &Path,
-    listen_port: u16,
     pub_key: gsigner::schemes::secp256k1::PublicKey,
 ) -> MalachiteServiceConfig {
     MalachiteServiceConfig {
         gas_allowance: MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE,
         canonical_quarantine: 0,
         post_quarantine_delay: 0,
-        listen_addr: std::net::SocketAddr::new(
-            std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
-            listen_port,
-        ),
         home_dir: home.to_path_buf(),
-        persistent_peers: Vec::new(),
         validators: vec![ValidatorEntry {
             public_key: pub_key,
             voting_power: 1,
@@ -176,6 +180,70 @@ fn build_config(
 async fn feed_head(service: &mut MalachiteService, head: SimpleBlockData) {
     service.receive_new_eb(head).await;
     service.receive_eb_synced(head.hash).await;
+}
+
+async fn default_network_parts(
+    private_key: &gsigner::schemes::secp256k1::PrivateKey,
+    listen_port: u16,
+) -> (PeerId, MalachiteNetworkParts) {
+    let keypair = libp2p_keypair_from(&private_key.to_bytes());
+    let peer_id = keypair.public().to_peer_id();
+    let moniker = "restart-resilience".to_string();
+    let malachite_private_key = private_key_from_gsigner(private_key).expect("malachite key");
+    let public_key =
+        public_key_from_gsigner(&private_key.public_key()).expect("malachite public key");
+    let signer = MalachiteSigner::new(malachite_private_key);
+    let proof = signer
+        .sign_validator_proof(public_key.to_vec(), peer_id.to_bytes())
+        .await
+        .expect("sign validator proof");
+    let proof_bytes = <ScaleCodec as Codec<
+        malachitebft_core_types::ValidatorProof<MalachiteCtx>,
+    >>::encode(&ScaleCodec, &proof)
+    .expect("encode validator proof");
+    let identity = NetworkIdentity::new_validator(
+        moniker.clone(),
+        keypair,
+        Address::from_public_key(&public_key).to_string(),
+        proof_bytes,
+    );
+    let network_ref = Network::<MalachiteCtx, ScaleCodec>::spawn(
+        identity,
+        NetworkConfig {
+            listen_addr: format!("/ip4/127.0.0.1/tcp/{listen_port}")
+                .parse()
+                .expect("valid listen multiaddr"),
+            persistent_peers: Vec::new(),
+            persistent_peers_only: false,
+            discovery: DiscoveryConfig::new(false),
+            idle_connection_timeout: Duration::from_secs(15 * 60),
+            transport: TransportProtocol::Tcp,
+            gossipsub: GossipSubConfig::default(),
+            pubsub_protocol: PubSubProtocol::GossipSub,
+            channel_names: ChannelNames::default(),
+            rpc_max_size: 10 * 1024 * 1024,
+            pubsub_max_size: 4 * 1024 * 1024,
+            enable_consensus: true,
+            enable_sync: true,
+            protocol_names: ProtocolNames::default(),
+        },
+        SharedRegistry::global().with_moniker(&moniker),
+        ScaleCodec,
+        tracing::Span::current(),
+    )
+    .await
+    .expect("default malachite network starts");
+    let (tx_network, mut rx_network) =
+        tokio::sync::mpsc::channel::<ethexe_malachite_core::NetworkMsg<MalachiteCtx>>(128);
+    tokio::spawn({
+        let network_ref = network_ref.clone();
+        async move {
+            while let Some(message) = rx_network.recv().await {
+                let _ = network_ref.cast(message.into());
+            }
+        }
+    });
+    (peer_id, (network_ref, tx_network))
 }
 
 /// Drain the service stream until at least `target` finalize events
@@ -252,10 +320,15 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     let chain = seed_chain(&db, 64, 0xDEAD_BEEF);
 
     let (signer, pub_key) = build_signer(home.path());
+    let private_key = signer
+        .private_key(pub_key)
+        .expect("extract validator private key");
     let tdec_setup = build_tdec_setup(pub_key);
+
     // ---- first run -------------------------------------------------
+    let (peer_id, network_parts) = default_network_parts(&private_key, 30_001).await;
     let mut svc = MalachiteServiceStarter::new(
-        build_config(home.path(), 30_001, pub_key),
+        build_config(home.path(), pub_key),
         Some(ValidatorConfig {
             pub_key,
             mempool: EmptyMempool,
@@ -264,6 +337,8 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         }),
         db.clone(),
         chain[0],
+        peer_id,
+        network_parts,
     )
     .expect("create malachite service starter")
     .start()
@@ -302,8 +377,9 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // ---- second run on the SAME home dir + DB ----------------------
+    let (peer_id, network_parts) = default_network_parts(&private_key, 30_001).await;
     let mut svc2 = MalachiteServiceStarter::new(
-        build_config(home.path(), 30_001, pub_key),
+        build_config(home.path(), pub_key),
         Some(ValidatorConfig {
             pub_key,
             mempool: EmptyMempool,
@@ -312,6 +388,8 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         }),
         db.clone(),
         chain[31],
+        peer_id,
+        network_parts,
     )
     .expect("create malachite service starter after restart")
     .start()

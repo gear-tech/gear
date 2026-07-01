@@ -13,6 +13,7 @@ use crate::{
     types::{ChainHead, MalachiteEvent},
 };
 use anyhow::Result;
+use bytes::Bytes;
 use ethexe_common::{
     Address, SimpleBlockData,
     db::{ConfigStorageRO, OnChainStorageRO},
@@ -70,6 +71,14 @@ impl Drop for MalachiteService {
 }
 
 impl MalachiteService {
+    /// Validator proof bytes intended for network.
+    pub fn validator_proof(&self) -> Option<Bytes> {
+        self.inner
+            .as_ref()
+            .expect("`validator_proof` must be called before shutdown")
+            .validator_proof()
+    }
+
     /// Route an injected transaction into the mempool.
     /// Rejects with `PoolFull` when the node is not a validator.
     pub async fn receive_transaction(&self, tx: Transaction) -> crate::mempool::TxInsertionStatus {

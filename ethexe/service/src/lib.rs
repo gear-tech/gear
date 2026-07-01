@@ -70,7 +70,7 @@ use ethexe_observer::{
 };
 use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeInfo};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::{RpcEvent, RpcServer};
+use ethexe_rpc_server::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{FutureExt, StreamExt};
 use gprimitives::{ActorId, CodeId, H256};
@@ -174,8 +174,7 @@ pub struct Service {
     malachite_starter: MalachiteServiceStarter,
     signer: Signer,
 
-    // Optional services
-    network: Option<NetworkService>,
+    network: NetworkService,
     prometheus: Option<PrometheusService>,
     rpc: Option<RpcServer>,
 
@@ -466,36 +465,32 @@ impl Service {
             None
         };
 
-        let network = if let Some(net_config) = &config.network {
-            let network_signer = match net_config.transport_type {
-                TransportType::Test => {
-                    let network_signer = Signer::memory();
-                    let network_private_key = signer
-                        .private_key(net_config.public_key)
-                        .with_context(|| "failed to get test network private key")?
-                        .clone();
-                    network_signer.import(network_private_key)?;
-                    network_signer
-                }
-                TransportType::Default => Signer::fs(config.node.net_path.clone())?,
-            };
-
-            let runtime_config = NetworkRuntimeConfig {
-                latest_block_header: initial_chain_head.header,
-                latest_validators: validators.clone(),
-                validator_key: validator_pub_key,
-                general_signer: signer.clone(),
-                network_signer,
-                external_data_provider: Box::new(RouterDataProvider(router_query)),
-                db: db.clone(),
-            };
-
-            let network = NetworkService::new(net_config.clone(), runtime_config)
-                .with_context(|| "failed to create network service")?;
-            Some(network)
-        } else {
-            None
+        let network_signer = match config.network.transport_type {
+            TransportType::Test => {
+                let network_signer = Signer::memory();
+                let network_private_key = signer
+                    .private_key(config.network.public_key)
+                    .with_context(|| "failed to get test network private key")?
+                    .clone();
+                network_signer.import(network_private_key)?;
+                network_signer
+            }
+            TransportType::Default => Signer::fs(config.node.net_path.clone())?,
         };
+
+        let runtime_config = NetworkRuntimeConfig {
+            latest_block_header: initial_chain_head.header,
+            latest_validators: validators.clone(),
+            validator_key: validator_pub_key,
+            general_signer: signer.clone(),
+            network_signer,
+            external_data_provider: Box::new(RouterDataProvider(router_query)),
+            db: db.clone(),
+        };
+
+        let network = NetworkService::new(config.network.clone(), runtime_config)
+            .await
+            .with_context(|| "failed to create network service")?;
 
         // RPC subscribers need every promise; validators emit on consensus only.
         let promises_mode = if rpc.is_some() {
@@ -523,17 +518,9 @@ impl Service {
             )?;
 
             let malachite_config = MalachiteServiceConfig::from_home_dir(malachite_home)
-                .with_listen_addr(config.malachite.listen_addr)
-                .with_persistent_peers(config.malachite.persistent_peers.clone())
                 .with_canonical_quarantine(config.node.canonical_quarantine)
                 .with_post_quarantine_delay(config.node.post_quarantine_delay)
                 .with_validators(malachite_validator_set);
-
-            log::info!(
-                "Malachite listen: {}  persistent_peers: {}",
-                malachite_config.listen_addr,
-                malachite_config.persistent_peers.len(),
-            );
 
             let validator_config =
                 validator_pub_key.map(|pub_key| ethexe_malachite::ValidatorConfig {
@@ -549,11 +536,15 @@ impl Service {
                 .unwrap_or("full");
             log::info!("Malachite node role: {role}");
 
+            let malachite_network = network.malachite_network_parts();
+
             MalachiteServiceStarter::new(
                 malachite_config,
                 validator_config,
                 db.clone(),
                 initial_chain_head,
+                network.local_peer_id(),
+                malachite_network,
             )
             .context("failed to create Malachite service starter")?
         };
@@ -598,7 +589,7 @@ impl Service {
         signer: Signer,
         consensus: Option<Pin<Box<dyn ConsensusService>>>,
         malachite_starter: MalachiteServiceStarter,
-        network: Option<NetworkService>,
+        network: NetworkService,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcServer>,
         sender: tests::utils::TestingEventSender,
@@ -668,6 +659,10 @@ impl Service {
 
         let mut malachite = malachite_starter.start().await?;
 
+        if let Some(validator_proof) = malachite.validator_proof() {
+            network.set_malachite_validator_proof(validator_proof);
+        }
+
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
 
@@ -696,7 +691,7 @@ impl Service {
                 event = compute.select_next_some() => event?.into(),
                 event = consensus.maybe_next_some() => event?.into(),
                 event = malachite.select_next_some() => event?.into(),
-                event = network.maybe_next_some() => event.into(),
+                event = network.select_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
                 event = blob_loader.select_next_some() => event?.into(),
                 event = rpc.maybe_next_some() => event.into(),
@@ -735,9 +730,7 @@ impl Service {
                             c.receive_synced_block(block_hash)?;
                         }
 
-                        if let Some(network) = network.as_mut() {
-                            network.set_chain_head(block_hash)?;
-                        }
+                        network.set_chain_head(block_hash)?;
 
                         malachite.receive_eb_synced(block_hash).await;
                     }
@@ -812,9 +805,7 @@ impl Service {
                                         rpc.receive_tx_receipt(compact_receipt.clone().into());
                                     }
 
-                                    if let Some(net) = network.as_mut() {
-                                        net.publish_tx_receipt(compact_receipt.into());
-                                    }
+                                    network.publish_tx_receipt(compact_receipt.into());
                                 }
                                 Err(err) => {
                                     log::warn!("failed to sign compact promise: {err}");
@@ -823,70 +814,64 @@ impl Service {
                         }
                     }
                 },
-                Event::Network(event) => {
-                    let Some(_) = network.as_mut() else {
-                        unreachable!("couldn't produce event without network");
-                    };
-
-                    match event {
-                        NetworkEvent::ValidatorMessage(message) => match message {
-                            VerifiedValidatorMessage::RequestBatchValidation(request) => {
-                                if let Some(c) = consensus.as_mut() {
-                                    let request = request.map(|r| r.payload);
-                                    c.receive_validation_request(request)?;
-                                }
-                            }
-                            VerifiedValidatorMessage::ApproveBatch(reply) => {
-                                if let Some(c) = consensus.as_mut() {
-                                    let reply = reply.map(|r| r.payload);
-                                    let (reply, _) = reply.into_parts();
-                                    c.receive_validation_reply(reply)?;
-                                }
-                            }
-                        },
-                        NetworkEvent::InjectedTransaction(event) => match event {
-                            ethexe_network::NetworkInjectedEvent::InboundTransaction {
-                                peer: _,
-                                transaction,
-                                channel,
-                            } => {
-                                let acceptance =
-                                    malachite.receive_transaction(*transaction).await.into();
-                                if let Err(err) = channel.send(acceptance) {
-                                    tracing::error!(
-                                        ?err,
-                                        "failed to send injected transaction acceptance response"
-                                    )
-                                }
-                            }
-                            ethexe_network::NetworkInjectedEvent::OutboundAcceptance {
-                                transaction_hash,
-                                acceptance,
-                            } => {
-                                let final_acceptance = network_injected_txs
-                                    .get_mut(&transaction_hash)
-                                    .and_then(|pending| pending.record_response(acceptance));
-
-                                if let Some(final_acceptance) = final_acceptance
-                                    && let Some(pending) =
-                                        network_injected_txs.remove(&transaction_hash)
-                                {
-                                    for sender in pending.into_response_senders() {
-                                        let _res = sender.send(final_acceptance.clone());
-                                    }
-                                }
-                            }
-                        },
-                        NetworkEvent::TxReceiptMessage(receipt) => {
-                            if let Some(rpc) = &rpc {
-                                rpc.receive_tx_receipt(receipt);
+                Event::Network(event) => match event {
+                    NetworkEvent::ValidatorMessage(message) => match message {
+                        VerifiedValidatorMessage::RequestBatchValidation(request) => {
+                            if let Some(c) = consensus.as_mut() {
+                                let request = request.map(|r| r.payload);
+                                c.receive_validation_request(request)?;
                             }
                         }
-                        NetworkEvent::ValidatorIdentityUpdated(_)
-                        | NetworkEvent::PeerBlocked(_)
-                        | NetworkEvent::PeerConnected(_) => {}
+                        VerifiedValidatorMessage::ApproveBatch(reply) => {
+                            if let Some(c) = consensus.as_mut() {
+                                let reply = reply.map(|r| r.payload);
+                                let (reply, _) = reply.into_parts();
+                                c.receive_validation_reply(reply)?;
+                            }
+                        }
+                    },
+                    NetworkEvent::InjectedTransaction(event) => match event {
+                        ethexe_network::NetworkInjectedEvent::InboundTransaction {
+                            peer: _,
+                            transaction,
+                            channel,
+                        } => {
+                            let acceptance =
+                                malachite.receive_transaction(*transaction).await.into();
+                            if let Err(err) = channel.send(acceptance) {
+                                tracing::error!(
+                                    ?err,
+                                    "failed to send injected transaction acceptance response"
+                                )
+                            }
+                        }
+                        ethexe_network::NetworkInjectedEvent::OutboundAcceptance {
+                            transaction_hash,
+                            acceptance,
+                        } => {
+                            let final_acceptance = network_injected_txs
+                                .get_mut(&transaction_hash)
+                                .and_then(|pending| pending.record_response(acceptance));
+
+                            if let Some(final_acceptance) = final_acceptance
+                                && let Some(pending) =
+                                    network_injected_txs.remove(&transaction_hash)
+                            {
+                                for sender in pending.into_response_senders() {
+                                    let _res = sender.send(final_acceptance.clone());
+                                }
+                            }
+                        }
+                    },
+                    NetworkEvent::TxReceiptMessage(receipt) => {
+                        if let Some(rpc) = &rpc {
+                            rpc.receive_tx_receipt(receipt);
+                        }
                     }
-                }
+                    NetworkEvent::ValidatorIdentityUpdated(_)
+                    | NetworkEvent::PeerBlocked(_)
+                    | NetworkEvent::PeerConnected(_) => {}
+                },
                 Event::Rpc(event) => {
                     log::trace!("Received RPC event: {event:?}");
 
@@ -898,61 +883,53 @@ impl Service {
                             let status = malachite.receive_transaction(transaction.clone()).await;
                             let local_acceptance = TransactionAcceptance::from(status);
 
-                            match network.as_mut() {
-                                Some(network) => match local_acceptance {
-                                    acceptance @ TransactionAcceptance::Accept => {
-                                        // local consensus handle transaction, no need to wait for other acceptances
-                                        if let Err(err) =
-                                            network.broadcast_injected_transaction(transaction)
-                                        {
-                                            tracing::warn!(
-                                                "failed to broadcast locally accepted injected transaction: error={err:?}"
+                            match local_acceptance {
+                                acceptance @ TransactionAcceptance::Accept => {
+                                    // local consensus handle transaction, no need to wait for other acceptances
+                                    if let Err(err) =
+                                        network.broadcast_injected_transaction(transaction)
+                                    {
+                                        tracing::warn!(
+                                            "failed to broadcast locally accepted injected transaction: error={err:?}"
+                                        );
+                                    }
+                                    if let Err(err) = response_sender.send(acceptance) {
+                                        tracing::error!(
+                                            ?err,
+                                            "failed to send local acceptance to RPC service, RPC channel dropped"
+                                        )
+                                    }
+                                }
+                                _ => {
+                                    // local malachite rejected the transaction, wait for other acceptances
+                                    let tx_hash = transaction.as_ref().hash();
+                                    if let Some(pending) = network_injected_txs.get_mut(&tx_hash) {
+                                        pending.add_response_sender(response_sender);
+                                        continue;
+                                    }
+
+                                    match network.broadcast_injected_transaction(transaction) {
+                                        Ok(pending_responses) => {
+                                            let pending = PendingNetworkInjectedTx::new(
+                                                response_sender,
+                                                pending_responses,
+                                                Some(local_acceptance),
                                             );
+                                            network_injected_txs.insert(tx_hash, pending);
                                         }
-                                        if let Err(err) = response_sender.send(acceptance) {
-                                            tracing::error!(
-                                                ?err,
-                                                "failed to send local acceptance to RPC service, RPC channel dropped"
-                                            )
-                                        }
-                                    }
-                                    _ => {
-                                        // no local malachite or malachite reject transaction, wait for other acceptances
-                                        let tx_hash = transaction.as_ref().hash();
-                                        if let Some(pending) =
-                                            network_injected_txs.get_mut(&tx_hash)
-                                        {
-                                            pending.add_response_sender(response_sender);
-                                            continue;
-                                        }
+                                        Err(err) => {
+                                            let acceptance = TransactionAcceptance::Reject {
+                                                reason: err.to_string(),
+                                            };
 
-                                        match network.broadcast_injected_transaction(transaction) {
-                                            Ok(pending_responses) => {
-                                                let pending = PendingNetworkInjectedTx::new(
-                                                    response_sender,
-                                                    pending_responses,
-                                                    Some(local_acceptance),
+                                            if let Err(err) = response_sender.send(acceptance) {
+                                                tracing::error!(
+                                                    ?err,
+                                                    "failed to send local acceptance to RPC service, RPC channel dropped"
                                                 );
-                                                network_injected_txs.insert(tx_hash, pending);
-                                            }
-                                            Err(err) => {
-                                                let acceptance = TransactionAcceptance::Reject {
-                                                    reason: err.to_string(),
-                                                };
-
-                                                if let Err(err) = response_sender.send(acceptance) {
-                                                    tracing::error!(
-                                                        ?err,
-                                                        "failed to send local acceptance to RPC service, RPC channel dropped"
-                                                    );
-                                                }
                                             }
                                         }
                                     }
-                                },
-                                None => {
-                                    // No network, send local_acceptance to RPC
-                                    let _ = response_sender.send(local_acceptance);
                                 }
                             }
                         }
@@ -960,10 +937,6 @@ impl Service {
                 }
                 Event::Consensus(event) => match event {
                     ConsensusEvent::PublishMessage(message) => {
-                        let Some(network) = network.as_mut() else {
-                            continue;
-                        };
-
                         network.publish_message(message);
                     }
                     ConsensusEvent::CommitmentSubmitted(info) => {
@@ -1072,11 +1045,9 @@ impl Service {
                 },
                 Event::Prometheus(event) => match event {
                     PrometheusEvent::CollectMetrics { libp2p_metrics } => {
-                        if let Some(network) = &network {
-                            let mut s = String::new();
-                            network.render_libp2p_metrics(&mut s);
-                            let _res = libp2p_metrics.send(s);
-                        }
+                        let mut s = String::new();
+                        network.render_libp2p_metrics(&mut s);
+                        let _res = libp2p_metrics.send(s);
                     }
                     PrometheusEvent::ServerClosed(result) => {
                         bail!("Prometheus server closed with result: {result:?}");

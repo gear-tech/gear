@@ -11,18 +11,7 @@ use ethexe_common::{
 use gear_tdec::bls12_381::DkgPublicKey;
 use jsonrpsee::proc_macros::rpc;
 
-#[cfg_attr(
-    all(feature = "server", feature = "client"),
-    rpc(server, client, namespace = "injected")
-)]
-#[cfg_attr(
-    all(feature = "server", not(feature = "client")),
-    rpc(server, namespace = "injected")
-)]
-#[cfg_attr(
-    all(not(feature = "server"), feature = "client"),
-    rpc(client, namespace = "injected")
-)]
+#[rpc(server, namespace = "injected")]
 pub trait Injected {
     #[method(name = "getShieldingKey")]
     async fn shielding_key(&self) -> jsonrpsee::core::RpcResult<Option<DkgPublicKey>>;

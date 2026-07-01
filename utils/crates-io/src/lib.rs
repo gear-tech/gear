@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! crates-io-manager library
+//! Crates.io manager library.
 #![deny(missing_docs)]
 
 mod handler;
@@ -17,7 +17,8 @@ pub use self::{
     version::{PackageStatus, verify, verify_owners},
 };
 use anyhow::Result;
-use std::process::{Command, ExitStatus};
+use std::process::ExitStatus;
+use tokio::process::Command;
 
 /// Username that owns crates.
 pub const USER_OWNER: &str = "breathx";
@@ -27,22 +28,6 @@ pub const TEAM_OWNER: &str = "github:gear-tech:dev";
 
 /// Expected owners of crates.
 pub const EXPECTED_OWNERS: [&str; 2] = [USER_OWNER, TEAM_OWNER];
-
-/// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: &[&str] = &[
-    "actor-system-error",
-    "galloc",
-    "gear-ss58",
-    "gear-stack-buffer",
-    "gear-core-errors",
-    "gear-common-codegen",
-    "gear-runtime-primitives",
-    "gear-sandbox-env",
-    "gear-wasm-instrument",
-    "gsdk-codegen",
-    "gsys",
-    "gbuiltin-bls381",
-];
 
 /// Local Polkadot SDK-compatible crates that Gear publishes under `g*` aliases.
 ///
@@ -56,6 +41,22 @@ pub const GEAR_SUBSTRATE_DEPENDENCIES: &[&str] = &[
     "sc-executor-polkavm",
     "sc-executor-wasmtime",
     "substrate-wasm-builder",
+];
+
+/// Required Packages without local dependencies.
+pub const SAFE_DEPENDENCIES: &[&str] = &[
+    "actor-system-error",
+    "galloc",
+    "gbuiltin-bls381",
+    "gear-common-codegen",
+    "gear-core-errors",
+    "gear-runtime-primitives",
+    "gear-sandbox-env",
+    "gear-ss58",
+    "gear-stack-buffer",
+    "gear-wasm-instrument",
+    "gsdk-codegen",
+    "gsys",
 ];
 
 /// Required packages with local dependencies.
@@ -94,7 +95,8 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "ethexe-consensus",
     "ethexe-blob-loader",
     "ethexe-prometheus",
-    "ethexe-rpc",
+    "ethexe-rpc-common",
+    "ethexe-rpc-client",
 ];
 
 /// Packages need to be published.
@@ -117,24 +119,22 @@ pub const PACKAGES: &[&str] = &[
 ];
 
 /// Alias for packages.
-pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
-    ("gear-core-processor", "core-processor"),
-    ("gear-runtime-primitives", "runtime-primitives"),
-];
+pub const PACKAGE_ALIAS: [(&str, &str); 1] = [("gear-runtime-primitives", "runtime-primitives")];
 
 /// Name for temporary cargo registry.
 pub const CARGO_REGISTRY_NAME: &str = "cargo-http-registry";
 
 /// Test the input package
-pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
+pub async fn test(package: &str, test: &str) -> Result<ExitStatus> {
     Command::new("cargo")
         .args(["+stable", "test", "-p", package, "--", test])
         .status()
+        .await
         .map_err(Into::into)
 }
 
 /// Publish the input package
-pub fn publish(manifest: &str) -> Result<ExitStatus> {
+pub async fn publish(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
         .args([
             "+stable",
@@ -144,13 +144,123 @@ pub fn publish(manifest: &str) -> Result<ExitStatus> {
             "--allow-dirty",
         ])
         .status()
+        .await
         .map_err(Into::into)
 }
 
 /// Add owner to the input package
-pub fn add_owner(package: &str, owner: &str) -> Result<ExitStatus> {
+pub async fn add_owner(package: &str, owner: &str) -> Result<ExitStatus> {
     Command::new("cargo")
         .args(["+stable", "owner", "--add", owner, package])
         .status()
+        .await
         .map_err(Into::into)
 }
+
+/// Allowed categories for crates.io packages: <https://crates.io/category_slugs>.
+pub const CRATES_IO_ALLOWED_CATEGORIES: &[&str] = &[
+    "accessibility",
+    "aerospace",
+    "aerospace::drones",
+    "aerospace::protocols",
+    "aerospace::simulation",
+    "aerospace::space-protocols",
+    "aerospace::unmanned-aerial-vehicles",
+    "algorithms",
+    "api-bindings",
+    "artificial-intelligence",
+    "asynchronous",
+    "authentication",
+    "automotive",
+    "caching",
+    "command-line-interface",
+    "command-line-utilities",
+    "compilers",
+    "compression",
+    "computer-vision",
+    "concurrency",
+    "config",
+    "cryptography",
+    "cryptography::cryptocurrencies",
+    "data-structures",
+    "database",
+    "database-implementations",
+    "date-and-time",
+    "development-tools",
+    "development-tools::build-utils",
+    "development-tools::cargo-plugins",
+    "development-tools::debugging",
+    "development-tools::ffi",
+    "development-tools::procedural-macro-helpers",
+    "development-tools::profiling",
+    "development-tools::testing",
+    "email",
+    "embedded",
+    "emulators",
+    "encoding",
+    "external-ffi-bindings",
+    "filesystem",
+    "finance",
+    "game-development",
+    "game-engines",
+    "games",
+    "graphics",
+    "gui",
+    "hardware-support",
+    "internationalization",
+    "localization",
+    "mathematics",
+    "memory-management",
+    "multimedia",
+    "multimedia::audio",
+    "multimedia::encoding",
+    "multimedia::images",
+    "multimedia::video",
+    "network-programming",
+    "no-std",
+    "no-std::no-alloc",
+    "os",
+    "os::android-apis",
+    "os::freebsd-apis",
+    "os::linux-apis",
+    "os::macos-apis",
+    "os::unix-apis",
+    "os::windows-apis",
+    "parser-implementations",
+    "parsing",
+    "rendering",
+    "rendering::data-formats",
+    "rendering::engine",
+    "rendering::graphics-api",
+    "rust-patterns",
+    "science",
+    "science::bioinformatics",
+    "science::bioinformatics::genomics",
+    "science::bioinformatics::proteomics",
+    "science::bioinformatics::sequence-analysis",
+    "science::computational-biology",
+    "science::computational-biology::structural-modeling",
+    "science::computational-biology::systems-biology",
+    "science::computational-chemistry",
+    "science::computational-chemistry::cheminformatics",
+    "science::computational-chemistry::electronic-structure",
+    "science::computational-chemistry::molecular-simulation",
+    "science::geo",
+    "science::materials",
+    "science::neuroscience",
+    "science::quantum-computing",
+    "science::robotics",
+    "security",
+    "simulation",
+    "template-engine",
+    "text-editors",
+    "text-processing",
+    "value-formatting",
+    "virtualization",
+    "visualization",
+    "wasm",
+    "web-programming",
+    "web-programming::http-client",
+    "web-programming::http-server",
+    "web-programming::websocket",
+];
