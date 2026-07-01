@@ -37,7 +37,7 @@ pub use crate::apis::RPC_VERSION;
 #[cfg(feature = "client")]
 pub use crate::apis::{
     BlockClient, CalculateReplyForHandleResult, CodeClient, DevClient, FullProgramState,
-    InfoClient, InjectedClient, ProgramBestState, ProgramClient,
+    InfoClient, InjectedClient, ProgramBestState, ProgramClient, Proof,
 };
 
 #[cfg(feature = "server")]

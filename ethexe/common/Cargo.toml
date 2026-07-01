@@ -10,8 +10,13 @@ homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[package.metadata.cargo-shear]
+# we need it for applying `disable_allocator` feature
+ignored = ["sp-io"]
+
 [dependencies]
 alloy-primitives = { workspace = true, features = ["serde"] }
+binary-merkle-tree.workspace = true
 gear-core.workspace = true
 sp-core.workspace = true
 gprimitives.workspace = true
@@ -19,6 +24,8 @@ parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 hex.workspace = true
 serde = { workspace = true, optional = true }
+sp-runtime.workspace = true
+sp-io = { workspace = true, features = ["disable_allocator"] }
 derive_more.workspace = true
 anyhow.workspace = true
 auto_impl.workspace = true

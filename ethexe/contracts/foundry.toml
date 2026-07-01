@@ -1,31 +1,55 @@
 [profile.default]
 src = "src"
 out = "out"
-libs = ["lib"]
+libs = ["dependencies"]
+remappings = [
+    "forge-std/=dependencies/forge-std-1.16.1/src/",
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.6.1/",
+    "@openzeppelin/contracts-upgradeable/=dependencies/@openzeppelin-contracts-upgradeable-5.6.1/",
+    "@symbioticfi/core/=dependencies/symbiotic-core-main/",
+    "symbiotic-core/=dependencies/symbiotic-core-main/",
+    "symbiotic-rewards/=dependencies/symbiotic-rewards-main/",
+    "frost-secp256k1-evm/=dependencies/frost-secp256k1-evm-master/src/",
+]
 evm_version = "osaka"
-solc_version = "0.8.34"
+solc_version = "0.8.35"
 optimizer = true
 # extra_output_files = ["irOptimized"] # Uncomment to enable saving optimized IR
 via_ir = true
 bytecode_hash = "none"
 cbor_metadata = false
-# Required for OpenZeppelin Foundry Upgrades https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
+# Required for OpenZeppelin Foundry Upgrades:
+# - https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
 ffi = true
 ast = true
 build_info = true
 extra_output = ["storageLayout"]
-# Some warnings should be omitted
+# Some warnings should be omitted:
+# - https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades/issues/115
+# - https://github.com/OpenZeppelin/openzeppelin-contracts/issues/5577
 ignored_warnings_from = [
-    # Warning (2424): Natspec memory-safe-assembly... (https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades/issues/115).
-    "lib/openzeppelin-foundry-upgrades/src/internal/Core.sol",
-    "lib/openzeppelin-foundry-upgrades/src/internal/DefenderDeploy.sol",
-    "lib/openzeppelin-foundry-upgrades/src/internal/StringFinder.sol",
-    # Warning (3628): This contract has a payable fallback function, but no receive ether function.
+    "dependencies/openzeppelin-foundry-upgrades-0.4.0/src/internal/Core.sol",
+    "dependencies/openzeppelin-foundry-upgrades-0.4.0/src/internal/DefenderDeploy.sol",
+    "dependencies/openzeppelin-foundry-upgrades-0.4.0/src/internal/StringFinder.sol",
+
+    "dependencies/@openzeppelin-contracts-5.6.1/utils/cryptography/ECDSA.sol",
+    "dependencies/@openzeppelin-contracts-5.6.1/utils/structs/EnumerableMap.sol",
+    "dependencies/@openzeppelin-contracts-5.6.1/utils/structs/EnumerableSet.sol",
+
     "src/Mirror.sol",
     "src/MirrorProxy.sol",
 ]
 # Required for Middleware tests
-fs_permissions = [ { access = "read-write", path = "out" }, { access = "read", path = "lib" } ]
+fs_permissions = [ { access = "read-write", path = "out" }, { access = "read", path = "dependencies" } ]
+
+[dependencies]
+forge-std = "1.16.1"
+"@openzeppelin-contracts" = "5.6.1"
+"@openzeppelin-contracts-upgradeable" = "5.6.1"
+openzeppelin-foundry-upgrades = "0.4.0"
+symbiotic-core = { version = "main", git = "https://github.com/StackOverflowExcept1on/symbiotic-core.git", branch = "main" }
+symbiotic-rewards = { version = "main", git = "https://github.com/StackOverflowExcept1on/symbiotic-rewards.git", branch = "main" }
+frost-secp256k1-evm = { version = "master", git = "https://github.com/StackOverflowExcept1on/frost-secp256k1-evm.git", branch = "master" }
 
 [fmt]
 sort_imports = true

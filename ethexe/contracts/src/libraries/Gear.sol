@@ -1,5 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-pragma solidity ^0.8.33;
+pragma solidity ^0.8.35;
 
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
@@ -54,6 +55,19 @@ library Gear {
      * 10 WVARA tokens per compute second.
      */
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
+
+    /**
+     * @dev Mailboxed message discriminant.
+     */
+    uint8 internal constant MAILBOXED_MESSAGE = 0x00;
+    /**
+     * @dev Reply message discriminant.
+     */
+    uint8 internal constant REPLY_MESSAGE = 0x01;
+    /**
+     * @dev Value claim discriminant.
+     */
+    uint8 internal constant VALUE_CLAIM = 0x02;
 
     /* # Errors */
 
@@ -464,9 +478,10 @@ library Gear {
          */
         bool valueToReceiveNegativeSign;
         /**
-         * @dev Array of value claims.
+         * @dev Merkle root of outgoing actions (mailboxed messages, replies and value claims).
+         *      Currently, we use it only for value claims.
          */
-        ValueClaim[] valueClaims;
+        bytes32 merkleRoot;
         /**
          * @dev Array of messages.
          */
@@ -660,6 +675,39 @@ library Gear {
     }
 
     /**
+     * @dev Packs the `ValueClaim` for outgoing actions merkle tree.
+     * @param _messageId The message ID.
+     * @param _destination The destination address.
+     * @param _value The value of the claim.
+     * @return packed The packed value claim.
+     */
+    function valueClaimPack(bytes32 _messageId, address _destination, uint128 _value)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(VALUE_CLAIM, _messageId, _destination, _value);
+    }
+
+    /**
+     * @dev Computes the hash of a `ValueClaim`.
+     * @param valueClaim The value claim for which to compute the hash.
+     * @return hash The computed hash.
+     */
+    function outgoingActionHash(ValueClaim memory valueClaim) internal pure returns (bytes32) {
+        return valueClaimHash(valueClaim.messageId, valueClaim.destination, valueClaim.value);
+    }
+
+    /**
+     * @dev Packs the `ValueClaim` for outgoing actions merkle tree.
+     * @param valueClaim Value claim to pack.
+     * @return packed The packed value claim.
+     */
+    function pack(ValueClaim memory valueClaim) internal pure returns (bytes memory) {
+        return valueClaimPack(valueClaim.messageId, valueClaim.destination, valueClaim.value);
+    }
+
+    /**
      * @dev Computes the hash of `StateTransition`.
      * @param actor The actor address.
      * @param newStateHash The hash of the new state.
@@ -667,7 +715,7 @@ library Gear {
      * @param inheritor The inheritor address.
      * @param valueToReceive The value to receive.
      * @param valueToReceiveNegativeSign The sign of the value to receive.
-     * @param valueClaimsHash The hash of the value claims.
+     * @param merkleRoot The merkle root of outgoing actions.
      * @param messagesHashesHash The hash of the messages hashes.
      */
     function stateTransitionHash(
@@ -677,7 +725,7 @@ library Gear {
         address inheritor,
         uint128 valueToReceive,
         bool valueToReceiveNegativeSign,
-        bytes32 valueClaimsHash,
+        bytes32 merkleRoot,
         bytes32 messagesHashesHash
     ) internal pure returns (bytes32) {
         return keccak256(
@@ -688,7 +736,7 @@ library Gear {
                 inheritor,
                 valueToReceive,
                 valueToReceiveNegativeSign,
-                valueClaimsHash,
+                merkleRoot,
                 messagesHashesHash
             )
         );

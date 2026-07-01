@@ -659,6 +659,7 @@ where
             mailbox_hash,
             balance: _,
             executable_balance: _,
+            outgoing_actions_counter: _,
         } = program_state;
 
         if let Program::Active(ActiveProgram {

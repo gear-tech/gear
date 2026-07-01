@@ -10,12 +10,12 @@ use crate::{
 use anyhow::{Context, Result};
 use delegate::delegate;
 use ethexe_common::{
-    BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
+    BlockHeader, CodeBlobInfo, HashOf, OutgoingActions, ProgramStates, Schedule, ValidatorsVec,
     db::{
         BlockMeta, BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, CodesStorageRW,
         CompactMb, ConfigStorageRO, DBConfig, DBGlobals, GlobalsStorageRO, GlobalsStorageRW,
         HashStorageRO, InjectedStorageRO, InjectedStorageRW, MbMeta, MbStorageRO, MbStorageRW,
-        OnChainStorageRO, OnChainStorageRW,
+        OnChainStorageRO, OnChainStorageRW, OutgoingActionStorageRO, OutgoingActionStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -67,6 +67,8 @@ enum Key {
 
     Promise(HashOf<InjectedTransaction>) = 26,
     TxReceipt(HashOf<InjectedTransaction>) = 27,
+
+    OutgoingActions(H256) = 28,
 }
 
 impl Key {
@@ -84,7 +86,9 @@ impl Key {
         bytes.extend(self.prefix());
 
         match self {
-            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => bytes.extend(hash.as_ref()),
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) | Self::OutgoingActions(hash) => {
+                bytes.extend(hash.as_ref())
+            }
 
             Self::ValidatorSet(era_index) => {
                 bytes.extend(era_index.to_le_bytes());
@@ -712,6 +716,27 @@ impl InjectedStorageRW for RawDatabase {
     }
 }
 
+impl OutgoingActionStorageRO for RawDatabase {
+    fn outgoing_actions(&self, state_hash: H256) -> Option<OutgoingActions> {
+        self.kv
+            .get(&Key::OutgoingActions(state_hash).to_bytes())
+            .map(|data| {
+                OutgoingActions::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `OutgoingActions`")
+            })
+    }
+}
+
+impl OutgoingActionStorageRW for RawDatabase {
+    fn set_outgoing_actions(&self, state_hash: H256, outgoing_actions: OutgoingActions) {
+        tracing::trace!("Set outgoing actions for state {state_hash}");
+        self.kv.put(
+            &Key::OutgoingActions(state_hash).to_bytes(),
+            outgoing_actions.encode(),
+        );
+    }
+}
+
 #[derive(derive_more::Debug, Clone)]
 #[debug("Database(CAS + KV)")]
 pub struct Database {
@@ -1044,6 +1069,22 @@ impl ConfigStorageRO for Database {
         self.config
             .read()
             .expect("Failed to lock config for reading")
+    }
+}
+
+impl OutgoingActionStorageRO for Database {
+    delegate::delegate! {
+        to self.raw {
+            fn outgoing_actions(&self, state_hash: H256) -> Option<OutgoingActions>;
+        }
+    }
+}
+
+impl OutgoingActionStorageRW for Database {
+    delegate::delegate! {
+        to self.raw {
+            fn set_outgoing_actions(&self, state_hash: H256, outgoing_actions: OutgoingActions);
+        }
     }
 }
 

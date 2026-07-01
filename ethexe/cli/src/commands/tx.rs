@@ -164,7 +164,7 @@ struct SendReplyResult {
     payload_hex: String,
     raw_value: u128,
     formatted_value: String,
-    claim_info: Option<ValueClaim>,
+    value_claim: Option<ValueClaim>,
 }
 
 /// JSON-serializable result returned by `tx claim-value`.
@@ -181,7 +181,7 @@ struct ClaimValueResult {
 
     actor_id: H160,
     claimed_id: MessageId,
-    claim_info: Option<ValueClaim>,
+    value_claim: Option<ValueClaim>,
 }
 
 /// JSON-serializable result returned by `tx transfer-locked-value-to-inheritor`.
@@ -1278,15 +1278,15 @@ impl TxCommand {
 
                     eprintln!("Reply successfully sent!");
 
-                    let claim_info = if watch {
+                    let value_claim = if watch {
                         eprintln!("Waiting for value to be claimed...");
 
-                        let claim_info = mirror.wait_for_value_claim(replied_to).await?;
+                        let value_claim = mirror.wait_for_value_claim(replied_to).await?;
                         let ValueClaim {
                             message_id,
                             destination,
                             value,
-                        } = &claim_info;
+                        } = &value_claim;
 
                         let actor_id = destination.to_address_lossy();
                         let raw_value = *value;
@@ -1298,7 +1298,7 @@ impl TxCommand {
                         eprintln!("  Actor id:    {actor_id:?}");
                         eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
 
-                        Some(claim_info)
+                        Some(value_claim)
                     } else {
                         eprintln!(
                             "To wait for the value to be claimed, run this command with `--watch` flag"
@@ -1321,7 +1321,7 @@ impl TxCommand {
                         payload_hex,
                         raw_value,
                         formatted_value: formatted_value.to_string(),
-                        claim_info,
+                        value_claim,
                     })
                 })()
                 .await;
@@ -1397,15 +1397,15 @@ impl TxCommand {
                     eprintln!("Value claim successfully requested!");
                     eprintln!();
 
-                    let claim_info = if watch {
+                    let value_claim = if watch {
                         eprintln!("Waiting for value to be claimed...");
 
-                        let claim_info = mirror.wait_for_value_claim(claimed_id).await?;
+                        let value_claim = mirror.wait_for_value_claim(claimed_id).await?;
                         let ValueClaim {
                             message_id,
                             destination,
                             value,
-                        } = &claim_info;
+                        } = &value_claim;
 
                         let actor_id = destination.to_address_lossy();
                         let raw_value = *value;
@@ -1417,7 +1417,7 @@ impl TxCommand {
                         eprintln!("  Actor id:    {actor_id:?}");
                         eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
 
-                        Some(claim_info)
+                        Some(value_claim)
                     } else {
                         eprintln!(
                             "To wait for the value to be claimed, run this command with `--watch` flag"
@@ -1436,7 +1436,7 @@ impl TxCommand {
                         total_fee_wei: fee.total_fee_wei,
                         actor_id,
                         claimed_id,
-                        claim_info,
+                        value_claim,
                     })
                 })()
                 .await;

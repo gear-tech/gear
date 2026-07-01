@@ -157,6 +157,11 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
+                    state.outgoing_actions_counter = state
+                        .outgoing_actions_counter
+                        .checked_add(1)
+                        .expect("Overflow in state.outgoing_actions_counter += 1");
+
                     transitions.claim_value(
                         actor_id,
                         ValueClaim {
@@ -206,6 +211,11 @@ impl ProcessingHandler {
                     else {
                         return Ok(());
                     };
+
+                    state.outgoing_actions_counter = state
+                        .outgoing_actions_counter
+                        .checked_add(1)
+                        .expect("Overflow in state.outgoing_actions_counter += 1");
 
                     transitions.claim_value(
                         actor_id,

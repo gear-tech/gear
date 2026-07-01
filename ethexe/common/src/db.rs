@@ -4,8 +4,8 @@
 //! Common db types and traits.
 
 use crate::{
-    Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
-    SimpleBlockData, ValidatorsVec,
+    Address, BlockHeader, CodeBlobInfo, Digest, HashOf, OutgoingActions, ProgramStates,
+    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
@@ -178,6 +178,18 @@ pub trait MbStorageRW: MbStorageRO {
     fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
 }
 
+#[auto_impl::auto_impl(&, Box)]
+pub trait OutgoingActionStorageRO {
+    /// Reads outgoing actions by program state hash.
+    fn outgoing_actions(&self, state_hash: H256) -> Option<OutgoingActions>;
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait OutgoingActionStorageRW: OutgoingActionStorageRO {
+    /// Writes outgoing actions by program state hash.
+    fn set_outgoing_actions(&self, state_hash: H256, outgoing_actions: OutgoingActions);
+}
+
 pub struct PreparedBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
@@ -267,7 +279,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "cbf21dc97ec57cc6f653a7808672dc2c086fdfae28d1435e93f0dfe812de21c3";
+            "3d1a1c31d7215c81b63673e4e6fee97a49674e711909560cbb8d04a04dd9a7f1";
 
         let types = [
             meta_type::<BlockMeta>(),

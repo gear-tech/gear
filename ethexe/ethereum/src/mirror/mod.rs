@@ -11,14 +11,13 @@ use alloy::{
     eips::BlockId,
     network,
     primitives::{Address as AlloyAddress, Bytes, U256 as AlloyU256},
-    providers::{PendingTransactionBuilder, Provider, RootProvider, WalletProvider},
+    providers::{PendingTransactionBuilder, Provider, RootProvider},
     rpc::types::TransactionReceipt,
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address,
-    events::mirror::{ReplyEvent, StateChangedEvent, ValueClaimedEvent},
-    gear::ValueClaim,
+    Address, OutgoingAction,
+    events::mirror::{ReplyEvent, StateChangedEvent},
 };
 pub use events::signatures;
 use events::{
@@ -26,8 +25,8 @@ use events::{
     MessageEventBuilder, MessageQueueingRequestedEventBuilder,
     OwnedBalanceTopUpRequestedEventBuilder, ReplyCallFailedEventBuilder, ReplyEventBuilder,
     ReplyQueueingRequestedEventBuilder, ReplyTransferFailedEventBuilder, StateChangedEventBuilder,
-    TransferLockedValueToInheritorFailedEventBuilder, ValueClaimFailedEventBuilder,
-    ValueClaimedEventBuilder, ValueClaimingRequestedEventBuilder,
+    TransferLockedValueToInheritorFailedEventBuilder, ValueClaimedEventBuilder,
+    ValueClaimingRequestedEventBuilder,
 };
 use futures::StreamExt;
 use gear_core::{ids::prelude::MessageIdExt, rpc::ReplyInfo};
@@ -203,37 +202,27 @@ impl Mirror {
             .map(|receipt| (*receipt.transaction_hash).into())
     }
 
+    pub async fn claim_value_pending(
+        &self,
+        claimed_id: MessageId,
+    ) -> Result<PendingTransactionBuilder<network::Ethereum>> {
+        self.instance
+            .claimValue(claimed_id.into_bytes().into())
+            .send()
+            .await
+            .map_err(Into::into)
+    }
+
     pub async fn claim_value_with_receipt(
         &self,
         claimed_id: MessageId,
     ) -> Result<TransactionReceipt> {
-        let builder = self.instance.claimValue(claimed_id.into_bytes().into());
-        let receipt = builder
-            .send()
+        let receipt = self
+            .claim_value_pending(claimed_id)
             .await?
             .try_get_receipt_check_reverted()
             .await?;
         Ok(receipt)
-    }
-
-    pub async fn wait_for_value_claim(&self, message_id: MessageId) -> Result<ValueClaim> {
-        let mut stream = self.query().events().value_claimed().subscribe().await?;
-
-        while let Some(result) = stream.next().await {
-            if let Ok((ValueClaimedEvent { claimed_id, value }, _)) = result
-                && claimed_id == message_id
-            {
-                let destination =
-                    Address::from(self.instance.provider().default_signer_address()).into();
-                return Ok(ValueClaim {
-                    message_id: claimed_id,
-                    destination,
-                    value,
-                });
-            }
-        }
-
-        Err(anyhow!("Failed to wait for value claimed"))
     }
 
     pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
@@ -295,6 +284,48 @@ impl Mirror {
         &self,
     ) -> Result<TransactionReceipt> {
         let builder = self.instance.transferLockedValueToInheritor();
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        Ok(receipt)
+    }
+
+    pub async fn process_outgoing_action(
+        &self,
+        state_hash: H256,
+        total_leaves: U256,
+        leaf_index: U256,
+        outgoing_action: OutgoingAction,
+        proof: Vec<H256>,
+    ) -> Result<H256> {
+        self.process_outgoing_action_with_receipt(
+            state_hash,
+            total_leaves,
+            leaf_index,
+            outgoing_action,
+            proof,
+        )
+        .await
+        .map(|receipt| (*receipt.transaction_hash).into())
+    }
+
+    pub async fn process_outgoing_action_with_receipt(
+        &self,
+        state_hash: H256,
+        total_leaves: U256,
+        leaf_index: U256,
+        outgoing_action: OutgoingAction,
+        proof: Vec<H256>,
+    ) -> Result<TransactionReceipt> {
+        let builder = self.instance.processOutgoingAction(
+            abi::utils::h256_to_bytes32(state_hash),
+            abi::utils::u256_to_uint256(total_leaves),
+            abi::utils::u256_to_uint256(leaf_index),
+            outgoing_action.to_bytes().into(),
+            proof.into_iter().map(abi::utils::h256_to_bytes32).collect(),
+        );
         let receipt = builder
             .send()
             .await?
@@ -466,9 +497,5 @@ impl<'a> MirrorEvents<'a> {
 
     pub fn reply_transfer_failed(&self) -> ReplyTransferFailedEventBuilder<'a> {
         ReplyTransferFailedEventBuilder::new(self.query)
-    }
-
-    pub fn value_claim_failed(&self) -> ValueClaimFailedEventBuilder<'a> {
-        ValueClaimFailedEventBuilder::new(self.query)
     }
 }

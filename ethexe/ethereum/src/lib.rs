@@ -383,6 +383,18 @@ impl Ethereum {
         self.sender_address
     }
 
+    pub fn sender_actor_id(&self) -> ActorId {
+        self.sender_address().into()
+    }
+
+    pub async fn sender_balance(&self) -> Result<u128> {
+        self.provider()
+            .get_balance(self.sender_address().into())
+            .await
+            .map(abi_utils::uint256_to_u128_lossy)
+            .map_err(Into::into)
+    }
+
     pub fn provider(&self) -> AlloyProvider {
         self.provider.clone()
     }

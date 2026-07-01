@@ -71,9 +71,15 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
         local_name if crate::GEAR_SUBSTRATE_DEPENDENCIES.contains(&local_name) => {
             substrate_fork::patch_workspace(local_name, table)
         }
-        sub if ["sc-", "sp-", "frame-", "try-runtime-cli"]
-            .iter()
-            .any(|p| sub.starts_with(p)) =>
+        sub if [
+            "sc-",
+            "sp-",
+            "frame-",
+            "try-runtime-cli",
+            "binary-merkle-tree",
+        ]
+        .iter()
+        .any(|p| sub.starts_with(p)) =>
         {
             substrate::patch_workspace(name, table)
         }
@@ -330,6 +336,11 @@ mod substrate {
             "sp-runtime-interface" => {
                 table.insert("version", GP_RUNTIME_INTERFACE_VERSION.into());
                 table.insert("package", "gp-runtime-interface".into());
+            }
+            // Related to ethexe-common.
+            // We need to use newer version of binary-merkle-tree because we backport some features
+            "binary-merkle-tree" => {
+                table.insert("version", "16.1.1".into());
             }
             _ => return,
         }

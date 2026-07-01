@@ -1,5 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-pragma solidity ^0.8.33;
+pragma solidity ^0.8.35;
 
 import {Gear} from "src/libraries/Gear.sol";
 
@@ -148,16 +149,6 @@ interface IMirror {
      */
     event ReplyTransferFailed(address destination, uint128 value);
 
-    /**
-     * @dev Emitted when a user fails in claiming value request and doesn't receive balance.
-     * @param claimedId The ID of the message or reply being claimed.
-     * @param value The amount of value that failed to claim.
-     *
-     * NOTE:    It's event for USERS:
-     *  it informs about failed value claim.
-     */
-    event ValueClaimFailed(bytes32 claimedId, uint128 value);
-
     /* # Errors */
 
     /**
@@ -205,6 +196,21 @@ interface IMirror {
      */
     error TransferLockedValueToInheritorExternalFailed();
 
+    /**
+     * @dev Thrown when the outgoing action (messageId) is already processed.
+     */
+    error OutgoingActionAlreadyProcessed(bytes32 messageId);
+
+    /**
+     * @dev Thrown when the merkle root is not found for the state hash.
+     */
+    error OutgoingActionMerkleRootNotFound(bytes32 stateHash);
+
+    /**
+     * @dev Thrown when the merkle proof is invalid for outgoing actions.
+     */
+    error OutgoingActionInvalidMerkleProof();
+
     error InitializerAlreadySet();
 
     error IsSmallAlreadySet();
@@ -217,9 +223,13 @@ interface IMirror {
 
     error InvalidFallbackCall();
 
+    error OutgoingActionInvalidPayload();
+
+    error ValueClaimFailed(bytes32 claimedId, uint128 value);
+
     /* # Functions section */
 
-    /* # Operational functions */
+    /* # View functions */
 
     /**
      * @dev Returns the address of the `Router` contract, which is the sole authority
@@ -254,6 +264,21 @@ interface IMirror {
      * @dev Returns the address eligible to send first (init) message.
      */
     function initializer() external view returns (address);
+
+    /**
+     * @dev Returns the outgoing actions merkle root for the specified state hash.
+     *      Returns `bytes32(0)` if no merkle root was provided for the given state hash.
+     * @param stateHash Target state hash.
+     * @return merkleRoot Outgoing actions merkle root for the specified state hash.
+     */
+    function getOutgoingActionsMerkleRoot(bytes32 stateHash) external view returns (bytes32);
+
+    /**
+     * @dev Checks if outgoing action was already processed.
+     * @param messageId Message ID to check.
+     * @return isProcessed `true` if outgoing action was already processed, `false` otherwise.
+     */
+    function isOutgoingActionsProcessed(bytes32 messageId) external view returns (bool);
 
     /* # Primary Gear logic (external calls) */
 
@@ -310,6 +335,24 @@ interface IMirror {
      *      As result of execution, the `LockedValueTransferRequested` event will be emitted.
      */
     function transferLockedValueToInheritor() external;
+
+    /* # Primary Gear logic (external calls, pull-based methods) */
+
+    /**
+     * @dev Processes outgoing action.
+     * @param stateHash The state hash for which to process outgoing action.
+     * @param totalLeaves The total number of leaves in the merkle tree.
+     * @param leafIndex The index of the leaf for which to process outgoing action.
+     * @param payload The payload for the outgoing action.
+     * @param proof The merkle proof for the claim.
+     */
+    function processOutgoingAction(
+        bytes32 stateHash,
+        uint256 totalLeaves,
+        uint256 leafIndex,
+        bytes calldata payload,
+        bytes32[] calldata proof
+    ) external;
 
     /* # Router-driven state and funds management */
 

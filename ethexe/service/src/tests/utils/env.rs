@@ -47,6 +47,7 @@ use ethexe_observer::{
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
+use ethexe_sdk::VaraEthApi;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
@@ -1186,9 +1187,16 @@ impl Node {
         self.receiver = None;
     }
 
+    #[allow(dead_code)]
+    pub async fn vara_eth_api(&self, ethereum: Ethereum) -> Option<VaraEthApi> {
+        let listen_addr = self.service_rpc_config.clone()?.listen_addr;
+        let url = format!("ws://{listen_addr}");
+        VaraEthApi::new(&url, ethereum).await.ok()
+    }
+
     pub fn rpc_http_client(&self) -> Option<HttpClient> {
         let listen_addr = self.service_rpc_config.clone()?.listen_addr;
-        let url = format!("http://{}", listen_addr);
+        let url = format!("http://{listen_addr}");
         Some(HttpClient::builder().build(&url).unwrap())
     }
 

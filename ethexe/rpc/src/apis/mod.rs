@@ -17,7 +17,9 @@ pub use crate::apis::{
     dev::DevClient,
     info::{InfoClient, RPC_VERSION},
     injected::InjectedClient,
-    program::{CalculateReplyForHandleResult, FullProgramState, ProgramBestState, ProgramClient},
+    program::{
+        CalculateReplyForHandleResult, FullProgramState, ProgramBestState, ProgramClient, Proof,
+    },
 };
 #[cfg(feature = "server")]
 pub use block::{BlockApi, BlockServer};

@@ -5,7 +5,8 @@ use crate::{VaraEthApi, types::InjectedMessageResult};
 use alloy::rpc::types::TransactionReceipt;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use ethexe_common::{
-    Address, BlockHeader, HashOf, SimpleBlockData,
+    Address, BlockHeader, HashOf, OutgoingAction, OutgoingActions, SimpleBlockData,
+    events::mirror::StateChangedEvent,
     gear::ValueClaim,
     gear_core::rpc::ReplyInfo,
     injected::{
@@ -22,10 +23,10 @@ use ethexe_ethereum::{
 };
 use ethexe_rpc::{
     CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramBestState,
-    ProgramClient,
+    ProgramClient, Proof,
 };
 use ethexe_runtime_common::state::{Mailbox, ProgramState, UserMailbox};
-use futures::TryFutureExt;
+use futures::{StreamExt, TryFutureExt};
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use gsigner::secp256k1::Secp256k1SignerExt;
 use jsonrpsee::core::client::Subscription;
@@ -104,6 +105,26 @@ impl<'a> Mirror<'a> {
         self.api
             .vara_eth_client
             .read_user_mailbox(user_mailbox_hash.inner())
+            .map_err(Into::into)
+            .await
+    }
+
+    pub async fn outgoing_actions(&self, state_hash: H256) -> Result<OutgoingActions> {
+        self.api
+            .vara_eth_client
+            .read_outgoing_actions(state_hash)
+            .map_err(Into::into)
+            .await
+    }
+
+    pub async fn outgoing_action_merkle_proof(
+        &self,
+        state_hash: H256,
+        message_id: MessageId,
+    ) -> Result<Proof> {
+        self.api
+            .vara_eth_client
+            .read_outgoing_action_merkle_proof(state_hash, message_id)
             .map_err(Into::into)
             .await
     }
@@ -408,7 +429,44 @@ impl<'a> Mirror<'a> {
     }
 
     pub async fn wait_for_value_claim(&self, message_id: MessageId) -> Result<ValueClaim> {
-        self.mirror_client.wait_for_value_claim(message_id).await
+        self.wait_for_value_claim_with_receipt(message_id)
+            .await
+            .map(|(_, claim_info)| claim_info)
+    }
+
+    pub async fn wait_for_value_claim_with_receipt(
+        &self,
+        message_id: MessageId,
+    ) -> Result<(TransactionReceipt, ValueClaim)> {
+        let mut stream = self.events().state_changed().subscribe().await?;
+
+        while let Some(result) = stream.next().await {
+            if let Ok((StateChangedEvent { state_hash }, _)) = result
+                && let Ok(Proof {
+                    total_leaves,
+                    leaf_index,
+                    outgoing_action,
+                    proof,
+                }) = self
+                    .outgoing_action_merkle_proof(state_hash, message_id)
+                    .await
+            {
+                // TODO: in future it will be `if let`
+                let OutgoingAction::ValueClaim(value_claim) = outgoing_action.clone();
+                let receipt = self
+                    .process_outgoing_action_with_receipt(
+                        state_hash,
+                        total_leaves,
+                        leaf_index,
+                        outgoing_action,
+                        proof,
+                    )
+                    .await?;
+                return Ok((receipt, value_claim));
+            }
+        }
+
+        Err(anyhow!("Failed to wait for value claimed"))
     }
 
     pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
@@ -450,6 +508,38 @@ impl<'a> Mirror<'a> {
     ) -> Result<TransactionReceipt> {
         self.mirror_client
             .transfer_locked_value_to_inheritor_with_receipt()
+            .await
+    }
+
+    pub async fn process_outgoing_action(
+        &self,
+        state_hash: H256,
+        total_leaves: U256,
+        leaf_index: U256,
+        outgoing_action: OutgoingAction,
+        proof: Vec<H256>,
+    ) -> Result<H256> {
+        self.mirror_client
+            .process_outgoing_action(state_hash, total_leaves, leaf_index, outgoing_action, proof)
+            .await
+    }
+
+    pub async fn process_outgoing_action_with_receipt(
+        &self,
+        state_hash: H256,
+        total_leaves: U256,
+        leaf_index: U256,
+        outgoing_action: OutgoingAction,
+        proof: Vec<H256>,
+    ) -> Result<TransactionReceipt> {
+        self.mirror_client
+            .process_outgoing_action_with_receipt(
+                state_hash,
+                total_leaves,
+                leaf_index,
+                outgoing_action,
+                proof,
+            )
             .await
     }
 

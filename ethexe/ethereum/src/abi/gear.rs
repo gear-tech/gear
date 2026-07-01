@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::abi::{Gear, utils::*};
-use ethexe_common::gear::*;
+use ethexe_common::{ToDigest, gear::*};
 use gear_core::message::ReplyDetails;
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
+use gprimitives::H256;
+use sp_runtime::traits::Keccak256;
 
 //                          //
 // From Rust types to alloy //
@@ -160,6 +162,12 @@ impl From<ReplyDetails> for Gear::ReplyDetails {
 
 impl From<StateTransition> for Gear::StateTransition {
     fn from(value: StateTransition) -> Self {
+        let value_claims: Vec<_> = value
+            .value_claims
+            .into_iter()
+            .map(|value_claim| H256(value_claim.to_digest().0))
+            .collect();
+        let merkle_root = binary_merkle_tree::merkle_root_raw::<Keccak256, _>(value_claims);
         Self {
             actorId: actor_id_to_address_lossy(value.actor_id),
             newStateHash: h256_to_bytes32(value.new_state_hash),
@@ -167,18 +175,8 @@ impl From<StateTransition> for Gear::StateTransition {
             inheritor: actor_id_to_address_lossy(value.inheritor),
             valueToReceive: value.value_to_receive,
             valueToReceiveNegativeSign: value.value_to_receive_negative_sign,
-            valueClaims: value.value_claims.into_iter().map(Into::into).collect(),
+            merkleRoot: h256_to_bytes32(merkle_root),
             messages: value.messages.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl From<ValueClaim> for Gear::ValueClaim {
-    fn from(value: ValueClaim) -> Self {
-        Self {
-            messageId: message_id_to_bytes32(value.message_id),
-            destination: actor_id_to_address_lossy(value.destination),
-            value: value.value,
         }
     }
 }
