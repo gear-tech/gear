@@ -545,17 +545,14 @@ mod tests {
 
     #[test]
     fn send_user_message_to_event_destination_skips_mailbox() {
-        use crate::{
-            InBlockTransitions, TransitionController, TransitionsConfig,
-            transitions::{ETH_SAILS_EVENT, GEAR_SAILS_EVENT},
-        };
+        use crate::{InBlockTransitions, TransitionController, TransitionsConfig};
         use ethexe_common::{ProgramStates, StateHashWithQueueSize};
         use gear_core::{
             ids::prelude::MessageIdExt,
             message::{DispatchKind, ReplyCode},
         };
 
-        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let storage = MemStorage::default();
             let program_id = ActorId::from(7);
             let message_id = MessageId::from(10);

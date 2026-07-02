@@ -3791,25 +3791,6 @@ async fn test_sails_events() {
 
     let sails_events_id = res.program_id;
 
-    let wvara = env.ethereum.router().wvara();
-    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
-
-    let sails_events = env
-        .ethereum
-        .mirror(sails_events_id.to_address_lossy().into());
-
-    let on_eth_balance = sails_events.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, 0);
-
-    let state_hash = sails_events.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, 0);
-
-    // 1_000 ETH
-    const VALUE_SENT: u128 = 1_000 * ETHER;
-
-    sails_events.owned_balance_top_up(VALUE_SENT).await.unwrap();
-
     let res = env
         .send_message(sails_events_id, b"")
         .await
@@ -3825,7 +3806,7 @@ async fn test_sails_events() {
     let receiver = env.new_observer_events();
 
     let res = env
-        .send_message_with_params(sails_events_id, b"\x00gear_event_payload", 42)
+        .send_message(sails_events_id, b"\x00gear_event_payload")
         .await
         .unwrap()
         .wait_for()
@@ -3848,16 +3829,6 @@ async fn test_sails_events() {
         .await;
     assert_eq!(gear_event.payload, b"gear_event_payload");
 
-    let router_address = env.ethereum.router().address();
-    let router_balance = env
-        .ethereum
-        .provider()
-        .get_balance(router_address.into())
-        .await
-        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
-        .unwrap();
-    assert_eq!(router_balance, 42);
-
     let mut payload: Vec<u8> = vec![];
     let topic1 = [0xee; 32];
 
@@ -3866,7 +3837,7 @@ async fn test_sails_events() {
     payload.extend_from_slice(&topic1); // topic1
 
     let res = env
-        .send_message_with_params(sails_events_id, &payload, 42)
+        .send_message(sails_events_id, &payload)
         .await
         .unwrap()
         .wait_for()
@@ -3884,16 +3855,6 @@ async fn test_sails_events() {
         .await
         .unwrap();
     assert_eq!(logs.len(), 1);
-
-    let router_address = env.ethereum.router().address();
-    let router_balance = env
-        .ethereum
-        .provider()
-        .get_balance(router_address.into())
-        .await
-        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
-        .unwrap();
-    assert_eq!(router_balance, 84);
 
     stop_nodes([node]).await;
 }

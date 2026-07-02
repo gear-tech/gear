@@ -3,13 +3,6 @@
 
 use gstd::{ActorId, msg, prelude::*};
 
-const GEAR_SAILS_EVENT: ActorId = ActorId::new([0; 32]);
-
-const ETH_SAILS_EVENT: ActorId = ActorId::new([
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-]);
-
 #[unsafe(no_mangle)]
 extern "C" fn init() {}
 
@@ -20,11 +13,11 @@ extern "C" fn handle() {
 
     match event_type {
         0x00 => {
-            msg::send_bytes(GEAR_SAILS_EVENT, &payload[1..], msg::value())
+            msg::send_bytes(ActorId::gear_sails_event(), &payload[1..], msg::value())
                 .expect("Failed to send event");
         }
         0xff => {
-            msg::send_bytes(ETH_SAILS_EVENT, &payload[1..], msg::value())
+            msg::send_bytes(ActorId::eth_sails_event(), &payload[1..], msg::value())
                 .expect("Failed to send event");
         }
         _ => panic!("Invalid event type: {event_type}"),
