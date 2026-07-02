@@ -1,14 +1,16 @@
 [package]
 name = "gear-stack-buffer"
-description = "Gear stack buffer implementation"
-documentation = "https://docs.rs/gear-stack-buffer"
-edition.workspace = true
 version.workspace = true
 authors.workspace = true
-license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Gear stack buffer implementation"
+documentation = "https://docs.rs/gear-stack-buffer"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "stack", "buffer", "alloca", "no-std"]
+categories = ["memory-management", "no-std"]
 
 [build-dependencies]
 cc = { workspace = true, optional = true }

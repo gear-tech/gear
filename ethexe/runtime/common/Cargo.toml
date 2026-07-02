@@ -1,20 +1,22 @@
 [package]
 name = "ethexe-runtime-common"
-description = "Shared runtime types and storage traits for ethexe"
-documentation = "https://docs.rs/ethexe-runtime-common"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Shared runtime types and storage traits for ethexe"
+documentation = "https://docs.rs/ethexe-runtime-common"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["ethexe", "runtime", "wasm", "queue", "no-std"]
+categories = ["wasm", "data-structures", "no-std"]
 
 [dependencies]
 ethexe-common.workspace = true
 
 gear-lazy-pages-common.workspace = true
-core-processor.workspace = true
+gear-core-processor.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
 gsys.workspace = true
@@ -39,7 +41,7 @@ proptest.workspace = true
 default = ["std"]
 std = [
     "anyhow/std",
-    "core-processor/std",
+    "gear-core-processor/std",
     "gear-core/std",
     "gprimitives/serde",
     "log/std",

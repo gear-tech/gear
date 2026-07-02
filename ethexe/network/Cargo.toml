@@ -20,15 +20,18 @@ gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring"
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
 ethexe-common.workspace = true
+ethexe-malachite-core.workspace = true
 gprimitives = { workspace = true, features = ["std", "codec"] }
 
 # libp2p
 libp2p = { version = "0.56.0", features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tcp", "dns", "tls", "tokio", "macros", "plaintext", "yamux", "metrics"] }
+libp2p-broadcast.workspace = true
 libp2p-gossipsub = { version = "0.49.4", features = ["metrics"] }
 
 # other deps
 tokio = { workspace = true, features = ["macros", "sync"] }
 anyhow.workspace = true
+bytes.workspace = true
 log.workspace = true
 parity-scale-codec.workspace = true
 async-trait.workspace = true
@@ -45,6 +48,15 @@ prometheus-client = "0.23.1" # specific version that lip2p uses
 metrics.workspace = true
 metrics-derive.workspace = true
 assert_matches.workspace = true
+ractor.workspace = true
+seahash.workspace = true
+malachitebft-app-channel.workspace = true
+malachitebft-codec.workspace = true
+malachitebft-core-consensus.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-engine.workspace = true
+malachitebft-network.workspace = true
+malachitebft-sync.workspace = true
 
 # workspace hack
 gear-workspace-hack.workspace = true
