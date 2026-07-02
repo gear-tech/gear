@@ -13,6 +13,7 @@ use crate::tests::utils::{
 use alloy::{
     primitives::U256,
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
+    rpc::types::Filter,
 };
 use ethexe_common::{
     db::{CodesStorageRO, GlobalsStorageRO, InjectedStorageRO, MbStorageRO, OnChainStorageRO},
@@ -3742,6 +3743,118 @@ async fn batch_commitment_period_commits_only_on_multiples() {
             period.get(),
         );
     }
+
+    stop_nodes([node]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_sails_events() {
+    init_logger();
+
+    let mut env = TestEnv::default().await;
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_sails_events::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, demo_sails_events::WASM_BINARY);
+
+    let _ = node
+        .db
+        .instrumented_code(RUNTIME_ID, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let sails_events_id = res.program_id;
+
+    let res = env
+        .send_message(sails_events_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.payload, b"");
+    assert_eq!(res.value, 0);
+
+    let receiver = env.new_observer_events();
+
+    let res = env
+        .send_message(sails_events_id, b"\x00gear_event_payload")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.payload, b"");
+    assert_eq!(res.value, 0);
+
+    let gear_event = receiver
+        .filter_map_block_synced()
+        .find_map(|event| match event {
+            BlockEvent::Mirror {
+                event: MirrorEvent::Gear(event),
+                ..
+            } => Some(event),
+            _ => None,
+        })
+        .await;
+    assert_eq!(gear_event.payload, b"gear_event_payload");
+
+    let mut payload: Vec<u8> = vec![];
+    let topic1 = [0xee; 32];
+
+    payload.extend_from_slice(&[0xff]); // event type (sails)
+    payload.extend_from_slice(&[0x01]); // topics length
+    payload.extend_from_slice(&topic1); // topic1
+
+    let res = env
+        .send_message(sails_events_id, &payload)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.payload, b"");
+    assert_eq!(res.value, 0);
+
+    let logs = env
+        .ethereum
+        .provider()
+        .get_logs(&Filter::new().event_signature(topic1))
+        .await
+        .unwrap();
+    assert_eq!(logs.len(), 1);
 
     stop_nodes([node]).await;
 }

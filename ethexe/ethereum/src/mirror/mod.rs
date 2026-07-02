@@ -22,7 +22,7 @@ use ethexe_common::{
 };
 pub use events::signatures;
 use events::{
-    ExecutableBalanceTopUpRequestedEventBuilder, MessageCallFailedEventBuilder,
+    ExecutableBalanceTopUpRequestedEventBuilder, GearEventBuilder, MessageCallFailedEventBuilder,
     MessageEventBuilder, MessageQueueingRequestedEventBuilder,
     OwnedBalanceTopUpRequestedEventBuilder, ReplyCallFailedEventBuilder, ReplyEventBuilder,
     ReplyQueueingRequestedEventBuilder, ReplyTransferFailedEventBuilder, StateChangedEventBuilder,
@@ -456,6 +456,10 @@ impl<'a> MirrorEvents<'a> {
 
     pub fn value_claimed(&self) -> ValueClaimedEventBuilder<'a> {
         ValueClaimedEventBuilder::new(self.query)
+    }
+
+    pub fn gear_event(&self) -> GearEventBuilder<'a> {
+        GearEventBuilder::new(self.query)
     }
 
     pub fn transfer_locked_value_to_inheritor_failed(

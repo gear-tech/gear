@@ -7,7 +7,9 @@ use crate::{
         Dispatch, DispatchStash, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
         ProgramState, QueryableStorage, Storage, UserMailbox, Waitlist,
     },
-    transitions::is_event_destination,
+    transitions::{
+        is_eth_sails_event_destination, is_event_destination, is_gear_sails_event_destination,
+    },
 };
 use alloc::collections::{BTreeMap, BTreeSet};
 use anyhow::Context;
@@ -95,18 +97,15 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 });
 
                 if event_destinations && is_event_destination(user_id) {
-                    let value = dispatch.value;
                     let message_type = dispatch.message_type;
 
                     transitions.modify_transition(program_id, |transition| {
-                        transition
-                            .messages
-                            .push(dispatch.clone().into_message(storage, user_id));
-                        transition.claims.push(ValueClaim {
-                            message_id: stashed_message_id,
-                            destination: user_id,
-                            value,
-                        });
+                        let message = dispatch.clone().into_message(storage, user_id);
+                        if is_gear_sails_event_destination(user_id) {
+                            transition.events.push(message.payload);
+                        } else if is_eth_sails_event_destination(user_id) {
+                            transition.eth_events.push(message.payload);
+                        }
                     });
 
                     let reply = Dispatch::reply(
@@ -546,17 +545,14 @@ mod tests {
 
     #[test]
     fn send_user_message_to_event_destination_skips_mailbox() {
-        use crate::{
-            InBlockTransitions, TransitionController, TransitionsConfig,
-            transitions::{ETH_SAILS_EVENT, GEAR_SAILS_EVENT},
-        };
+        use crate::{InBlockTransitions, TransitionController, TransitionsConfig};
         use ethexe_common::{ProgramStates, StateHashWithQueueSize};
         use gear_core::{
             ids::prelude::MessageIdExt,
             message::{DispatchKind, ReplyCode},
         };
 
-        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let storage = MemStorage::default();
             let program_id = ActorId::from(7);
             let message_id = MessageId::from(10);
@@ -605,13 +601,13 @@ mod tests {
             }
 
             let transition = transitions.modifications_mut().remove(&program_id).unwrap();
-            assert_eq!(transition.messages.len(), 1);
-            assert_eq!(transition.messages[0].destination, destination);
-            assert_eq!(transition.messages[0].value, 11);
-            assert_eq!(transition.claims.len(), 1);
-            assert_eq!(transition.claims[0].message_id, message_id);
-            assert_eq!(transition.claims[0].destination, destination);
-            assert_eq!(transition.claims[0].value, 11);
+            assert!(transition.messages.is_empty());
+            assert!(transition.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert_eq!(transition.events.len(), 1);
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(transition.eth_events.len(), 1);
+            }
 
             let state_hash = transitions.state_of(&program_id).unwrap().hash;
             let state = storage.program_state(state_hash).unwrap();

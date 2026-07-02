@@ -471,6 +471,14 @@ library Gear {
          * @dev Array of messages.
          */
         Message[] messages;
+        /**
+         * @dev Array of events.
+         */
+        bytes[] events;
+        /**
+         * @dev Array of Ethereum events.
+         */
+        bytes[] ethEvents;
     }
 
     /**
@@ -669,6 +677,8 @@ library Gear {
      * @param valueToReceiveNegativeSign The sign of the value to receive.
      * @param valueClaimsHash The hash of the value claims.
      * @param messagesHashesHash The hash of the messages hashes.
+     * @param eventsHashesHash The hash of the events hashes.
+     * @param ethEventsHashesHash The hash of the Ethereum events hashes.
      */
     function stateTransitionHash(
         address actor,
@@ -678,7 +688,9 @@ library Gear {
         uint128 valueToReceive,
         bool valueToReceiveNegativeSign,
         bytes32 valueClaimsHash,
-        bytes32 messagesHashesHash
+        bytes32 messagesHashesHash,
+        bytes32 eventsHashesHash,
+        bytes32 ethEventsHashesHash
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
@@ -689,7 +701,9 @@ library Gear {
                 valueToReceive,
                 valueToReceiveNegativeSign,
                 valueClaimsHash,
-                messagesHashesHash
+                messagesHashesHash,
+                eventsHashesHash,
+                ethEventsHashesHash
             )
         );
     }

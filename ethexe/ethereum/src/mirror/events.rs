@@ -13,7 +13,7 @@ use anyhow::Result;
 use ethexe_common::events::{
     MirrorEvent, MirrorRequestEvent,
     mirror::{
-        ExecutableBalanceTopUpRequestedEvent, MessageCallFailedEvent, MessageEvent,
+        ExecutableBalanceTopUpRequestedEvent, GearEvent, MessageCallFailedEvent, MessageEvent,
         MessageQueueingRequestedEvent, OwnedBalanceTopUpRequestedEvent, ReplyCallFailedEvent,
         ReplyEvent, ReplyQueueingRequestedEvent, ReplyTransferFailedEvent, StateChangedEvent,
         TransferLockedValueToInheritorFailedEvent, ValueClaimFailedEvent, ValueClaimedEvent,
@@ -44,6 +44,7 @@ pub mod signatures {
         TRANSFER_LOCKED_VALUE_TO_INHERITOR_FAILED: TransferLockedValueToInheritorFailed,
         REPLY_TRANSFER_FAILED: ReplyTransferFailed,
         VALUE_CLAIM_FAILED: ValueClaimFailed,
+        GEAR: GearEvent,
     }
 
     pub const REQUESTS: &[B256] = &[
@@ -101,6 +102,7 @@ pub fn try_extract_event(log: &Log) -> Result<Option<MirrorEvent>> {
         VALUE_CLAIM_FAILED => {
             MirrorEvent::ValueClaimFailed(decode_log::<IMirror::ValueClaimFailed>(log)?.into())
         }
+        GEAR => MirrorEvent::Gear(decode_log::<IMirror::GearEvent>(log)?.into()),
         _ => unreachable!("filtered above"),
     };
 
@@ -148,6 +150,7 @@ impl<'a> AllEventsBuilder<'a> {
                 signatures::TRANSFER_LOCKED_VALUE_TO_INHERITOR_FAILED,
                 signatures::REPLY_TRANSFER_FAILED,
                 signatures::VALUE_CLAIM_FAILED,
+                signatures::GEAR,
             ]));
         Ok(self
             .query
@@ -488,6 +491,29 @@ impl<'a> ValueClaimedEventBuilder<'a> {
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ValueClaimedEvent, Log), Error>> + Unpin + use<>> {
+        Ok(self
+            .event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct GearEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::GearEvent>,
+}
+
+impl<'a> GearEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.GearEvent_filter(),
+        }
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(GearEvent, Log), Error>> + Unpin + use<>> {
         Ok(self
             .event
             .subscribe()

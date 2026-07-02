@@ -129,6 +129,14 @@ interface IMirror {
     event ValueClaimed(bytes32 claimedId, uint128 value);
 
     /**
+     * @dev Emitted when the program emits a Gear event, which is a custom event defined by the program.
+     * @param payload The payload of the Gear event.
+     * NOTE:    It's event for USERS:
+     *  it informs about Gear event emitted by the program.
+     */
+    event GearEvent(bytes payload);
+
+    /**
      * @dev Emitted when the program fails to transfer locked value to inheritor after exit.
      * @param inheritor The address of the inheritor.
      * @param value The amount of locked value that failed to transfer.

@@ -417,6 +417,16 @@ contract Mirror is IMirror {
         bytes32 valueClaimsHash = _claimValues(_transition.valueClaims);
 
         /**
+         * @dev Emit Gear events (with `destination = address(0)`).
+         */
+        bytes32 eventsHashesHash = _emitGearEvents(_transition.events);
+
+        /**
+         * @dev Emit Ethereum events (with `destination = ETH_EVENT_ADDR`).
+         */
+        bytes32 ethEventsHashesHash = _emitEthEvents(_transition.ethEvents);
+
+        /**
          * @dev Set inheritor if exited.
          */
         if (_transition.exited) {
@@ -443,7 +453,9 @@ contract Mirror is IMirror {
             _transition.valueToReceive,
             _transition.valueToReceiveNegativeSign,
             valueClaimsHash,
-            messagesHashesHash
+            messagesHashesHash,
+            eventsHashesHash,
+            ethEventsHashesHash
         );
     }
 
@@ -550,211 +562,28 @@ contract Mirror is IMirror {
     /**
      * @dev Internal function to send message that goes to mailbox.
      *      Value never sent since goes to mailbox.
-     *      Emits `Message` event if it is not event from Sails framework.
      *      If `_message.call = true`, then call will be made to `_message.destination`
      *      with _message.payload and gas limit of 500_000 to prevent DoS attacks.
      *      If call fails, then `MessageCallFailed` event will be emitted.
      * @param _message The message to be sent.
      */
     function _sendMailboxedMessage(Gear.Message calldata _message) private {
-        /**
-         * @dev First, we'll try to parse event from the Sails framework
-         *      and then emit it on behalf of the `Mirror` smart contract.
-         */
-        if (!_tryParseAndEmitSailsEvent(_message)) {
-            // TODO #5243: We currently support this on the `Mirror` smart contract,
-            // but we don't support it on the Rust client and we don't have corresponding syscalls for it.
-            // This is unreachable code branch currently.
-            if (_message.call) {
-                (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
+        // TODO #5243: We currently support this on the `Mirror` smart contract,
+        // but we don't support it on the Rust client and we don't have corresponding syscalls for it.
+        // This is unreachable code branch currently.
+        if (_message.call) {
+            (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
 
-                if (!success) {
-                    /**
-                     * @dev In case of failed call, we emit appropriate event to inform external users.
-                     */
-                    emit MessageCallFailed(_message.id, _message.destination, _message.value);
-                    return;
-                }
-            }
-
-            emit Message(_message.id, _message.destination, _message.payload, _message.value);
-        }
-    }
-
-    /**
-     * @dev Tries to parse an event from the Sails framework and emit it in Solidity notation.
-     *
-     *      User writes WASM smart contract on Sails framework called "Counter":
-     *      - https://github.com/gear-foundation/vara-eth-demo/blob/master/app/src/lib.rs
-     *
-     *      Example of defining Solidity events in WASM contract based on Sails framework:
-     *      ```rust
-     *      #[event]
-     *      #[derive(Clone, Debug, PartialEq, Encode, TypeInfo)]
-     *      #[codec(crate = scale_codec)]
-     *      #[scale_info(crate = scale_info)]
-     *      pub enum CounterEvents {
-     *          Added {
-     *              #[indexed]
-     *              source: ActorId,
-     *              value: u32,
-     *          },
-     *      }
-     *      ```
-     *
-     *      User also generates "Solidity ABI interface" that allows services like Etherscan to decode events from `Mirror`
-     *      (since we use the ABI interface as "proxy implementation"):
-     *      ```solidity
-     *      interface ICounter {
-     *          event Added(address indexed source, uint32 value);
-     *
-     *          // ... other events
-     *      }
-     *      ```
-     *
-     *      Now let's imagine that the user wants to calculate something in WASM contract and send it to Ethereum as event,
-     *      which will then be emitted by `Mirror` smart contract as showed on services like Etherscan:
-     *      ```rust
-     *      #[service(events = CounterEvents)]
-     *      impl CounterService<'_> {
-     *          #[export]
-     *          pub fn add(&mut self, value: u32) -> u32 {
-     *              let mut data_mut = self.data.borrow_mut();
-     *              data_mut.counter = data_mut.counter.checked_add(value).expect("failed to add");
-     *              let source = Syscall::message_source();
-     *              self.emit_eth_event(CounterEvents::Added { source, value })
-     *                  .expect("failed to emit eth event");
-     *              data_mut.counter
-     *          }
-     *      }
-     *      ```
-     *
-     *      All the `emit_eth_event` method in the Sails framework does is call the syscall
-     *      `gcore::msg::send(destination=ETH_EVENT_ADDR, payload, value=0)`, where `payload`
-     *      is encoded in Solidity notation as described below.
-     *
-     *      Format in which the Sails framework sends events:
-     *      - `uint8 topicsLength` (can be `1`, `2`, `3`, `4`).
-     *         specifies which opcode (`log1`, `log2`, `log3`, `log4`) should be called.
-     *      - `bytes32 topic1` (required)
-     *         should never match our event selectors!
-     *      - `bytes32 topic2` (optional)
-     *      - `bytes32 topic3` (optional)
-     *      - `bytes32 topic4` (optional)
-     *      - `bytes payload` (optional)
-     *         contains encoded data of event in form of `abi.encode(...)`.
-     * @param _message The message to be parsed and emitted as Solidity event.
-     * @return isSailsEvent `true` in case of success and `false` in case of error (no matching event found).
-     */
-    function _tryParseAndEmitSailsEvent(Gear.Message calldata _message) private returns (bool isSailsEvent) {
-        bytes calldata payload = _message.payload;
-
-        if (!(_message.destination == ETH_EVENT_ADDR && _message.value == 0 && payload.length > 0)) {
-            return false;
-        }
-
-        uint256 topicsLength;
-        assembly ("memory-safe") {
-            /**
-             * @dev `248` right bit shift is required to remove extra bits since `calldataload` returns `uint256`
-             */
-            topicsLength := shr(248, calldataload(payload.offset))
-        }
-
-        if (!(topicsLength >= 1 && topicsLength <= 4)) {
-            return false;
-        }
-
-        uint256 topicsLengthInBytes;
-        unchecked {
-            topicsLengthInBytes = 1 + topicsLength * 32;
-        }
-
-        if (!(payload.length >= topicsLengthInBytes)) {
-            return false;
-        }
-
-        /**
-         * @dev We use offset 1 to skip `uint8 topicsLength`
-         */
-        bytes32 topic1;
-        assembly ("memory-safe") {
-            topic1 := calldataload(add(payload.offset, 1))
-        }
-
-        /**
-         * @dev SECURITY:
-         *      Very important check because custom events can match our hashes!
-         *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
-         *
-         *      Command to re-generate selectors check:
-         *      ```bash
-         *      grep -Po "    event\s+\K[^(]+" ethexe/contracts/src/IMirror.sol | xargs -I{} echo "            topic1 != {}.selector &&" | sed '$ s/ &&$//'
-         *      ```
-         */
-        // forgefmt: disable-start
-        if (!(
-            topic1 != StateChanged.selector &&
-            topic1 != MessageQueueingRequested.selector &&
-            topic1 != ReplyQueueingRequested.selector &&
-            topic1 != ValueClaimingRequested.selector &&
-            topic1 != OwnedBalanceTopUpRequested.selector &&
-            topic1 != ExecutableBalanceTopUpRequested.selector &&
-            topic1 != Message.selector &&
-            topic1 != MessageCallFailed.selector &&
-            topic1 != Reply.selector &&
-            topic1 != ReplyCallFailed.selector &&
-            topic1 != ValueClaimed.selector &&
-            topic1 != TransferLockedValueToInheritorFailed.selector &&
-            topic1 != ReplyTransferFailed.selector &&
-            topic1 != ValueClaimFailed.selector
-        )) {
-            return false;
-        }
-        // forgefmt: disable-end
-
-        uint256 size;
-        unchecked {
-            size = payload.length - topicsLengthInBytes;
-        }
-
-        uint256 memPtr = Memory.allocate(size);
-        assembly ("memory-safe") {
-            calldatacopy(memPtr, add(payload.offset, topicsLengthInBytes), size)
-        }
-
-        /**
-         * @dev We use offset 1 to skip `uint8 topicsLength`.
-         *      Regular offsets: `32`, `64`, `96`.
-         */
-        bytes32 topic2;
-        bytes32 topic3;
-        bytes32 topic4;
-        assembly ("memory-safe") {
-            topic2 := calldataload(add(payload.offset, 33))
-            topic3 := calldataload(add(payload.offset, 65))
-            topic4 := calldataload(add(payload.offset, 97))
-        }
-
-        if (topicsLength == 1) {
-            assembly ("memory-safe") {
-                log1(memPtr, size, topic1)
-            }
-        } else if (topicsLength == 2) {
-            assembly ("memory-safe") {
-                log2(memPtr, size, topic1, topic2)
-            }
-        } else if (topicsLength == 3) {
-            assembly ("memory-safe") {
-                log3(memPtr, size, topic1, topic2, topic3)
-            }
-        } else if (topicsLength == 4) {
-            assembly ("memory-safe") {
-                log4(memPtr, size, topic1, topic2, topic3, topic4)
+            if (!success) {
+                /**
+                 * @dev In case of failed call, we emit appropriate event to inform external users.
+                 */
+                emit MessageCallFailed(_message.id, _message.destination, _message.value);
+                return;
             }
         }
 
-        return true;
+        emit Message(_message.id, _message.destination, _message.payload, _message.value);
     }
 
     /**
@@ -953,6 +782,230 @@ contract Mirror is IMirror {
         }
 
         return Hashes.efficientKeccak256AsBytes32(claimsHashesMemPtr, 0, claimsHashesSize);
+    }
+
+    /**
+     * @dev Internal function to emit Gear events from messages.
+     *      It computes the hash of all events by keccak256 hashing each event
+     *      and combining them together.
+     * @param _events The array of events to be emitted.
+     * @return eventsHash The hash of the emitted events.
+     */
+    function _emitGearEvents(bytes[] calldata _events) private returns (bytes32 eventsHash) {
+        uint256 eventsLen = _events.length;
+        uint256 eventsHashesSize = eventsLen * 32;
+        uint256 eventsHashesMemPtr = Memory.allocate(eventsHashesSize);
+        uint256 offset = 0;
+
+        for (uint256 i = 0; i < eventsLen; i++) {
+            bytes32 eventHash = keccak256(_events[i]);
+            Memory.writeWordAsBytes32(eventsHashesMemPtr, offset, eventHash);
+            unchecked {
+                offset += 32;
+            }
+
+            emit GearEvent(_events[i]);
+        }
+
+        return Hashes.efficientKeccak256AsBytes32(eventsHashesMemPtr, 0, eventsHashesSize);
+    }
+
+    /**
+     * @dev Internal function to emit Ethereum events.
+     *      It computes the hash of all events by keccak256 hashing each event
+     *      and combining them together.
+     * @param _events The array of Ethereum events to be emitted.
+     * @return ethEventsHash The hash of the emitted Ethereum events.
+     */
+    function _emitEthEvents(bytes[] calldata _events) private returns (bytes32 ethEventsHash) {
+        uint256 eventsLen = _events.length;
+        uint256 eventsHashesSize = eventsLen * 32;
+        uint256 eventsHashesMemPtr = Memory.allocate(eventsHashesSize);
+        uint256 offset = 0;
+
+        for (uint256 i = 0; i < eventsLen; i++) {
+            bytes32 eventHash = keccak256(_events[i]);
+            Memory.writeWordAsBytes32(eventsHashesMemPtr, offset, eventHash);
+            unchecked {
+                offset += 32;
+            }
+
+            _tryParseAndEmitSailsEvent(_events[i]);
+        }
+
+        return Hashes.efficientKeccak256AsBytes32(eventsHashesMemPtr, 0, eventsHashesSize);
+    }
+
+    /**
+     * @dev Tries to parse an event from the Sails framework and emit it in Solidity notation.
+     *
+     *      User writes WASM smart contract on Sails framework called "Counter":
+     *      - https://github.com/gear-foundation/vara-eth-demo/blob/master/app/src/lib.rs
+     *
+     *      Example of defining Solidity events in WASM contract based on Sails framework:
+     *      ```rust
+     *      #[event]
+     *      #[derive(Clone, Debug, PartialEq, Encode, TypeInfo)]
+     *      #[codec(crate = scale_codec)]
+     *      #[scale_info(crate = scale_info)]
+     *      pub enum CounterEvents {
+     *          Added {
+     *              #[indexed]
+     *              source: ActorId,
+     *              value: u32,
+     *          },
+     *      }
+     *      ```
+     *
+     *      User also generates "Solidity ABI interface" that allows services like Etherscan to decode events from `Mirror`
+     *      (since we use the ABI interface as "proxy implementation"):
+     *      ```solidity
+     *      interface ICounter {
+     *          event Added(address indexed source, uint32 value);
+     *
+     *          // ... other events
+     *      }
+     *      ```
+     *
+     *      Now let's imagine that the user wants to calculate something in WASM contract and send it to Ethereum as event,
+     *      which will then be emitted by `Mirror` smart contract as showed on services like Etherscan:
+     *      ```rust
+     *      #[service(events = CounterEvents)]
+     *      impl CounterService<'_> {
+     *          #[export]
+     *          pub fn add(&mut self, value: u32) -> u32 {
+     *              let mut data_mut = self.data.borrow_mut();
+     *              data_mut.counter = data_mut.counter.checked_add(value).expect("failed to add");
+     *              let source = Syscall::message_source();
+     *              self.emit_eth_event(CounterEvents::Added { source, value })
+     *                  .expect("failed to emit eth event");
+     *              data_mut.counter
+     *          }
+     *      }
+     *      ```
+     *
+     *      All the `emit_eth_event` method in the Sails framework does is call the syscall
+     *      `gcore::msg::send(destination=ETH_EVENT_ADDR, payload, value=0)`, where `payload`
+     *      is encoded in Solidity notation as described below.
+     *
+     *      Format in which the Sails framework sends events:
+     *      - `uint8 topicsLength` (can be `1`, `2`, `3`, `4`).
+     *         specifies which opcode (`log1`, `log2`, `log3`, `log4`) should be called.
+     *      - `bytes32 topic1` (required)
+     *         should never match our event selectors!
+     *      - `bytes32 topic2` (optional)
+     *      - `bytes32 topic3` (optional)
+     *      - `bytes32 topic4` (optional)
+     *      - `bytes payload` (optional)
+     *         contains encoded data of event in form of `abi.encode(...)`.
+     * @param _payload The payload to be parsed and emitted as Solidity event.
+     */
+    function _tryParseAndEmitSailsEvent(bytes calldata _payload) private {
+        if (!(_payload.length > 0)) {
+            return;
+        }
+
+        uint256 topicsLength;
+        assembly ("memory-safe") {
+            /**
+             * @dev `248` right bit shift is required to remove extra bits since `calldataload` returns `uint256`
+             */
+            topicsLength := shr(248, calldataload(_payload.offset))
+        }
+
+        if (!(topicsLength >= 1 && topicsLength <= 4)) {
+            return;
+        }
+
+        uint256 topicsLengthInBytes;
+        unchecked {
+            topicsLengthInBytes = 1 + topicsLength * 32;
+        }
+
+        if (!(_payload.length >= topicsLengthInBytes)) {
+            return;
+        }
+
+        /**
+         * @dev We use offset 1 to skip `uint8 topicsLength`
+         */
+        bytes32 topic1;
+        assembly ("memory-safe") {
+            topic1 := calldataload(add(_payload.offset, 1))
+        }
+
+        /**
+         * @dev SECURITY:
+         *      Very important check because custom events can match our hashes!
+         *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
+         *
+         *      Command to re-generate selectors check:
+         *      ```bash
+         *      grep -Po "    event\s+\K[^(]+" ethexe/contracts/src/IMirror.sol | xargs -I{} echo "            topic1 != {}.selector &&" | sed '$ s/ &&$//'
+         *      ```
+         */
+        // forgefmt: disable-start
+        if (!(
+            topic1 != StateChanged.selector &&
+            topic1 != MessageQueueingRequested.selector &&
+            topic1 != ReplyQueueingRequested.selector &&
+            topic1 != ValueClaimingRequested.selector &&
+            topic1 != OwnedBalanceTopUpRequested.selector &&
+            topic1 != ExecutableBalanceTopUpRequested.selector &&
+            topic1 != Message.selector &&
+            topic1 != MessageCallFailed.selector &&
+            topic1 != Reply.selector &&
+            topic1 != ReplyCallFailed.selector &&
+            topic1 != ValueClaimed.selector &&
+            topic1 != GearEvent.selector &&
+            topic1 != TransferLockedValueToInheritorFailed.selector &&
+            topic1 != ReplyTransferFailed.selector &&
+            topic1 != ValueClaimFailed.selector
+        )) {
+            return;
+        }
+        // forgefmt: disable-end
+
+        uint256 size;
+        unchecked {
+            size = _payload.length - topicsLengthInBytes;
+        }
+
+        uint256 memPtr = Memory.allocate(size);
+        assembly ("memory-safe") {
+            calldatacopy(memPtr, add(_payload.offset, topicsLengthInBytes), size)
+        }
+
+        /**
+         * @dev We use offset 1 to skip `uint8 topicsLength`.
+         *      Regular offsets: `32`, `64`, `96`.
+         */
+        bytes32 topic2;
+        bytes32 topic3;
+        bytes32 topic4;
+        assembly ("memory-safe") {
+            topic2 := calldataload(add(_payload.offset, 33))
+            topic3 := calldataload(add(_payload.offset, 65))
+            topic4 := calldataload(add(_payload.offset, 97))
+        }
+
+        if (topicsLength == 1) {
+            assembly ("memory-safe") {
+                log1(memPtr, size, topic1)
+            }
+        } else if (topicsLength == 2) {
+            assembly ("memory-safe") {
+                log2(memPtr, size, topic1, topic2)
+            }
+        } else if (topicsLength == 3) {
+            assembly ("memory-safe") {
+                log3(memPtr, size, topic1, topic2, topic3)
+            }
+        } else if (topicsLength == 4) {
+            assembly ("memory-safe") {
+                log4(memPtr, size, topic1, topic2, topic3, topic4)
+            }
+        }
     }
 
     // TODO (breathx): allow zero inheritor in `Router`.

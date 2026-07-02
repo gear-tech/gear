@@ -7,7 +7,9 @@ use crate::{
         ActiveProgram, Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
         Program, ProgramState, Storage,
     },
-    transitions::is_event_destination,
+    transitions::{
+        is_eth_sails_event_destination, is_event_destination, is_gear_sails_event_destination,
+    },
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -181,15 +183,12 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
 
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
-
-                        transition
-                            .messages
-                            .push(Message::from_stored(stored, false));
-                        transition.claims.push(ethexe_common::gear::ValueClaim {
-                            message_id,
-                            destination,
-                            value,
-                        });
+                        let payload = stored.payload_bytes().to_vec();
+                        if is_gear_sails_event_destination(destination) {
+                            transition.events.push(payload);
+                        } else if is_eth_sails_event_destination(destination) {
+                            transition.eth_events.push(payload);
+                        }
                     });
 
                     let reply = Dispatch::reply(
@@ -905,11 +904,7 @@ mod tests {
 
     use super::*;
 
-    use crate::{
-        InBlockTransitions, TransitionsConfig,
-        state::MemStorage,
-        transitions::{ETH_SAILS_EVENT, GEAR_SAILS_EVENT},
-    };
+    use crate::{InBlockTransitions, TransitionsConfig, state::MemStorage};
 
     fn init_setup(
         exec_balance: u128,
@@ -954,6 +949,25 @@ mod tests {
                 ActorId::from(7),
                 destination,
                 Default::default(),
+                None,
+                value,
+                None,
+            ),
+        )
+    }
+
+    fn dispatch_to_with_payload(
+        destination: ActorId,
+        value: u128,
+        payload: Vec<u8>,
+    ) -> CoreDispatch {
+        CoreDispatch::new(
+            DispatchKind::Handle,
+            CoreMessage::new(
+                MessageId::from(10),
+                ActorId::from(7),
+                destination,
+                payload.try_into().unwrap(),
                 None,
                 value,
                 None,
@@ -1014,14 +1028,13 @@ mod tests {
         let state = storage.program_state(state_hash).unwrap();
 
         if event_destinations_autoreply {
-            assert_eq!(transition.messages.len(), 1);
-            assert_eq!(transition.messages[0].id, MessageId::from(10));
-            assert_eq!(transition.messages[0].destination, destination);
-            assert_eq!(transition.messages[0].value, 11);
-            assert_eq!(transition.claims.len(), 1);
-            assert_eq!(transition.claims[0].message_id, MessageId::from(10));
-            assert_eq!(transition.claims[0].destination, destination);
-            assert_eq!(transition.claims[0].value, 11);
+            assert!(transition.messages.is_empty());
+            assert!(transition.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert_eq!(transition.events.len(), 1);
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(transition.eth_events.len(), 1);
+            }
         } else {
             assert_eq!(transition.messages.len(), 1);
             assert!(transition.claims.is_empty());
@@ -1032,7 +1045,7 @@ mod tests {
 
     #[test]
     fn event_destination_messages_skip_mailbox_and_expire_immediately() {
-        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let (storage, state) = handle_user_dispatch(destination, true);
 
             assert!(state.mailbox_hash.is_empty());
@@ -1059,7 +1072,7 @@ mod tests {
 
     #[test]
     fn event_destination_messages_keep_legacy_mailbox_when_disabled() {
-        let (_storage, state) = handle_user_dispatch(GEAR_SAILS_EVENT, false);
+        let (_storage, state) = handle_user_dispatch(ActorId::GEAR_SAILS_EVENT, false);
 
         assert!(!state.mailbox_hash.is_empty());
         assert!(state.canonical_queue.is_empty());
@@ -1071,7 +1084,7 @@ mod tests {
         use gear_core::tasks::TaskHandler;
 
         const DELAY: u32 = 5;
-        let destination = ETH_SAILS_EVENT;
+        let destination = ActorId::ETH_SAILS_EVENT;
         let storage = MemStorage::default();
         let source = ActorId::from(7);
         let message_id = MessageId::from(10);
@@ -1116,7 +1129,7 @@ mod tests {
 
             handler.send_dispatch(
                 MessageId::from(9),
-                dispatch_to(destination, 11),
+                dispatch_to_with_payload(destination, 11, vec![1, 2, 3]),
                 DELAY,
                 None,
             );
@@ -1144,14 +1157,10 @@ mod tests {
         }
 
         let transition = transitions.modifications_mut().get(&source).unwrap();
-        assert_eq!(transition.messages.len(), 1);
-        assert_eq!(transition.messages[0].id, message_id);
-        assert_eq!(transition.messages[0].destination, destination);
-        assert_eq!(transition.messages[0].value, 11);
-        assert_eq!(transition.claims.len(), 1);
-        assert_eq!(transition.claims[0].message_id, message_id);
-        assert_eq!(transition.claims[0].destination, destination);
-        assert_eq!(transition.claims[0].value, 11);
+        assert_eq!(transition.messages.len(), 0);
+        assert_eq!(transition.claims.len(), 0);
+        assert_eq!(transition.eth_events.len(), 1);
+        assert_eq!(transition.eth_events[0], vec![1, 2, 3]);
 
         let state_hash = transitions.state_of(&source).unwrap().hash;
         let state = storage.program_state(state_hash).unwrap();
