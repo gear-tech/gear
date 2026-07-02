@@ -2,15 +2,15 @@
 
 ## Contents
 1. [Summary](#summary)
-1. [Testing technique](#testing-technique)
-1. [Cases](#cases)
+2. [Testing technique](#testing-technique)
+3. [Cases](#cases)
     1. [Execution signal codes](#execution)
         1. [Userspace panic](#userspace-panic)
-        1. [Ran out of gas](#run-out-of-gas)
-        1. [Backend error](#backend-error)
-        1. [Memory overflow](#memory-overflow)
-        1. [Unreachable instruction](#unreachable-instruction)
-    1. [Non-execution signal codes](#non-execution)
+        2. [Ran out of gas](#run-out-of-gas)
+        3. [Backend error](#backend-error)
+        4. [Memory overflow](#memory-overflow)
+        5. [Unreachable instruction](#unreachable-instruction)
+    2. [Non-execution signal codes](#non-execution)
         1. [Removed from waitlist](#removed-from-waitlist)
 
 ## Summary

@@ -3,19 +3,12 @@
 
 //! Handlers for patching manifests.
 
-use crate::Manifest;
-use anyhow::Result;
-use cargo_metadata::Package;
-
 /// The working version of sp-wasm-interface.
 pub const GP_RUNTIME_INTERFACE_VERSION: &str = "18.0.0";
 
 /// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
     match pkg {
-        // `gear-core-processor` is taken by others, see the docs
-        // of [`core_processor::patch_workspace`] for more details.
-        "gear-core-processor" => "core-processor",
         "sp-allocator" => "gsp-allocator",
         "sp-wasm-interface" => "gsp-wasm-interface",
         "sp-wasm-interface-common" => "gsp-wasm-interface-common",
@@ -28,26 +21,12 @@ pub fn crates_io_name(pkg: &str) -> &str {
     }
 }
 
-/// Patch specified manifest by provided name.
-pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<Manifest> {
-    let mut manifest = Manifest::new(pkg, is_published, is_actualized)?;
-    let doc = &mut manifest.mutable_manifest;
-
-    if manifest.name.as_str() == "gear-core-processor" {
-        core_processor::patch(doc);
-    }
-
-    Ok(manifest)
-}
-
 /// Apply publish-only manifest patches.
 pub fn patch_publish(name: &str, doc: &mut toml_edit::DocumentMut) {
     match name {
         local_name if crate::GEAR_SUBSTRATE_DEPENDENCIES.contains(&local_name) => {
             substrate_fork::patch_manifest(local_name, doc)
         }
-        "ethexe-rpc" => ethexe_rpc::patch(doc),
-        "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-interface" => sandbox_interface::patch(doc),
         _ => {}
@@ -65,8 +44,6 @@ pub fn patch_alias(index: &mut Vec<&str>) {
 
 /// Patch the workspace manifest.
 pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
-    patch_workspace_alias(name, table);
-
     match name {
         local_name if crate::GEAR_SUBSTRATE_DEPENDENCIES.contains(&local_name) => {
             substrate_fork::patch_workspace(local_name, table)
@@ -90,14 +67,6 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
 /// Patch the workspace manifest for publish-only state.
 pub fn patch_publish_workspace(doc: &mut toml_edit::DocumentMut) {
     substrate_fork::patch_publish_workspace(doc);
-}
-
-/// Patch workspace aliases required by package manifest patches.
-pub fn patch_workspace_alias(name: &str, table: &mut toml_edit::InlineTable) {
-    match name {
-        "core-processor" | "gear-core-processor" => core_processor::patch_workspace(name, table),
-        _ => {}
-    }
 }
 
 /// Gear-maintained Polkadot SDK-compatible local crates.
@@ -158,64 +127,6 @@ mod substrate_fork {
     }
 }
 
-/// ethexe-rpc handler.
-mod ethexe_rpc {
-    use toml_edit::{Array, DocumentMut};
-
-    /// Remove the `ethexe-processor` dependency from the crates.io manifest,
-    /// because it is not part of the crates.io set.
-    pub fn patch(manifest: &mut DocumentMut) {
-        if let Some(deps) = manifest["dependencies"].as_table_like_mut() {
-            deps.remove("ethexe-processor");
-        }
-
-        let Some(features) = manifest["features"].as_table_like_mut() else {
-            return;
-        };
-
-        let mut default_features = Array::default();
-        default_features.push("client");
-
-        features.insert("default", toml_edit::value(default_features));
-
-        let Some(server_features) = features
-            .get_mut("server")
-            .and_then(toml_edit::Item::as_array_mut)
-        else {
-            return;
-        };
-        server_features.retain(|feature| feature.as_str() != Some("dep:ethexe-processor"));
-    }
-}
-
-/// gear-core-processor handler.
-mod core_processor {
-    use toml_edit::{DocumentMut, InlineTable};
-
-    /// Pointing the package name of core-processor to
-    /// `core-processor` on `crates-io` since this is
-    /// the one we own.
-    pub fn patch_workspace(name: &str, table: &mut InlineTable) {
-        match name {
-            // Remove the path definition to point core-processor to
-            // crates-io.
-            "core-processor" => {
-                table.remove("package");
-            }
-            // Points to `core-processor` for the one on crates-io.
-            "gear-core-processor" => {
-                table.insert("package", "core-processor".into());
-            }
-            _ => {}
-        }
-    }
-
-    /// Patch the manifest of core-processor.
-    pub fn patch(manifest: &mut DocumentMut) {
-        manifest["package"]["name"] = toml_edit::value("core-processor");
-    }
-}
-
 /// sandbox handler.
 mod sandbox {
     use toml_edit::DocumentMut;
@@ -232,7 +143,7 @@ mod sandbox {
     }
 }
 
-/// sandbox interface handler
+/// sandbox interface handler.
 mod sandbox_interface {
     use super::GP_RUNTIME_INTERFACE_VERSION;
     use toml_edit::DocumentMut;

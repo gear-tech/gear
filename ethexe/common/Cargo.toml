@@ -1,14 +1,16 @@
 [package]
 name = "ethexe-common"
-description = "Shared types and primitives for the ethexe execution layer"
-documentation = "https://docs.rs/ethexe-common"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Shared types and primitives for the ethexe execution layer"
+documentation = "https://docs.rs/ethexe-common"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["ethexe", "ethereum", "gear", "consensus", "no-std"]
+categories = ["cryptography::cryptocurrencies", "data-structures", "no-std"]
 
 [package.metadata.cargo-shear]
 # we need it for applying `disable_allocator` feature

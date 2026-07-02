@@ -1,16 +1,16 @@
 [package]
 name = "gear-common-codegen"
-description = "Code generation library for the Gear common library"
-documentation = "https://docs.rs/gear-common-codegen"
-keywords = ["gear", "wasm", "codegen"]
-categories = ["wasm"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Code generation library for the Gear common library"
+documentation = "https://docs.rs/gear-common-codegen"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "codegen", "proc-macro", "derive", "runtime"]
+categories = ["development-tools::procedural-macro-helpers"]
 
 [lib]
 proc-macro = true

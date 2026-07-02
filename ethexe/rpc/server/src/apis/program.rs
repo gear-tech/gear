@@ -1,77 +1,33 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-#[cfg(feature = "server")]
 use crate::{
     apis::program_best_state::{BestStateManager, spawn_best_state_subscriber},
-    errors, utils,
+    errors,
+    types::{CalculateReplyForHandleResult, FullProgramState, OutgoingActions, Proof},
+    utils,
 };
-#[cfg(feature = "server")]
 use ethexe_common::{
     HashOf, ToDigest,
     db::{CodesStorageRO, MbStorageRO, OutgoingActionStorageRO},
 };
-use ethexe_common::{OutgoingAction, OutgoingActions, gear::Message};
-#[cfg(feature = "server")]
 use ethexe_db::Database;
-#[cfg(feature = "server")]
 use ethexe_processor::{ExecutableDataForReply, OverlaidProcessor};
 use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, UserMailbox, Waitlist,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, ProgramState, QueryableStorage, Storage,
+    UserMailbox, Waitlist,
 };
-#[cfg(feature = "server")]
-use ethexe_runtime_common::state::{QueryableStorage, Storage};
-use gear_core::rpc::ReplyInfo;
-use gprimitives::{H160, H256, MessageId, U256};
-use jsonrpsee::proc_macros::rpc;
-#[cfg(feature = "server")]
+use gprimitives::{H160, H256, MessageId};
 use jsonrpsee::{
     core::{SubscriptionResult, async_trait},
+    proc_macros::rpc,
     server::PendingSubscriptionSink,
 };
-use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
+use parity_scale_codec::Encode;
 use sp_core::Bytes;
-#[cfg(feature = "server")]
 use sp_runtime::traits::Keccak256;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FullProgramState {
-    pub program: Program,
-    pub canonical_queue: Option<MessageQueue>,
-    pub injected_queue: Option<MessageQueue>,
-    pub waitlist: Option<Waitlist>,
-    pub stash: Option<DispatchStash>,
-    pub mailbox: Option<Mailbox>,
-    pub balance: u128,
-    pub executable_balance: u128,
-    pub outgoing_actions_counter: u64,
-}
-
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-pub struct Proof {
-    pub total_leaves: U256,
-    pub leaf_index: U256,
-    pub outgoing_action: OutgoingAction,
-    pub proof: Vec<H256>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CalculateReplyForHandleResult {
-    pub reply: ReplyInfo,
-    pub messages: Vec<Message>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProgramBestState {
-    pub mb_hash: H256,
-    pub new_state_hash: H256,
-    pub messages: Vec<Message>,
-}
-
-#[cfg_attr(all(feature = "server", feature = "client"), rpc(server, client))]
-#[cfg_attr(all(feature = "server", not(feature = "client")), rpc(server))]
-#[cfg_attr(all(not(feature = "server"), feature = "client"), rpc(client))]
+#[rpc(server)]
 pub trait Program {
     #[method(name = "program_calculateReplyForHandle")]
     async fn calculate_reply_for_handle(
@@ -121,7 +77,7 @@ pub trait Program {
     #[subscription(
         name = "program_subscribeBestState",
         unsubscribe = "program_unsubscribeBestState",
-        item = ProgramBestState
+        item = crate::types::ProgramBestState
     )]
     async fn subscribe_best_state(&self, program_id: H160) -> jsonrpsee::core::SubscriptionResult;
 
@@ -139,7 +95,6 @@ pub trait Program {
     ) -> jsonrpsee::core::RpcResult<Proof>;
 }
 
-#[cfg(feature = "server")]
 pub struct ProgramApi {
     db: Database,
     processor: OverlaidProcessor,
@@ -147,7 +102,6 @@ pub struct ProgramApi {
     best_state: BestStateManager,
 }
 
-#[cfg(feature = "server")]
 impl ProgramApi {
     pub fn new(db: Database, processor: OverlaidProcessor, gas_allowance: u64) -> Self {
         let best_state = BestStateManager::new(db.clone());
@@ -185,7 +139,6 @@ impl ProgramApi {
     }
 }
 
-#[cfg(feature = "server")]
 #[async_trait]
 impl ProgramServer for ProgramApi {
     async fn calculate_reply_for_handle(

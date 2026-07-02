@@ -1,16 +1,17 @@
 [package]
 name = "gcli"
-description = "Gear program CLI"
-keywords = ["gear", "cli", "wasm"]
-categories = ["command-line-interface", "command-line-utilities", "wasm"]
-documentation = "https://docs.rs/gcli"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Gear program CLI"
+documentation = "https://docs.rs/gcli"
+readme = "README.md"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "vara", "cli", "wasm", "sdk"]
+categories = ["command-line-utilities", "api-bindings", "wasm"]
 
 [dependencies]
 gsdk.workspace = true

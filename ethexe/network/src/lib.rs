@@ -22,6 +22,7 @@ pub mod db_sync;
 mod gossipsub;
 mod injected;
 mod kad;
+pub mod malachite;
 mod peer_score;
 mod slots;
 mod utils;
@@ -40,6 +41,7 @@ use crate::{
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
 use anyhow::{Context, anyhow};
+use bytes::Bytes;
 use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
@@ -57,7 +59,6 @@ use libp2p::{
     futures::StreamExt,
     identify, identity, mdns,
     metrics::Recorder,
-    multiaddr::Protocol,
     ping,
     swarm::{Config as SwarmConfig, NetworkBehaviour, SwarmEvent, behaviour::toggle::Toggle},
     yamux,
@@ -199,6 +200,7 @@ pub struct NetworkService {
     validator_topic: ValidatorTopic,
     metrics: Libp2pMetrics,
     allow_non_global_addresses: bool,
+    malachite_state: malachite::state::State,
 }
 
 impl Stream for NetworkService {
@@ -210,6 +212,11 @@ impl Stream for NetworkService {
     ) -> Poll<Option<Self::Item>> {
         if let Some(message) = self.validator_topic.next_message() {
             return Poll::Ready(Some(NetworkEvent::ValidatorMessage(message)));
+        }
+
+        {
+            let this = self.as_mut().get_mut();
+            this.malachite_state.poll(&mut this.swarm, cx);
         }
 
         loop {
@@ -232,7 +239,7 @@ impl FusedStream for NetworkService {
 
 impl NetworkService {
     /// Construct a network service with all protocols enabled.
-    pub fn new(
+    pub async fn new(
         config: NetworkConfig,
         runtime_config: NetworkRuntimeConfig,
     ) -> anyhow::Result<NetworkService> {
@@ -306,14 +313,7 @@ impl NetworkService {
         let mut bootstrap_peers = HashSet::new();
         for multiaddr in bootstrap_addresses {
             let peer_id = multiaddr
-                .iter()
-                .find_map(|p| {
-                    if let Protocol::P2p(peer_id) = p {
-                        Some(peer_id)
-                    } else {
-                        None
-                    }
-                })
+                .peer_id()
                 .context("bootstrap nodes are not allowed without peer ID")?;
 
             swarm.add_peer_address(peer_id, multiaddr.clone());
@@ -321,12 +321,14 @@ impl NetworkService {
             bootstrap_peers.insert(peer_id);
         }
 
+        let malachite_state = malachite::state::State::spawn(keypair.public().to_peer_id()).await?;
+
         log::info!(
             "NetworkService created with peer id: {}",
             swarm.local_peer_id()
         );
 
-        Ok(Self {
+        let service = Self {
             swarm,
             listeners,
             bootstrap_peers,
@@ -334,7 +336,10 @@ impl NetworkService {
             validator_topic,
             metrics: (registry, metrics),
             allow_non_global_addresses,
-        })
+            malachite_state,
+        };
+
+        Ok(service)
     }
 
     fn create_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
@@ -405,6 +410,8 @@ impl NetworkService {
 
         self.metrics.1.record(&event);
 
+        self.malachite_state.handle_swarm_event(&event);
+
         match event {
             SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
@@ -430,6 +437,10 @@ impl NetworkService {
             BehaviourEvent::Injected(event) => return self.handle_injected_event(event),
             BehaviourEvent::ValidatorDiscovery(event) => {
                 return self.handle_validator_discovery_event(event);
+            }
+            BehaviourEvent::Malachite(event) => {
+                self.malachite_state
+                    .handle_malachite_event(&mut self.swarm, event);
             }
         }
 
@@ -543,6 +554,19 @@ impl NetworkService {
                             self.validator_topic.verify_receipt(source, receipt);
                         (acceptance, receipt.map(NetworkEvent::TxReceiptMessage))
                     }
+                    gossipsub::Message::MalachiteConsensus(data) => {
+                        let acceptance =
+                            self.malachite_state.handle_consensus_message(source, data);
+                        (acceptance, None)
+                    }
+                    gossipsub::Message::MalachiteLiveness(data) => {
+                        let acceptance = self.malachite_state.handle_liveness_message(source, data);
+                        (acceptance, None)
+                    }
+                    gossipsub::Message::MalachiteProposalParts(data) => {
+                        let acceptance = self.malachite_state.handle_proposal_part(source, data);
+                        (acceptance, None)
+                    }
                 })
             }
             gossipsub::Event::PublishFailure {
@@ -592,6 +616,15 @@ impl NetworkService {
         *self.swarm.local_peer_id()
     }
 
+    /// Set Malachite validator proof
+    pub fn set_malachite_validator_proof(&mut self, validator_proof: Bytes) {
+        self.swarm
+            .behaviour_mut()
+            .malachite
+            .validator_proof
+            .set_proof(validator_proof);
+    }
+
     /// Encode the libp2p metrics registry in Prometheus text format.
     pub fn render_libp2p_metrics(&self, writer: &mut impl Write) {
         let (registry, _metrics) = &self.metrics;
@@ -608,6 +641,11 @@ impl NetworkService {
     /// Handle used by external services to start db-sync requests.
     pub fn db_sync_handle(&self) -> db_sync::Handle {
         self.swarm.behaviour().db_sync.handle()
+    }
+
+    /// Returns Malachite network parts used by the consensus engine.
+    pub fn malachite_network_parts(&self) -> malachite::adapter::MalachiteNetworkParts {
+        self.malachite_state.parts()
     }
 
     /// Refresh validator-era state after the chain head changes.
@@ -711,6 +749,8 @@ pub(crate) struct Behaviour {
     pub injected: injected::Behaviour,
     // validator discovery
     pub validator_discovery: validator::discovery::Behaviour,
+    // Malachite BFT protocol lane
+    pub malachite: malachite::behaviour::Behaviour,
 }
 
 impl Behaviour {
@@ -729,6 +769,8 @@ impl Behaviour {
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
+
+        let malachite_config = malachite::Config::default();
 
         let connection_limits = connection_limits::ConnectionLimits::default()
             .with_max_established_per_peer(Some(MAX_ESTABLISHED_PER_PEER_CONNECTIONS))
@@ -767,6 +809,7 @@ impl Behaviour {
         let kad_handle = kad.handle();
 
         let gossipsub = gossipsub::Behaviour::new(
+            &malachite_config,
             keypair.clone(),
             peer_score_handle.clone(),
             router_address,
@@ -783,6 +826,9 @@ impl Behaviour {
         );
 
         let injected = injected::Behaviour::new();
+
+        let malachite = malachite::behaviour::Behaviour::new(&malachite_config, registry)
+            .context("failed to create malachite lane behaviour")?;
 
         let validator_discovery = validator::discovery::Config {
             kad: kad_handle,
@@ -806,6 +852,7 @@ impl Behaviour {
             db_sync,
             injected,
             validator_discovery,
+            malachite,
         })
     }
 }
@@ -918,7 +965,7 @@ mod tests {
             }
         }
 
-        fn build(self) -> NetworkService {
+        async fn build(self) -> NetworkService {
             const GENESIS_BLOCK_HEADER: BlockHeader = BlockHeader {
                 height: 0,
                 timestamp: 0,
@@ -957,20 +1004,20 @@ mod tests {
                 db,
             };
 
-            NetworkService::new(config, runtime_config).unwrap()
+            NetworkService::new(config, runtime_config).await.unwrap()
         }
     }
 
-    fn new_service() -> NetworkService {
-        NetworkServiceBuilder::new().build()
+    pub(crate) async fn new_service() -> NetworkService {
+        NetworkServiceBuilder::new().build().await
     }
 
     #[tokio::test]
     async fn test_memory_transport() {
         init_logger();
 
-        let mut service1 = new_service();
-        let mut service2 = new_service();
+        let mut service1 = new_service().await;
+        let mut service2 = new_service().await;
 
         service1.connect(&mut service2).await;
     }
@@ -979,7 +1026,7 @@ mod tests {
     async fn request_db_data() {
         init_logger();
 
-        let mut service1 = new_service();
+        let mut service1 = new_service().await;
         let service1_handle = service1.db_sync_handle();
 
         // second service
@@ -988,7 +1035,7 @@ mod tests {
         let hello = service2.db.cas().write(b"hello");
         let world = service2.db.cas().write(b"world");
 
-        let mut service2 = service2.build();
+        let mut service2 = service2.build().await;
 
         service1.connect(&mut service2).await;
         tokio::spawn(service1.loop_on_next());
@@ -1011,11 +1058,11 @@ mod tests {
     async fn peer_blocked_by_score() {
         init_logger();
 
-        let mut service1 = new_service();
+        let mut service1 = new_service().await;
         let peer_score_handle = service1.score_handle();
 
         // second service
-        let mut service2 = new_service();
+        let mut service2 = new_service().await;
         let service2_peer_id = service2.local_peer_id();
 
         service1.connect(&mut service2).await;
@@ -1040,11 +1087,11 @@ mod tests {
 
         let alice = NetworkServiceBuilder::new();
         let alice_data_provider = alice.data_provider.clone();
-        let mut alice = alice.build();
+        let mut alice = alice.build().await;
         let alice_handle = alice.db_sync_handle();
 
         let bob = NetworkServiceBuilder::new();
-        let mut bob = bob.build();
+        let mut bob = bob.build().await;
 
         alice.connect(&mut bob).await;
         tokio::spawn(alice.loop_on_next());
@@ -1076,13 +1123,13 @@ mod tests {
         alice.latest_validators = latest_validators.clone();
         alice.signer = signer.clone();
         alice.validator_key = Some(alice_key);
-        let mut alice = alice.build();
+        let mut alice = alice.build().await;
 
         let mut bob = NetworkServiceBuilder::new();
         bob.latest_validators = latest_validators;
         bob.signer = signer.clone();
         bob.validator_key = Some(bob_key);
-        let mut bob = bob.build();
+        let mut bob = bob.build().await;
 
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());

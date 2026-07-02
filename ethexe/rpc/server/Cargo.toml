@@ -1,14 +1,16 @@
 [package]
-name = "ethexe-rpc"
-description = "JSON-RPC server and client APIs for ethexe"
-documentation = "https://docs.rs/ethexe-rpc"
+name = "ethexe-rpc-server"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "JSON-RPC server APIs for ethexe"
+documentation = "https://docs.rs/ethexe-rpc-server"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["ethexe", "json-rpc", "rpc", "server"]
+categories = ["api-bindings", "network-programming", "asynchronous"]
 
 [dependencies]
 tokio = { workspace = true, features = ["sync"] }
@@ -16,7 +18,8 @@ anyhow.workspace = true
 futures.workspace = true
 gprimitives = { workspace = true, features = ["serde", "ethexe"] }
 ethexe-db.workspace = true
-ethexe-processor = { workspace = true, optional = true }
+ethexe-processor.workspace = true
+ethexe-rpc-common.workspace = true
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["cors"] }
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
@@ -27,7 +30,6 @@ ethexe-runtime-common = { workspace = true, features = ["std"] }
 sp-core = { workspace = true, features = ["serde"] }
 sp-runtime.workspace = true
 gear-core = { workspace = true, features = ["std"] }
-serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
 dashmap.workspace = true
 metrics.workspace = true
@@ -39,6 +41,7 @@ moka = { workspace = true, features = ["sync"] }
 binary-merkle-tree.workspace = true
 
 [dev-dependencies]
+ethexe-rpc-client.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
 ethexe-common = { workspace = true, features = ["std", "mock"] }
 ntest.workspace = true
@@ -46,7 +49,5 @@ tracing-subscriber.workspace = true
 
 ethexe-db = {workspace = true, features = ["mock"]}
 
-[features]
-default = ["server"]
-client = ["jsonrpsee/client"]
-server = ["dep:ethexe-processor", "jsonrpsee/server", "hyper/server"]
+[lints]
+workspace = true

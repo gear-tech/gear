@@ -38,9 +38,7 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteServiceConfig, MalachiteServiceStarter,
-    Multiaddr as MalachiteMultiaddr, PeerId, ValidatorEntry, derive_libp2p_secret,
-    malachite_libp2p_peer_id,
+    InjectedTxMempool, MalachiteServiceConfig, MalachiteServiceStarter, ValidatorEntry,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
@@ -48,7 +46,7 @@ use ethexe_observer::{
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
-use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
+use ethexe_rpc_server::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
 use ethexe_sdk::VaraEthApi;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
@@ -59,9 +57,8 @@ use jsonrpsee::{
     ws_client::{WsClient, WsClientBuilder},
 };
 use std::{
-    collections::HashMap,
     fmt, mem,
-    net::{SocketAddr, TcpListener},
+    net::SocketAddr,
     num::NonZero,
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
@@ -76,27 +73,6 @@ use tracing::Instrument;
 /// Max network services which can be created by one test environment.
 const MAX_NETWORK_SERVICES_PER_TEST: usize = 1000;
 
-/// Pre-allocated malachite endpoint: TCP port + deterministic peer-id.
-#[derive(Clone, Debug)]
-pub struct MalachiteEndpoint {
-    pub pub_key: PublicKey,
-    pub listen_addr: SocketAddr,
-    pub peer_id: PeerId,
-}
-
-impl MalachiteEndpoint {
-    pub fn multiaddr(&self) -> MalachiteMultiaddr {
-        format!(
-            "/ip4/{}/tcp/{}/p2p/{}",
-            self.listen_addr.ip(),
-            self.listen_addr.port(),
-            self.peer_id,
-        )
-        .parse()
-        .expect("constructed multiaddr is well-formed")
-    }
-}
-
 pub struct TestEnv {
     pub eth_cfg: EthereumConfig,
     #[allow(unused)]
@@ -110,61 +86,21 @@ pub struct TestEnv {
     pub threshold: u64,
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: std::num::NonZero<u8>,
+    pub batch_commitment_period: std::num::NonZero<u32>,
     pub canonical_quarantine: u8,
     pub post_quarantine_delay: u32,
     pub kicking_per_blocks: Option<u32>,
     #[allow(unused)]
     pub db: Database,
-    /// Endpoints aligned 1:1 with `validators`.
-    pub malachite_endpoints: Vec<MalachiteEndpoint>,
-    /// Pre-bound TCP listeners holding each validator's port until handed off in `new_node`.
-    malachite_listeners: HashMap<PublicKey, TcpListener>,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
     observer_events: (ObserverEventSender, ObserverEventReceiver),
     /// If network is enabled by test, then we store here:
     /// network service polling thread, bootstrap address and nonce for new node address generation.
-    bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
+    bootstrap_network: (JoinHandle<()>, String, usize),
 
     _anvil: Option<AnvilInstance>,
-}
-
-fn build_malachite_endpoints(
-    signer: &Signer,
-    validators: &[ValidatorConfig],
-) -> (Vec<MalachiteEndpoint>, HashMap<PublicKey, TcpListener>) {
-    // Bind concurrently so the OS picks distinct ports; listeners stay alive until handoff.
-    let listeners: Vec<TcpListener> = (0..validators.len())
-        .map(|_| {
-            TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-                .expect("bind 127.0.0.1:0 for malachite endpoint")
-        })
-        .collect();
-
-    let mut listener_map: HashMap<PublicKey, TcpListener> = HashMap::new();
-    let endpoints: Vec<MalachiteEndpoint> = validators
-        .iter()
-        .zip(listeners)
-        .map(|(v, listener)| {
-            let listen_addr = listener.local_addr().expect("local_addr");
-            listener_map.insert(v.public_key, listener);
-            let secret = signer
-                .private_key(v.public_key)
-                .expect("validator key in keyring")
-                .to_bytes();
-            let peer_id = malachite_libp2p_peer_id(&secret);
-            // Pull `derive_libp2p_secret` into scope to pin the engine's derivation invariant.
-            let _ = derive_libp2p_secret;
-            MalachiteEndpoint {
-                pub_key: v.public_key,
-                listen_addr,
-                peer_id,
-            }
-        })
-        .collect();
-
-    (endpoints, listener_map)
 }
 
 impl TestEnv {
@@ -180,6 +116,7 @@ impl TestEnv {
             network,
             deploy_params,
             commitment_delay_limit,
+            batch_commitment_period,
             canonical_quarantine,
             post_quarantine_delay,
             kicking_per_blocks,
@@ -359,13 +296,12 @@ impl TestEnv {
 
         let threshold = router_query.validators_threshold().await?;
 
-        let network_address = match network {
-            EnvNetworkConfig::Disabled => None,
-            EnvNetworkConfig::Enabled => Some(None),
-            EnvNetworkConfig::EnabledWithCustomAddress(address) => Some(Some(address)),
+        let maybe_address = match network {
+            EnvNetworkConfig::Enabled => None,
+            EnvNetworkConfig::EnabledWithCustomAddress(address) => Some(address),
         };
 
-        let bootstrap_network = network_address.map(|maybe_address| {
+        let bootstrap_network = {
             static NONCE: AtomicUsize = AtomicUsize::new(1);
 
             // mul MAX_NETWORK_SERVICES_PER_TEST to avoid address collision between different test-threads
@@ -389,7 +325,7 @@ impl TestEnv {
                 db: db.clone(),
             };
 
-            let mut service = NetworkService::new(config, runtime_config).unwrap();
+            let mut service = NetworkService::new(config, runtime_config).await.unwrap();
             let mut observer_events = observer_events.1.new_receiver();
 
             let local_peer_id = service.local_peer_id();
@@ -409,17 +345,13 @@ impl TestEnv {
                         }
                     }
                 }
-                .instrument(tracing::error_span!("network-stream")),
+                    .instrument(tracing::error_span!("network-stream")),
             );
 
             let bootstrap_address = format!("{address}/p2p/{local_peer_id}");
 
             (handle, bootstrap_address, nonce)
-        });
-
-        // Hold listeners alive until `start_service` to keep concurrent test processes off our ports.
-        let (malachite_endpoints, malachite_listeners) =
-            build_malachite_endpoints(&signer, &validator_configs);
+        };
 
         Ok(TestEnv {
             eth_cfg,
@@ -433,12 +365,11 @@ impl TestEnv {
             threshold,
             continuous_block_generation,
             commitment_delay_limit,
+            batch_commitment_period,
             canonical_quarantine,
             post_quarantine_delay,
             kicking_per_blocks,
             db,
-            malachite_endpoints,
-            malachite_listeners,
             router_query,
             observer_events,
             bootstrap_network,
@@ -466,37 +397,33 @@ impl TestEnv {
             None => self.new_initialized_db().await,
         };
 
-        let (network_address, network_bootstrap_address) = self
-            .bootstrap_network
-            .as_mut()
-            .map(|(_, bootstrap_address, nonce)| {
-                *nonce += 1;
+        let (network_address, network_bootstrap_address) = {
+            let (_, bootstrap_address, nonce) = &mut self.bootstrap_network;
 
-                if (*nonce).is_multiple_of(MAX_NETWORK_SERVICES_PER_TEST) {
-                    panic!("Too many network services created by one test env: max is {MAX_NETWORK_SERVICES_PER_TEST}");
-                }
+            *nonce += 1;
 
-                (format!("/memory/{nonce}"), bootstrap_address.clone())
-            })
-            .unzip();
-        let network_public_key = network_address.as_ref().map(|_| {
-            self.signer
-                .generate()
-                .expect("failed to generate network key")
-        });
+            if (*nonce).is_multiple_of(MAX_NETWORK_SERVICES_PER_TEST) {
+                panic!(
+                    "Too many network services created by one test env: max is {MAX_NETWORK_SERVICES_PER_TEST}"
+                );
+            }
+
+            (format!("/memory/{nonce}"), bootstrap_address.clone())
+        };
+        let network_public_key = validator_config
+            .as_ref()
+            .map(|config| config.public_key)
+            .unwrap_or_else(|| {
+                self.signer
+                    .generate()
+                    .expect("failed to generate network key")
+            });
 
         // Allocate once: stop+start reuses the same WAL/store.
         // Both validators and full nodes need a malachite home — full nodes
         // run the engine in `NodeRole::FullNode` so they receive
         // `BlockFinalized` and can compute MBs locally.
         let malachite_home = Some(tempfile::tempdir().expect("malachite home tempdir"));
-
-        // Take this validator's listener; it lives on the Node until first
-        // `start_service`. Full nodes don't have a pre-allocated endpoint
-        // in `self.malachite_endpoints` and bind a fresh port at start.
-        let malachite_listener = validator_config
-            .as_ref()
-            .and_then(|c| self.malachite_listeners.remove(&c.public_key));
 
         // Snapshot env.validators now so a node spawned post-rotation boots with the new set.
         let active_validator_pub_keys: Vec<PublicKey> =
@@ -521,10 +448,9 @@ impl TestEnv {
             service_rpc_config,
             fast_sync,
             commitment_delay_limit: self.commitment_delay_limit,
-            malachite_endpoints: self.malachite_endpoints.clone(),
+            batch_commitment_period: self.batch_commitment_period,
             active_validator_pub_keys,
             malachite_home,
-            malachite_listener,
             running_service_handle: None,
             shutdown_tx: None,
             canonical_quarantine: self.canonical_quarantine,
@@ -533,26 +459,6 @@ impl TestEnv {
                 .kicking_per_blocks
                 .map(|blocks| (blocks * self.eth_cfg.block_time, self.provider.clone())),
         }
-    }
-
-    /// Pre-allocate malachite endpoints for an *additional* validator set
-    /// (e.g. the "next" set in an era handover test) and merge them into
-    /// `self.malachite_endpoints` / `self.malachite_listeners`. Without this,
-    /// `start_service` panics when asked to boot a validator whose pubkey
-    /// wasn't part of `TestEnv::new` time.
-    pub fn extend_malachite_endpoints(&mut self, validators: &[ValidatorConfig]) {
-        let (extra_endpoints, extra_listeners) =
-            build_malachite_endpoints(&self.signer, validators);
-        for ep in extra_endpoints {
-            if !self
-                .malachite_endpoints
-                .iter()
-                .any(|e| e.pub_key == ep.pub_key)
-            {
-                self.malachite_endpoints.push(ep);
-            }
-        }
-        self.malachite_listeners.extend(extra_listeners);
     }
 
     pub async fn new_initialized_db(&self) -> Database {
@@ -822,12 +728,10 @@ pub enum ValidatorsConfig {
 
 /// Configuration for the network service.
 pub enum EnvNetworkConfig {
-    /// Network service is disabled.
-    Disabled,
-    /// Network service is enabled. Network address will be generated.
+    /// Bootstrap network is enabled. Network address will be generated.
     Enabled,
     #[allow(unused)]
-    /// Network service is enabled. Network address is provided as String.
+    /// Bootstrap network is enabled. Network address is provided as String.
     EnabledWithCustomAddress(String),
 }
 
@@ -860,12 +764,15 @@ pub struct TestEnvConfig {
     pub router_address: Option<String>,
     /// Identify whether networks works (or have to works) in continuous block generation mode, false by default.
     pub continuous_block_generation: bool,
-    /// Network service configuration, disabled by default.
+    /// Bootstrap network configuration, disabled by default.
     pub network: EnvNetworkConfig,
     /// Smart contracts deploy configuration.
     pub deploy_params: ContractsDeploymentParams,
     /// Commitment delay limit in Eth blocks (coordinator-local).
     pub commitment_delay_limit: std::num::NonZero<u8>,
+    /// How often batch commitments are produced (block-height period).
+    /// Defaults to 1 (commit every block) in tests.
+    pub batch_commitment_period: std::num::NonZero<u32>,
     /// Canonical quarantine period in blocks.
     pub canonical_quarantine: u8,
     /// Producer-side extra anchor-depth slack on top of `canonical_quarantine`.
@@ -892,9 +799,10 @@ impl Default for TestEnvConfig {
             signer: Signer::memory(),
             router_address: None,
             continuous_block_generation: false,
-            network: EnvNetworkConfig::Disabled,
+            network: EnvNetworkConfig::Enabled,
             deploy_params: Default::default(),
             commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
+            batch_commitment_period: ethexe_common::DEFAULT_BATCH_COMMITMENT_PERIOD,
             canonical_quarantine: 0,
             post_quarantine_delay: 0,
             kicking_per_blocks: Some(3),
@@ -1019,12 +927,13 @@ pub struct Node {
     signer: Signer,
     threshold: u64,
     validator_config: Option<ValidatorConfig>,
-    network_public_key: Option<PublicKey>,
-    network_address: Option<String>,
-    network_bootstrap_address: Option<String>,
+    network_public_key: PublicKey,
+    network_address: String,
+    network_bootstrap_address: String,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
     commitment_delay_limit: std::num::NonZero<u8>,
+    batch_commitment_period: std::num::NonZero<u32>,
     canonical_quarantine: u8,
     post_quarantine_delay: u32,
     kicking_per_blocks: Option<(Duration, RootProvider)>,
@@ -1032,13 +941,9 @@ pub struct Node {
     /// Malachite WAL + store.db tempdir; lives with the node.
     malachite_home: Option<tempfile::TempDir>,
 
-    /// Endpoints of every validator (this node + peers).
-    malachite_endpoints: Vec<MalachiteEndpoint>,
     /// Snapshot of `env.validators` at `new_node` time — drives the
     /// boot-time filter on `malachite_endpoints` in `start_service`.
     active_validator_pub_keys: Vec<PublicKey>,
-    /// Port reservation; dropped just before the first malachite service start.
-    malachite_listener: Option<TcpListener>,
 
     running_service_handle: Option<JoinHandle<()>>,
     /// Graceful shutdown — flushes WAL and releases the libp2p listener.
@@ -1113,6 +1018,7 @@ impl Node {
                             // short Eth-block budget service tests run for.
                             uncommitted_chain_len_threshold: std::num::NonZero::new(u32::MAX)
                                 .unwrap(),
+                            batch_commitment_period: self.batch_commitment_period,
                         },
                     )
                     .unwrap(),
@@ -1124,60 +1030,27 @@ impl Node {
 
         let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
 
+        let network = self
+            .construct_network_service(latest_block, latest_validators)
+            .await;
+        self.multiaddr = Some(format!(
+            "{addr}/p2p/{peer_id}",
+            addr = self.network_address,
+            peer_id = network.local_peer_id()
+        ));
+
         // Validators and full/RPC nodes both join the Malachite mesh.
         // Full nodes run in `NodeRole::FullNode` (no signing) but still
         // receive `BlockFinalized` and trigger local compute so promise
         // bodies reach the RPC subscription manager.
         let malachite = {
-            // Filter `malachite_endpoints` to era-current pubkeys —
-            // leftover entries from `extend_malachite_endpoints` would
-            // skew the >2/3 threshold.
-            let active: Vec<&MalachiteEndpoint> = self
-                .malachite_endpoints
-                .iter()
-                .filter(|e| self.active_validator_pub_keys.contains(&e.pub_key))
-                .collect();
+            let malachite_network = network.malachite_network_parts();
 
-            let (listen_addr, persistent_peers) = match self.validator_config.as_ref() {
-                Some(config) => {
-                    let me = self
-                        .malachite_endpoints
-                        .iter()
-                        .find(|e| e.pub_key == config.public_key)
-                        .cloned()
-                        .expect(
-                            "validator's malachite endpoint missing — env not aware of this key",
-                        );
-                    assert!(
-                        active.iter().any(|e| e.pub_key == config.public_key),
-                        "test setup bug: local validator {} not in env.validators when start_service was called",
-                        config.public_key,
-                    );
-                    let peers: Vec<MalachiteMultiaddr> = active
-                        .iter()
-                        .filter(|e| e.pub_key != config.public_key)
-                        .map(|e| e.multiaddr())
-                        .collect();
-                    (me.listen_addr, peers)
-                }
-                None => {
-                    // Full node: bind a fresh port, dial every active
-                    // validator. No reserved listener since `new_node`
-                    // never allocated one for this key.
-                    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-                        .expect("bind 127.0.0.1:0 for full-node malachite endpoint");
-                    let addr = listener.local_addr().expect("local_addr");
-                    let peers: Vec<MalachiteMultiaddr> =
-                        active.iter().map(|e| e.multiaddr()).collect();
-                    drop(listener);
-                    (addr, peers)
-                }
-            };
-
-            let validators: Vec<ValidatorEntry> = active
+            let validators: Vec<ValidatorEntry> = self
+                .active_validator_pub_keys
                 .iter()
-                .map(|e| ValidatorEntry {
-                    public_key: e.pub_key,
+                .map(|public_key| ValidatorEntry {
+                    public_key: *public_key,
                     voting_power: 1,
                 })
                 .collect();
@@ -1190,10 +1063,8 @@ impl Node {
                 .path()
                 .to_path_buf();
 
-            let mut mc = MalachiteServiceConfig::from_home_dir(home_path)
-                .with_listen_addr(listen_addr)
-                .with_persistent_peers(persistent_peers)
-                .with_validators(validators);
+            let mut mc =
+                MalachiteServiceConfig::from_home_dir(home_path).with_validators(validators);
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
             // Tests drive content in bursts; a short propose timeout keeps
@@ -1209,14 +1080,13 @@ impl Node {
                         signer: self.signer.clone(),
                     });
 
-            // Release the port-reservation listener moments before libp2p rebinds.
-            drop(self.malachite_listener.take());
-
             MalachiteServiceStarter::new(
                 mc,
                 malachite_validator_config,
                 self.db.clone(),
                 latest_block,
+                network.local_peer_id(),
+                malachite_network,
             )
             .expect("MalachiteServiceStarter::new")
         };
@@ -1233,14 +1103,6 @@ impl Node {
             .await
             .expect("failed to create blob loader")
             .into_box();
-
-        let wait_for_network = self.network_bootstrap_address.is_some();
-
-        let network = self.construct_network_service(latest_block, latest_validators);
-        if let Some(addr) = self.network_address.as_ref() {
-            let peer_id = network.as_ref().unwrap().local_peer_id();
-            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
-        }
 
         let rpc = self
             .service_rpc_config
@@ -1292,7 +1154,7 @@ impl Node {
             .await;
 
         // fast sync implies network has connections
-        if wait_for_network && !self.fast_sync {
+        if !self.fast_sync {
             self.events()
                 .find(|e| {
                     matches!(
@@ -1357,30 +1219,26 @@ impl Node {
             .expect("node is not started")
     }
 
-    fn construct_network_service(
+    async fn construct_network_service(
         &self,
         latest_block: SimpleBlockData,
         latest_validators: ValidatorsVec,
-    ) -> Option<NetworkService> {
+    ) -> NetworkService {
         assert!(
             self.running_service_handle.is_none(),
             "Network service is already running"
         );
 
-        let addr = self.network_address.as_ref()?;
+        let addr = self.network_address.as_str();
 
-        let network_key = self
-            .network_public_key
-            .expect("network public key must exist when network is configured");
+        let network_key = self.network_public_key;
         let multiaddr: Multiaddr = addr.parse().unwrap();
+        let bootstrap_address: Multiaddr = self.network_bootstrap_address.parse().unwrap();
 
         let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
         config.listen_addresses = [multiaddr.clone()].into();
         config.external_addresses = [multiaddr.clone()].into();
-        if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
-            let multiaddr = bootstrap_addr.parse().unwrap();
-            config.bootstrap_addresses = [multiaddr].into();
-        }
+        config.bootstrap_addresses = [bootstrap_address].into();
 
         let runtime_config = NetworkRuntimeConfig {
             latest_block_header: latest_block.header,
@@ -1392,9 +1250,7 @@ impl Node {
             db: self.db.clone(),
         };
 
-        let network = NetworkService::new(config, runtime_config).unwrap();
-
-        Some(network)
+        NetworkService::new(config, runtime_config).await.unwrap()
     }
 
     #[allow(dead_code)]
@@ -1432,7 +1288,7 @@ impl Node {
 
         let mut network = self
             .construct_network_service(latest_block, latest_validators)
-            .expect("network service is not configured");
+            .await;
 
         network.publish_message(signed);
 

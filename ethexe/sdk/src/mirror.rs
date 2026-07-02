@@ -21,9 +21,9 @@ use ethexe_ethereum::{
         MirrorQuery as EthereumMirrorQuery,
     },
 };
-use ethexe_rpc::{
-    CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramBestState,
-    ProgramClient, Proof,
+use ethexe_rpc_client::{
+    InjectedClient, ProgramClient,
+    types::{CalculateReplyForHandleResult, FullProgramState, ProgramBestState, Proof},
 };
 use ethexe_runtime_common::state::{Mailbox, ProgramState, UserMailbox};
 use futures::{StreamExt, TryFutureExt};
