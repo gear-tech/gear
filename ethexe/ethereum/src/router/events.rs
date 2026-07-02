@@ -16,7 +16,7 @@ use alloy::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::events::{
-    RouterEvent, RouterRequestEvent,
+    RouterEvent,
     router::{
         BatchCommittedEvent, CodeGotValidatedEvent, CodeValidationRequestedEvent,
         ComputationSettingsChangedEvent, EBCommittedEvent, MBCommittedEvent, ProgramCreatedEvent,
@@ -35,6 +35,7 @@ pub mod signatures {
         BATCH_COMMITTED: BatchCommitted,
         MB_COMMITTED: MBCommitted,
         EB_COMMITTED: EBCommitted,
+        PROTOCOL_VERSION_CHANGED: ProtocolVersionChanged,
         CODE_GOT_VALIDATED: CodeGotValidated,
         CODE_VALIDATION_REQUESTED: CodeValidationRequested,
         COMPUTATION_SETTINGS_CHANGED: ComputationSettingsChanged,
@@ -63,6 +64,9 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
         }
         MB_COMMITTED => RouterEvent::MBCommitted(decode_log::<IRouter::MBCommitted>(log)?.into()),
         EB_COMMITTED => RouterEvent::EBCommitted(decode_log::<IRouter::EBCommitted>(log)?.into()),
+        PROTOCOL_VERSION_CHANGED => RouterEvent::ProtocolVersionChanged(
+            decode_log::<IRouter::ProtocolVersionChanged>(log)?.into(),
+        ),
         CODE_GOT_VALIDATED => {
             RouterEvent::CodeGotValidated(decode_log::<IRouter::CodeGotValidated>(log)?.into())
         }
@@ -97,18 +101,6 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
     };
 
     Ok(Some(event))
-}
-
-pub fn try_extract_request_event(log: &Log) -> Result<Option<RouterRequestEvent>> {
-    if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
-        return Ok(None);
-    }
-
-    let request_event = try_extract_event(log)?
-        .and_then(|v| v.to_request())
-        .expect("filtered above");
-
-    Ok(Some(request_event))
 }
 
 pub struct AllEventsBuilder<'a> {

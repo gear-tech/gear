@@ -40,7 +40,7 @@ use alloy::{
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::Metadata,
 };
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
@@ -55,7 +55,7 @@ use ethexe_consensus::{ConsensusEvent, ConsensusService, ValidatorConfig, Valida
 use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
 };
-use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
+use ethexe_ethereum::{Ethereum, EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_malachite::{
     InjectedTxMempool, MalachiteEvent, MalachiteServiceConfig, MalachiteServiceStarter,
     ValidatorEntry,
@@ -188,9 +188,9 @@ impl Service {
     /// Number of reserved dev accounts (deployer, validator).
     const RESERVED_DEV_ACCOUNTS: u32 = 2;
     /// Expected Foundry toolchain commit sha.
-    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "f83bad912a9dba7bf0371def1e70bb1896048356";
+    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "4072e48705af9d93e3c0f6e29e93b5e9a40caed8";
     /// Expected Foundry toolchain version.
-    const FOUNDRY_TOOLCHAIN_VERSION: &str = "1.7.0";
+    const FOUNDRY_TOOLCHAIN_VERSION: &str = "1.7.1";
 
     fn check_foundry_toolchain_version(client_commit_sha: Option<String>) -> Result<()> {
         if let Some(client_commit_sha) = client_commit_sha
@@ -769,6 +769,24 @@ impl Service {
                             rpc.receive_mb_computed(mb_hash);
                         }
                     }
+                    ComputeEvent::ProtocolVersionChanged(mb_hash, version) => {
+                        let packed_version: u64 = version
+                            .try_into()
+                            .map_err(|_| anyhow!("ProtocolVersionChanged value exceeds u64"))?;
+                        let new_protocol_version =
+                            Ethereum::decode_protocol_version(packed_version);
+                        let (new_major_protocol_version, _, _) = new_protocol_version;
+
+                        if new_major_protocol_version > Ethereum::CLIENT_MAJOR_PROTOCOL_VERSION {
+                            log::info!(
+                                "Finalized MB {mb_hash} requests protocol version \
+                                 {new_protocol_version:?}; local client supports {:?}. \
+                                 Starting graceful shutdown.",
+                                Ethereum::CLIENT_PROTOCOL_VERSION,
+                            );
+                            break;
+                        }
+                    }
                     ComputeEvent::Promise(promise, _mb_hash) => {
                         // The local node always feeds its computed body
                         // into the RPC subscription manager so the
@@ -964,6 +982,7 @@ impl Service {
                         // before the matching `BlockFinalized` (on every node,
                         // including the sync path), so compute for this MB has
                         // already been triggered.
+                        compute.process_finalized_mb_events(mb_hash);
                     }
                     MalachiteEvent::PurgedTransactions {
                         eb_hash,

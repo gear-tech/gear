@@ -184,6 +184,22 @@ impl<'a> Router<'a> {
         self.router_query_client.validated_codes_count_at(id).await
     }
 
+    pub async fn request_code_validation_base_fee(&self) -> Result<u128> {
+        self.router_query_client
+            .request_code_validation_base_fee()
+            .await
+    }
+
+    pub async fn request_code_validation_extra_fee(&self) -> Result<u128> {
+        self.router_query_client
+            .request_code_validation_extra_fee()
+            .await
+    }
+
+    pub async fn protocol_version(&self) -> Result<(u8, u8, u8)> {
+        self.router_query_client.protocol_version().await
+    }
+
     pub async fn timelines(&self) -> Result<Timelines> {
         self.router_query_client.timelines().await
     }
