@@ -29,7 +29,7 @@
 //!   for [`Processor`]). Compute is what the service layer talks to —
 //!   the processor itself is never polled as a stream and emits no
 //!   events.
-//! - `ethexe-rpc` — uses [`OverlaidProcessor`] (obtained via
+//! - `ethexe-rpc-server` — uses [`OverlaidProcessor`] (obtained via
 //!   [`Processor::overlaid`]) to simulate message execution against an
 //!   overlaid database for read-only reply queries.
 //! - `ethexe-service` — constructs the `Processor` instance at startup

@@ -1,16 +1,16 @@
 [package]
 name = "gsys"
-description = "System calls of Gear program"
-documentation = "https://docs.rs/gsys"
-keywords = ["gear", "wasm"]
-categories = ["wasm", "api-bindings"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "System calls of Gear program"
+documentation = "https://docs.rs/gsys"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "wasm", "syscalls", "ffi", "no-std"]
+categories = ["wasm", "api-bindings", "no-std"]
 
 [dependencies]
 bytemuck = { workspace = true, features = ["derive"] }

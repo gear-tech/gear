@@ -31,7 +31,7 @@ use ethexe_consensus::BatchCommitter;
 use ethexe_db::{Database, dump::StateDump};
 use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
 use ethexe_processor::Processor;
-use ethexe_rpc::{InjectedClient, ProgramClient};
+use ethexe_rpc_client::{InjectedClient, ProgramClient};
 use ethexe_runtime_common::{RUNTIME_ID, state::Storage};
 use gear_core::{
     ids::prelude::MessageIdExt,
@@ -2097,7 +2097,6 @@ async fn validators_election() {
 
     stop_nodes(validators).await;
 
-    env.extend_malachite_endpoints(&next_validators_configs);
     env.validators = next_validators_configs;
     let mut new_validators = vec![];
     for (i, v) in env.validators.clone().into_iter().enumerate() {
@@ -2795,6 +2794,7 @@ async fn program_subscribe_best_state() {
         .rpc_ws_client()
         .await
         .expect("RPC client provide by node");
+    let mut node_events = node.new_events();
 
     // Upload demo_ping and create the program.
     let uploaded_code = env
@@ -2815,7 +2815,18 @@ async fn program_subscribe_best_state() {
         .unwrap();
     let ping_id = program.program_id;
 
-    // Subscribe after creation so the first emitted state is the PING handle.
+    node_events
+        .find_map_with_db(|db, event| match event {
+            TestingEvent::Compute(ethexe_compute::ComputeEvent::MbComputed(mb_hash)) => db
+                .mb_outcome(mb_hash)?
+                .iter()
+                .any(|transition| transition.actor_id == ping_id)
+                .then_some(mb_hash),
+            _ => None,
+        })
+        .await;
+
+    // Subscribe after local creation is computed so the first emitted state is the PING handle.
     let mut subscription = rpc_client
         .subscribe_best_state(ping_id.to_address_lossy())
         .await
@@ -2831,18 +2842,28 @@ async fn program_subscribe_best_state() {
         .unwrap();
     assert_eq!(reply.payload, b"PONG");
 
+    let expected_mb_hash = node_events
+        .find_map_with_db(|db, event| match event {
+            TestingEvent::Compute(ethexe_compute::ComputeEvent::MbComputed(mb_hash)) => db
+                .mb_outcome(mb_hash)?
+                .iter()
+                .any(|transition| {
+                    transition.actor_id == ping_id
+                        && transition.messages.iter().any(|msg| msg.payload == b"PONG")
+                })
+                .then_some(mb_hash),
+            _ => None,
+        })
+        .await;
     let best_state = subscription
         .next()
         .await
         .expect("subscription produces a best state")
         .expect("no RPC subscription error");
 
+    assert_eq!(best_state.mb_hash, expected_mb_hash);
     assert_ne!(best_state.mb_hash, H256::zero());
     assert_ne!(best_state.new_state_hash, H256::zero());
-    assert!(
-        best_state.messages.iter().any(|msg| msg.payload == b"PONG"),
-        "expected the PONG reply in the best state messages"
-    );
     tracing::info!("✅ Best state successfully received from RPC subscription");
 
     // Now send the same PING as an injected transaction: it must yield a PONG
@@ -2877,11 +2898,25 @@ async fn program_subscribe_best_state() {
     assert_eq!(promise.reply.payload, b"PONG");
     tracing::info!("✅ Injected PING promise received from RPC subscription");
 
+    let expected_injected_mb_hash = node_events
+        .find_map_with_db(|db, event| match event {
+            TestingEvent::Compute(ethexe_compute::ComputeEvent::MbComputed(mb_hash)) => db
+                .mb_outcome(mb_hash)?
+                .iter()
+                .any(|transition| {
+                    transition.actor_id == ping_id
+                        && transition.messages.iter().any(|msg| msg.payload == b"PONG")
+                })
+                .then_some(mb_hash),
+            _ => None,
+        })
+        .await;
     let injected_best_state = subscription
         .next()
         .await
         .expect("subscription produces a best state for the injected ping")
         .expect("no RPC subscription error");
+    assert_eq!(injected_best_state.mb_hash, expected_injected_mb_hash);
     assert_ne!(injected_best_state.mb_hash, H256::zero());
     assert_ne!(injected_best_state.new_state_hash, H256::zero());
     assert!(
@@ -3616,6 +3651,97 @@ async fn re_genesis_delayed_message() {
                 assert_eq!(*value, 0);
             },
         );
+
+    stop_nodes([node]).await;
+}
+
+/// With `batch_commitment_period > 1` the validator must keep the chain live
+/// (a ping still round-trips) while only ever committing batches on blocks
+/// whose height is a multiple of the period.
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn batch_commitment_period_commits_only_on_multiples() {
+    init_logger();
+
+    let period = std::num::NonZero::new(2).unwrap();
+    let config = TestEnvConfig {
+        batch_commitment_period: period,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    let committed_batches = Arc::new(Mutex::new(Vec::new()));
+    let recording_committer = RecordingCommitter {
+        router: EthereumBuilder::default()
+            .rpc_url(&env.eth_cfg.rpc)
+            .router_address(env.eth_cfg.router_address)
+            .signer(env.signer.clone())
+            .sender_address(env.validators[0].public_key.to_address())
+            .eip1559_fee_increase_percentage(env.eth_cfg.eip1559_fee_increase_percentage)
+            .blob_gas_multiplier(env.eth_cfg.blob_gas_multiplier)
+            .build()
+            .await
+            .unwrap()
+            .router(),
+        committed_batches: committed_batches.clone(),
+    };
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.custom_committer = Some(Box::new(recording_committer));
+    node.start_service().await;
+
+    // The whole flow (code → program → ping reply) only completes if batches
+    // keep landing despite the gate — i.e. the chain stays live.
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = program.program_id;
+
+    let reply = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(reply.program_id, ping_id);
+    assert_eq!(reply.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(reply.payload, b"PONG");
+
+    // Every committed batch must target a block whose height is a multiple of
+    // the configured period — that is exactly the coordinator-side gate.
+    let batches = committed_batches.lock().await.clone();
+    assert!(
+        !batches.is_empty(),
+        "expected at least one committed batch for the ping flow"
+    );
+    for batch in &batches {
+        let header = node
+            .db
+            .block_header(batch.block_hash)
+            .expect("committed batch's block header must be in db");
+        assert!(
+            header.height.is_multiple_of(period.get()),
+            "batch committed on height {} which is not a multiple of period {}",
+            header.height,
+            period.get(),
+        );
+    }
 
     stop_nodes([node]).await;
 }

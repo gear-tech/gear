@@ -1,18 +1,36 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-//! mini-program for publishing packages to crates.io.
+//! Utility for managing Gear packages on crates.io.
+//!
+//! Management includes:
+//! - workspace patching (`build` sub-command)
+//! - publishing packages (`publish` sub-command)
+//!   - simulate publishing to crates.io using local registry (`--simulate` option)
+//!   - real publishing to crates.io
+//!
+//! If you are looking for examples of how to run it, take a look at `.github/workflows/crates-io.yml`.
+//!
+//! WARNING: Before running, please ensure you use `--simulate`.
+//! Otherwise, this could result in packages being published on your behalf!
 
 use anyhow::Result;
 use clap::Parser;
 use crates_io::Publisher;
-use std::path::PathBuf;
+use std::{
+    io::{self, IsTerminal, Write},
+    path::PathBuf,
+};
 
 /// The command to run.
 #[derive(Clone, Debug, Parser)]
 enum Command {
     /// Build manifests for packages that to be published.
-    Build,
+    Build {
+        /// The version to publish.
+        #[clap(long, short)]
+        version: Option<String>,
+    },
     /// Publish packages.
     Publish {
         /// The version to publish.
@@ -47,20 +65,49 @@ async fn main() -> Result<()> {
             simulate,
             registry_path,
         } => {
-            let mut publisher = Publisher::with_simulation(simulate, registry_path)?
+            let mut publisher = Publisher::with_simulation(simulate, registry_path)
+                .await?
                 .build(true, version)
                 .await?;
-            let result = publisher.check().and_then(|()| {
-                publisher.prepare_publish()?;
-                publisher.publish()
-            });
-            publisher.restore()?;
+            publisher.prepare_publish().await?;
+            // TODO #5611: For some reason, this isn't compiling.
+            // It’s likely due to the `[patch.crates-io]` entries for `parity-wasm` and `wasm-instrument`.
+            // It would probably be best to create two separate workspaces for the integration tests.
+            // publisher.check().await?;
+            let result = publisher.publish().await;
+            if result.is_ok() || ask_restore_after_error()? {
+                publisher.restore().await?;
+            }
             result
         }
-        Command::Build => {
-            let mut publisher = Publisher::new()?.build(false, None).await?;
-            publisher.prepare_publish()?;
+        Command::Build { version } => {
+            let mut publisher = Publisher::new().await?.build(false, version).await?;
+            publisher.prepare_publish().await?;
             Ok(())
+        }
+    }
+}
+
+fn ask_restore_after_error() -> Result<bool> {
+    if !io::stdin().is_terminal() {
+        eprintln!("Publishing failed in non-interactive mode; restoring local changes.");
+        return Ok(true);
+    }
+
+    loop {
+        print!("Publishing failed. Restore local changes? [y/n]: ");
+        io::stdout().flush()?;
+
+        let mut answer = String::new();
+        if io::stdin().read_line(&mut answer)? == 0 {
+            eprintln!("EOF reached; restoring local changes.");
+            return Ok(true);
+        }
+
+        match answer.trim().to_ascii_lowercase().as_str() {
+            "y" => return Ok(true),
+            "n" => return Ok(false),
+            _ => eprintln!("Please answer `y` or `n`."),
         }
     }
 }

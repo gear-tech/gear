@@ -5,7 +5,7 @@
 
 use super::MergeParams;
 use clap::Parser;
-use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
+use ethexe_rpc_server::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
 use ethexe_service::config::NodeConfig;
 use serde::Deserialize;
 use std::{

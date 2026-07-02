@@ -4,8 +4,8 @@
 //! # Ethexe Malachite
 //!
 //! Ethexe-side glue around `ethexe-malachite-core`, the generic Malachite BFT /
-//! Tendermint-style consensus engine. BFT voting, gossip, peer discovery, and
-//! persistence all live in the core crate; this crate provides the public
+//! Tendermint-style consensus engine. BFT voting and persistence live in the
+//! core crate; this crate provides the public
 //! [`MalachiteService`] facade, the producer-side [`Mempool`] abstraction, per-
 //! transaction validity checking, and translation of engine callbacks into
 //! [`MalachiteEvent`]s.
@@ -67,6 +67,4 @@ pub use crate::{
     tx_validity::{TxValidity, TxValidityChecker},
     types::{CommitCertificate, MalachiteEvent},
 };
-pub use ethexe_malachite_core::{
-    Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
-};
+pub use ethexe_malachite_core::{MalachiteCtx, Multiaddr, ScaleCodec};

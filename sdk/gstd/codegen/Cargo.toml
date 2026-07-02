@@ -1,16 +1,16 @@
 [package]
 name = "gstd-codegen"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Code generation library for the Gear standard library"
 documentation = "https://docs.rs/gstd-codegen"
-keywords = ["gear", "codegen", "std"]
-categories = ["api-bindings"]
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "gstd", "codegen", "proc-macro", "wasm"]
+categories = ["development-tools::procedural-macro-helpers", "wasm"]
 
 [lib]
 proc-macro = true

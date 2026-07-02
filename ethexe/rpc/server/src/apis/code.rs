@@ -1,25 +1,16 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-#[cfg(feature = "server")]
 use crate::errors;
-#[cfg(feature = "server")]
 use ethexe_common::db::CodesStorageRO;
-#[cfg(feature = "server")]
 use ethexe_db::Database;
-#[cfg(feature = "server")]
 use gear_core::code::get_custom_section_data;
 use gprimitives::H256;
-#[cfg(feature = "server")]
-use jsonrpsee::core::async_trait;
-use jsonrpsee::proc_macros::rpc;
-#[cfg(feature = "server")]
+use jsonrpsee::{core::async_trait, proc_macros::rpc};
 use parity_scale_codec::Encode;
 use sp_core::Bytes;
 
-#[cfg_attr(all(feature = "server", feature = "client"), rpc(server, client))]
-#[cfg_attr(all(feature = "server", not(feature = "client")), rpc(server))]
-#[cfg_attr(all(not(feature = "server"), feature = "client"), rpc(client))]
+#[rpc(server)]
 pub trait Code {
     #[method(name = "code_getOriginal")]
     async fn get_original_code(&self, id: H256) -> jsonrpsee::core::RpcResult<Bytes>;
@@ -39,12 +30,10 @@ pub trait Code {
     ) -> jsonrpsee::core::RpcResult<Option<Bytes>>;
 }
 
-#[cfg(feature = "server")]
 pub struct CodeApi {
     db: Database,
 }
 
-#[cfg(feature = "server")]
 impl CodeApi {
     pub fn new(db: Database) -> Self {
         Self { db }
@@ -65,7 +54,6 @@ impl CodeApi {
     }
 }
 
-#[cfg(feature = "server")]
 #[async_trait]
 impl CodeServer for CodeApi {
     async fn get_original_code(&self, id: H256) -> jsonrpsee::core::RpcResult<Bytes> {
@@ -95,7 +83,7 @@ impl CodeServer for CodeApi {
     }
 }
 
-#[cfg(all(test, feature = "server"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils::{wasm_with_custom_section, wasm_with_custom_sections};

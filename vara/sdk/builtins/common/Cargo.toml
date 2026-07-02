@@ -1,14 +1,16 @@
 [package]
 name = "builtins-common"
-description = "Common utilities for gear protocol built-ins"
-documentation = "https://docs.rs/builtins-common"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Common utilities for gear protocol built-ins"
+documentation = "https://docs.rs/builtins-common"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "builtins", "actor", "no-std"]
+categories = ["wasm", "encoding", "no-std"]
 
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }

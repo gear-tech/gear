@@ -16,7 +16,7 @@ use ethexe_ethereum::{
         RouterQuery as EthereumRouterQuery,
     },
 };
-use ethexe_rpc::ProgramClient;
+use ethexe_rpc_client::ProgramClient;
 use gprimitives::{ActorId, CodeId, H256};
 
 pub struct Router<'a> {

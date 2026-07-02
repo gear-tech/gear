@@ -23,7 +23,7 @@ use ethexe_db::Database;
 use ethexe_malachite::MalachiteEvent;
 use ethexe_network::{NetworkEvent, NetworkInjectedEvent, export::PeerId};
 use ethexe_observer::ObserverEvent;
-use ethexe_rpc::RpcEvent;
+use ethexe_rpc_server::RpcEvent;
 use futures::{
     FutureExt, Stream, StreamExt,
     future::{self, BoxFuture, Either},

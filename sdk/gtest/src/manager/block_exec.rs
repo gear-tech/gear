@@ -14,15 +14,15 @@ use builtins_common::{
     BuiltinActorError, BuiltinContext,
     bls12_381::{self, Bls12_381OpsLowLevel},
 };
-use core_processor::{
-    ContextCharged, ForProgram, ProcessExecutionContext, SystemReservationContext,
-};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT, SyscallKind},
     gas::GasCounter,
     limited::LimitedStr,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     program::ProgramState,
+};
+use gear_core_processor::{
+    ContextCharged, ForProgram, ProcessExecutionContext, SystemReservationContext,
 };
 use parity_scale_codec::Encode;
 
@@ -273,7 +273,7 @@ impl ExtManager {
             };
 
             let journal = self.process_dispatch(&block_config, dispatch);
-            core_processor::handle_journal(journal, self);
+            gear_core_processor::handle_journal(journal, self);
 
             total_processed += 1;
         }
@@ -326,7 +326,7 @@ impl ExtManager {
                 log::debug!(
                     "Message {dispatch_id} is sent to program {destination_id} which does not exist"
                 );
-                return core_processor::process_code_not_exists(context);
+                return gear_core_processor::process_code_not_exists(context);
             };
 
             match program.as_primary_program() {
@@ -364,7 +364,7 @@ impl ExtManager {
                                 );
                             }
 
-                            return core_processor::process_uninitialized(context);
+                            return gear_core_processor::process_uninitialized(context);
                         }
                     }
                 }
@@ -372,11 +372,11 @@ impl ExtManager {
                     log::debug!(
                         "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
                     );
-                    return core_processor::process_failed_init(context);
+                    return gear_core_processor::process_failed_init(context);
                 }
                 Program::Exited(inheritor) => {
                     log::debug!("Message {dispatch_id} is sent to exited program {destination_id}");
-                    return core_processor::process_program_exited(context, *inheritor);
+                    return gear_core_processor::process_program_exited(context, *inheritor);
                 }
             };
 
@@ -474,21 +474,21 @@ impl ExtManager {
                     unreachable!("Failed to send reply from builtin actor");
                 };
 
-                core_processor::process_success(
+                gear_core_processor::process_success(
                     SuccessfulDispatchResultKind::Success,
                     dispatch_result,
                     incoming_dispatch,
                 )
             }
             Err(BuiltinActorError::GasAllowanceExceeded) => {
-                core_processor::process_allowance_exceed(incoming_dispatch, destination, 0)
+                gear_core_processor::process_allowance_exceed(incoming_dispatch, destination, 0)
             }
             Err(err) => {
                 // Builtin actor call failed.
                 log::debug!("Builtin actor error: {err:?}");
                 let system_reservation_ctx =
                     SystemReservationContext::from_dispatch(&incoming_dispatch);
-                core_processor::process_execution_error(
+                gear_core_processor::process_execution_error(
                     incoming_dispatch,
                     destination,
                     gas_counter.burned(),
@@ -527,7 +527,7 @@ impl ExtManager {
         if !code_metadata.exports().contains(&dispatch_kind) {
             let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
-            let notes = core_processor::process_success(
+            let notes = gear_core_processor::process_success(
                 SuccessfulDispatchResultKind::Success,
                 DispatchResult::success(&dispatch, destination_id, gas_counter.to_amount()),
                 dispatch,
@@ -606,7 +606,7 @@ impl ExtManager {
 
         let balance = Accounts::reducible_balance(destination_id);
 
-        core_processor::process::<Ext<LazyPagesNative>>(
+        gear_core_processor::process::<Ext<LazyPagesNative>>(
             block_config,
             ProcessExecutionContext::new(
                 context,
@@ -673,7 +673,7 @@ impl ExtManager {
                     dp
                 };
 
-                core_processor::process_success(
+                gear_core_processor::process_success(
                     SuccessfulDispatchResultKind::Success,
                     dispatch_result,
                     dispatch,
@@ -686,7 +686,7 @@ impl ExtManager {
                     LimitedStr::from_small_str(error_msg).into(),
                 ));
 
-                core_processor::process_execution_error(
+                gear_core_processor::process_execution_error(
                     dispatch,
                     destination_id,
                     gas_counter.burned(),
