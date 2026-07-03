@@ -5861,6 +5861,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-memory-pages-demo"
+version = "2.0.0"
+dependencies = [
+ "anyhow",
+ "ethexe-common",
+ "ethexe-sdk",
+ "gear-workspace-hack",
+ "gprimitives",
+ "gsigner",
+ "tokio",
+ "wat",
+]
+
+[[package]]
 name = "ethexe-network"
 version = "2.0.0"
 dependencies = [
