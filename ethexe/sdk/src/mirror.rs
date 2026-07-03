@@ -686,6 +686,6 @@ impl MirrorMemory<'_, '_> {
         };
         let page_offset = (offset - page.offset()) as usize;
 
-        Ok(Some(page_data[page_offset]))
+        Ok(page_data.get(page_offset).copied())
     }
 }
