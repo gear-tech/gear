@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use super::promise_manager::{PendingSubscriber, SubscriberId};
+use super::promise_manager::PendingSubscriber;
 use ethexe_common::{
     HashOf,
     injected::{InjectedTransaction, SignedTxReceipt},
@@ -34,25 +34,22 @@ pub fn spawn_pending_subscriber<F>(
     subscriber: PendingSubscriber,
     on_finish: F,
 ) where
-    F: FnOnce(HashOf<InjectedTransaction>, SubscriberId) + std::marker::Send + 'static,
+    F: FnOnce(HashOf<InjectedTransaction>) + std::marker::Send + 'static,
 {
-    let (tx_hash, subscriber_id, receiver) = subscriber.into_parts();
+    let (tx_hash, mut receiver, timeout) = subscriber.into_parts();
 
     let _handle = tokio::spawn(async move {
-        let _guard = scopeguard::guard((tx_hash, subscriber_id), |(tx_hash, subscriber_id)| {
-            on_finish(tx_hash, subscriber_id)
-        });
+        let _guard = scopeguard::guard(tx_hash, on_finish);
 
-        // Waiting for the first one: promise, timeout_err, client disconnect error.
+        // Waiting for the first one: receipt, timeout_err, client disconnect error.
         let receipt = tokio::select! {
-            result = receiver => match result {
-                Ok(receipt_result) => match receipt_result {
-                    Ok(receipt) => receipt,
-                    Err(_err) => {
-                        unreachable!("promise sender is owned by the server; it cannot be dropped before this point");
-                    }
-                },
-                Err(_) => {
+            result = tokio::time::timeout(timeout, receiver.wait_for(|receipt| receipt.is_some())) => match result {
+                Ok(Ok(receipt)) => receipt.clone().expect("`wait_for` guarantees the receipt is set"),
+                Ok(Err(_sender_dropped)) => {
+                    warn!("receipt sender dropped before delivery, stop background task");
+                    return;
+                }
+                Err(_elapsed) => {
                     warn!("promise wasn't received in time, finish waiting");
                     return;
                 }

@@ -309,8 +309,7 @@ async fn test_same_transaction_multiple_and_late_watchers() {
     let tx = mock_signed_transaction();
     let tx_hash = tx.data().to_hash();
 
-    // Two concurrent watchers for the SAME transaction. Each blocks until the
-    // pump accepts its relayed tx; both then register as Pending (no receipt yet).
+    // Two concurrent watchers for the SAME transaction share one in-flight relay.
     let (first, second) = tokio::join!(
         first_client.send_transaction_and_watch(tx.clone()),
         second_client.send_transaction_and_watch(tx.clone()),
@@ -391,7 +390,7 @@ async fn test_relay_failure_cleans_pending_subscriber() {
 
 #[tokio::test]
 #[ntest::timeout(60_000)]
-async fn test_rejection_keeps_other_same_transaction_watcher() {
+async fn test_second_watcher_of_same_transaction_does_not_relay_again() {
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8016);
     let MockService {
         mut rpc,
@@ -403,22 +402,18 @@ async fn test_rejection_keeps_other_same_transaction_watcher() {
     let pump = tokio::spawn(async move {
         let RpcEvent::InjectedTransaction {
             response_sender, ..
-        } = rpc.next().await.expect("first relay event");
+        } = rpc.next().await.expect("relay event");
         response_sender
             .send(InjectedTransactionAcceptance::Accept)
-            .expect("first response receiver remains open");
+            .expect("response receiver remains open");
 
-        let RpcEvent::InjectedTransaction {
-            response_sender, ..
-        } = tokio::time::timeout(std::time::Duration::from_secs(1), rpc.next())
-            .await
-            .expect("second same-tx watcher must reach the relayer")
-            .expect("second relay event");
-        response_sender
-            .send(InjectedTransactionAcceptance::Reject {
-                reason: "rejected by test".into(),
-            })
-            .expect("second response receiver remains open");
+        // The second watcher of the identical tx_hash must NOT relay again: only the
+        // leader relays, and the follower awaits the leader's published outcome instead.
+        let second = tokio::time::timeout(std::time::Duration::from_millis(300), rpc.next()).await;
+        assert!(
+            second.is_err(),
+            "second watcher of the same tx_hash must not trigger its own relay"
+        );
     });
 
     let first_client = WsClientBuilder::new()
@@ -436,12 +431,11 @@ async fn test_rejection_keeps_other_same_transaction_watcher() {
         first_client.send_transaction_and_watch(tx.clone()),
         second_client.send_transaction_and_watch(tx),
     );
-    let mut accepted = match (first, second) {
-        (Ok(subscription), Err(_)) | (Err(_), Ok(subscription)) => subscription,
-        _ => panic!("exactly one watcher must be accepted"),
-    };
-    pump.await.expect("acceptance pump must finish");
-    assert_eq!(injected_api.subscribers_count(), 1);
+    let mut first = first.expect("leader watcher must be accepted");
+    let mut second = second.expect("follower watcher must observe the same acceptance");
+    pump.await
+        .expect("pump must observe exactly one relay event");
+    assert_eq!(injected_api.subscribers_count(), 2);
 
     let promise = Promise::mock(tx_hash);
     let receipt =
@@ -449,9 +443,58 @@ async fn test_rejection_keeps_other_same_transaction_watcher() {
     injected_api.on_computed_promise(promise.clone());
     injected_api.on_tx_receipt(receipt.into());
 
-    let delivered = accepted.next().await.expect("item").expect("decodes");
-    assert_eq!(delivered.data(), &Receipt::Promise(promise));
+    let first_receipt = first.next().await.expect("first item").expect("decodes");
+    let second_receipt = second.next().await.expect("second item").expect("decodes");
+    assert_eq!(first_receipt.data(), &Receipt::Promise(promise.clone()));
+    assert_eq!(second_receipt.data(), &Receipt::Promise(promise));
+
     wait_for_closed_subscriptions(injected_api).await;
+    handle.stop().expect("RPC server must stop");
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_relay_rejection_rejects_all_watchers_of_same_transaction() {
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8018);
+    let MockService {
+        mut rpc, handle, ..
+    } = MockService::new(listen_addr).await;
+    let injected_api = rpc.injected_api.clone();
+
+    let pump = tokio::spawn(async move {
+        let RpcEvent::InjectedTransaction {
+            response_sender, ..
+        } = rpc.next().await.expect("relay event");
+        response_sender
+            .send(InjectedTransactionAcceptance::Reject {
+                reason: "rejected by test".into(),
+            })
+            .expect("response receiver remains open");
+    });
+
+    let first_client = WsClientBuilder::new()
+        .build(format!("ws://{listen_addr}"))
+        .await
+        .expect("first WS client will be created");
+    let second_client = WsClientBuilder::new()
+        .build(format!("ws://{listen_addr}"))
+        .await
+        .expect("second WS client will be created");
+    let tx = mock_signed_transaction();
+
+    let (first, second) = tokio::join!(
+        first_client.send_transaction_and_watch(tx.clone()),
+        second_client.send_transaction_and_watch(tx),
+    );
+    pump.await
+        .expect("pump must observe exactly one relay event");
+
+    assert!(first.is_err(), "leader watcher must see the rejection");
+    assert!(
+        second.is_err(),
+        "follower watcher must see the same rejection instead of relaying itself"
+    );
+    assert_eq!(injected_api.subscribers_count(), 0);
     handle.stop().expect("RPC server must stop");
 }
 

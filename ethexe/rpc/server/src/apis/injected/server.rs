@@ -110,35 +110,41 @@ impl InjectedApi {
                 spawner::spawn_ready_receipt_subscriber(sink, receipt);
                 return Ok(());
             }
+            RegisterSubscriberResult::TooManyWatchers => {
+                return Err(errors::bad_request("too many watchers for this transaction").into());
+            }
             RegisterSubscriberResult::Pending(subscriber) => subscriber,
         };
 
-        let subscriber_id = pending_subscriber.subscriber_id();
-        let acceptance = self.relayer.relay(transaction).await.inspect_err(|_err| {
-            self.manager.cancel_registration(tx_hash, subscriber_id);
-        })?;
-        let sink = match acceptance {
-            InjectedTransactionAcceptance::Accept => {
-                pending.accept().await.inspect_err(|_err| {
-                    self.manager.cancel_registration(tx_hash, subscriber_id);
-                })?
+        // The relayer dedups in-flight relays per tx hash, so concurrent watchers of one
+        // transaction share a single relay and observe the same Accept/Reject outcome.
+        let acceptance = match self.relayer.relay(transaction).await {
+            Ok(acceptance) => acceptance,
+            Err(err) => {
+                self.manager.release_subscriber(pending_subscriber);
+                return Err(err.into());
             }
+        };
+        let sink = match acceptance {
+            InjectedTransactionAcceptance::Accept => match pending.accept().await {
+                Ok(sink) => sink,
+                Err(err) => {
+                    self.manager.release_subscriber(pending_subscriber);
+                    return Err(err.into());
+                }
+            },
             InjectedTransactionAcceptance::Reject { reason } => {
-                self.manager.cancel_registration(tx_hash, subscriber_id);
+                self.manager.release_subscriber(pending_subscriber);
                 return Err(reason.into());
             }
         };
 
         self.metrics.injected_tx_active_subscriptions.increment(1);
         let (manager, metrics) = (self.manager.clone(), self.metrics.clone());
-        spawner::spawn_pending_subscriber(
-            sink,
-            pending_subscriber,
-            move |tx_hash, subscriber_id| {
-                manager.cancel_registration(tx_hash, subscriber_id);
-                metrics.injected_tx_active_subscriptions.decrement(1);
-            },
-        );
+        spawner::spawn_pending_subscriber(sink, pending_subscriber, move |tx_hash| {
+            manager.cleanup_tx_entry(tx_hash);
+            metrics.injected_tx_active_subscriptions.decrement(1);
+        });
         Ok(())
     }
 
