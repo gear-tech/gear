@@ -1,11 +1,14 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
-use alloc::string::{String, ToString};
+use crate::{Address, EitherHashOf, HashOf, ToDigest, ecdsa::SignedMessage};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
+use ark_serialize::CanonicalSerialize;
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
-#[cfg(feature = "shielded")]
 use gear_tdec::{
     Result as TdecResult,
     bls12_381::{Ciphertext, DkgPublicKey, SharedSecret},
@@ -36,14 +39,15 @@ pub const MAX_INJECTED_TX_SALT_SIZE: usize = 32;
 /// always admissible.
 pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB: usize = 127 * 1024;
 
+// TODO: rename this type to just `TransactionAcceptance`
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
-pub enum InjectedTransactionAcceptance {
+pub enum TransactionAcceptance {
     Accept,
     Reject { reason: String },
 }
 
-impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
+impl<E: ToString> From<Result<(), E>> for TransactionAcceptance {
     fn from(value: Result<(), E>) -> Self {
         match value {
             Ok(()) => Self::Accept,
@@ -116,7 +120,7 @@ impl InjectedTransaction {
     }
 
     /// Returns the hash of [`InjectedTransaction`].
-    pub fn to_hash(&self) -> HashOf<InjectedTransaction> {
+    pub fn to_hash(&self) -> HashOf<Self> {
         let hashable_bytes = self.to_hashable_bytes();
         unsafe { HashOf::new(gear_core::utils::hash(hashable_bytes.as_ref()).into()) }
     }
@@ -126,7 +130,6 @@ impl InjectedTransaction {
         MessageId::new(self.to_hash().inner().0)
     }
 
-    #[cfg(feature = "shielded")]
     pub fn shield(
         self,
         public_key: &DkgPublicKey,
@@ -256,9 +259,9 @@ pub enum Receipt<P> {
 }
 
 impl<P: PromiseKind> Receipt<P> {
-    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
+    pub fn tx_hash(&self) -> TransactionHash {
         match self {
-            Self::Promise(promise) => promise.tx_hash(),
+            Self::Promise(promise) => TransactionHash::Left(promise.tx_hash()),
             Self::Purged(purged) => purged.tx_hash,
         }
     }
@@ -284,7 +287,7 @@ impl<P: ToDigest> ToDigest for Receipt<P> {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Deref)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(transparent))]
-pub struct SignedTxReceipt(SignedMessage<Receipt<Promise>>);
+pub struct SignedTxReceipt(pub SignedMessage<Receipt<Promise>>);
 
 /// Signed [Receipt] with a [CompactPromise] generic.
 /// It is used as a lightweight transfer type
@@ -347,19 +350,21 @@ impl UnfilledPromiseReceipt {
     }
 }
 
-/// Represents the reason why [InjectedTransaction] was not included.
+/// Represents the reason why transaction was not included.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[display("Injected transaction wasn't executed: tx_hash={tx_hash}, reason={reason}")]
 pub struct PurgedTransaction {
-    pub tx_hash: HashOf<InjectedTransaction>,
+    /// Has of [InjectedTransaction] or [ShieldedTransaction].
+    pub tx_hash: TransactionHash,
+    /// Reason why transaction was purged from mempool.
     pub reason: TransactionPurgedReason,
 }
 
 impl ToDigest for PurgedTransaction {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self { tx_hash, reason } = self;
-        hasher.update(tx_hash.inner().0);
+        tx_hash.update_hasher(hasher);
         hasher.update([reason.variant_index()]);
     }
 }
@@ -375,6 +380,9 @@ pub enum TransactionPurgedReason {
     /// The transaction references a block that is not known locally.
     #[display("transaction reference block is unknown")]
     UnknownReferenceBlock = 2,
+    /// The shielded transaction could not be decrypted.
+    #[display("failed to decrypt shielded transaction")]
+    DecryptionFailed = 3,
 
     /// The transaction has a non-zero value, which is not supported yet.
     ///
@@ -391,16 +399,14 @@ impl TransactionPurgedReason {
     }
 }
 
-#[cfg(feature = "shielded")]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ShieldedFields {
-    pub(crate) destination: ActorId,
-    pub(crate) value: u128,
-    pub(crate) payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
+    pub destination: ActorId,
+    pub value: u128,
+    pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
 }
 
-#[cfg(feature = "shielded")]
 impl ToDigest for ShieldedFields {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
@@ -414,7 +420,6 @@ impl ToDigest for ShieldedFields {
     }
 }
 
-#[cfg(feature = "shielded")]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -433,7 +438,48 @@ pub struct ShieldedTransaction {
     pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
 }
 
-#[cfg(feature = "shielded")]
+impl ShieldedTransaction {
+    fn append_compressed_point<P: CanonicalSerialize>(buffer: &mut Vec<u8>, point: &P) {
+        point
+            .serialize_compressed(buffer)
+            .expect("serializing to Vec should not fail");
+    }
+
+    pub(crate) fn to_hashable_bytes(&self) -> Vec<u8> {
+        let mut buffer = Vec::with_capacity(
+            self.ciphertext.commitment.compressed_size()
+                + self.ciphertext.auth_tag.compressed_size()
+                + size_of::<H256>()
+                + size_of::<gsigner::Digest>()
+                + size_of::<H256>()
+                + size_of::<H256>(),
+        );
+
+        Self::append_compressed_point(&mut buffer, &self.ciphertext.commitment);
+        Self::append_compressed_point(&mut buffer, &self.ciphertext.auth_tag);
+        buffer.extend_from_slice(gear_core::utils::hash(&self.ciphertext.ciphertext).as_ref());
+        buffer.extend_from_slice(self.aad.as_ref());
+        buffer.extend_from_slice(self.reference_block.0.as_ref());
+        buffer.extend_from_slice(gear_core::utils::hash(&self.salt).as_ref());
+
+        buffer
+    }
+
+    /// Constructs blake2b hash over [ShieldedTransaction].
+    pub fn to_hash(&self) -> HashOf<Self> {
+        let hashable_bytes = self.to_hashable_bytes();
+        unsafe { HashOf::new(gear_core::utils::hash(hashable_bytes.as_ref()).into()) }
+    }
+}
+
+pub type SignedShieldedTransaction = SignedMessage<ShieldedTransaction>;
+
+impl ToDigest for ShieldedTransaction {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self.to_hashable_bytes());
+    }
+}
+
 impl ShieldedTransaction {
     /// Decrypts [Ciphertext] with provided [SharedSecret].
     /// Returns initial [InjectedTransaction].
@@ -452,6 +498,62 @@ impl ShieldedTransaction {
             reference_block: self.reference_block,
             salt: self.salt,
         })
+    }
+}
+
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::From)]
+#[allow(clippy::large_enum_variant)]
+pub enum Transaction {
+    Injected(SignedInjectedTransaction),
+    Shielded(SignedShieldedTransaction),
+}
+
+/// Type alias over [EitherHashOf].
+pub type TransactionHash = EitherHashOf<InjectedTransaction, ShieldedTransaction>;
+
+impl Transaction {
+    pub fn as_ref(&self) -> TransactionRef<'_> {
+        match self {
+            Self::Injected(tx) => TransactionRef::Injected(tx),
+            Self::Shielded(tx) => TransactionRef::Shielded(tx),
+        }
+    }
+
+    pub fn as_injected(&self) -> Option<&SignedInjectedTransaction> {
+        match self {
+            Self::Injected(tx) => Some(tx),
+            Self::Shielded(_) => None,
+        }
+    }
+}
+
+/// Mirroring [Transaction] type, but stores internally references to
+/// transactions variants.
+///
+/// # Usage
+/// This type must be used to transform [Operation] type into [Option<TransactionRef>].
+///
+/// [Operation]: crate::malachite::Operation
+#[derive(Clone, Copy)]
+pub enum TransactionRef<'op> {
+    Injected(&'op SignedInjectedTransaction),
+    Shielded(&'op SignedShieldedTransaction),
+}
+
+impl<'t> TransactionRef<'t> {
+    pub fn hash(&self) -> TransactionHash {
+        match self {
+            Self::Injected(tx) => TransactionHash::Left(tx.data().to_hash()),
+            Self::Shielded(tx) => TransactionHash::Right(tx.data().to_hash()),
+        }
+    }
+
+    pub fn reference_block(&self) -> H256 {
+        match self {
+            Self::Injected(tx) => tx.data().reference_block,
+            Self::Shielded(tx) => tx.data().reference_block,
+        }
     }
 }
 
@@ -501,10 +603,65 @@ mod digest_hex {
 
 #[cfg(all(test, feature = "mock"))]
 mod tests {
+    use std::ops::Mul;
+
+    use ark_ec::{AffineRepr, pairing::Pairing};
+    use gear_tdec::bls12_381::{E as Bls12_381, Fr};
     use gsigner::PrivateKey;
 
     use super::*;
     use crate::mock::Mock;
+
+    /// You can use this JavaScript code to reproduce serialize/deserialize paths.
+    /// ```no_run,ignore
+    /// import { bls12_381 } from '@noble/curves/bls12-381.js';
+    /// const { G1, G2 } = bls12_381;
+    ///
+    /// function bytesToHex(bytes) {
+    ///     return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    /// }
+    /// function dumpPoint(name, point) {
+    ///     const compressed = point.toBytes(true);
+    ///     console.log(`\n${name}`);
+    ///     console.log(`compressed hex: 0x${bytesToHex(compressed)}`);
+    /// }
+    ///
+    /// dumpPoint('G1 * 123', G1.Point.BASE.multiply(123n));
+    /// dumpPoint('G2 * 123', G2.Point.BASE.multiply(123n));
+    /// ```
+    #[test]
+    fn ark_noble_js_compatible_serialization() {
+        const NOBLE_JS_G1_123_COMPRESSED_SERIALIZED: &str = r#""0xa0ec3e71a719a25208adc97106b122809210faf45a17db24f10ffb1ac014fac1ab95a4a1967e55b185d4df622685b9e8""#;
+        const NOBLE_JS_G2_123_COMPRESSED_SERIALIZED: &str = r#""0x95e18bbdb8b7bd39ea677ee923d7e87af449c45209e635907a4a8a2e4c65fff97c46d038cff53a994da273310ac85866096a5e13fd3ebf4e140e26f6ddfac66651e04e530e6045572acab753bb1bcef990fe14b4426caee41016af69d313750d""#;
+
+        #[derive(serde::Serialize, serde::Deserialize)]
+        #[serde(transparent)]
+        struct G1Wrapper {
+            #[serde(with = "gear_tdec::serialization::ark_serde_hex")]
+            pub point: <Bls12_381 as Pairing>::G1,
+        }
+
+        let g1_123 = <Bls12_381 as Pairing>::G1Affine::generator().mul(Fr::from(123));
+        let wrapped_g1 = G1Wrapper { point: g1_123 };
+        assert_eq!(
+            serde_json::to_string(&wrapped_g1).unwrap(),
+            NOBLE_JS_G1_123_COMPRESSED_SERIALIZED
+        );
+
+        #[derive(serde::Serialize, serde::Deserialize)]
+        #[serde(transparent)]
+        struct G2Wrapper {
+            #[serde(with = "gear_tdec::serialization::ark_serde_hex")]
+            pub point: <Bls12_381 as Pairing>::G2,
+        }
+
+        let g2_123 = <Bls12_381 as Pairing>::G2Affine::generator().mul(Fr::from(123));
+        let wrapped_g2 = G2Wrapper { point: g2_123 };
+        assert_eq!(
+            serde_json::to_string(&wrapped_g2).unwrap(),
+            NOBLE_JS_G2_123_COMPRESSED_SERIALIZED
+        );
+    }
 
     #[test]
     fn signed_message_and_injected_transactions() {
@@ -646,7 +803,7 @@ mod tests {
     #[test]
     fn tx_receipt_has_the_same_hash_for_error() {
         let purged = PurgedTransaction {
-            tx_hash: unsafe { HashOf::new(H256::random()) },
+            tx_hash: unsafe { TransactionHash::Left(HashOf::new(H256::random())) },
             reason: TransactionPurgedReason::Outdated,
         };
         let receipt1 = Receipt::<Promise>::Purged(purged.clone());
@@ -668,5 +825,34 @@ mod tests {
         let serialized = serde_json::to_string_pretty(&shielded_tx).unwrap();
         let deserialized: ShieldedTransaction = serde_json::from_str(&serialized).unwrap();
         assert_eq!(shielded_tx, deserialized);
+    }
+
+    #[test]
+    fn signed_message_and_shielded_transactions() {
+        let injected_tx = InjectedTransaction::mock(());
+        let mut rng = gear_tdec::rand_utils::test_rng();
+        let dealer_out = gear_tdec::deal::<gear_tdec::bls12_381::E>(3, 2, &mut rng);
+        let shielded_tx = injected_tx
+            .shield(&dealer_out.public_key, &mut rng)
+            .unwrap();
+
+        let signed_tx =
+            SignedShieldedTransaction::create(PrivateKey::random(), shielded_tx).unwrap();
+
+        assert_eq!(
+            signed_tx
+                .signature()
+                .recover_message(signed_tx.data())
+                .expect("failed to recover message")
+                .to_address(),
+            signed_tx.address()
+        );
+    }
+
+    #[test]
+    fn mock_display() {
+        let hash = InjectedTransaction::mock(()).to_hash();
+        let h = TransactionHash::Left(hash);
+        println!("{h}");
     }
 }

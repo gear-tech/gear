@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use super::promise_manager::PendingSubscriber;
-use ethexe_common::{HashOf, injected::InjectedTransaction};
+use ethexe_common::injected::TransactionHash;
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
 use tracing::{error, trace, warn};
 
@@ -14,7 +14,7 @@ pub fn spawn_pending_subscriber<F>(
     subscriber: PendingSubscriber,
     on_finish: F,
 ) where
-    F: FnOnce(HashOf<InjectedTransaction>) + std::marker::Send + 'static,
+    F: FnOnce(TransactionHash) + std::marker::Send + 'static,
 {
     let (tx_hash, receiver) = subscriber.into_parts();
 

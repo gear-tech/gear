@@ -17,6 +17,7 @@ ethexe-common = { workspace = true, features = ["std"] }
 ethexe-rpc-common.workspace = true
 ethexe-runtime-common = { workspace = true, features = ["std"] }
 gprimitives = { workspace = true, features = ["serde", "ethexe"] }
+gear-tdec = { workspace = true, features = ["bls12_381"] }
 jsonrpsee = { workspace = true, features = ["client", "macros"] }
 sp-core = { workspace = true, features = ["serde"] }
 gear-workspace-hack.workspace = true

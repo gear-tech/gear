@@ -51,6 +51,7 @@
 //!   RocksDB locks and sockets release.
 
 mod config;
+mod decryption_shares;
 mod externalities;
 mod mempool;
 mod quarantine;
@@ -62,7 +63,7 @@ mod types;
 pub use crate::{
     config::{MalachiteServiceConfig, ValidatorConfig, ValidatorEntry},
     mempool::{InjectedTxMempool, Mempool, TxInsertionStatus},
-    service::MalachiteService,
+    service::{MalachiteService, ValidatorTdecSetup},
     starter::MalachiteServiceStarter,
     tx_validity::{TxValidity, TxValidityChecker},
     types::{CommitCertificate, MalachiteEvent},

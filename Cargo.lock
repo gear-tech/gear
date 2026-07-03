@@ -1383,14 +1383,14 @@ dependencies = [
 
 [[package]]
 name = "ark-bls12-381"
-version = "0.6.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be2ede2c0c96fa37d5d3484e8a59fec566c4a52b8c84bf993eaa6c67d7225a4c"
+checksum = "3df4dcc01ff89867cd86b0da835f23c3f02738353aaee7dde7495af71363b8d5"
 dependencies = [
- "ark-ec 0.6.0",
- "ark-ff 0.6.0",
- "ark-serialize 0.6.0",
- "ark-std 0.6.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
 ]
 
 [[package]]
@@ -1452,19 +1452,19 @@ dependencies = [
 
 [[package]]
 name = "ark-ec"
-version = "0.6.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8352a2b2aedf6ba2cc38f7520fc51191d518dde96175c729af19f2d059f191c4"
+checksum = "43d68f2d516162846c1238e755a7c4d131b892b70cc70c471a8e3ca3ed818fce"
 dependencies = [
  "ahash",
- "ark-ff 0.6.0",
- "ark-poly 0.6.0",
- "ark-serialize 0.6.0",
- "ark-std 0.6.0",
+ "ark-ff 0.5.0",
+ "ark-poly 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
  "educe",
  "fnv",
- "hashbrown 0.17.1",
- "itertools 0.14.0",
+ "hashbrown 0.15.5",
+ "itertools 0.13.0",
  "num-bigint",
  "num-integer",
  "num-traits",
@@ -1580,23 +1580,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-ff"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7a806ac6c8307b929df4645776290a50ee2aac754ad09d8bdf73391309e43af"
-dependencies = [
- "ark-ff-asm 0.6.0",
- "ark-ff-macros 0.6.0",
- "ark-serialize 0.6.0",
- "ark-std 0.6.0",
- "digest 0.10.7",
- "educe",
- "num-bigint",
- "num-traits",
- "zeroize",
-]
-
-[[package]]
 name = "ark-ff-asm"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1621,16 +1604,6 @@ name = "ark-ff-asm"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62945a2f7e6de02a31fe400aa489f0e0f5b2502e69f95f853adb82a96c7a6b60"
-dependencies = [
- "quote",
- "syn 2.0.114",
-]
-
-[[package]]
-name = "ark-ff-asm"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1479009684adc073dff49a1025d3a7065b317a9ead25aaaca38cdc70058ba8a2"
 dependencies = [
  "quote",
  "syn 2.0.114",
@@ -1675,19 +1648,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-ff-macros"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a0691ed21ef00ef89c1e9bda832eba493dda3ec2f8d892fb25b705f73f06bb8"
-dependencies = [
- "num-bigint",
- "num-traits",
- "proc-macro2",
- "quote",
- "syn 2.0.114",
-]
-
-[[package]]
 name = "ark-models-ext"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1715,17 +1675,17 @@ dependencies = [
 
 [[package]]
 name = "ark-poly"
-version = "0.6.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75f55af10b672002b8d953e230282c51206842e20e5791a94432219b4201de5c"
+checksum = "579305839da207f02b89cd1679e50e67b4331e2f9294a57693e5051b7703fe27"
 dependencies = [
  "ahash",
- "ark-ff 0.6.0",
- "ark-serialize 0.6.0",
- "ark-std 0.6.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
  "educe",
  "fnv",
- "hashbrown 0.17.1",
+ "hashbrown 0.15.5",
 ]
 
 [[package]]
@@ -1738,6 +1698,20 @@ dependencies = [
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
+name = "ark-scale"
+version = "0.0.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "985c81a9c7b23a72f62b7b20686d5326d2a9956806f37de9ee35cb1238faf0c0"
+dependencies = [
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
  "parity-scale-codec",
  "scale-info",
 ]
@@ -1770,20 +1744,9 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f4d068aaf107ebcd7dfb52bc748f8030e0fc930ac8e360146ca54c1203088f7"
 dependencies = [
+ "ark-serialize-derive 0.5.0",
  "ark-std 0.5.0",
  "arrayvec 0.7.6",
- "digest 0.10.7",
- "num-bigint",
-]
-
-[[package]]
-name = "ark-serialize"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a74dd304fd536fb95d0a328e72be759209cc496a9da094c5bc56e5fea4f9e86b"
-dependencies = [
- "ark-serialize-derive 0.6.0",
- "ark-std 0.6.0",
  "digest 0.10.7",
  "num-bigint",
 ]
@@ -1801,9 +1764,9 @@ dependencies = [
 
 [[package]]
 name = "ark-serialize-derive"
-version = "0.6.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f153690697a2b91e5e1251ff98411ee5371500a111a0fd317a70e588eb300f9"
+checksum = "213888f660fddcca0d257e88e54ac05bca01885f258ccdf695bafd77031bb69d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1836,16 +1799,6 @@ name = "ark-std"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "246a225cc6131e9ee4f24619af0f19d67761fff15d7ccc22e42b80846e69449a"
-dependencies = [
- "num-traits",
- "rand 0.8.5",
-]
-
-[[package]]
-name = "ark-std"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "367c9c827ed431bff6868b7aa926e05b16eb46603cc8b6e768e4a5553fa1d155"
 dependencies = [
  "num-traits",
  "rand 0.8.5",
@@ -5638,6 +5591,7 @@ dependencies = [
  "ethexe-runtime-common",
  "ethexe-sdk",
  "ethexe-service",
+ "ferveo-gear-tdec",
  "gear-workspace-hack",
  "gprimitives",
  "gsigner",
@@ -5661,6 +5615,8 @@ version = "2.0.0"
 dependencies = [
  "alloy-primitives",
  "anyhow",
+ "ark-ec 0.5.0",
+ "ark-serialize 0.5.0",
  "auto_impl",
  "derive_more 2.1.1",
  "ferveo-gear-tdec",
@@ -5747,6 +5703,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-ethereum",
  "ethexe-runtime-common",
+ "ferveo-gear-tdec",
  "flate2",
  "futures",
  "gear-core",
@@ -5809,6 +5766,7 @@ dependencies = [
  "ethexe-db",
  "ethexe-malachite-core",
  "ethexe-runtime-common",
+ "ferveo-gear-tdec",
  "futures",
  "gear-workspace-hack",
  "gprimitives",
@@ -6035,6 +5993,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-rpc-common",
  "ethexe-runtime-common",
+ "ferveo-gear-tdec",
  "gear-workspace-hack",
  "gprimitives",
  "jsonrpsee",
@@ -6058,13 +6017,13 @@ name = "ethexe-rpc-server"
 version = "2.0.0"
 dependencies = [
  "anyhow",
- "dashmap 5.5.3",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
  "ethexe-rpc-client",
  "ethexe-rpc-common",
  "ethexe-runtime-common",
+ "ferveo-gear-tdec",
  "futures",
  "gear-core",
  "gear-workspace-hack",
@@ -6174,6 +6133,7 @@ dependencies = [
  "ethexe-rpc-server",
  "ethexe-runtime-common",
  "ethexe-service-utils",
+ "ferveo-gear-tdec",
  "futures",
  "gear-core",
  "gear-core-errors",
@@ -6184,6 +6144,7 @@ dependencies = [
  "log",
  "ntest",
  "parity-scale-codec",
+ "rand 0.8.5",
  "tempfile",
  "tokio",
  "tracing",
@@ -6319,44 +6280,44 @@ dependencies = [
 
 [[package]]
 name = "ferveo-gear-common"
-version = "0.5.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "049504d8d4e9c23ae2ff50e37f81cac1c191eb71baf79f20bf9361ee29546461"
+checksum = "30a17e50cd62653ecf51f3123b4b9950e6873aa2fa6c7266e04a6000fa9ff941"
 dependencies = [
- "ark-ec 0.6.0",
- "ark-serialize 0.6.0",
- "ark-std 0.6.0",
- "bincode",
+ "ark-ec 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
  "const-hex",
  "generic-array 0.14.7",
+ "parity-scale-codec",
  "rand 0.8.5",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "ferveo-gear-tdec"
-version = "0.5.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "991a44fbe8ea0d5b1e3c49884c1cda791d0bd3612a2deacf652d027d0b759090"
+checksum = "8eedc637ff20af20c9aea6b9d82b8740311ed634309739cbd886809932314ad8"
 dependencies = [
- "ark-bls12-381 0.6.0",
- "ark-ec 0.6.0",
- "ark-ff 0.6.0",
- "ark-poly 0.6.0",
- "ark-serialize 0.6.0",
- "ark-std 0.6.0",
- "bincode",
+ "ark-bls12-381 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-poly 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
  "chacha20poly1305",
  "const-hex",
  "ferveo-gear-common",
+ "hex",
  "itertools 0.10.5",
  "parity-scale-codec",
  "rand 0.8.5",
  "serde",
  "sha2 0.10.9",
  "subproductdomain-gear",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "zeroize",
 ]
 
@@ -7134,11 +7095,11 @@ dependencies = [
 name = "gbuiltin-bls381"
 version = "2.0.0"
 dependencies = [
- "ark-bls12-381 0.4.0",
- "ark-ec 0.4.2",
- "ark-ff 0.4.2",
- "ark-scale",
- "ark-serialize 0.4.2",
+ "ark-bls12-381 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-scale 0.0.13",
+ "ark-serialize 0.5.0",
  "gear-workspace-hack",
  "parity-scale-codec",
  "scale-info",
@@ -8000,7 +7961,7 @@ dependencies = [
  "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-models-ext",
- "ark-scale",
+ "ark-scale 0.0.12",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
  "arrayvec 0.7.6",
@@ -8585,11 +8546,11 @@ dependencies = [
 name = "gsdk"
 version = "2.0.0"
 dependencies = [
- "ark-bls12-381 0.4.0",
- "ark-ec 0.4.2",
- "ark-scale",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
+ "ark-bls12-381 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-scale 0.0.13",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
  "colored",
  "demo-bls381",
  "demo-constructor",
@@ -8650,6 +8611,7 @@ dependencies = [
  "colored",
  "derive_more 2.1.1",
  "dirs",
+ "ferveo-gear-tdec",
  "gear-workspace-hack",
  "gprimitives",
  "hex",
@@ -8721,7 +8683,7 @@ dependencies = [
 name = "gtest"
 version = "2.0.0"
 dependencies = [
- "ark-std 0.4.0",
+ "ark-std 0.5.0",
  "builtins-common",
  "cargo_toml",
  "colored",
@@ -8891,7 +8853,6 @@ version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 dependencies = [
- "allocator-api2",
  "foldhash 0.2.0",
 ]
 
@@ -12949,7 +12910,7 @@ dependencies = [
 name = "pallet-gear-builtin"
 version = "2.0.0"
 dependencies = [
- "ark-std 0.4.0",
+ "ark-std 0.5.0",
  "builtins-common",
  "demo-proxy-broker",
  "demo-staking-broker",
@@ -18208,7 +18169,7 @@ dependencies = [
  "ark-ed-on-bls12-377-ext",
  "ark-ed-on-bls12-381-bandersnatch",
  "ark-ed-on-bls12-381-bandersnatch-ext",
- "ark-scale",
+ "ark-scale 0.0.12",
  "sp-runtime-interface",
 ]
 
@@ -18965,15 +18926,15 @@ dependencies = [
 
 [[package]]
 name = "subproductdomain-gear"
-version = "0.5.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0e0585b62ebf2ec655a49e5f60033b0c240695e18ef3f28f4b81710ec15cbbd"
+checksum = "cfba387009bc87f6ba69c9461d62da844f7c81904d319e7348a59b15fdd535dc"
 dependencies = [
  "anyhow",
- "ark-ec 0.6.0",
- "ark-ff 0.6.0",
- "ark-poly 0.6.0",
- "ark-std 0.6.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-poly 0.5.0",
+ "ark-std 0.5.0",
 ]
 
 [[package]]

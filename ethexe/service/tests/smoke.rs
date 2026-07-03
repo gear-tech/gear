@@ -97,6 +97,7 @@ async fn constructor() {
         malachite: config::MalachiteCliConfig { validator_pub_keys },
         rpc: None,
         prometheus: None,
+        tdec: None,
     };
 
     let service = Service::new(&config).await.unwrap();

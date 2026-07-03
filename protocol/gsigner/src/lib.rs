@@ -52,6 +52,8 @@ pub mod scheme;
 pub mod schemes;
 #[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
 pub mod signer;
+#[cfg(feature = "tdec")]
+pub mod tdec;
 pub mod utils;
 
 #[cfg(feature = "cli")]
@@ -84,6 +86,8 @@ pub use scheme::KeystoreOps;
 pub use signer::Signer;
 #[cfg(all(feature = "std", feature = "keyring"))]
 pub use storage::{FilesystemBackend, MemoryBackend, StorageBackend, StorageError, StorageResult};
+#[cfg(feature = "tdec")]
+pub use {crate::tdec::*, gear_tdec::bls12_381::DecryptionShareSimple as DecryptionShare};
 
 #[cfg(feature = "secp256k1")]
 pub use schemes::secp256k1::{

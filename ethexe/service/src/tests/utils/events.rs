@@ -8,13 +8,10 @@ use alloy::providers::{RootProvider, ext::AnvilApi};
 use async_broadcast::{Receiver, RecvError, Sender};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Address, HashOf, SimpleBlockData,
+    Address, SimpleBlockData,
     db::*,
     events::BlockEvent,
-    injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, SignedCompactTxReceipt,
-        SignedInjectedTransaction,
-    },
+    injected::{SignedCompactTxReceipt, Transaction, TransactionAcceptance, TransactionHash},
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::ComputeEvent;
@@ -42,14 +39,15 @@ pub type TestingEventReceiver = KickingStream<EventReceiver<TestingEvent>>;
 pub type ObserverEventSender = EventSender<ObserverEvent>;
 pub type ObserverEventReceiver = KickingStream<EventReceiver<ObserverEvent>>;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkInjectedEvent {
     InboundTransaction {
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     },
     OutboundAcceptance {
-        transaction_hash: HashOf<InjectedTransaction>,
-        acceptance: InjectedTransactionAcceptance,
+        transaction_hash: TransactionHash,
+        acceptance: TransactionAcceptance,
     },
 }
 
@@ -61,7 +59,7 @@ impl TestingNetworkInjectedEvent {
                 transaction,
                 channel: _,
             } => Self::InboundTransaction {
-                transaction: SignedInjectedTransaction::clone(transaction),
+                transaction: transaction.as_ref().clone(),
             },
             NetworkInjectedEvent::OutboundAcceptance {
                 transaction_hash,
@@ -74,6 +72,7 @@ impl TestingNetworkInjectedEvent {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
@@ -103,18 +102,16 @@ impl TestingNetworkEvent {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
-    InjectedTransaction {
-        transaction: SignedInjectedTransaction,
-    },
+    Transaction { transaction: Transaction },
 }
 
 impl TestingRpcEvent {
     fn new(event: &RpcEvent) -> Self {
         match event {
-            RpcEvent::InjectedTransaction {
+            RpcEvent::Transaction {
                 transaction,
                 response_sender: _,
-            } => Self::InjectedTransaction {
+            } => Self::Transaction {
                 transaction: transaction.clone(),
             },
         }

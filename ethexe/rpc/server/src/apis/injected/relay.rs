@@ -7,7 +7,7 @@
 //! validator in the current era and returns the first acceptance.
 
 use crate::{RpcEvent, errors};
-use ethexe_common::injected::{InjectedTransactionAcceptance, SignedInjectedTransaction};
+use ethexe_common::injected::{Transaction, TransactionAcceptance};
 use jsonrpsee::core::RpcResult;
 use tokio::sync::{mpsc, oneshot};
 
@@ -23,33 +23,34 @@ impl TransactionsRelayer {
 
     /// Broadcast `transaction` to every validator in the current era,
     /// returning the first `Accept` observed by the service.
-    pub async fn relay(
-        &self,
-        transaction: SignedInjectedTransaction,
-    ) -> RpcResult<InjectedTransactionAcceptance> {
-        let tx_hash = transaction.data().to_hash();
+    pub async fn relay(&self, transaction: Transaction) -> RpcResult<TransactionAcceptance> {
+        let tx_hash = transaction.as_ref().hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
 
-        if transaction.data().value != 0 {
-            tracing::warn!(
-                tx_hash = %tx_hash,
-                value = transaction.data().value,
-                "Injected transaction with non-zero value is not supported"
-            );
-            return Err(errors::bad_request(
-                "Injected transactions with non-zero value are not supported",
-            ));
+        match &transaction {
+            Transaction::Injected(transaction) if transaction.data().value != 0 => {
+                tracing::warn!(
+                    tx_hash = %tx_hash,
+                    value = transaction.data().value,
+                    "Injected transaction with non-zero value is not supported"
+                );
+                return Err(errors::bad_request(
+                    "Injected transactions with non-zero value are not supported",
+                ));
+            }
+            Transaction::Injected(_) => {}
+            Transaction::Shielded(_) => {}
         }
 
         let (response_sender, response_receiver) = oneshot::channel();
-        let event = RpcEvent::InjectedTransaction {
+        let event = RpcEvent::Transaction {
             transaction,
             response_sender,
         };
 
         if let Err(err) = self.rpc_sender.send(event) {
             tracing::error!(
-                "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
+                "Failed to send `RpcEvent::Transaction` event task: {err}. \
                 The receiving end in the main service might have been dropped."
             );
             return Err(errors::internal());

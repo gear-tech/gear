@@ -4,20 +4,24 @@
 use ethexe_common::{
     HashOf,
     injected::{
-        InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction,
-        SignedTxReceipt,
+        InjectedTransaction, SignedInjectedTransaction, SignedTxReceipt, Transaction,
+        TransactionAcceptance,
     },
 };
+use gear_tdec::bls12_381::DkgPublicKey;
 use jsonrpsee::proc_macros::rpc;
 
 #[rpc(client, namespace = "injected")]
 pub trait Injected {
+    #[method(name = "getShieldingKey")]
+    async fn shielding_key(&self) -> jsonrpsee::core::RpcResult<Option<DkgPublicKey>>;
+
     /// Just sends an injected transaction.
     #[method(name = "sendTransaction")]
     async fn send_transaction(
         &self,
-        transaction: SignedInjectedTransaction,
-    ) -> jsonrpsee::core::RpcResult<InjectedTransactionAcceptance>;
+        transaction: Transaction,
+    ) -> jsonrpsee::core::RpcResult<TransactionAcceptance>;
 
     /// Sends an injected transaction and subscribes to its promise.
     #[subscription(
@@ -27,7 +31,7 @@ pub trait Injected {
     )]
     async fn send_transaction_and_watch(
         &self,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> jsonrpsee::core::SubscriptionResult;
 
     #[method(name = "getTransactionReceipt")]

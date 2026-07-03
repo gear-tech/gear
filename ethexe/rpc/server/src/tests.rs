@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    InjectedApi, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer, RpcService,
-    test_utils::wasm_with_custom_section,
+    InjectedApi, RpcConfig, RpcEvent, RpcServer, RpcService, test_utils::wasm_with_custom_section,
 };
 use ethexe_common::{
     SignedMessage, ValidatorsVec,
@@ -12,6 +11,7 @@ use ethexe_common::{
     gear::MAX_BLOCK_GAS_LIMIT,
     injected::{
         InjectedTransaction, Promise, Receipt, SignedCompactTxReceipt, SignedInjectedTransaction,
+        Transaction, TransactionAcceptance,
     },
     mock::Mock,
 };
@@ -62,7 +62,7 @@ impl MockService {
             let mut tx_batch_interval =
                 tokio::time::interval(std::time::Duration::from_millis(350));
 
-            let mut tx_batch = Vec::new();
+            let mut tx_batch = Vec::<SignedInjectedTransaction>::new();
 
             loop {
                 tokio::select! {
@@ -77,10 +77,13 @@ impl MockService {
                         unreachable!("RPC server should not be stopped during the test")
                     },
                     event = self.rpc.next() => {
-                        let RpcEvent::InjectedTransaction {transaction, response_sender} = event.expect("RPC event will be valid");
+                        let RpcEvent::Transaction {transaction, response_sender} = event.expect("RPC event will be valid");
 
-                        response_sender.send(InjectedTransactionAcceptance::Accept).expect("Response sender will be valid");
-                        tx_batch.push(transaction);
+                        response_sender.send(TransactionAcceptance::Accept).expect("Response sender will be valid");
+                        match transaction {
+                            Transaction::Injected(transaction) => tx_batch.push(transaction),
+                            Transaction::Shielded(_) => todo!("Shielded transaction execution"),
+                        }
                     },
                 }
             }
@@ -203,7 +206,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut sub = ws_client
-                .send_transaction_and_watch(mock_signed_transaction())
+                .send_transaction_and_watch(mock_signed_transaction().into())
                 .await
                 .expect("Subscription will be created");
 
@@ -232,7 +235,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut subscription = ws_client
-                .send_transaction_and_watch(mock_signed_transaction())
+                .send_transaction_and_watch(mock_signed_transaction().into())
                 .await
                 .expect("Subscription will be created");
 
@@ -260,7 +263,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscriptions = vec![];
         for _ in 0..20 {
             let subscription = ws_client
-                .send_transaction_and_watch(mock_signed_transaction())
+                .send_transaction_and_watch(mock_signed_transaction().into())
                 .await
                 .expect("Subscription will be created");
             subscriptions.push(subscription);
@@ -297,7 +300,7 @@ async fn test_concurrent_multiple_clients() {
             let mut subscriptions = vec![];
             for _ in 0..50 {
                 let mut subscription = client
-                    .send_transaction_and_watch(mock_signed_transaction())
+                    .send_transaction_and_watch(mock_signed_transaction().into())
                     .await
                     .expect("Subscription will be created");
 

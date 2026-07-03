@@ -30,13 +30,13 @@ ethexe-runtime-common = { workspace = true, features = ["std"] }
 sp-core = { workspace = true, features = ["serde"] }
 gear-core = { workspace = true, features = ["std"] }
 tracing.workspace = true
-dashmap.workspace = true
 metrics.workspace = true
 metrics-derive.workspace = true
 gear-workspace-hack.workspace = true
 thiserror.workspace = true
 scopeguard.workspace = true
 moka = { workspace = true, features = ["sync"] }
+gear-tdec = { workspace = true, features = ["bls12_381"] }
 
 [dev-dependencies]
 ethexe-rpc-client.workspace = true
@@ -45,7 +45,7 @@ ethexe-common = { workspace = true, features = ["std", "mock"] }
 ntest.workspace = true
 tracing-subscriber.workspace = true
 
-ethexe-db = {workspace = true, features = ["mock"]}
+ethexe-db = { workspace = true, features = ["mock"] }
 
 [lints]
 workspace = true

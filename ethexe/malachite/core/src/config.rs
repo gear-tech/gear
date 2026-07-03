@@ -24,7 +24,7 @@ pub struct ValidatorEntry {
 }
 
 /// Role this node plays in the BFT swarm.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::IsVariant)]
 pub enum NodeRole {
     /// Signs votes and proposals; the local key must appear in
     /// [`MalachiteCoreConfig::validators`].

@@ -46,7 +46,7 @@ use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{SignedCompactTxReceipt, SignedInjectedTransaction},
+    injected::{SignedCompactTxReceipt, Transaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -672,7 +672,7 @@ impl NetworkService {
     /// Send an injected transaction privately to all known validators.
     pub fn broadcast_injected_transaction(
         &mut self,
-        transaction: SignedInjectedTransaction,
+        transaction: Transaction,
     ) -> Result<NonZeroUsize, injected::SendTransactionError> {
         let behaviour = self.swarm.behaviour_mut();
         behaviour

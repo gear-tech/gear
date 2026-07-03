@@ -39,6 +39,7 @@ use ethexe_ethereum::{
 };
 use ethexe_malachite::{
     InjectedTxMempool, MalachiteServiceConfig, MalachiteServiceStarter, ValidatorEntry,
+    ValidatorTdecSetup,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
@@ -49,16 +50,21 @@ use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
 use ethexe_rpc_server::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
+use gear_tdec::bls12_381::{DkgPublicKey, E as Bls12_381};
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
-use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+use gsigner::{
+    TdecKeyStore,
+    secp256k1::{Secp256k1SignerExt, Signer},
+};
 use jsonrpsee::{
     http_client::HttpClient,
     ws_client::{WsClient, WsClientBuilder},
 };
 use std::{
+    collections::HashMap,
     fmt, mem,
     net::SocketAddr,
-    num::NonZero,
+    num::{NonZero, NonZeroUsize},
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
@@ -81,6 +87,7 @@ pub struct TestEnv {
     pub ethereum: Ethereum,
     pub signer: Signer,
     pub validators: Vec<ValidatorConfig>,
+    pub tdec_public_key: DkgPublicKey,
     pub sender_id: ActorId,
     pub threshold: u64,
     pub continuous_block_generation: bool,
@@ -91,6 +98,7 @@ pub struct TestEnv {
     pub kicking_per_blocks: Option<u32>,
     #[allow(unused)]
     pub db: Database,
+    validator_tdec_setups: HashMap<PublicKey, ValidatorTdecSetup>,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -102,7 +110,85 @@ pub struct TestEnv {
     _anvil: Option<AnvilInstance>,
 }
 
+fn build_validator_tdec_setups(
+    validators: &[ValidatorConfig],
+    threshold: u64,
+) -> (DkgPublicKey, HashMap<PublicKey, ValidatorTdecSetup>) {
+    let threshold = usize::try_from(threshold).expect("TDEC threshold must fit usize");
+    assert!(
+        threshold > 0 && threshold <= validators.len(),
+        "invalid TDEC threshold {threshold} for {} validators",
+        validators.len(),
+    );
+
+    let dealer = gear_tdec::deal::<Bls12_381>(validators.len(), threshold, &mut rand::thread_rng());
+    let public_key = dealer.public_key;
+    let private_contexts = dealer.private_contexts;
+    let public_contexts = private_contexts
+        .first()
+        .expect("validator set must be non-empty")
+        .public_decryption_contexts
+        .iter()
+        .take(validators.len())
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(validators.len(), public_contexts.len());
+
+    let contexts: HashMap<Address, gsigner::PublicDecryptionContext> = validators
+        .iter()
+        .zip(&public_contexts)
+        .map(|(validator, context)| (validator.public_key.to_address(), context.clone()))
+        .collect();
+    let threshold = NonZeroUsize::new(threshold).expect("threshold was checked above");
+    let setups = validators
+        .iter()
+        .zip(private_contexts)
+        .map(|(validator, private_context)| {
+            let key_store = TdecKeyStore::memory();
+            key_store
+                .import_decryption_key(private_context.validator_decryption_key)
+                .expect("dealer TDEC key must be importable");
+
+            (
+                validator.public_key,
+                ValidatorTdecSetup {
+                    threshold,
+                    dkg_public_key: public_key,
+                    validators_contexts: Some(contexts.clone()),
+                    key_store,
+                },
+            )
+        })
+        .collect();
+
+    (public_key, setups)
+}
+
 impl TestEnv {
+    fn ensure_validator_tdec_setups(&mut self) {
+        let setup_matches_active_validators = self.validators.first().is_some_and(|validator| {
+            self.validator_tdec_setups
+                .get(&validator.public_key)
+                .is_some_and(|setup| {
+                    setup.validators_contexts.as_ref().unwrap().len() == self.validators.len()
+                        && self.validators.iter().all(|validator| {
+                            setup
+                                .validators_contexts
+                                .as_ref()
+                                .unwrap()
+                                .contains_key(&validator.public_key.to_address())
+                        })
+                })
+        });
+        if setup_matches_active_validators {
+            return;
+        }
+
+        let (public_key, setups) = build_validator_tdec_setups(&self.validators, self.threshold);
+        self.tdec_public_key = public_key;
+        self.validator_tdec_setups = setups;
+    }
+
     pub async fn new(config: TestEnvConfig) -> anyhow::Result<Self> {
         let TestEnvConfig {
             validators,
@@ -294,6 +380,8 @@ impl TestEnv {
         };
 
         let threshold = router_query.validators_threshold().await?;
+        let (tdec_public_key, validator_tdec_setups) =
+            build_validator_tdec_setups(&validator_configs, threshold);
 
         let maybe_address = match network {
             EnvNetworkConfig::Enabled => None,
@@ -360,6 +448,7 @@ impl TestEnv {
             ethereum,
             signer,
             validators: validator_configs,
+            tdec_public_key,
             sender_id: ActorId::from(H160::from(sender_address.0)),
             threshold,
             continuous_block_generation,
@@ -369,6 +458,7 @@ impl TestEnv {
             post_quarantine_delay,
             kicking_per_blocks,
             db,
+            validator_tdec_setups,
             router_query,
             observer_events,
             bootstrap_network,
@@ -424,9 +514,15 @@ impl TestEnv {
         // `BlockFinalized` and can compute MBs locally.
         let malachite_home = Some(tempfile::tempdir().expect("malachite home tempdir"));
 
+        self.ensure_validator_tdec_setups();
+
         // Snapshot env.validators now so a node spawned post-rotation boots with the new set.
         let active_validator_pub_keys: Vec<PublicKey> =
             self.validators.iter().map(|v| v.public_key).collect();
+        let validator_tdec_setup = validator_config
+            .as_ref()
+            .and_then(|config| self.validator_tdec_setups.get(&config.public_key))
+            .cloned();
 
         Node {
             name,
@@ -441,6 +537,7 @@ impl TestEnv {
             signer: self.signer.clone(),
             threshold: self.threshold,
             validator_config,
+            validator_tdec_setup,
             network_public_key,
             network_address,
             network_bootstrap_address,
@@ -926,6 +1023,7 @@ pub struct Node {
     signer: Signer,
     threshold: u64,
     validator_config: Option<ValidatorConfig>,
+    validator_tdec_setup: Option<ValidatorTdecSetup>,
     network_public_key: PublicKey,
     network_address: String,
     network_bootstrap_address: String,
@@ -1077,6 +1175,7 @@ impl Node {
                         pub_key: c.public_key,
                         mempool: InjectedTxMempool::new(self.db.clone()),
                         signer: self.signer.clone(),
+                        validator_tdec_setup: self.validator_tdec_setup.clone(),
                     });
 
             MalachiteServiceStarter::new(
@@ -1453,5 +1552,36 @@ pub async fn stop_nodes(nodes: impl IntoIterator<Item = Node>) {
         }
 
         drop(node);
+    }
+}
+
+#[test]
+fn validator_tdec_setups_create_decryption_shares() {
+    let validators = (0..3)
+        .map(|_| {
+            let public_key = gsigner::secp256k1::PrivateKey::random().public_key();
+            ValidatorConfig {
+                public_key,
+                session_public_key: public_key,
+            }
+        })
+        .collect::<Vec<_>>();
+    let (public_key, setups) = build_validator_tdec_setups(&validators, 2);
+    let ciphertext =
+        gear_tdec::encrypt_raw::<Bls12_381>(b"test", b"aad", &public_key, &mut rand::thread_rng())
+            .expect("test payload must be encrypted");
+
+    for validator in validators {
+        let setup = setups
+            .get(&validator.public_key)
+            .expect("each validator must have a TDEC setup");
+        let contexts = setup.validators_contexts.clone().unwrap();
+        assert_eq!(contexts.len(), setups.len());
+        assert!(contexts.contains_key(&validator.public_key.to_address()));
+        let my_context = contexts.get(&validator.public_key.to_address()).unwrap();
+        setup
+            .key_store
+            .create_share(my_context, &ciphertext.header(), b"aad")
+            .expect("validator must create a decryption share");
     }
 }

@@ -1,7 +1,10 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use ethexe_common::{SimpleBlockData, injected::PurgedTransaction};
+use ethexe_common::{
+    HashOf, SimpleBlockData,
+    injected::{InjectedTransaction, PurgedTransaction, ShieldedTransaction},
+};
 use gprimitives::H256;
 use tokio::sync::{Notify, RwLock};
 
@@ -48,6 +51,13 @@ pub enum MalachiteEvent {
         eb_hash: H256,
         transactions: Vec<PurgedTransaction>,
     },
+
+    /// Output of unshielding transactions in an MB.
+    UnshieldingOutput {
+        mb_hash: H256,
+        unshielded_hash_mapping: Vec<(HashOf<ShieldedTransaction>, HashOf<InjectedTransaction>)>,
+        not_unshielded: Vec<PurgedTransaction>,
+    },
 }
 
 impl std::fmt::Display for MalachiteEvent {
@@ -77,6 +87,16 @@ impl std::fmt::Display for MalachiteEvent {
                     transactions.len()
                 )
             }
+            Self::UnshieldingOutput {
+                mb_hash,
+                unshielded_hash_mapping,
+                not_unshielded,
+            } => write!(
+                f,
+                "UnshieldingOutput(mb_hash: {mb_hash}, unshielded_len: {}, not_unshielded_len: {})",
+                unshielded_hash_mapping.len(),
+                not_unshielded.len(),
+            ),
         }
     }
 }

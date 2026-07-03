@@ -17,19 +17,34 @@ use bytes::Bytes;
 use ethexe_common::{
     Address, SimpleBlockData,
     db::{ConfigStorageRO, OnChainStorageRO},
-    injected::SignedInjectedTransaction,
+    injected::Transaction,
 };
 use ethexe_malachite_core::MalachiteCore;
 use futures::{Stream, stream::FusedStream};
+use gear_tdec::bls12_381::DkgPublicKey;
 use gprimitives::H256;
-use gsigner::schemes::secp256k1::PublicKey;
+use gsigner::{PublicDecryptionContext, TdecKeyStore, schemes::secp256k1::PublicKey};
 use std::{
     collections::HashMap,
+    num::NonZeroUsize,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
 };
 use tokio::sync::mpsc::UnboundedReceiver;
+
+/// Public threshold-decryption context and local private-key storage for one validator.
+#[derive(Clone, Debug)]
+pub struct ValidatorTdecSetup {
+    /// Minimal number of shares for transaction decryption.
+    pub threshold: NonZeroUsize,
+    /// Dkg public key for transactions shielding.
+    pub dkg_public_key: DkgPublicKey,
+    /// Public contexts used to create and verify validator decryption shares.
+    pub validators_contexts: Option<HashMap<Address, PublicDecryptionContext>>,
+    /// Store containing this validator's private threshold-decryption key.
+    pub key_store: TdecKeyStore,
+}
 
 /// Public consensus service.
 pub struct MalachiteService {
@@ -66,10 +81,7 @@ impl MalachiteService {
 
     /// Route an injected transaction into the mempool.
     /// Rejects with `PoolFull` when the node is not a validator.
-    pub async fn receive_injected_transaction(
-        &self,
-        tx: SignedInjectedTransaction,
-    ) -> TxInsertionStatus {
+    pub async fn receive_transaction(&self, tx: Transaction) -> crate::mempool::TxInsertionStatus {
         if let Some(pool) = self.mempool.as_ref() {
             pool.insert(tx).await
         } else {

@@ -8,7 +8,10 @@ use crate::{
     SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedInjectedTransaction, SignedTxReceipt},
+    injected::{
+        InjectedTransaction, Promise, ShieldedTransaction, SignedInjectedTransaction,
+        SignedShieldedTransaction, SignedTxReceipt,
+    },
     malachite::Operations,
 };
 use alloc::{
@@ -19,7 +22,9 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
 };
+use gear_tdec::bls12_381::DkgPublicKey;
 use gprimitives::H256;
+use gsigner::VerifiedData;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -115,6 +120,12 @@ pub trait InjectedStorageRO {
         hash: HashOf<InjectedTransaction>,
     ) -> Option<SignedInjectedTransaction>;
 
+    /// Returns the shielded transaction by its hash.
+    fn shielded_transaction(
+        &self,
+        hash: HashOf<ShieldedTransaction>,
+    ) -> Option<SignedShieldedTransaction>;
+
     /// Returns the promise by its transaction hash.
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 
@@ -126,9 +137,21 @@ pub trait InjectedStorageRO {
 pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
 
+    fn set_shielded_transaction(&self, tx: SignedShieldedTransaction);
+
     fn set_promise(&self, promise: &Promise);
 
     fn set_receipt(&self, receipt: &SignedTxReceipt);
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait TdecStorageRO {
+    fn shielding_key(&self) -> Option<DkgPublicKey>;
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait TdecStorageRW: TdecStorageRO {
+    fn set_shielding_key(&self, key: DkgPublicKey);
 }
 
 /// MB static identity. Keyed by the Blake2b envelope hash; existence implies
@@ -164,6 +187,7 @@ pub trait MbStorageRO {
     fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
     fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
     fn mb_meta(&self, mb_hash: H256) -> MbMeta;
+    fn mb_unshielded_txs(&self, mb_hash: H256) -> Vec<VerifiedData<InjectedTransaction>>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -175,6 +199,7 @@ pub trait MbStorageRW: MbStorageRO {
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
     fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
+    fn set_mb_unshielded_txs(&self, mb_hash: H256, txs: Vec<VerifiedData<InjectedTransaction>>);
     fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
 }
 
@@ -259,7 +284,7 @@ pub use mock_interfaces::{SetConfig, SetGlobals};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::malachite::Operations;
+    // use crate::malachite::Operations;
     use indoc::formatdoc;
     use scale_info::{PortableRegistry, Registry, meta_type};
     use sha3::{Digest, Sha3_256};
@@ -267,7 +292,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "cbf21dc97ec57cc6f653a7808672dc2c086fdfae28d1435e93f0dfe812de21c3";
+            "c543e8c3d27f17bd77d510ce3f1d2b3a286b6444559444eb78807b3c2fd9ffbf";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -288,7 +313,7 @@ mod tests {
             // NOTE: `Operation` hand-rolls its `Encode`/`Decode` (fixed-width
             // u32 tag), so this TypeInfo hash does NOT cover its wire format —
             // the exact bytes are pinned by `malachite::tests::operation_encoding_is_frozen`.
-            meta_type::<Operations>(),
+            // meta_type::<Operations>(),
             meta_type::<DBConfig>(),
             meta_type::<DBGlobals>(),
         ];

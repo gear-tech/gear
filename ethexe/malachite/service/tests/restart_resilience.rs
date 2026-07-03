@@ -16,26 +16,27 @@
 //!    `globals.latest_finalized_mb_hash` is gap-free across the
 //!    restart boundary, and the latest pointer never rewinds.
 
-use std::{path::Path, time::Duration};
+use std::{collections::HashMap, num::NonZeroUsize, path::Path, time::Duration};
 
 use async_trait::async_trait;
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
     db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
-    injected::{PurgedTransaction, SignedInjectedTransaction},
+    injected::{PurgedTransaction, Transaction, TransactionRef},
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
     MalachiteEvent, MalachiteService, MalachiteServiceConfig, MalachiteServiceStarter, Mempool,
-    TxInsertionStatus, ValidatorConfig, ValidatorEntry,
+    TxInsertionStatus, ValidatorConfig, ValidatorEntry, ValidatorTdecSetup,
 };
 use ethexe_malachite_core::{
     Address, MalachiteCtx, MalachiteNetworkParts, MalachiteSigner, PeerId, ScaleCodec,
     libp2p_keypair_from, private_key_from_gsigner, public_key_from_gsigner,
 };
 use futures::StreamExt as _;
+use gear_tdec::bls12_381::E as Bls12_381;
 use gprimitives::H256;
-use gsigner::{Signer, schemes::secp256k1::Secp256k1};
+use gsigner::{Signer, TdecKeyStore, schemes::secp256k1::Secp256k1};
 use malachitebft_app_channel::app::{metrics::SharedRegistry, types::codec::Codec};
 use malachitebft_engine::network::{Network, NetworkIdentity};
 use malachitebft_network::{
@@ -52,7 +53,7 @@ struct EmptyMempool;
 
 #[async_trait]
 impl Mempool for EmptyMempool {
-    async fn insert(&self, _tx: SignedInjectedTransaction) -> TxInsertionStatus {
+    async fn insert(&self, _tx: Transaction) -> TxInsertionStatus {
         TxInsertionStatus::Inserted
     }
 
@@ -60,11 +61,11 @@ impl Mempool for EmptyMempool {
         Vec::new()
     }
 
-    async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
+    async fn fetch(&self, _head: SimpleBlockData) -> Vec<Transaction> {
         Vec::new()
     }
 
-    async fn forget(&self, _committed: &[SignedInjectedTransaction]) {}
+    async fn forget(&self, _committed: &[TransactionRef<'_>]) {}
 
     async fn wait_for_new_tx(&self) {
         std::future::pending().await
@@ -126,9 +127,35 @@ fn build_signer(home: &Path) -> (Signer<Secp256k1>, gsigner::schemes::secp256k1:
     (signer, pub_key)
 }
 
+fn build_tdec_setup(pub_key: gsigner::schemes::secp256k1::PublicKey) -> ValidatorTdecSetup {
+    let dealer = gear_tdec::deal::<Bls12_381>(1, 1, &mut gear_tdec::rand_utils::test_rng());
+    let private_context = dealer
+        .private_contexts
+        .into_iter()
+        .next()
+        .expect("single-validator dealer output must contain a private context");
+    let public_context = private_context
+        .public_decryption_contexts
+        .first()
+        .cloned()
+        .expect("single-validator dealer output must contain a public context");
+
+    let key_store = TdecKeyStore::memory();
+    key_store
+        .import_decryption_key(private_context.validator_decryption_key)
+        .expect("dealer TDEC key must be importable");
+
+    ValidatorTdecSetup {
+        threshold: NonZeroUsize::new(1).expect("threshold is non-zero"),
+        dkg_public_key: dealer.public_key,
+        validators_contexts: Some(HashMap::from([(pub_key.to_address(), public_context)])),
+        key_store,
+    }
+}
+
 /// Build the MalachiteServiceConfig used by the resilience tests:
 /// quarantine-off (so the producer can advance immediately on each
-/// new chain head), default listen address, no persistent peers,
+/// new chain head), ephemeral listen port, no persistent peers,
 /// single-validator set so the local node can decide on its own.
 fn build_config(
     home: &Path,
@@ -267,6 +294,9 @@ async fn collect_until_finalized(
             Ok(Some(Ok(MalachiteEvent::PurgedTransactions { .. }))) => {
                 // ignore
             }
+            Ok(Some(Ok(MalachiteEvent::UnshieldingOutput { .. }))) => {
+                // ignore
+            }
             Ok(Some(Err(e))) => panic!("service error: {e}"),
             Ok(None) | Err(_) => break,
         }
@@ -293,6 +323,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     let private_key = signer
         .private_key(pub_key)
         .expect("extract validator private key");
+    let tdec_setup = build_tdec_setup(pub_key);
 
     // ---- first run -------------------------------------------------
     let (peer_id, network_parts) = default_network_parts(&private_key, 30_001).await;
@@ -302,6 +333,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
             pub_key,
             mempool: EmptyMempool,
             signer: signer.clone(),
+            validator_tdec_setup: Some(tdec_setup.clone()),
         }),
         db.clone(),
         chain[0],
@@ -352,6 +384,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
             pub_key,
             mempool: EmptyMempool,
             signer,
+            validator_tdec_setup: Some(tdec_setup),
         }),
         db.clone(),
         chain[31],

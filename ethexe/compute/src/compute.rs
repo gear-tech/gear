@@ -227,7 +227,7 @@ pub fn prepare_executable_for_mb(
         ..
     } = compact_mb;
 
-    let mb_payload = db
+    let operations = db
         .operations(operations_hash)
         .ok_or(ComputeError::MbPayloadNotFound {
             mb_hash,
@@ -246,7 +246,14 @@ pub fn prepare_executable_for_mb(
         .ok_or(ComputeError::ParentMbScheduleMissing(parent))?;
     let advanced_block = db.mb_meta(parent).last_advanced_eb;
 
-    build_executable_data(db, mb_payload, program_states, schedule, advanced_block)
+    build_executable_data(
+        db,
+        mb_hash,
+        operations,
+        program_states,
+        schedule,
+        advanced_block,
+    )
 }
 
 /// Walk the MB's `Operations` list and prepare processor input.
@@ -256,13 +263,15 @@ pub fn prepare_executable_for_mb(
 /// genesis block from [`ConfigStorageRO::config`].
 fn build_executable_data(
     db: &Database,
+    mb_hash: H256,
     operations: Operations,
     program_states: ethexe_common::ProgramStates,
     schedule: ethexe_common::Schedule,
     advanced_block: H256,
 ) -> Result<ExecutableData> {
     let mut events: Vec<BlockRequestEvent> = Vec::new();
-    let mut injected_transactions = Vec::new();
+    // Initialize injected transactions with already unshielded txs.
+    let mut injected_transactions = db.mb_unshielded_txs(mb_hash);
     let mut gas_allowance: Option<u64> = None;
 
     let mut current_anchor = if advanced_block.is_zero() {
@@ -293,9 +302,15 @@ fn build_executable_data(
                 }
                 current_anchor = Some(block);
             }
+            Operation::DecryptionKeys(_) => {
+                // ignored
+            }
             Operation::Injected(signed) => {
                 let verified = signed.into_verified();
                 injected_transactions.push(verified);
+            }
+            Operation::Shielded(shielded) => {
+                let _verified = shielded.into_verified();
             }
             Operation::ProgressTasks => {}
             Operation::ProcessQueues {

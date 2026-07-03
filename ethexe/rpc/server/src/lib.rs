@@ -37,8 +37,12 @@ use apis::{
     BestStateManager, BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InfoApi,
     InfoServer, InjectedApi, InjectedServer, ProgramApi, ProgramServer,
 };
-use ethexe_common::injected::{
-    InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt, SignedInjectedTransaction,
+use ethexe_common::{
+    HashOf,
+    injected::{
+        InjectedTransaction, Promise, ShieldedTransaction, SignedCompactTxReceipt, Transaction,
+        TransactionAcceptance,
+    },
 };
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -72,9 +76,9 @@ pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
 
 #[derive(Debug)]
 pub enum RpcEvent {
-    InjectedTransaction {
-        transaction: SignedInjectedTransaction,
-        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
+    Transaction {
+        transaction: Transaction,
+        response_sender: oneshot::Sender<TransactionAcceptance>,
     },
 }
 
@@ -198,6 +202,13 @@ impl RpcService {
 
     pub fn receive_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
         self.injected_api.on_tx_receipt(receipt);
+    }
+
+    pub fn receive_unshielded_transactions(
+        &self,
+        hash_mapping: Vec<(HashOf<ShieldedTransaction>, HashOf<InjectedTransaction>)>,
+    ) {
+        self.injected_api.on_unshielded_transactions(hash_mapping);
     }
 
     pub fn receive_mb_computed(&self, mb_hash: H256) {

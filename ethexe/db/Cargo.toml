@@ -18,6 +18,7 @@ ethexe-ethereum.workspace = true
 ethexe-runtime-common = { workspace = true, features = ["std"] }
 gear-core = { workspace = true, features = ["std"] }
 gprimitives = { workspace = true, features = ["std"] }
+gear-tdec.workspace = true
 gsigner.workspace = true
 
 alloy.workspace = true
