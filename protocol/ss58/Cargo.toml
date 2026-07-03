@@ -1,14 +1,16 @@
 [package]
 name = "gear-ss58"
-description = "Gear implementation ss58 address format"
-documentation = "https://docs.rs/gear-ss58"
-edition.workspace = true
 version.workspace = true
 authors.workspace = true
-license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Gear implementation ss58 address format"
+documentation = "https://docs.rs/gear-ss58"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "ss58", "address", "base58", "no-std"]
+categories = ["encoding", "cryptography", "no-std"]
 
 [dependencies]
 bs58.workspace = true

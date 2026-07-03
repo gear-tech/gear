@@ -20,9 +20,9 @@ use ethexe_ethereum::{
         MirrorQuery as EthereumMirrorQuery,
     },
 };
-use ethexe_rpc::{
-    CalculateReplyForHandleResult, FullProgramState, InjectedClient, ProgramBestState,
-    ProgramClient,
+use ethexe_rpc_client::{
+    InjectedClient, ProgramClient,
+    types::{CalculateReplyForHandleResult, FullProgramState, ProgramBestState},
 };
 use ethexe_runtime_common::state::{
     ActiveProgram, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue, Program,

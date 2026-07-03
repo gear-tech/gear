@@ -12,7 +12,7 @@
         Address,
         injected::InjectedTransaction,
     };
-    use ethexe_rpc::InjectedClient as _;
+    use ethexe_rpc_client::InjectedClient as _;
     use gsigner::secp256k1::{Secp256k1SignerExt as _, Signer};
     use gprimitives::H256;
     use jsonrpsee::ws_client::WsClientBuilder;

@@ -7,8 +7,8 @@ use crate::{
     BLOCK_DURATION_IN_MSECS, EPOCH_DURATION_IN_BLOCKS, INITIAL_RANDOM_SEED, constants::BlockNumber,
     state::WithOverlay,
 };
-use core_processor::configs::BlockInfo;
 use gear_common::storage::GetCallback;
+use gear_core_processor::configs::BlockInfo;
 use rand::{RngCore, SeedableRng, rngs::StdRng};
 use std::{
     thread::LocalKey,

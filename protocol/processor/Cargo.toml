@@ -1,16 +1,16 @@
 [package]
 name = "gear-core-processor"
-description = "The core processor for Gear programs"
-documentation = "https://docs.rs/core-processor"
-keywords = ["gear", "wasm"]
-categories = ["wasm"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "The core processor for Gear programs"
+documentation = "https://docs.rs/gear-core-processor"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "wasm", "processor", "actor", "no-std"]
+categories = ["wasm", "data-structures", "no-std"]
 
 [dependencies]
 gear-core.workspace = true
