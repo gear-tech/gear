@@ -205,10 +205,6 @@
 # (optional, default: 20333).
 # port = 20333
 
-# Flag to disable network service.
-# (optional, default: false).
-# no-network = false
-
 ##########################################################################################
 
 ### Ethexe RPC service hosting parameters.
@@ -262,23 +258,6 @@
 ### Malachite BFT consensus service parameters.
 ### Required for validator nodes — Malachite drives MB ordering.
 [malachite]
-# Listen address for the Malachite consensus libp2p swarm.
-# This is a SEPARATE socket from `[network] listen-addr`: Malachite
-# uses TCP on its own port with a peer id derived deterministically
-# from the validator key, distinct from the ethexe-network peer id.
-# (optional, default: 0.0.0.0:20334).
-# listen-addr = "0.0.0.0:20334"
-
-# Persistent peer multiaddrs the Malachite swarm should always keep
-# connections to. Each entry must include a `/p2p/<peer_id>` suffix.
-# Example for a 3-node test on localhost:
-#   persistent-peers = [
-#     "/ip4/127.0.0.1/tcp/20335/p2p/12D3KooW...",
-#     "/ip4/127.0.0.1/tcp/20336/p2p/12D3KooW...",
-#   ]
-# (optional, default: empty list).
-# persistent-peers = []
-
 # Path to a JSON file mapping validator Ethereum addresses to their
 # Malachite secp256k1 public keys. The Router contract stores the
 # validator set as Ethereum addresses; Malachite needs the matching

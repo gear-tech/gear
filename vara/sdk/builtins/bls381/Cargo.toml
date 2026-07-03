@@ -1,14 +1,16 @@
 [package]
 name = "gbuiltin-bls381"
-description = "Entities for working with Gear builtin actor providing bls12_381 cryptography"
-documentation = "https://docs.rs/gbuiltin-bls381"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Entities for working with Gear builtin actor providing bls12_381 cryptography"
+documentation = "https://docs.rs/gbuiltin-bls381"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "bls12-381", "cryptography", "builtin", "no-std"]
+categories = ["cryptography", "encoding", "no-std"]
 
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }

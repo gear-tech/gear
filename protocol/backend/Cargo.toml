@@ -1,14 +1,16 @@
 [package]
 name = "gear-core-backend"
-description = "Gear WASM backend"
-documentation = "https://docs.rs/gear-core-backend"
-edition.workspace = true
 version.workspace = true
 authors.workspace = true
-license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Gear WASM backend"
+documentation = "https://docs.rs/gear-core-backend"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "wasm", "backend", "syscalls", "no-std"]
+categories = ["wasm", "api-bindings", "no-std"]
 
 [dependencies]
 gear-core.workspace = true

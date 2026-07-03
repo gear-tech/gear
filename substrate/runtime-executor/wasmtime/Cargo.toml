@@ -4,12 +4,14 @@ version = "0.35.0"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
-homepage.workspace = true
-repository.workspace = true
 description = "Defines a `WasmRuntime` that uses the Wasmtime JIT to execute."
 documentation = "https://docs.rs/sc-executor-wasmtime"
 readme = "README.md"
+homepage.workspace = true
+repository.workspace = true
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+keywords = ["substrate", "runtime", "executor", "wasmtime", "jit"]
+categories = ["wasm"]
 
 [lints]
 workspace = true
@@ -29,12 +31,9 @@ wasmtime = { features = [
 	"parallel-compilation",
 	"pooling-allocator",
 ], workspace = true }
-sp-allocator.workspace = true
-sp-allocator.default-features = true
-sc-executor-common.workspace = true
-sc-executor-common.default-features = true
-sp-runtime-interface.workspace = true
-sp-runtime-interface.default-features = true
+sp-allocator = { workspace = true, default-features = true }
+sc-executor-common = { workspace = true, default-features = true }
+sp-runtime-interface = { workspace = true, default-features = true }
 sp-wasm-interface = { features = ["wasmtime"], workspace = true, default-features = true }
 
 # Here we include the rustix crate in the exactly same semver-compatible version as used by
