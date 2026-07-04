@@ -3,7 +3,8 @@
 
 use crate::types::{CalculateReplyForHandleResult, FullProgramState, ProgramBestState};
 use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MessageQueue, ProgramState, UserMailbox, Waitlist,
+    DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue, ProgramState,
+    UserMailbox, Waitlist,
 };
 use gprimitives::{H160, H256};
 use jsonrpsee::proc_macros::rpc;
@@ -52,8 +53,14 @@ pub trait Program {
     #[method(name = "program_readPages")]
     async fn read_pages(&self, hash: H256) -> jsonrpsee::core::RpcResult<MemoryPages>;
 
+    #[method(name = "program_readPageRegion")]
+    async fn read_page_region(&self, hash: H256) -> jsonrpsee::core::RpcResult<MemoryPagesRegion>;
+
     #[method(name = "program_readPageData")]
     async fn read_page_data(&self, hash: H256) -> jsonrpsee::core::RpcResult<Bytes>;
+
+    #[method(name = "program_readPayload")]
+    async fn read_payload(&self, hash: H256) -> jsonrpsee::core::RpcResult<Bytes>;
 
     /// Subscribes to the program's best state, emitted on every newly computed MB.
     #[subscription(
