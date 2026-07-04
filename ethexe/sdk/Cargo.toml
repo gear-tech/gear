@@ -25,3 +25,4 @@ gear-workspace-hack.workspace = true
 gprimitives.workspace = true
 gsigner.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
+parity-scale-codec.workspace = true
