@@ -106,8 +106,9 @@ impl InjectedApi {
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
             RegisterSubscriberResult::Ready(receipt) => {
+                // Not counted in `injected_tx_active_subscriptions`: never enters the pending state.
                 let sink = pending.accept().await?;
-                spawner::spawn_ready_receipt_subscriber(sink, receipt);
+                spawner::send_receipt(&sink, &receipt).await;
                 return Ok(());
             }
             RegisterSubscriberResult::TooManyWatchers => {
@@ -121,7 +122,7 @@ impl InjectedApi {
         let acceptance = match self.relayer.relay(transaction).await {
             Ok(acceptance) => acceptance,
             Err(err) => {
-                self.manager.release_subscriber(pending_subscriber);
+                drop(pending_subscriber);
                 return Err(err.into());
             }
         };
@@ -129,20 +130,19 @@ impl InjectedApi {
             InjectedTransactionAcceptance::Accept => match pending.accept().await {
                 Ok(sink) => sink,
                 Err(err) => {
-                    self.manager.release_subscriber(pending_subscriber);
+                    drop(pending_subscriber);
                     return Err(err.into());
                 }
             },
             InjectedTransactionAcceptance::Reject { reason } => {
-                self.manager.release_subscriber(pending_subscriber);
+                drop(pending_subscriber);
                 return Err(reason.into());
             }
         };
 
         self.metrics.injected_tx_active_subscriptions.increment(1);
-        let (manager, metrics) = (self.manager.clone(), self.metrics.clone());
-        spawner::spawn_pending_subscriber(sink, pending_subscriber, move |tx_hash| {
-            manager.cleanup_tx_entry(tx_hash);
+        let metrics = self.metrics.clone();
+        spawner::spawn_pending_subscriber(sink, pending_subscriber, move || {
             metrics.injected_tx_active_subscriptions.decrement(1);
         });
         Ok(())

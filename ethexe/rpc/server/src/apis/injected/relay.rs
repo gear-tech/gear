@@ -73,9 +73,12 @@ impl TransactionsRelayer {
                 // Detached so caller cancellation cannot strand other waiters:
                 // the task always publishes the outcome or drops the sender.
                 tokio::spawn(async move {
+                    // Guards removal against a panic in `relay_to_service`, not just normal completion.
+                    let _guard = scopeguard::guard(tx_hash, move |tx_hash| {
+                        in_flight.remove(&tx_hash);
+                    });
                     let result = relay_to_service(rpc_sender, transaction, tx_hash).await;
-                    // Remove before publishing so a later resubmission relays afresh.
-                    in_flight.remove(&tx_hash);
+                    // Publish first, or a concurrent caller could see a vacant entry and relay again.
                     let _ = outcome_tx.send(Some(result));
                 });
                 outcome_rx

@@ -2,14 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use super::promise_manager::PendingSubscriber;
-use ethexe_common::{
-    HashOf,
-    injected::{InjectedTransaction, SignedTxReceipt},
-};
+use ethexe_common::injected::SignedTxReceipt;
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
 use tracing::{error, trace, warn};
 
-async fn send_receipt(sink: &SubscriptionSink, receipt: &SignedTxReceipt) {
+pub(crate) async fn send_receipt(sink: &SubscriptionSink, receipt: &SignedTxReceipt) {
     match SubscriptionMessage::from_json(receipt) {
         Ok(message) => {
             if let Err(err) = sink.send(message).await {
@@ -28,46 +25,48 @@ async fn send_receipt(sink: &SubscriptionSink, receipt: &SignedTxReceipt) {
 
 /// Spawns [PendingSubscriber] in tokio runtime.
 ///
-/// On task finishing applies the `on_finish` function that is need to drop some data.
+/// `subscriber` itself is kept alive for the whole task instead of being torn
+/// apart up front: its `Drop` impl removes the subscribers-map entry once its
+/// receiver is actually gone, and that stays correct no matter which branch
+/// below runs or whether the task is cancelled mid-wait.
+///
+/// `on_finish` is a secondary, best-effort hook (currently used for metrics)
+/// and is not relied on for map cleanup.
 pub fn spawn_pending_subscriber<F>(
     sink: SubscriptionSink,
-    subscriber: PendingSubscriber,
+    mut subscriber: PendingSubscriber,
     on_finish: F,
 ) where
-    F: FnOnce(HashOf<InjectedTransaction>) + std::marker::Send + 'static,
+    F: FnOnce() + std::marker::Send + 'static,
 {
-    let (tx_hash, mut receiver, timeout) = subscriber.into_parts();
-
     let _handle = tokio::spawn(async move {
-        let _guard = scopeguard::guard(tx_hash, on_finish);
+        let timeout = subscriber.timeout();
 
         // Waiting for the first one: receipt, timeout_err, client disconnect error.
         let receipt = tokio::select! {
-            result = tokio::time::timeout(timeout, receiver.wait_for(|receipt| receipt.is_some())) => match result {
-                Ok(Ok(receipt)) => receipt.clone().expect("`wait_for` guarantees the receipt is set"),
+            result = tokio::time::timeout(timeout, subscriber.receiver_mut().wait_for(|receipt| receipt.is_some())) => match result {
+                Ok(Ok(receipt)) => Some(receipt.clone().expect("`wait_for` guarantees the receipt is set")),
                 Ok(Err(_sender_dropped)) => {
                     warn!("receipt sender dropped before delivery, stop background task");
-                    return;
+                    None
                 }
                 Err(_elapsed) => {
                     warn!("promise wasn't received in time, finish waiting");
-                    return;
+                    None
                 }
             },
             _ = sink.closed() => {
                 trace!("subscription closed by user, stop background task");
-                return;
+                None
             }
         };
 
-        send_receipt(&sink, receipt.as_ref()).await;
-    });
-}
+        // Free the subscribers-map entry now, before the final send, not at task end.
+        drop(subscriber);
 
-/// Delivers an already-stored [SignedTxReceipt] to a subscription sink that arrived too late
-/// to register as a pending watcher.
-pub fn spawn_ready_receipt_subscriber(sink: SubscriptionSink, receipt: SignedTxReceipt) {
-    let _handle = tokio::spawn(async move {
-        send_receipt(&sink, &receipt).await;
+        if let Some(receipt) = receipt {
+            send_receipt(&sink, receipt.as_ref()).await;
+        }
+        on_finish();
     });
 }

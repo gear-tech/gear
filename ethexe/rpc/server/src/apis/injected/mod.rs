@@ -14,8 +14,8 @@
 //! purged transaction it contains [`PurgedTransaction`](ethexe_common::injected::PurgedTransaction).
 //!
 //! [`promise_manager::PromiseSubscriptionManager`] owns the RPC-side joining logic. It keeps:
-//! - subscribers keyed by transaction hash **and subscriber id**, supporting multiple concurrent
-//!   watchers per transaction;
+//! - one `watch` channel per transaction hash, fanning the receipt out to any number of
+//!   concurrent watchers (subscribers are anonymous receiver clones, no per-subscriber id);
 //! - full promises already computed locally and stored in the database;
 //! - compact promise receipts whose full promise body has not been observed yet.
 //!

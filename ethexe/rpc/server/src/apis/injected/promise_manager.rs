@@ -1,7 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use dashmap::{DashMap, mapref::entry::Entry};
+use dashmap::DashMap;
 use ethexe_common::{
     Address, HashOf,
     db::{
@@ -51,29 +51,56 @@ pub enum RegisterSubscriberResult {
 /// Subscriber will be spawned in separate tokio runtime task and will wait for promise.
 ///
 /// Important: to avoid infinite waiting the spawner bounds the wait by `timeout`.
+///
+/// Owns a handle to the subscribers map and removes its own entry on `Drop`,
+/// so cleanup happens whether the subscriber finishes normally, is released
+/// before spawning, or is dropped by future cancellation (e.g. client
+/// disconnect) — no call site can forget it.
 pub struct PendingSubscriber {
     /// Tx hash waiting promise for.
     tx_hash: HashOf<InjectedTransaction>,
     receiver: ReceiptWatcher,
     /// Maximum time to wait for the receipt.
     timeout: Duration,
+    subscribers: PromiseSubscribers,
 }
 
 impl PendingSubscriber {
-    pub fn new(
-        db: &Database,
+    fn new(
+        manager: &PromiseSubscriptionManager,
         tx_hash: HashOf<InjectedTransaction>,
         receiver: ReceiptWatcher,
     ) -> Self {
         Self {
             tx_hash,
             receiver,
-            timeout: utils::receipt_waiting_timeout(db),
+            timeout: utils::receipt_waiting_timeout(&manager.db),
+            subscribers: manager.subscribers.clone(),
         }
     }
 
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
+    pub fn receiver_mut(&mut self) -> &mut ReceiptWatcher {
+        &mut self.receiver
+    }
+
+    /// Test-only: clones the receiver so tests can drive the channel directly.
+    /// The clone keeps the map entry's receiver count above the removal
+    /// threshold, so `self`'s subsequent `Drop` leaves the entry in place for it.
+    #[cfg(test)]
     pub fn into_parts(self) -> (HashOf<InjectedTransaction>, ReceiptWatcher, Duration) {
-        (self.tx_hash, self.receiver, self.timeout)
+        (self.tx_hash, self.receiver.clone(), self.timeout)
+    }
+}
+
+impl Drop for PendingSubscriber {
+    fn drop(&mut self) {
+        // `self.receiver` hasn't dropped yet, so a count of 1 means it's the last one.
+        self.subscribers
+            .remove_if(&self.tx_hash, |_, sender| sender.receiver_count() == 1);
     }
 }
 
@@ -101,7 +128,7 @@ impl PromiseSubscriptionManager {
         tx_hash: HashOf<InjectedTransaction>,
         after_insert: impl FnOnce(),
     ) -> RegisterSubscriberResult {
-        if let Some(receipt) = self.db.receipt(tx_hash) {
+        if let Some(receipt) = self.ready_stored_receipt(tx_hash) {
             return RegisterSubscriberResult::Ready(receipt);
         }
 
@@ -120,31 +147,27 @@ impl PromiseSubscriptionManager {
 
         // Recheck: `store_and_dispatch_receipt` persists before dispatching, so a receipt
         // landing mid-registration is visible here even if its dispatch ran before our insert.
-        if let Some(receipt) = self.db.receipt(tx_hash) {
+        if let Some(receipt) = self.ready_stored_receipt(tx_hash) {
             drop(receiver);
-            self.cleanup_tx_entry(tx_hash);
+            // Drops the per-transaction entry, since no live watchers remain.
+            self.subscribers
+                .remove_if(&tx_hash, |_, sender| sender.receiver_count() == 0);
             return RegisterSubscriberResult::Ready(receipt);
         }
 
-        RegisterSubscriberResult::Pending(PendingSubscriber::new(&self.db, tx_hash, receiver))
+        RegisterSubscriberResult::Pending(PendingSubscriber::new(self, tx_hash, receiver))
     }
 
-    /// Releases a subscriber that never made it to a spawned watch task.
-    pub fn release_subscriber(&self, subscriber: PendingSubscriber) {
-        let tx_hash = subscriber.tx_hash;
-        drop(subscriber);
-        self.cleanup_tx_entry(tx_hash);
-    }
-
-    /// Drops the per-transaction entry once no live watchers remain.
-    pub fn cleanup_tx_entry(&self, tx_hash: HashOf<InjectedTransaction>) {
-        // `entry` holds the shard write lock, so the count check and removal are atomic w.r.t. registration.
-        let Entry::Occupied(entry) = self.subscribers.entry(tx_hash) else {
-            return;
-        };
-        if entry.get().receiver_count() == 0 {
-            entry.remove();
-        }
+    /// Stored receipt that can answer a registration, or `None` if there is none yet
+    /// or the only one stored is a stale `Purged` marker — which must not block a
+    /// resubmission from getting its own relay.
+    fn ready_stored_receipt(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> Option<SignedTxReceipt> {
+        self.db
+            .receipt(tx_hash)
+            .filter(|receipt| !receipt.data().is_purged())
     }
 
     // TODO: Issue #5403
@@ -611,9 +634,9 @@ mod tests {
         };
 
         assert_eq!(manager.subscribers_count(), 2);
-        manager.release_subscriber(first);
+        drop(first);
         assert_eq!(manager.subscribers_count(), 1);
-        manager.release_subscriber(second);
+        drop(second);
         assert_eq!(manager.subscribers_count(), 0);
     }
 
