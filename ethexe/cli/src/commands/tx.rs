@@ -27,12 +27,68 @@ use ethexe_sdk::{
     VaraEthApi,
     types::{CodeValidationResult, ValueClaim},
 };
+use form_urlencoded::Serializer as FormUrlencodedSerializer;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use gsigner::secp256k1::Signer;
-use serde::Serialize;
+use heck::ToPascalCase;
+use reqwest::{Client, header};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sp_core::Bytes;
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, io, path::PathBuf, process::Output, time::Duration};
+use tempfile::TempDir;
+use tokio::{process::Command, time};
+
+pub trait OutputExt: Sized {
+    fn exit_result(self) -> io::Result<Self>;
+}
+
+impl OutputExt for Output {
+    fn exit_result(self) -> io::Result<Self> {
+        if self.status.success() {
+            Ok(self)
+        } else {
+            Err(io::Error::from(io::ErrorKind::Other))
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ForgeReceipt {
+    transactions: Vec<ForgeTransaction>,
+}
+#[derive(Debug, Clone, Deserialize)]
+struct ForgeTransaction {
+    #[serde(rename = "contractAddress")]
+    contract_address: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct EtherscanVerifyProxyQuery {
+    chainid: String,
+    module: String,
+    action: String,
+    apikey: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct EtherscanGetAbiQuery {
+    address: String,
+    action: String,
+    module: String,
+    chainid: String,
+    apikey: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct EtherscanAbiResponse {
+    status: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct EtherscanVerifyProxyResponse {
+    status: String,
+}
 
 /// JSON-serializable result returned by `tx upload`.
 #[derive(Debug, Clone, Serialize)]
@@ -311,6 +367,12 @@ impl TxCommand {
             .ok_or_else(|| anyhow!("missing `ethereum-router`"))?;
 
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
+        let public_key = signer
+            .get_key_by_address(sender)?
+            .with_context(|| "failed to retrieve public key for sender")?;
+        let private_key = signer
+            .private_key(public_key)
+            .with_context(|| "failed to retrieve private key for sender")?;
 
         let vara_eth_rpc_url = self
             .vara_eth_rpc
@@ -579,11 +641,87 @@ impl TxCommand {
                 code_id,
                 salt,
                 initializer,
-                abi_interface,
+                idl_path,
+                etherscan_api_key,
                 value,
                 json,
             } => {
                 let create_abi_result = (async || -> Result<CreateResultData> {
+                    let _ = Command::new("cargo")
+                        .args(["sails", "--help"])
+                        .output()
+                        .await?
+                        .exit_result()
+                        .with_context(|| "failed to run `cargo sails --help`")?;
+
+                    let _ = Command::new("forge")
+                        .args(["script", "--help"])
+                        .output()
+                        .await?
+                        .exit_result()
+                        .with_context(|| "failed to run `forge script --help`")?;
+
+                    let temp_dir = TempDir::new()?;
+                    let temp_dir_str = temp_dir.path().to_str().with_context(|| "failed to convert temp dir path to string")?;
+                    let idl_path_canonical = fs::canonicalize(&idl_path).with_context(|| "failed to canonicalize idl path")?;
+                    let idl_path_canonical_str = idl_path_canonical.to_str().with_context(|| "failed to convert idl path to string")?;
+
+                    let _ = Command::new("cargo")
+                        .args(["sails", "sol", "--target-dir", temp_dir_str, "--forge", idl_path_canonical_str])
+                        .output()
+                        .await?
+                        .exit_result()
+                        .with_context(|| "failed to run `cargo sails --help`")?;
+
+                    let filename: String = if let Some(stem) = idl_path.file_stem() {
+                        stem.to_string_lossy().into()
+                    } else {
+                        bail!("No filename found");
+                    };
+                    let contract_name = filename.to_pascal_case();
+                    let contract_dir = temp_dir.path().join(filename);
+
+                    let private_key_hex = format!("0x{hex}", hex = hex::encode(private_key.to_bytes()));
+                    let mut forge_command = Command::new("forge");
+
+                    forge_command
+                        .current_dir(&contract_dir)
+                        .args([
+                            "script",
+                            &format!("script/{contract_name}Abi.s.sol:{contract_name}AbiScript"),
+                            "--rpc-url",
+                            &rpc,
+                            "--broadcast",
+                        ])
+                        .env("PRIVATE_KEY", private_key_hex);
+
+                    if let Some(etherscan_api_key) = &etherscan_api_key {
+                        forge_command.arg("--verify").env("ETHERSCAN_API_KEY", etherscan_api_key);
+                    }
+
+                    let _ = forge_command
+                        .output()
+                        .await?
+                        .exit_result()
+                        .with_context(|| "failed to run `forge script`")?;
+
+                    let receipt_path = contract_dir
+                        .join("broadcast")
+                        .join(format!("{contract_name}Abi.s.sol"))
+                        .join(format!("{chain_id}"))
+                        .join("run-latest.json");
+                    let receipt_content = fs::read(&receipt_path).with_context(|| "failed to read forge receipt file")?;
+                    let forge_receipt: ForgeReceipt = serde_json::from_slice(&receipt_content)?;
+                    let contract_address_str = forge_receipt
+                        .transactions
+                        .first()
+                        .with_context(|| "No transactions in forge receipt")?
+                        .contract_address
+                        .clone();
+                    let abi_interface: Address = contract_address_str.parse().with_context(|| {
+                        format!("Failed to parse contract address: {contract_address_str}")
+                    })?;
+
                     let salt = salt.unwrap_or_else(H256::random);
                     let override_initializer = initializer.map(Into::into);
                     let initializer = initializer.unwrap_or(sender);
@@ -626,6 +764,90 @@ impl TxCommand {
                             "failed to create program with ABI interface from code id {code_id} and salt {salt:?}"
                         )
                     })?;
+
+                    if let Some(etherscan_api_key) = &etherscan_api_key {
+                        let expected_implementation = abi_interface.to_string();
+                        let address = format!("{actor_id:?}", actor_id = actor_id.to_address_lossy());
+
+                        eprintln!("Waiting for contract verification on Etherscan...");
+
+                        let mut verification_complete = false;
+                        let mut attempts = 0usize;
+
+                        const MAX_ATTEMPTS: usize = 60;
+
+                        while !verification_complete && attempts < MAX_ATTEMPTS {
+                            time::sleep(Duration::from_secs(10)).await;
+
+                            attempts += 1;
+
+                            let response = Client::new()
+                                .get("https://api.etherscan.io/v2/api")
+                                .query(&EtherscanGetAbiQuery {
+                                    address: address.clone(),
+                                    action: "getabi".into(),
+                                    module: "contract".into(),
+                                    chainid: chain_id.to_string(),
+                                    apikey: etherscan_api_key.to_string(),
+                                })
+                                .send()
+                                .await;
+
+                            if let Ok(response) = response && let Ok(response) = response.json::<EtherscanAbiResponse>().await{
+                                if response.status == "1" {
+                                    eprintln!("  Contract verified on Etherscan!");
+                                    verification_complete = true;
+                                } else {
+                                    eprintln!("  Attempt {attempts}/{MAX_ATTEMPTS}: Contract not yet verified");
+                                }
+                            }
+                        }
+
+                        if !verification_complete {
+                            eprintln!("Warning: Contract verification timed out after {MAX_ATTEMPTS} attempts");
+                        }
+
+                        eprintln!();
+
+                        let mut body = String::new();
+                        FormUrlencodedSerializer::new(&mut body)
+                            .append_pair("address", &address)
+                            .append_pair("expectedimplementation", &expected_implementation)
+                            .finish();
+
+                        let response = Client::new()
+                            .post("https://api.etherscan.io/v2/api")
+                            .query(&EtherscanVerifyProxyQuery {
+                                chainid: chain_id.to_string(),
+                                module: "contract".into(),
+                                action: "verifyproxycontract".into(),
+                                apikey: etherscan_api_key.to_string(),
+                            })
+                            .header(
+                                header::CONTENT_TYPE,
+                                "application/x-www-form-urlencoded",
+                            )
+                            .body(body)
+                            .send()
+                            .await
+                            .with_context(|| "failed to send Etherscan verification request")?;
+
+                        let response = response
+                            .json::<EtherscanVerifyProxyResponse>()
+                            .await
+                            .with_context(|| "failed to read Etherscan verification response")?;
+
+                        ensure!(
+                            response.status == "1",
+                            "Etherscan verification failed: {response:?}",
+                        );
+
+                        eprintln!("Etherscan proxy verification requested successfully:");
+                        eprintln!("  Address:                 {address}");
+                        eprintln!("  Expected implementation: {expected_implementation}");
+                        eprintln!("  Response:                {response:?}");
+                        eprintln!();
+                    }
 
                     let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
@@ -1693,10 +1915,12 @@ pub enum TxSubcommand {
         /// Override initializer address. If not provided, sender is used.
         #[arg(short, long)]
         initializer: Option<Address>,
-        /// ABI interface address. Mirror contract will be stub for all methods so that it will be possible
-        /// to interact with the Sails contract via etherscan.
-        #[arg()]
-        abi_interface: Address,
+        /// Path to the IDL file
+        #[arg(value_hint = clap::ValueHint::FilePath)]
+        idl_path: PathBuf,
+        /// Etherscan API key to use for contract verification. If not provided, contract verification is skipped.
+        #[arg(short, long)]
+        etherscan_api_key: Option<String>,
         /// Initial executable balance in WVARA to send to mirror. If not provided, no executable balance is sent.
         #[arg(short, long)]
         value: Option<RawOrFormattedValue<WrappedVaraCurrency>>,

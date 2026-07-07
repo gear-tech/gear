@@ -662,6 +662,7 @@ wasm-encoder = { version = "0.230", default-features = false, features = [
 wasm-instrument = { version = "0.4.0", default-features = false } # sc-executor-common
 async-broadcast = "0.7.2" # ethexe/service
 ip_network = "0.4.1" # ethexe/network
+form_urlencoded = "1.2.2" # ethexe/cli
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
