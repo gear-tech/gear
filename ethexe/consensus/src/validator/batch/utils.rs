@@ -13,7 +13,7 @@ use ethexe_common::{
     },
 };
 use gprimitives::{ActorId, H256};
-use std::collections::{BTreeSet, HashMap, hash_map::Entry};
+use std::collections::{HashMap, hash_map::Entry};
 
 /// MBs in `(last_committed_mb, mb_hash]`, chronological order. Strict: errors
 /// if the walk doesn't reach the anchor or any MB along the way is not computed.
@@ -198,16 +198,22 @@ pub fn aggregate_code_commitments_for_block<DB: CodesStorageRO + BlockMetaStorag
 /// Returns the outcome for `mb_hash` with non-committable messages stripped out.
 ///
 /// The `mb_committed_message_ids` set is written atomically with `mb_outcome` in
-/// `compute_one`; if it is absent, no message was committable and all messages are
-/// dropped (every message was an off-chain injected message with no value and no call).
+/// `compute_one` — even when empty (`Some` empty set) for an MB whose every outgoing
+/// message is an off-chain injected one. Absence (`None`) therefore never happens for a
+/// block this code computed or fast-synced; it can only occur for a legacy block whose
+/// `mb_outcome` predates this feature. In that case there is no filter set to apply and
+/// the messages were committed in full by the old code, so we keep them all to reproduce
+/// the same commitment digest.
 pub(crate) fn committed_mb_outcome<DB: MbStorageRO>(
     db: &DB,
     mb_hash: H256,
 ) -> Option<Vec<StateTransition>> {
     let mut transitions = db.mb_outcome(mb_hash)?;
-    let committed: BTreeSet<_> = db.mb_committed_message_ids(mb_hash).unwrap_or_default();
-    for t in &mut transitions {
-        t.messages.retain(|m| committed.contains(&m.id));
+    // `None` = legacy block predating the feature → keep all messages (see fn doc).
+    if let Some(committed) = db.mb_committed_message_ids(mb_hash) {
+        for t in &mut transitions {
+            t.messages.retain(|m| committed.contains(&m.id));
+        }
     }
     Some(transitions)
 }
@@ -492,6 +498,7 @@ mod tests {
         malachite::{Operation, Operations},
     };
     use ethexe_db::Database;
+    use std::collections::BTreeSet;
 
     /// Per-height unique CAS via `AdvanceTillEthereumBlock` salt.
     fn empty_ops(height: u64) -> Operations {
@@ -1163,7 +1170,8 @@ mod tests {
             "value-bearing injected message must be second"
         );
 
-        // MB 2: committed_message_ids is ABSENT → all messages dropped.
+        // MB 2: committed_message_ids is ABSENT (legacy block predating the feature) →
+        // all messages kept, to reproduce the pre-feature commitment digest.
         let mb2 = write_mb(&db, H256::zero(), 2, vec![transition]);
         // Do NOT call set_mb_committed_message_ids for mb2.
 
@@ -1171,9 +1179,10 @@ mod tests {
             .expect("committed_mb_outcome must return Some when mb_outcome is set");
 
         assert_eq!(result2.len(), 1, "one StateTransition expected");
-        assert!(
-            result2[0].messages.is_empty(),
-            "absent mb_committed_message_ids must cause all messages to be dropped"
+        assert_eq!(
+            result2[0].messages.len(),
+            3,
+            "absent mb_committed_message_ids (legacy block) must keep all messages"
         );
     }
 }

@@ -565,7 +565,8 @@ where
                 });
             }
             try_push_node!(with_hash: self.mb_outcome(mb_hash));
-            // Absence is valid: means no message was committable for this MB.
+            // Absence is valid: a legacy MB predating this feature has no set to sync
+            // (a new MB always records one, empty when nothing was committable).
             if let Some(mb_committed_message_ids) = self.storage.mb_committed_message_ids(mb_hash) {
                 self.push_node(MbCommittedMessageIdsNode {
                     mb_hash,
