@@ -1,21 +1,15 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-#[cfg(feature = "server")]
 use crate::{errors, utils};
-use ethexe_common::{BlockHeader, events::BlockRequestEvent};
-#[cfg(feature = "server")]
-use ethexe_common::{SimpleBlockData, db::OnChainStorageRO};
-#[cfg(feature = "server")]
+use ethexe_common::{
+    BlockHeader, SimpleBlockData, db::OnChainStorageRO, events::BlockRequestEvent,
+};
 use ethexe_db::Database;
 use gprimitives::H256;
-#[cfg(feature = "server")]
-use jsonrpsee::core::async_trait;
-use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::{core::async_trait, proc_macros::rpc};
 
-#[cfg_attr(all(feature = "server", feature = "client"), rpc(server, client))]
-#[cfg_attr(all(feature = "server", not(feature = "client")), rpc(server))]
-#[cfg_attr(all(not(feature = "server"), feature = "client"), rpc(client))]
+#[rpc(server)]
 pub trait Block {
     #[method(name = "block_header")]
     async fn block_header(
@@ -30,20 +24,17 @@ pub trait Block {
     ) -> jsonrpsee::core::RpcResult<Vec<BlockRequestEvent>>;
 }
 
-#[cfg(feature = "server")]
 #[derive(Clone)]
 pub struct BlockApi {
     db: Database,
 }
 
-#[cfg(feature = "server")]
 impl BlockApi {
     pub fn new(db: Database) -> Self {
         Self { db }
     }
 }
 
-#[cfg(feature = "server")]
 #[async_trait]
 impl BlockServer for BlockApi {
     async fn block_header(

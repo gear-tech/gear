@@ -6,6 +6,9 @@ use gprimitives::{H256, MessageId};
 
 pub use ethexe_common::gear::ValueClaim;
 pub use ethexe_ethereum::router::CodeValidationResult;
+pub use ethexe_rpc_client::types::{
+    CalculateReplyForHandleResult, FullProgramState, ProgramBestState,
+};
 
 #[derive(Debug, Clone)]
 pub struct InjectedMessageResult {

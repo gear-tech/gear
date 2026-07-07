@@ -4,7 +4,7 @@
 use ethexe_common::consensus::DEFAULT_BATCH_SIZE_LIMIT;
 use ethexe_ethereum::{Ethereum, router::RouterQuery};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
+use ethexe_rpc_server::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
 use ethexe_service::{
     Service,
     config::{self, Config, EthereumConfig},
@@ -31,6 +31,7 @@ async fn constructor() {
     let node_cfg = config::NodeConfig {
         database_path: tmp_dir.join("db"),
         key_path,
+        net_path: tmp_dir.join("net"),
         validator: Default::default(),
         validator_session: Default::default(),
         eth_max_sync_depth: 1_000,
@@ -46,6 +47,7 @@ async fn constructor() {
         coordinator_aggregation_delay: Duration::from_millis(1500),
         uncommitted_chain_len_threshold: std::num::NonZero::new(500).unwrap(),
         commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
+        batch_commitment_period: ethexe_common::DEFAULT_BATCH_COMMITMENT_PERIOD,
         batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
         genesis_state_dump: None,
         db_cleanup: false,
@@ -87,14 +89,12 @@ async fn constructor() {
         })
         .collect();
 
+    let router_address = eth_cfg.router_address;
     let mut config = Config {
         node: node_cfg,
         ethereum: eth_cfg,
-        network: None,
-        malachite: config::MalachiteCliConfig {
-            validator_pub_keys,
-            ..Default::default()
-        },
+        network: ethexe_network::NetworkConfig::new_local(network_key, router_address),
+        malachite: config::MalachiteCliConfig { validator_pub_keys },
         rpc: None,
         prometheus: None,
     };
@@ -110,12 +110,7 @@ async fn constructor() {
     // the first to fully unwind.
     config.node.database_path = tmp_dir.join("db2");
 
-    // Enable all optional services
-    config.network = Some(ethexe_network::NetworkConfig::new_local(
-        network_key,
-        config.ethereum.router_address,
-    ));
-
+    // Enable remaining optional services.
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,

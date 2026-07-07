@@ -5,16 +5,15 @@
 //!
 //! Kept in its own file (mirroring [`super::network`]) because the set
 //! of user-facing knobs is expected to grow considerably — peer
-//! discovery, persistent peers, timeouts, gas budget, etc.
+//! discovery, timeouts, gas budget, etc.
 
 use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
-use ethexe_malachite::{MalachiteConfig, Multiaddr};
 use ethexe_service::config::MalachiteCliConfig;
 use gsigner::secp256k1::{Address, PublicKey};
 use serde::Deserialize;
-use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf};
+use std::{collections::BTreeMap, path::PathBuf};
 
 /// Parameters for the Malachite consensus service.
 ///
@@ -24,29 +23,6 @@ use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf};
 #[derive(Clone, Debug, Default, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct MalachiteParams {
-    /// Listen address for the Malachite consensus libp2p swarm.
-    ///
-    /// This is a **separate** socket from `--network-listen-addr`
-    /// (which serves the QUIC-based ethexe-network on port 20333 by
-    /// default) — the Malachite swarm currently uses TCP and its own
-    /// secp256k1 peer id (deterministically derived from the
-    /// validator key, but distinct from the ethexe-network peer id).
-    #[arg(long, aliases = &["mala-listen-addr", "malachite-listen"])]
-    #[serde(rename = "listen-addr")]
-    pub malachite_listen_addr: Option<SocketAddr>,
-
-    /// Persistent peer multiaddrs the Malachite swarm should always
-    /// keep connections to. Each entry must include a
-    /// `/p2p/<peer_id>` suffix. Repeat the flag to add more than one
-    /// peer.
-    ///
-    /// Example for a 3-node test on localhost:
-    ///   `--malachite-persistent-peer /ip4/127.0.0.1/tcp/20335/p2p/12D3KooW...`
-    ///   `--malachite-persistent-peer /ip4/127.0.0.1/tcp/20336/p2p/12D3KooW...`
-    #[arg(long = "malachite-persistent-peer", aliases = &["mala-persistent-peer"])]
-    #[serde(default, rename = "persistent-peers")]
-    pub malachite_persistent_peers: Vec<Multiaddr>,
-
     /// Path to a JSON file mapping validator Ethereum addresses to
     /// their Malachite secp256k1 public keys.
     ///
@@ -72,19 +48,13 @@ pub struct MalachiteParams {
 impl MalachiteParams {
     /// Converts CLI/TOML Malachite parameters into a service-ready
     /// [`MalachiteCliConfig`]. Missing fields fall back to sensible
-    /// defaults from [`MalachiteConfig`].
+    /// defaults.
     pub fn into_config(self) -> Result<MalachiteCliConfig> {
         let validator_pub_keys = match self.validators_malachite_pub_keys {
             Some(path) => load_validator_pub_keys_table(&path)?,
             None => BTreeMap::new(),
         };
-        Ok(MalachiteCliConfig {
-            listen_addr: self
-                .malachite_listen_addr
-                .unwrap_or(MalachiteConfig::DEFAULT_LISTEN_ADDR),
-            persistent_peers: self.malachite_persistent_peers,
-            validator_pub_keys,
-        })
+        Ok(MalachiteCliConfig { validator_pub_keys })
     }
 }
 
@@ -108,13 +78,7 @@ fn load_validator_pub_keys_table(path: &std::path::Path) -> Result<BTreeMap<Addr
 
 impl MergeParams for MalachiteParams {
     fn merge(self, with: Self) -> Self {
-        // Persistent peers concatenate (CLI list + file list). Empty
-        // lists merge to empty, which is the same as the default.
-        let mut persistent_peers = self.malachite_persistent_peers;
-        persistent_peers.extend(with.malachite_persistent_peers);
         Self {
-            malachite_listen_addr: self.malachite_listen_addr.or(with.malachite_listen_addr),
-            malachite_persistent_peers: persistent_peers,
             validators_malachite_pub_keys: self
                 .validators_malachite_pub_keys
                 .or(with.validators_malachite_pub_keys),

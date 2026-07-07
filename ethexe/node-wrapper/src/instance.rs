@@ -3,7 +3,7 @@
 
 use crate::Error;
 use ethexe_common::Address;
-use ethexe_rpc::DevClient;
+use ethexe_rpc_client::DevClient;
 use jsonrpsee::{
     http_client::HttpClient,
     ws_client::{WsClient, WsClientBuilder},

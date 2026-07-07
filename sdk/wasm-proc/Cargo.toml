@@ -1,16 +1,17 @@
 [package]
 name = "wasm-proc"
-description = "Gear wasm processor"
-keywords = ["gear", "cli", "wasm"]
-categories = ["command-line-interface", "command-line-utilities", "wasm"]
-documentation = "https://docs.rs/wasm-proc"
-edition.workspace = true
 version.workspace = true
 authors.workspace = true
-license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Gear wasm processor"
+documentation = "https://docs.rs/wasm-proc"
+readme = "README.md"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "cli", "wasm", "processor", "optimizer"]
+categories = ["command-line-utilities", "wasm", "development-tools::build-utils"]
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }

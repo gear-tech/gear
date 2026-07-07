@@ -72,23 +72,14 @@
 //! and keeps waiting for a matching computed promise. No signed full receipt is stored or delivered
 //! for that mismatch.
 
-#[cfg(feature = "server")]
 pub(crate) mod promise_manager;
 
-#[cfg(feature = "server")]
 pub(crate) mod relay;
 
-#[cfg(feature = "server")]
 pub(crate) mod server;
-#[cfg(feature = "server")]
 pub use server::InjectedApi;
 
-#[cfg(feature = "server")]
 pub(crate) mod spawner;
 
 mod r#trait;
-#[cfg(feature = "server")]
 pub use r#trait::InjectedServer;
-
-#[cfg(feature = "client")]
-pub use r#trait::InjectedClient;
