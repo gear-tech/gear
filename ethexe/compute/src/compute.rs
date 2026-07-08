@@ -208,6 +208,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             states,
             schedule,
             program_creations,
+            committed_message_ids,
         } = processing_result;
 
         program_creations
@@ -217,6 +218,8 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             });
 
         db.set_mb_outcome(mb_hash, transitions);
+        // Written atomically with mb_outcome so batch builders can filter messages.
+        db.set_mb_committed_message_ids(mb_hash, committed_message_ids);
         db.set_mb_program_states(mb_hash, states);
         db.set_mb_schedule(mb_hash, schedule);
         db.mutate_mb_meta(mb_hash, |meta| {

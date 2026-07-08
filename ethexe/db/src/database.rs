@@ -32,7 +32,7 @@ use gear_core::{
     ids::{ActorId, CodeId, prelude::CodeIdExt as _},
     memory::PageBuf,
 };
-use gprimitives::H256;
+use gprimitives::{H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use std::{
@@ -67,6 +67,9 @@ enum Key {
 
     Promise(HashOf<InjectedTransaction>) = 26,
     TxReceipt(HashOf<InjectedTransaction>) = 27,
+
+    // Key discriminant 28 (MbLocalOutcome) is retired — do not reuse.
+    MbCommittedMessageIds(H256) = 29,
 }
 
 impl Key {
@@ -92,6 +95,7 @@ impl Key {
 
             Self::MbProgramStates(hash)
             | Self::MbOutcome(hash)
+            | Self::MbCommittedMessageIds(hash)
             | Self::MbSchedule(hash)
             | Self::MbMeta(hash)
             | Self::MbCompactBlock(hash) => bytes.extend(hash.as_ref()),
@@ -396,6 +400,15 @@ impl MbStorageRO for RawDatabase {
             })
     }
 
+    fn mb_committed_message_ids(&self, mb_hash: H256) -> Option<BTreeSet<MessageId>> {
+        self.kv
+            .get(&Key::MbCommittedMessageIds(mb_hash).to_bytes())
+            .map(|data| {
+                BTreeSet::<MessageId>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeSet<MessageId>`")
+            })
+    }
+
     fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule> {
         self.kv
             .get(&Key::MbSchedule(mb_hash).to_bytes())
@@ -438,6 +451,14 @@ impl MbStorageRW for RawDatabase {
         tracing::trace!(mb_hash = %mb_hash, "Set MB outcome");
         self.kv
             .put(&Key::MbOutcome(mb_hash).to_bytes(), outcome.encode());
+    }
+
+    fn set_mb_committed_message_ids(&self, mb_hash: H256, ids: BTreeSet<MessageId>) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB committed message ids");
+        self.kv.put(
+            &Key::MbCommittedMessageIds(mb_hash).to_bytes(),
+            ids.encode(),
+        );
     }
 
     fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule) {
@@ -972,6 +993,7 @@ impl MbStorageRO for Database {
         fn operations(&self, operations_hash: H256) -> Option<Operations>;
         fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
         fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
+        fn mb_committed_message_ids(&self, mb_hash: H256) -> Option<BTreeSet<MessageId>>;
         fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
         fn mb_meta(&self, mb_hash: H256) -> MbMeta;
     });
@@ -983,6 +1005,7 @@ impl MbStorageRW for Database {
         fn set_operations(&self, operations: Operations) -> H256;
         fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
         fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
+        fn set_mb_committed_message_ids(&self, mb_hash: H256, ids: BTreeSet<MessageId>);
         fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
         fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
     });
