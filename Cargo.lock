@@ -5638,7 +5638,6 @@ dependencies = [
  "ethexe-runtime-common",
  "ethexe-sdk",
  "ethexe-service",
- "futures",
  "gear-workspace-hack",
  "gprimitives",
  "gsigner",
@@ -6148,6 +6147,7 @@ dependencies = [
  "gprimitives",
  "gsigner",
  "jsonrpsee",
+ "parity-scale-codec",
 ]
 
 [[package]]

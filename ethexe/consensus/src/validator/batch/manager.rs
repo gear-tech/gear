@@ -306,7 +306,8 @@ impl BatchCommitmentManager {
                 last_advanced_eth_block: self.db.mb_meta(head_mb).last_advanced_eb,
             };
             for mb_hash in pending.into_iter() {
-                let Some(mb_transitions) = self.db.mb_outcome(mb_hash) else {
+                let Some(mb_transitions) = super::utils::committed_mb_outcome(&self.db, mb_hash)
+                else {
                     anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
                 };
                 chain_commitment.transitions.extend(mb_transitions);

@@ -14,7 +14,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_processor::{BoundPromiseSink, ValidCodeInfo};
-use futures::{Future, StreamExt};
+use futures::{Future, FutureExt, StreamExt};
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
@@ -33,7 +33,6 @@ thread_local! {
 }
 
 pub(crate) const ASYNC_EVENT_TIMEOUT: Duration = Duration::from_secs(3);
-const NO_EVENT_TIMEOUT: Duration = Duration::from_millis(500);
 const PROPTEST_TIMEOUT_MS: u32 = 60_000;
 
 pub(crate) fn block_chain_strategy(len: u32) -> BoxedStrategy<BlockChain> {
@@ -65,13 +64,6 @@ pub(crate) async fn next_subservice_event<S: SubService>(service: &mut S) -> S::
         .await
         .expect("timed out waiting for sub-service event")
         .expect("sub-service returned error")
-}
-
-pub(crate) async fn assert_no_compute_event<P: ProcessorExt>(compute: &mut ComputeService<P>) {
-    assert!(
-        timeout(NO_EVENT_TIMEOUT, compute.next()).await.is_err(),
-        "unexpected follow-up compute event"
-    );
 }
 
 pub(crate) fn proptest_config(cases: u32) -> ProptestConfig {
@@ -321,7 +313,10 @@ async fn code_validation_request_for_already_processed_code_does_not_request_loa
         .await
         .unwrap_block_prepared();
     assert_eq!(prepared_block, block_hash);
-    assert_no_compute_event(&mut compute).await;
+    assert!(
+        compute.next().now_or_never().is_none(),
+        "unexpected follow-up compute event"
+    );
     assert_eq!(processor.process_code_call_count(), 0);
 
     Ok(())
