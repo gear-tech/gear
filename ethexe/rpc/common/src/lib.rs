@@ -31,5 +31,7 @@ pub struct CalculateReplyForHandleResult {
 pub struct ProgramBestState {
     pub mb_hash: H256,
     pub new_state_hash: H256,
+    // TODO: optionally expose per-message committability (which messages hit Ethereum)
+    // as a non-breaking API addition.
     pub messages: Vec<Message>,
 }

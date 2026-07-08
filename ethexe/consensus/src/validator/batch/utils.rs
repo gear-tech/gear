@@ -198,6 +198,29 @@ pub fn aggregate_code_commitments_for_block<DB: CodesStorageRO + BlockMetaStorag
     Ok(())
 }
 
+/// Returns the outcome for `mb_hash` with non-committable messages stripped out.
+///
+/// The `mb_committed_message_ids` set is written atomically with `mb_outcome` in
+/// `compute_one` — even when empty (`Some` empty set) for an MB whose every outgoing
+/// message is an off-chain injected one. Absence (`None`) therefore never happens for a
+/// block this code computed or fast-synced; it can only occur for a legacy block whose
+/// `mb_outcome` predates this feature. In that case there is no filter set to apply and
+/// the messages were committed in full by the old code, so we keep them all to reproduce
+/// the same commitment digest.
+pub(crate) fn committed_mb_outcome<DB: MbStorageRO>(
+    db: &DB,
+    mb_hash: H256,
+) -> Option<Vec<StateTransition>> {
+    let mut transitions = db.mb_outcome(mb_hash)?;
+    // `None` = legacy block predating the feature → keep all messages (see fn doc).
+    if let Some(committed) = db.mb_committed_message_ids(mb_hash) {
+        for t in &mut transitions {
+            t.messages.retain(|m| committed.contains(&m.id));
+        }
+    }
+    Some(transitions)
+}
+
 /// Producer chain-commitment builder: covers `(last_committed_mb..mb_head]` up
 /// to where compute has reached, fits within the size budget, returns the
 /// head MB actually included. Returns `last_committed_mb` if nothing fits.
@@ -223,7 +246,7 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     let mut transitions: Vec<StateTransition> = Vec::new();
     let mut last_included = last_committed_mb;
     for mb_hash in &pending {
-        let Some(mb_transitions) = db.mb_outcome(*mb_hash) else {
+        let Some(mb_transitions) = committed_mb_outcome(db, *mb_hash) else {
             anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
         };
 
@@ -488,6 +511,7 @@ mod tests {
         malachite::{Operation, Operations},
     };
     use ethexe_db::Database;
+    use std::collections::BTreeSet;
 
     /// Per-height unique CAS via `AdvanceTillEthereumBlock` salt.
     fn empty_ops(height: u64) -> Operations {
@@ -1117,5 +1141,107 @@ mod tests {
         assert_eq!(squashed.len(), 1);
         assert_eq!(squashed[0].value_to_receive, 0);
         assert!(!squashed[0].value_to_receive_negative_sign);
+    }
+
+    // -----------------------------------------------------------------------
+    // C: committed_mb_outcome filters out non-committable messages
+    // -----------------------------------------------------------------------
+
+    /// Three messages in one MB outcome:
+    ///   (a) canonical — committed
+    ///   (b) injected value-0 — off-chain, NOT committed
+    ///   (c) injected value-bearing — committed (value forces on-chain)
+    ///
+    /// The `mb_committed_message_ids` set contains only (a) and (c).
+    /// `committed_mb_outcome` must return (a) and (c) in original order, dropping (b).
+    ///
+    /// A second assertion checks that when `mb_committed_message_ids` is ABSENT,
+    /// all messages are dropped (unwrap_or_default gives an empty set → retain
+    /// nothing).
+    #[test]
+    fn committed_mb_outcome_filters_uncommitted_messages() {
+        use gprimitives::MessageId;
+
+        let db = Database::memory();
+
+        // Build the three synthetic messages.
+        let msg_a = Message {
+            id: MessageId::from([1; 32]),
+            destination: ActorId::from([0xAA; 32]),
+            payload: b"canonical".to_vec(),
+            value: 0,
+            reply_details: None,
+            call: false,
+        };
+        let msg_b = Message {
+            id: MessageId::from([2; 32]),
+            destination: ActorId::from([0xBB; 32]),
+            payload: b"injected-value0".to_vec(),
+            value: 0,
+            reply_details: None,
+            call: false,
+        };
+        let msg_c = Message {
+            id: MessageId::from([3; 32]),
+            destination: ActorId::from([0xCC; 32]),
+            payload: b"injected-with-value".to_vec(),
+            value: 100,
+            reply_details: None,
+            call: false,
+        };
+
+        let actor_id = ActorId::from([0x11; 32]);
+        let transition = StateTransition {
+            actor_id,
+            new_state_hash: H256::from([0xDE; 32]),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 0,
+            value_to_receive_negative_sign: false,
+            value_claims: vec![],
+            messages: vec![msg_a.clone(), msg_b.clone(), msg_c.clone()],
+            events: vec![],
+            eth_events: vec![],
+        };
+
+        // MB 1: has committed ids for (a) and (c) only.
+        // write_mb returns H256::from_low_u64_be(0x1000 + height).
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![transition.clone()]);
+        let committed: BTreeSet<MessageId> = [msg_a.id, msg_c.id].into_iter().collect();
+        db.set_mb_committed_message_ids(mb1, committed);
+
+        let result = committed_mb_outcome(&db, mb1)
+            .expect("committed_mb_outcome must return Some when mb_outcome is set");
+
+        assert_eq!(result.len(), 1, "one StateTransition expected");
+        let filtered_msgs = &result[0].messages;
+        assert_eq!(
+            filtered_msgs.len(),
+            2,
+            "only (a) canonical and (c) value-bearing must survive the filter"
+        );
+        assert_eq!(
+            filtered_msgs[0].id, msg_a.id,
+            "canonical message must be first"
+        );
+        assert_eq!(
+            filtered_msgs[1].id, msg_c.id,
+            "value-bearing injected message must be second"
+        );
+
+        // MB 2: committed_message_ids is ABSENT (legacy block predating the feature) →
+        // all messages kept, to reproduce the pre-feature commitment digest.
+        let mb2 = write_mb(&db, H256::zero(), 2, vec![transition]);
+        // Do NOT call set_mb_committed_message_ids for mb2.
+
+        let result2 = committed_mb_outcome(&db, mb2)
+            .expect("committed_mb_outcome must return Some when mb_outcome is set");
+
+        assert_eq!(result2.len(), 1, "one StateTransition expected");
+        assert_eq!(
+            result2[0].messages.len(),
+            3,
+            "absent mb_committed_message_ids (legacy block) must keep all messages"
+        );
     }
 }

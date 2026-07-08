@@ -3,6 +3,7 @@
 
 use crate::{
     TransitionController,
+    journal::push_outgoing,
     state::{
         Dispatch, DispatchStash, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
         ProgramState, QueryableStorage, Storage, UserMailbox, Waitlist,
@@ -101,10 +102,13 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
 
                     transitions.modify_transition(program_id, |transition| {
                         let message = dispatch.clone().into_message(storage, user_id);
-                        if is_gear_sails_event_destination(user_id) {
-                            transition.events.push(message.payload);
-                        } else if is_eth_sails_event_destination(user_id) {
-                            transition.eth_events.push(message.payload);
+                        let committable = message_type.is_canonical();
+                        if committable {
+                            if is_gear_sails_event_destination(user_id) {
+                                transition.events.push(message.payload);
+                            } else if is_eth_sails_event_destination(user_id) {
+                                transition.eth_events.push(message.payload);
+                            }
                         }
                     });
 
@@ -124,6 +128,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                     return;
                 }
 
+                let message_type = dispatch.message_type;
+
                 let expiry = transitions.schedule_task(
                     mailbox_validity,
                     ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
@@ -140,9 +146,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 });
 
                 transitions.modify_transition(program_id, |transition| {
-                    transition
-                        .messages
-                        .push(dispatch.into_message(storage, user_id))
+                    let message = dispatch.into_message(storage, user_id);
+                    push_outgoing(transition, message, message_type);
                 })
             });
 
@@ -628,6 +633,164 @@ mod tests {
                 ReplyCode::Success(SuccessReplyReason::Auto)
             );
             assert!(queue.is_empty());
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // B1: Injected event-destination, value==0 — via the delayed (stash) path
+    //     Message present in messages, id NOT committed, claims EMPTY
+    //     (fix #1 in the schedule path: no autoclaim for off-chain event messages)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn send_user_message_injected_event_dest_value0_not_committed_no_claim() {
+        use crate::{InBlockTransitions, TransitionController, TransitionsConfig};
+        use ethexe_common::{ProgramStates, StateHashWithQueueSize};
+
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
+            let storage = MemStorage::default();
+            let program_id = ActorId::from(7);
+            let message_id = MessageId::from(10);
+
+            // value=0, MessageType::Injected → not committable
+            let dispatch = Dispatch::new(
+                &storage,
+                message_id,
+                program_id,
+                vec![1, 2, 3],
+                0, // value = 0
+                false,
+                MessageType::Injected,
+                false,
+            )
+            .expect("dispatch");
+
+            let mut stash = DispatchStash::default();
+            stash.add_to_user(dispatch, 1000, destination);
+
+            let mut state = ProgramState::zero();
+            state.stash_hash = stash.store(&storage);
+            let state_hash = storage.write_program_state(state);
+            let states = ProgramStates::from_iter([(
+                program_id,
+                StateHashWithQueueSize {
+                    hash: state_hash,
+                    canonical_queue_size: 0,
+                    injected_queue_size: 0,
+                },
+            )]);
+
+            let cfg = TransitionsConfig {
+                event_destinations_autoreply: true,
+                ..Default::default()
+            };
+            let mut transitions = InBlockTransitions::new(cfg, states, Default::default());
+
+            {
+                let mut handler = Handler {
+                    controller: TransitionController {
+                        storage: &storage,
+                        transitions: &mut transitions,
+                    },
+                };
+                handler.send_user_message(message_id, program_id);
+            }
+
+            let transition = transitions.modifications_mut().remove(&program_id).unwrap();
+            assert_eq!(
+                transition.messages.len(),
+                1,
+                "message must be in messages ({destination:?})"
+            );
+            assert!(
+                !transition
+                    .committed_message_ids
+                    .contains(&transition.messages[0].id),
+                "injected value-0 stashed event message must NOT be committed ({destination:?})"
+            );
+            assert!(
+                transition.claims.is_empty(),
+                "no autoclaim for off-chain injected stashed event message ({destination:?})"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // B2: Injected event-destination, value>0 — via the delayed (stash) path
+    //     id IS committed, claim present
+    //     (fix #1+#2 in the schedule path)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn send_user_message_injected_event_dest_with_value_is_committed_with_claim() {
+        use crate::{InBlockTransitions, TransitionController, TransitionsConfig};
+        use ethexe_common::{ProgramStates, StateHashWithQueueSize};
+
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
+            let storage = MemStorage::default();
+            let program_id = ActorId::from(7);
+            let message_id = MessageId::from(10);
+
+            // value=11, MessageType::Injected → committable because value != 0
+            let dispatch = Dispatch::new(
+                &storage,
+                message_id,
+                program_id,
+                vec![1, 2, 3],
+                11, // value > 0
+                false,
+                MessageType::Injected,
+                false,
+            )
+            .expect("dispatch");
+
+            let mut stash = DispatchStash::default();
+            stash.add_to_user(dispatch, 1000, destination);
+
+            let mut state = ProgramState::zero();
+            state.stash_hash = stash.store(&storage);
+            let state_hash = storage.write_program_state(state);
+            let states = ProgramStates::from_iter([(
+                program_id,
+                StateHashWithQueueSize {
+                    hash: state_hash,
+                    canonical_queue_size: 0,
+                    injected_queue_size: 0,
+                },
+            )]);
+
+            let cfg = TransitionsConfig {
+                event_destinations_autoreply: true,
+                ..Default::default()
+            };
+            let mut transitions = InBlockTransitions::new(cfg, states, Default::default());
+
+            {
+                let mut handler = Handler {
+                    controller: TransitionController {
+                        storage: &storage,
+                        transitions: &mut transitions,
+                    },
+                };
+                handler.send_user_message(message_id, program_id);
+            }
+
+            let transition = transitions.modifications_mut().remove(&program_id).unwrap();
+            assert_eq!(
+                transition.messages.len(),
+                1,
+                "message must be in messages ({destination:?})"
+            );
+            assert!(
+                transition
+                    .committed_message_ids
+                    .contains(&transition.messages[0].id),
+                "injected message with value must be committed in stash path ({destination:?})"
+            );
+            assert_eq!(
+                transition.claims.len(),
+                1,
+                "autoclaim must be pushed for committed injected stashed event message ({destination:?})"
+            );
+            assert_eq!(transition.claims[0].value, 11);
         }
     }
 

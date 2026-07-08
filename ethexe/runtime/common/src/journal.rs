@@ -8,7 +8,8 @@ use crate::{
         Program, ProgramState, Storage,
     },
     transitions::{
-        is_eth_sails_event_destination, is_event_destination, is_gear_sails_event_destination,
+        NonFinalTransition, is_eth_sails_event_destination, is_event_destination,
+        is_gear_sails_event_destination,
     },
 };
 use alloc::{
@@ -36,6 +37,29 @@ use gsys::GasMultiplier;
 /// Maximum duration for gr_wait_up_to in blocks,
 /// when not enough gas was provided for the requested duration.
 pub const WAIT_UP_TO_SAFE_DURATION: u32 = 64;
+
+/// Pushes an outgoing user-bound message into the single `messages` bucket and
+/// records its id in `committed_message_ids` when it is committable to Ethereum.
+///
+/// Returns `true` when the message is committable.
+///
+/// A message is committable when any of these hold:
+///   - produced by a Canonical dispatch (`message_type.is_canonical()`),
+///   - carries value (`msg.value != 0`), or
+///   - is a call/call-reply (`msg.call`).
+// TODO(regenesis): carry committable flag on Message and drop mb_committed_message_ids.
+pub(crate) fn push_outgoing(
+    transition: &mut NonFinalTransition,
+    msg: Message,
+    message_type: MessageType,
+) -> bool {
+    let committable = message_type.is_canonical() || msg.value != 0 || msg.call;
+    if committable {
+        transition.committed_message_ids.insert(msg.id);
+    }
+    transition.messages.push(msg);
+    committable
+}
 
 // Handles unprocessed journal notes during chunk processing.
 pub struct NativeJournalHandler<'a, S: Storage + ?Sized> {
@@ -114,6 +138,7 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
         }
 
         if dispatch.is_reply() {
+            let message_type = self.message_type;
             self.controller
                 .update_state(dispatch.source(), |state, _, transitions| {
                     if dispatch.value() != 0 {
@@ -124,10 +149,9 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
 
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
+                        let message = Message::from_stored(stored, self.call_reply);
 
-                        transition
-                            .messages
-                            .push(Message::from_stored(stored, self.call_reply))
+                        push_outgoing(transition, message, message_type);
                     });
                 });
 
@@ -183,11 +207,15 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
 
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
-                        let payload = stored.payload_bytes().to_vec();
-                        if is_gear_sails_event_destination(destination) {
-                            transition.events.push(payload);
-                        } else if is_eth_sails_event_destination(destination) {
-                            transition.eth_events.push(payload);
+
+                        let committable = message_type.is_canonical();
+                        if committable {
+                            let payload = stored.payload_bytes().to_vec();
+                            if is_gear_sails_event_destination(destination) {
+                                transition.events.push(payload);
+                            } else if is_eth_sails_event_destination(destination) {
+                                transition.eth_events.push(payload);
+                            }
                         }
                     });
 
@@ -232,9 +260,11 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
 
-                        transition
-                            .messages
-                            .push(Message::from_stored(stored, false))
+                        push_outgoing(
+                            transition,
+                            Message::from_stored(stored, false),
+                            message_type,
+                        );
                     });
                 }
             });
@@ -896,15 +926,16 @@ impl Limiter {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::{InBlockTransitions, TransitionsConfig, state::MemStorage};
     use ethexe_common::{ProgramStates, StateHashWithQueueSize};
     use gear_core::{
         ids::prelude::MessageIdExt,
-        message::{DispatchKind, Message as CoreMessage, ReplyCode, StoredMessage},
+        message::{
+            DispatchKind, Message as CoreMessage, MessageDetails, ReplyCode, ReplyDetails,
+            StoredMessage,
+        },
     };
-
-    use super::*;
-
-    use crate::{InBlockTransitions, TransitionsConfig, state::MemStorage};
 
     fn init_setup(
         exec_balance: u128,
@@ -1352,5 +1383,267 @@ mod tests {
             }]);
         assert!(unhandled.is_empty());
         assert!(state_hash.is_some());
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers for committable-predicate and autoclaim-gate tests (Commit 3)
+    // -----------------------------------------------------------------------
+
+    /// Drive a single Handle dispatch from `source` (registered program) to
+    /// `destination` (any non-program actor), with the given `value`,
+    /// `message_type`, and event-destination config.  Returns the
+    /// `NonFinalTransition` for `source` after the dispatch is processed.
+    fn send_handle_to_user_transition(
+        destination: ActorId,
+        value: u128,
+        message_type: MessageType,
+        event_destinations_autoreply: bool,
+    ) -> NonFinalTransition {
+        let storage = MemStorage::default();
+        let source = ActorId::from(7);
+        let mut state = ProgramState::zero();
+        // Large enough for any value deduction in this test suite.
+        state.balance = 10_000_000_000;
+        let state_hash = storage.write_program_state(state);
+        let states = ProgramStates::from_iter([(
+            source,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
+            },
+        )]);
+        let cfg = TransitionsConfig {
+            event_destinations_autoreply,
+            ..Default::default()
+        };
+        let mut transitions = InBlockTransitions::new(cfg, states, Default::default());
+        let gas_allowance_counter = GasAllowanceCounter::new(1_000_000);
+        let mut out_of_gas = false;
+        let mut outgoing_messages_limiter = 10;
+        let mut outgoing_messages_bytes_limiter = 4 * 1024;
+        let mut call_reply_limiter = 10;
+
+        {
+            let mut handler = NativeJournalHandler {
+                program_id: source,
+                message_type,
+                call_reply: false,
+                controller: TransitionController {
+                    storage: &storage,
+                    transitions: &mut transitions,
+                },
+                gas_allowance_counter: &gas_allowance_counter,
+                chunk_gas_limit: 1_000_000,
+                out_of_gas: &mut out_of_gas,
+                outgoing_messages_limiter: &mut outgoing_messages_limiter,
+                outgoing_messages_bytes_limiter: &mut outgoing_messages_bytes_limiter,
+                call_reply_limiter: &mut call_reply_limiter,
+            };
+            handler.send_dispatch(MessageId::from(9), dispatch_to(destination, value), 0, None);
+        }
+
+        transitions.modifications_mut().remove(&source).unwrap()
+    }
+
+    /// Drive a Reply dispatch (with ReplyDetails set so `is_reply()` is true)
+    /// from `source` (registered program) to a non-program user destination,
+    /// with `call_reply = true` on the handler (so `msg.call = true`).
+    /// Returns the `NonFinalTransition` for `source`.
+    fn send_reply_call_transition(value: u128, message_type: MessageType) -> NonFinalTransition {
+        let storage = MemStorage::default();
+        let source = ActorId::from(7);
+        let user_dest = ActorId::from(100);
+        let mut state = ProgramState::zero();
+        state.balance = 10_000_000_000;
+        let state_hash = storage.write_program_state(state);
+        let states = ProgramStates::from_iter([(
+            source,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
+            },
+        )]);
+        let cfg = TransitionsConfig::default();
+        let mut transitions = InBlockTransitions::new(cfg, states, Default::default());
+        let gas_allowance_counter = GasAllowanceCounter::new(1_000_000);
+        let mut out_of_gas = false;
+        let mut outgoing_messages_limiter = 10;
+        let mut outgoing_messages_bytes_limiter = 4 * 1024;
+        let mut call_reply_limiter = 10;
+
+        // Build a reply CoreDispatch: details must contain ReplyDetails so
+        // that `dispatch.is_reply()` (via StoredMessage::is_reply()) is true.
+        let reply_dispatch = CoreDispatch::new(
+            DispatchKind::Reply,
+            CoreMessage::new(
+                MessageId::from(10),
+                source,
+                user_dest,
+                Default::default(),
+                None,
+                value,
+                Some(MessageDetails::Reply(ReplyDetails::new(
+                    MessageId::from(9),
+                    ReplyCode::Success(SuccessReplyReason::Manual),
+                ))),
+            ),
+        );
+
+        {
+            let mut handler = NativeJournalHandler {
+                program_id: source,
+                message_type,
+                // call_reply = true causes Message::from_stored(stored, true) → msg.call = true
+                call_reply: true,
+                controller: TransitionController {
+                    storage: &storage,
+                    transitions: &mut transitions,
+                },
+                gas_allowance_counter: &gas_allowance_counter,
+                chunk_gas_limit: 1_000_000,
+                out_of_gas: &mut out_of_gas,
+                outgoing_messages_limiter: &mut outgoing_messages_limiter,
+                outgoing_messages_bytes_limiter: &mut outgoing_messages_bytes_limiter,
+                call_reply_limiter: &mut call_reply_limiter,
+            };
+            handler.send_dispatch(MessageId::from(9), reply_dispatch, 0, None);
+        }
+
+        transitions.modifications_mut().remove(&source).unwrap()
+    }
+
+    // -----------------------------------------------------------------------
+    // A1: Injected, value==0, non-event → message present, id NOT committed
+    // -----------------------------------------------------------------------
+    #[test]
+    fn injected_value0_non_event_not_committed() {
+        let user = ActorId::from(100);
+        let t = send_handle_to_user_transition(user, 0, MessageType::Injected, false);
+        assert_eq!(t.messages.len(), 1);
+        assert!(
+            !t.committed_message_ids.contains(&t.messages[0].id),
+            "injected value-0 message must not be in committed_message_ids"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // A2: Injected, value>0, non-event → id IS committed (fix #2: value forces commit)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn injected_with_value_non_event_is_committed() {
+        let user = ActorId::from(100);
+        let t = send_handle_to_user_transition(user, 100, MessageType::Injected, false);
+        assert_eq!(t.messages.len(), 1);
+        assert!(
+            t.committed_message_ids.contains(&t.messages[0].id),
+            "injected message with value must be in committed_message_ids"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // A3: Injected, call==true, value==0 → id IS committed (fix #2: call forces commit)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn injected_call_reply_is_committed() {
+        let t = send_reply_call_transition(0, MessageType::Injected);
+        assert_eq!(t.messages.len(), 1);
+        assert!(
+            t.messages[0].call,
+            "call flag must be set on the outgoing message"
+        );
+        assert!(
+            t.committed_message_ids.contains(&t.messages[0].id),
+            "injected call-reply must be in committed_message_ids"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // A4: Injected, event-dest, value==0 → id NOT committed, claims EMPTY
+    //     (fix #1: no autoclaim for off-chain injected event messages)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn injected_event_dest_value0_not_committed_no_claim() {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
+            let t = send_handle_to_user_transition(destination, 0, MessageType::Injected, true);
+            assert_eq!(
+                t.messages.len(),
+                1,
+                "message must be present for {destination:?}"
+            );
+            assert!(
+                !t.committed_message_ids.contains(&t.messages[0].id),
+                "injected value-0 event message must NOT be in committed_message_ids ({destination:?})"
+            );
+            assert!(
+                t.claims.is_empty(),
+                "no autoclaim must be produced for off-chain injected event message ({destination:?})"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // A5: Injected, event-dest, value>0 → id IS committed, claim present
+    //     (fixes #1+#2: value makes it committable, autoclaim is emitted)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn injected_event_dest_with_value_is_committed_with_claim() {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
+            let t = send_handle_to_user_transition(destination, 100, MessageType::Injected, true);
+            assert_eq!(
+                t.messages.len(),
+                1,
+                "message must be present for {destination:?}"
+            );
+            assert!(
+                t.committed_message_ids.contains(&t.messages[0].id),
+                "injected message with value must be in committed_message_ids ({destination:?})"
+            );
+            assert_eq!(
+                t.claims.len(),
+                1,
+                "autoclaim must be pushed for committed injected event message ({destination:?})"
+            );
+            assert_eq!(t.claims[0].value, 100);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // A6: Canonical, value==0, non-event → id IS committed
+    // -----------------------------------------------------------------------
+    #[test]
+    fn canonical_value0_non_event_is_committed() {
+        let user = ActorId::from(100);
+        let t = send_handle_to_user_transition(user, 0, MessageType::Canonical, false);
+        assert_eq!(t.messages.len(), 1);
+        assert!(
+            t.committed_message_ids.contains(&t.messages[0].id),
+            "canonical message must always be in committed_message_ids"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // A7: Canonical, event-dest → id IS committed, claim present (pre-existing behaviour preserved)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn canonical_event_dest_is_committed_with_claim() {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
+            let t = send_handle_to_user_transition(destination, 100, MessageType::Canonical, true);
+            assert_eq!(
+                t.messages.len(),
+                1,
+                "message must be present for {destination:?}"
+            );
+            assert!(
+                t.committed_message_ids.contains(&t.messages[0].id),
+                "canonical event message must be in committed_message_ids ({destination:?})"
+            );
+            assert_eq!(
+                t.claims.len(),
+                1,
+                "autoclaim must be pushed for canonical event message ({destination:?})"
+            );
+        }
     }
 }
