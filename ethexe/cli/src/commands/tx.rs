@@ -671,7 +671,7 @@ impl TxCommand {
                         .output()
                         .await?
                         .exit_result()
-                        .with_context(|| "failed to run `cargo sails --help`")?;
+                        .with_context(|| "failed to run `cargo sails sol`")?;
 
                     let filename: String = if let Some(stem) = idl_path.file_stem() {
                         stem.to_string_lossy().into()
@@ -766,6 +766,8 @@ impl TxCommand {
                     })?;
 
                     if let Some(etherscan_api_key) = &etherscan_api_key {
+                        let client = Client::new();
+
                         let expected_implementation = abi_interface.to_string();
                         let address = format!("{actor_id:?}", actor_id = actor_id.to_address_lossy());
 
@@ -781,7 +783,7 @@ impl TxCommand {
 
                             attempts += 1;
 
-                            let response = Client::new()
+                            let response = client
                                 .get("https://api.etherscan.io/v2/api")
                                 .query(&EtherscanGetAbiQuery {
                                     address: address.clone(),
@@ -815,7 +817,7 @@ impl TxCommand {
                             .append_pair("expectedimplementation", &expected_implementation)
                             .finish();
 
-                        let response = Client::new()
+                        let response = client
                             .post("https://api.etherscan.io/v2/api")
                             .query(&EtherscanVerifyProxyQuery {
                                 chainid: chain_id.to_string(),

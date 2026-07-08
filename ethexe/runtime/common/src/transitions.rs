@@ -306,7 +306,7 @@ pub struct NonFinalTransition {
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
     /// Ids of messages in `messages` that are committable to Ethereum.
-    /// Populated by [`push_outgoing`] when `committable` is true.
+    /// Populated by [`crate::journal::push_outgoing`] when `committable` is true.
     pub committed_message_ids: BTreeSet<MessageId>,
 }
 
