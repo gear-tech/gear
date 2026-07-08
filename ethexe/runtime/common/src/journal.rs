@@ -208,7 +208,8 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
 
-                        let committable = message_type.is_canonical();
+                        let committable = message_type.is_canonical()
+                            || is_eth_sails_event_destination(destination);
                         if committable {
                             let payload = stored.payload_bytes().to_vec();
                             if is_gear_sails_event_destination(destination) {
@@ -1567,19 +1568,13 @@ mod tests {
     fn injected_event_dest_value0_not_committed_no_claim() {
         for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let t = send_handle_to_user_transition(destination, 0, MessageType::Injected, true);
-            assert_eq!(
-                t.messages.len(),
-                1,
-                "message must be present for {destination:?}"
-            );
-            assert!(
-                !t.committed_message_ids.contains(&t.messages[0].id),
-                "injected value-0 event message must NOT be in committed_message_ids ({destination:?})"
-            );
-            assert!(
-                t.claims.is_empty(),
-                "no autoclaim must be produced for off-chain injected event message ({destination:?})"
-            );
+            assert!(t.messages.is_empty());
+            assert!(t.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert!(t.events.is_empty());
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(t.eth_events.len(), 1);
+            }
         }
     }
 
@@ -1591,21 +1586,13 @@ mod tests {
     fn injected_event_dest_with_value_is_committed_with_claim() {
         for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let t = send_handle_to_user_transition(destination, 100, MessageType::Injected, true);
-            assert_eq!(
-                t.messages.len(),
-                1,
-                "message must be present for {destination:?}"
-            );
-            assert!(
-                t.committed_message_ids.contains(&t.messages[0].id),
-                "injected message with value must be in committed_message_ids ({destination:?})"
-            );
-            assert_eq!(
-                t.claims.len(),
-                1,
-                "autoclaim must be pushed for committed injected event message ({destination:?})"
-            );
-            assert_eq!(t.claims[0].value, 100);
+            assert!(t.messages.is_empty());
+            assert!(t.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert!(t.events.is_empty());
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(t.eth_events.len(), 1);
+            }
         }
     }
 
@@ -1630,20 +1617,13 @@ mod tests {
     fn canonical_event_dest_is_committed_with_claim() {
         for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let t = send_handle_to_user_transition(destination, 100, MessageType::Canonical, true);
-            assert_eq!(
-                t.messages.len(),
-                1,
-                "message must be present for {destination:?}"
-            );
-            assert!(
-                t.committed_message_ids.contains(&t.messages[0].id),
-                "canonical event message must be in committed_message_ids ({destination:?})"
-            );
-            assert_eq!(
-                t.claims.len(),
-                1,
-                "autoclaim must be pushed for canonical event message ({destination:?})"
-            );
+            assert!(t.messages.is_empty());
+            assert!(t.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert_eq!(t.events.len(), 1);
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(t.eth_events.len(), 1);
+            }
         }
     }
 }

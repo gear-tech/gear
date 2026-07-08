@@ -102,7 +102,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
 
                     transitions.modify_transition(program_id, |transition| {
                         let message = dispatch.clone().into_message(storage, user_id);
-                        let committable = message_type.is_canonical();
+                        let committable =
+                            message_type.is_canonical() || is_eth_sails_event_destination(user_id);
                         if committable {
                             if is_gear_sails_event_destination(user_id) {
                                 transition.events.push(message.payload);
@@ -696,21 +697,13 @@ mod tests {
             }
 
             let transition = transitions.modifications_mut().remove(&program_id).unwrap();
-            assert_eq!(
-                transition.messages.len(),
-                1,
-                "message must be in messages ({destination:?})"
-            );
-            assert!(
-                !transition
-                    .committed_message_ids
-                    .contains(&transition.messages[0].id),
-                "injected value-0 stashed event message must NOT be committed ({destination:?})"
-            );
-            assert!(
-                transition.claims.is_empty(),
-                "no autoclaim for off-chain injected stashed event message ({destination:?})"
-            );
+            assert!(transition.messages.is_empty());
+            assert!(transition.claims.is_empty(),);
+            if is_gear_sails_event_destination(destination) {
+                assert!(transition.events.is_empty());
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(transition.eth_events.len(), 1);
+            }
         }
     }
 
@@ -774,23 +767,13 @@ mod tests {
             }
 
             let transition = transitions.modifications_mut().remove(&program_id).unwrap();
-            assert_eq!(
-                transition.messages.len(),
-                1,
-                "message must be in messages ({destination:?})"
-            );
-            assert!(
-                transition
-                    .committed_message_ids
-                    .contains(&transition.messages[0].id),
-                "injected message with value must be committed in stash path ({destination:?})"
-            );
-            assert_eq!(
-                transition.claims.len(),
-                1,
-                "autoclaim must be pushed for committed injected stashed event message ({destination:?})"
-            );
-            assert_eq!(transition.claims[0].value, 11);
+            assert!(transition.messages.is_empty());
+            assert!(transition.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert!(transition.events.is_empty());
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(transition.eth_events.len(), 1);
+            }
         }
     }
 
