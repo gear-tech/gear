@@ -21,7 +21,7 @@ use std::process::ExitStatus;
 use tokio::process::Command;
 
 /// Username that owns crates.
-pub const USER_OWNER: &str = "breathx";
+pub const USER_OWNER: &str = "pv-gear";
 
 /// Team that owns crates.
 pub const TEAM_OWNER: &str = "github:gear-tech:dev";
