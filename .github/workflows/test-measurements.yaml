@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 720
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
