@@ -53,13 +53,6 @@ jobs:
         with:
           target: "${{ matrix.targets.target }}"
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.profiles.name }}"
-
       - name: "Test: Lazy pages"
         run: >-
           cargo nextest run

@@ -44,13 +44,6 @@ jobs:
         with:
           target: x86_64-pc-windows-msvc
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.profiles.name }}"
-
       - name: "Build: Specific tests"
         run: >-
           cargo nextest archive --archive-file=workspace.tar.zst 

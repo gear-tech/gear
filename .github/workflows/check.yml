@@ -156,13 +156,6 @@ jobs:
         with:
           target: "${{ matrix.target }}"
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.name }}"
-
       - name: "Check clippy"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
@@ -203,14 +196,6 @@ jobs:
         with:
           args: manage-deps --dry-run
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          # we want to test the hack that doesn't interfere with some Substrate features
-          keep-workspace-hack: true
-
       - name: "Check clippy with workspace hack enabled"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
@@ -245,12 +230,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32v1-none
-
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
       - name: "Check: Wasm-builder recommended toolchain matches rust-toolchain.toml"
         run: |
@@ -289,13 +268,6 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.name }}"
-
       - name: "Build: Vara runtime and wasm-proc"
         run: cargo build -p vara-runtime -p wasm-proc --release
 
@@ -332,13 +304,6 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.name }}"
-
       - name: "Run: Calculate stack height"
         run: cargo run -p calc-stack-height --release --locked
 
@@ -359,12 +324,6 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
-
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
       - name: "Check: Changes in vara_runtime.scale file"
         run: |
