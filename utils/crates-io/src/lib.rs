@@ -20,14 +20,14 @@ use anyhow::Result;
 use std::process::ExitStatus;
 use tokio::process::Command;
 
-/// Username that owns crates.
-pub const USER_OWNER: &str = "breathx";
+/// Individual users that own crates.
+pub const USER_OWNERS: [&str; 2] = ["NikVolf", "pv-gear"];
 
 /// Team that owns crates.
 pub const TEAM_OWNER: &str = "github:gear-tech:dev";
 
 /// Expected owners of crates.
-pub const EXPECTED_OWNERS: [&str; 2] = [USER_OWNER, TEAM_OWNER];
+pub const EXPECTED_OWNERS: [&str; 3] = [TEAM_OWNER, USER_OWNERS[0], USER_OWNERS[1]];
 
 /// Local Polkadot SDK-compatible crates that Gear publishes under `g*` aliases.
 ///

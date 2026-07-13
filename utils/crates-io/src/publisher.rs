@@ -5,7 +5,7 @@
 
 use crate::{
     CRATES_IO_ALLOWED_CATEGORIES, GEAR_SUBSTRATE_DEPENDENCIES, Manifest, PACKAGES, PackageStatus,
-    SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator, TEAM_OWNER, Workspace, handler,
+    EXPECTED_OWNERS, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator, Workspace, handler,
 };
 use anyhow::{Result, bail};
 use cargo_metadata::{Error as MetadataError, Metadata, MetadataCommand, Result as MetadataResult};
@@ -374,9 +374,14 @@ impl Publisher {
             }
 
             if self.simulator.is_none() && !is_published {
-                let status = crate::add_owner(handler::crates_io_name(name), TEAM_OWNER).await?;
-                if !status.success() {
-                    bail!("Failed to add owner to package {name} ...");
+                let crates_io_name = handler::crates_io_name(name);
+                for owner in EXPECTED_OWNERS {
+                    let status = crate::add_owner(crates_io_name, owner).await?;
+                    // The account that publishes a new crate becomes its owner
+                    // automatically, so re-adding it fails harmlessly — warn and continue.
+                    if !status.success() {
+                        println!("Failed to add owner {owner} to package {name}, skipping ...");
+                    }
                 }
             }
         }
