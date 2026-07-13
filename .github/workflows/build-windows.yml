@@ -44,6 +44,9 @@ jobs:
         with:
           target: x86_64-pc-windows-msvc
 
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
+
       - name: "Build: Specific tests"
         run: >-
           cargo nextest archive --archive-file=workspace.tar.zst 

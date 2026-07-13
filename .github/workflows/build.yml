@@ -150,6 +150,9 @@ jobs:
         with:
           target: ${{ matrix.targets.target }}
 
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
+
       - name: "Build: Gear node"
         run: ./scripts/gear.sh build node --release --locked
 
@@ -190,6 +193,9 @@ jobs:
         with:
           target: ${{ matrix.targets.target }}
 
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
+
       - name: "Build: ethexe node"
         run: ./scripts/gear.sh build ethexe --release --locked
 
@@ -220,6 +226,9 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
+
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - run: cargo doc --workspace --no-deps
         env:
@@ -258,6 +267,9 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
+
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
@@ -326,6 +338,9 @@ jobs:
         with:
           targets: wasm32v1-none
 
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
+
       - name: "Test: crates-io packages publishing"
         run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
@@ -349,6 +364,9 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
+
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Build: gear-cli with enabled benchmarks"
         run: cargo build -p gear-cli -F runtime-benchmarks,runtime-benchmarks-checkers --release --locked
@@ -400,6 +418,9 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
+
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Install: try-runtime CLI"
         run: |
@@ -456,6 +477,9 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
+
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin

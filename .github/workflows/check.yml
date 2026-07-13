@@ -156,6 +156,9 @@ jobs:
         with:
           target: "${{ matrix.target }}"
 
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
+
       - name: "Check clippy"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
@@ -231,6 +234,9 @@ jobs:
         with:
           targets: wasm32v1-none
 
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
+
       - name: "Check: Wasm-builder recommended toolchain matches rust-toolchain.toml"
         run: |
           TOOLCHAIN=$(grep 'channel' rust-toolchain.toml | cut -d '"' -f 2)
@@ -268,6 +274,9 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
 
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
+
       - name: "Build: Vara runtime and wasm-proc"
         run: cargo build -p vara-runtime -p wasm-proc --release
 
@@ -304,6 +313,9 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
+
       - name: "Run: Calculate stack height"
         run: cargo run -p calc-stack-height --release --locked
 
@@ -324,6 +336,9 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
+
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Check: Changes in vara_runtime.scale file"
         run: |
