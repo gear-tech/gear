@@ -4,8 +4,8 @@
 //! Packages publisher.
 
 use crate::{
-    CRATES_IO_ALLOWED_CATEGORIES, GEAR_SUBSTRATE_DEPENDENCIES, Manifest, PACKAGES, PackageStatus,
-    SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator, TEAM_OWNER, Workspace, handler,
+    CRATES_IO_ALLOWED_CATEGORIES, EXPECTED_OWNERS, GEAR_SUBSTRATE_DEPENDENCIES, Manifest, PACKAGES,
+    PackageStatus, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator, Workspace, handler,
 };
 use anyhow::{Result, bail};
 use cargo_metadata::{Error as MetadataError, Metadata, MetadataCommand, Result as MetadataResult};
@@ -41,7 +41,7 @@ struct PublishRateLimit {
 }
 
 impl PublishRateLimit {
-    const CRATES_IO_RATE_LIMIT_SAFETY_DELAY: Duration = Duration::from_secs(30);
+    const CRATES_IO_RATE_LIMIT_SAFETY_DELAY: Duration = Duration::from_secs(10);
 
     const fn new(burst: usize, refill_interval: Duration) -> Self {
         Self {
@@ -364,19 +364,29 @@ impl Publisher {
                 simulator.clear_cache().await?;
             }
 
-            if self.simulator.is_none() {
+            let is_real_publish = self.simulator.is_none();
+
+            if is_real_publish {
+                let status = crate::publish(&path.to_string_lossy(), true).await?;
+                if !status.success() {
+                    bail!("Failed to publish package {path:?} (dry-run) ...");
+                }
+
                 rate_limiter.satisfy(name, *is_published).await;
             }
 
-            let status = crate::publish(&path.to_string_lossy()).await?;
+            let status = crate::publish(&path.to_string_lossy(), false).await?;
             if !status.success() {
                 bail!("Failed to publish package {path:?} ...");
             }
 
-            if self.simulator.is_none() && !is_published {
-                let status = crate::add_owner(handler::crates_io_name(name), TEAM_OWNER).await?;
-                if !status.success() {
-                    bail!("Failed to add owner to package {name} ...");
+            if is_real_publish && !is_published {
+                let crates_io_name = handler::crates_io_name(name);
+                for owner in EXPECTED_OWNERS {
+                    let status = crate::add_owner(crates_io_name, owner).await?;
+                    if !status.success() {
+                        bail!("Failed to add owner {owner} to package {crates_io_name} ...");
+                    }
                 }
             }
         }
