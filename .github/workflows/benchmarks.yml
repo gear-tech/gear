@@ -31,6 +31,9 @@ env:
 
 jobs:
   benchmarks:
+    # NOTE: The self-hosted `bench-runner` no longer exists. Benchmarks require long
+    # runtimes and CPU frequency tuning that GitHub-hosted runners can't provide, so
+    # provision a dedicated runner with this label before running this workflow.
     runs-on: [bench-runner]
     timeout-minutes: 720
     permissions:

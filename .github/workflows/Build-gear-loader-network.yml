@@ -8,7 +8,7 @@ env:
 
 jobs:
   build-gear-loader:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v6

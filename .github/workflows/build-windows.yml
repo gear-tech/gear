@@ -20,7 +20,7 @@ env:
 
 jobs:
   build-windows:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
