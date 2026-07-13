@@ -20,7 +20,7 @@ env:
 
 jobs:
   check:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:

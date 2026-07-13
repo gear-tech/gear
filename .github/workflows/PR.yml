@@ -1,12 +1,9 @@
-name: PR & Merge queue
+name: PR
 
 on:
   pull_request:
     branches: [master]
-    types: [labeled, synchronize]
-
-  merge_group:
-    types: [checks_requested]
+    types: [labeled, synchronize, ready_for_review]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
@@ -28,26 +25,15 @@ jobs:
 
     steps:
       - name: Wait a bit for label storms
-        if: ${{ github.event_name == 'pull_request' && github.event.action == 'labeled' }}
+        if: ${{ github.event.action == 'labeled' }}
         run: sleep 10
 
       - name: Resolve CI labels
         id: ci
         env:
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
-          MQ_HEAD_REF: ${{ github.event.merge_group.head_ref }}
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
         run: |
           LABELS="$PR_LABELS"
-
-          # In merge_group, pull_request context is absent — fetch labels via API
-          if [ -z "$LABELS" ] && [ -n "$MQ_HEAD_REF" ]; then
-            PR_NUMBER=$(echo "$MQ_HEAD_REF" | sed -E 's#.*/pr-([0-9]+)-.*#\1#')
-            if [ -n "$PR_NUMBER" ]; then
-              LABELS=$(gh api "/repos/$REPO/pulls/$PR_NUMBER" --jq '[.labels[].name] | join(",")')
-            fi
-          fi
 
           has_label() {
             case ",$LABELS," in
@@ -55,11 +41,6 @@ jobs:
               *) return 1 ;;
             esac
           }
-
-          if [ -n "$MQ_HEAD_REF" ] && has_label "pr: do-not-merge"; then
-            echo "::error::PR is labeled 'pr: do-not-merge' - merge blocked"
-            exit 1
-          fi
 
           has_full=false
           if has_label "ci: full"; then
@@ -86,7 +67,6 @@ jobs:
 
       - name: Only run latest workflow-run for this PR
         id: skip
-        if: ${{ github.event_name == 'pull_request' }}
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}

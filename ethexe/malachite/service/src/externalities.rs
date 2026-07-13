@@ -206,36 +206,17 @@ impl Externalities for EthexeExternalities {
             .is_zero()
             .then(H256::zero)
             .unwrap_or_else(|| self.db.mb_meta(parent_mb_hash).last_advanced_eb);
-        let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await?;
+        let (advance, injected_txs) = self
+            .wait_for_proposable_content(parent_mb_hash, parent_advanced)
+            .await?;
 
         debug!(
             %parent_mb_hash,
             %parent_advanced,
             advance = ?advance,
-            injected_count = injected.len(),
+            injected_count = injected_txs.len(),
             "build_block_above: proposable content resolved",
         );
-
-        // Filter the fetched injected txs down to the valid ones before we start MB assembly
-        let valid_injected_txs = {
-            let chain_head = *self.chain_head.latest_synced.read().await;
-            let checker =
-                TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_mb_hash)?;
-            let mut accepted = Vec::with_capacity(injected.len());
-            for tx in injected {
-                match checker.check_tx_validity(&tx)? {
-                    TxValidity::Valid => accepted.push(tx),
-                    reason => {
-                        debug!(
-                            tx_hash = %tx.data().to_hash(),
-                            ?reason,
-                            "build_block_above: dropping injected tx — fails TxValidity",
-                        );
-                    }
-                }
-            }
-            accepted
-        };
 
         let mut touched = match advance {
             Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
@@ -257,8 +238,8 @@ impl Externalities for EthexeExternalities {
         // Cap the injected txs to stay within the remaining limits
         let mut size_counter: usize = 0;
         let mut capped_injected_txs: Vec<SignedInjectedTransaction> =
-            Vec::with_capacity(valid_injected_txs.len());
-        for tx in valid_injected_txs {
+            Vec::with_capacity(injected_txs.len());
+        for tx in injected_txs {
             // Skip the whole loop body once initial touched > limit —
             // any injected tx would only push it further over.
             if initial_touched_count > MAX_TOUCHED_PROGRAMS_PER_MB as usize {
@@ -507,6 +488,7 @@ impl EthexeExternalities {
     // or any suitable injected tx to include in the next proposal.
     async fn wait_for_proposable_content(
         &self,
+        parent_mb_hash: H256,
         prev_advanced_eb_hash: H256,
     ) -> Result<(Option<H256>, Vec<SignedInjectedTransaction>)> {
         loop {
@@ -522,7 +504,25 @@ impl EthexeExternalities {
             let Some(mempool) = self.mempool.as_ref() else {
                 anyhow::bail!("must never call wait_for_proposable_content when not a validator");
             };
-            let injected_txs = mempool.fetch(chain_head).await;
+            let mut injected_txs = mempool.fetch(chain_head).await;
+            if !injected_txs.is_empty() {
+                let checker =
+                    TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_mb_hash)?;
+                let mut valid_txs = Vec::with_capacity(injected_txs.len());
+                for tx in injected_txs {
+                    match checker.check_tx_validity(&tx)? {
+                        TxValidity::Valid => valid_txs.push(tx),
+                        reason => {
+                            debug!(
+                                tx_hash = %tx.data().to_hash(),
+                                ?reason,
+                                "build_block_above: dropping injected tx — fails TxValidity",
+                            );
+                        }
+                    }
+                }
+                injected_txs = valid_txs;
+            }
 
             if advance.is_some() || !injected_txs.is_empty() {
                 return Ok((advance, injected_txs));
@@ -1504,6 +1504,65 @@ mod tests {
             "size cap must drop at least one tx, got {} retained",
             injected.len()
         );
+    }
+
+    /// REPRODUCES: txs that fail `TxValidity` must not count as
+    /// proposable content. Previously the producer returned as soon as
+    /// the mempool fetch was non-empty and filtered afterwards, so an
+    /// all-invalid pool yielded an MB with no advance and no injected
+    /// txs instead of waiting.
+    #[tokio::test(start_paused = true)]
+    async fn build_waits_when_pool_has_only_invalid_txs() {
+        use ethexe_common::mock::{BlockChain, Mock};
+        use gprimitives::ActorId;
+        use std::time::Duration;
+
+        let db = Database::memory();
+        let chain = BlockChain::mock(10u32).setup(&db);
+        let head = chain.blocks[10].to_simple();
+        let dest = ActorId::from([1; 32]);
+        let parent_mb = setup_mb_with_destinations(&db, chain.mb_hash_at(9), &[dest]);
+        // Parent MB already anchored at head — no EB to advance to.
+        db.mutate_mb_meta(parent_mb, |meta| meta.last_advanced_eb = head.hash);
+
+        let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
+        let _ = mempool.set_chain_head(head).await;
+        let pk = ethexe_common::PrivateKey::random();
+        // Passes mempool insert but fails TxValidity: destination is
+        // unknown to the parent MB's program states.
+        mempool
+            .insert(signed_injected_tx(
+                &pk,
+                ActorId::from([2; 32]),
+                chain.blocks[9].hash,
+                0,
+            ))
+            .await;
+
+        let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool.clone());
+        set_head(&ext, head).await;
+
+        let waited =
+            tokio::time::timeout(Duration::from_secs(5), ext.build_operations(parent_mb)).await;
+        assert!(
+            waited.is_err(),
+            "producer must keep waiting while the pool holds only invalid txs"
+        );
+
+        let valid = signed_injected_tx(&pk, dest, chain.blocks[9].hash, 1);
+        mempool.insert(valid.clone()).await;
+        let payload = tokio::time::timeout(Duration::from_secs(5), ext.build_operations(parent_mb))
+            .await
+            .expect("a valid tx must unblock the producer")
+            .unwrap();
+        let injected: Vec<_> = payload
+            .iter()
+            .filter_map(|tx| match tx {
+                Operation::Injected(t) => Some(t.data().to_hash()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(injected, vec![valid.data().to_hash()]);
     }
 
     // ------------------------------------------------------------------

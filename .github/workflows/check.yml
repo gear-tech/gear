@@ -128,12 +128,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macos-aarch64
-            target: aarch64-apple-darwin
-            runs-on: macos-latest
-          - name: macos-x86_64
-            target: x86_64-apple-darwin
-            runs-on: macos-latest
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
             runs-on: ubuntu-24.04-arm
@@ -160,12 +154,8 @@ jobs:
         with:
           target: "${{ matrix.target }}"
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.name }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Check clippy"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
@@ -205,14 +195,6 @@ jobs:
         with:
           args: manage-deps --dry-run
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          # we want to test the hack that doesn't interfere with some Substrate features
-          keep-workspace-hack: true
-
       - name: "Check clippy with workspace hack enabled"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
@@ -229,7 +211,7 @@ jobs:
         uses: ./.github/actions/setup-linker
 
       - name: "Install: protobuf compiler"
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 15
           max_attempts: 5
@@ -246,11 +228,8 @@ jobs:
         with:
           targets: wasm32v1-none
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Check: Wasm-builder recommended toolchain matches rust-toolchain.toml"
         run: |
@@ -289,12 +268,8 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.name }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Build: Vara runtime and wasm-proc"
         run: cargo build -p vara-runtime -p wasm-proc --release
@@ -310,12 +285,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macos-aarch64
-            target: aarch64-apple-darwin
-            runs-on: macos-latest
-          - name: macos-x86_64
-            target: x86_64-apple-darwin
-            runs-on: macos-15-intel
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
             runs-on: ubuntu-latest
@@ -333,23 +302,15 @@ jobs:
         uses: actions/checkout@v6
 
       - name: "Install: Setup linker"
-        if: matrix.name != 'macos-x86_64'
         uses: ./.github/actions/setup-linker
 
       - name: "Install: Rust toolchain"
-        if: matrix.name != 'macos-x86_64'
         uses: ./.github/actions/install-rust
 
-      - name: "ACTIONS: Setup caching"
-        if: matrix.name != 'macos-x86_64'
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.name }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Run: Calculate stack height"
-        if: matrix.name != 'macos-x86_64'
         run: cargo run -p calc-stack-height --release --locked
 
   gsdk-metadata:
@@ -370,11 +331,8 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Check: Changes in vara_runtime.scale file"
         run: |
