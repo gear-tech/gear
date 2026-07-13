@@ -20,7 +20,7 @@ runs:
 
     - name: "Install: macOS aarch64 packages"
       if: runner.os == 'macOS'
-      uses: nick-fields/retry@v3
+      uses: nick-fields/retry@v4
       with:
         timeout_minutes: 15
         max_attempts: 5
@@ -29,7 +29,7 @@ runs:
 
     - name: "Install: Linux packages"
       if: runner.os == 'Linux'
-      uses: nick-fields/retry@v3
+      uses: nick-fields/retry@v4
       with:
         timeout_minutes: 15
         max_attempts: 5
@@ -41,7 +41,7 @@ runs:
 
     - name: "Install: LLVM on Linux"
       if: ${{ runner.os == 'Linux' }}
-      uses: nick-fields/retry@v3
+      uses: nick-fields/retry@v4
       with:
         timeout_minutes: 20
         max_attempts: 5
@@ -68,7 +68,7 @@ runs:
 
     - name: "Install: Linux cross compilers and packages"
       if: runner.arch == 'ARM64' && runner.os == 'Linux' && inputs.target == 'x86_64-unknown-linux-gnu'
-      uses: nick-fields/retry@v3
+      uses: nick-fields/retry@v4
       with:
         timeout_minutes: 15
         max_attempts: 5
@@ -105,7 +105,7 @@ runs:
 
     - name: "Install: Windows packages (apt + openssl fetch)"
       if: inputs.target == 'x86_64-pc-windows-msvc'
-      uses: nick-fields/retry@v3
+      uses: nick-fields/retry@v4
       with:
         timeout_minutes: 15
         max_attempts: 5
