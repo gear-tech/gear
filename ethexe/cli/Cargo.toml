@@ -54,6 +54,9 @@ toml.workspace = true
 thiserror.workspace = true
 gear-workspace-hack.workspace = true
 indicatif = "0.18.3"
+heck.workspace = true
+reqwest.workspace = true
+form_urlencoded.workspace = true
 
 [lints]
 workspace = true
