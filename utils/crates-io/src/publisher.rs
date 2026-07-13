@@ -4,8 +4,8 @@
 //! Packages publisher.
 
 use crate::{
-    CRATES_IO_ALLOWED_CATEGORIES, GEAR_SUBSTRATE_DEPENDENCIES, Manifest, PACKAGES, PackageStatus,
-    EXPECTED_OWNERS, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator, Workspace, handler,
+    CRATES_IO_ALLOWED_CATEGORIES, EXPECTED_OWNERS, GEAR_SUBSTRATE_DEPENDENCIES, Manifest, PACKAGES,
+    PackageStatus, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator, Workspace, handler,
 };
 use anyhow::{Result, bail};
 use cargo_metadata::{Error as MetadataError, Metadata, MetadataCommand, Result as MetadataResult};
