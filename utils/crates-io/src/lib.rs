@@ -21,7 +21,7 @@ use std::process::ExitStatus;
 use tokio::process::Command;
 
 /// Username that owns crates.
-pub const USER_OWNER: &str = "breathx";
+pub const USER_OWNER: &str = "pv-gear";
 
 /// Team that owns crates.
 pub const TEAM_OWNER: &str = "github:gear-tech:dev";
@@ -134,15 +134,21 @@ pub async fn test(package: &str, test: &str) -> Result<ExitStatus> {
 }
 
 /// Publish the input package
-pub async fn publish(manifest: &str) -> Result<ExitStatus> {
+pub async fn publish(manifest: &str, dry_run: bool) -> Result<ExitStatus> {
+    let mut args = vec![
+        "+stable",
+        "publish",
+        "--manifest-path",
+        manifest,
+        "--allow-dirty",
+    ];
+
+    if dry_run {
+        args.push("--dry-run");
+    }
+
     Command::new("cargo")
-        .args([
-            "+stable",
-            "publish",
-            "--manifest-path",
-            manifest,
-            "--allow-dirty",
-        ])
+        .args(args)
         .status()
         .await
         .map_err(Into::into)
