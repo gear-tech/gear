@@ -42,7 +42,7 @@ env:
 
 jobs:
   build:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     steps:
       - name: "Actions: Checkout"
         uses: actions/checkout@v6
