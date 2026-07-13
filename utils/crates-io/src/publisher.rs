@@ -377,10 +377,8 @@ impl Publisher {
                 let crates_io_name = handler::crates_io_name(name);
                 for owner in EXPECTED_OWNERS {
                     let status = crate::add_owner(crates_io_name, owner).await?;
-                    // The account that publishes a new crate becomes its owner
-                    // automatically, so re-adding it fails harmlessly — warn and continue.
                     if !status.success() {
-                        println!("Failed to add owner {owner} to package {name}, skipping ...");
+                        bail!("Failed to add owner {owner} to package {crates_io_name} ...");
                     }
                 }
             }
