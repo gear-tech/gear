@@ -298,7 +298,13 @@ jobs:
           path: gear-cli-and-runtime-release
 
       - name: "Test: Workspace"
-        run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
+        run: |
+          # Temporary solution since GitHub Actions runners are quite slow for our tests
+          if [ -z "${{ matrix.profiles.flags }}" ]; then
+            sed -i 's/slow-timeout = { period = "1m"/slow-timeout = { period = "2m"/' .config/nextest.toml
+          fi
+
+          cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEAR_NODE_WRAPPER_LOG: info
