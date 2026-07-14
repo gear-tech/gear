@@ -833,6 +833,7 @@ mod tests {
     //   * `AlwaysEmit` — every MB in the walked chain emits, so an RPC
     //     node catching up still surfaces replies for predecessors.
 
+    #[allow(dead_code)]
     async fn upload_ping_code(processor: &mut Processor, db: &Database) -> CodeId {
         let code = demo_ping::WASM_BINARY;
         let code_id = CodeId::generate(code);
@@ -856,6 +857,7 @@ mod tests {
         code_id
     }
 
+    #[allow(dead_code)]
     fn ping_injected(destination: ActorId) -> SignedInjectedTransaction {
         let tx = InjectedTransaction {
             destination,
@@ -867,6 +869,7 @@ mod tests {
         SignedMessage::create(PrivateKey::random(), tx).expect("failed to sign injected tx")
     }
 
+    #[allow(dead_code)]
     fn mb_bookend() -> [Operation; 2] {
         [
             Operation::ProgressTasks,
@@ -878,6 +881,7 @@ mod tests {
 
     /// MB #0 creates + funds a demo-ping program; each later MB injects
     /// one `PING`. Returns the MB hashes, head last.
+    #[allow(dead_code)]
     async fn build_ping_mb_chain(
         db: &Database,
         processor: &mut Processor,
@@ -956,6 +960,7 @@ mod tests {
 
     /// Computes the chain head and returns `(mb_hashes, promises)` where
     /// each promise is paired with the MB hash that produced it.
+    #[allow(dead_code)]
     async fn run_emission(
         mode: PromiseEmissionMode,
         policy: PromisePolicy,
