@@ -13,17 +13,16 @@ keywords = ["ethexe", "ethereum", "gear", "sdk", "rpc"]
 categories = ["api-bindings", "cryptography::cryptocurrencies", "asynchronous"]
 
 [dependencies]
-ethexe-node-wrapper.workspace = true
-
 alloy.workspace = true
 anyhow.workspace = true
 ethexe-common.workspace = true
 ethexe-ethereum.workspace = true
+ethexe-node-wrapper.workspace = true
 ethexe-rpc-client.workspace = true
 ethexe-runtime-common.workspace = true
 futures.workspace = true
-gsigner.workspace = true
+gear-workspace-hack.workspace = true
 gprimitives.workspace = true
+gsigner.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
 parity-scale-codec.workspace = true
-gear-workspace-hack.workspace = true

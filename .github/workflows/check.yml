@@ -18,8 +18,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
       - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall --no-confirm cargo-shear
+
+      - name: "Install: cargo-shear"
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 15
+          max_attempts: 5
+          retry_wait_seconds: 10
+          command: cargo binstall --no-confirm cargo-shear
+
       - run: cargo shear --exclude=gear-workspace-hack
 
   fmt:
@@ -47,8 +56,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
       - name: typos-action
         uses: crate-ci/typos@master
 
@@ -57,8 +64,6 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -74,12 +79,16 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.7.0
+          version: v1.7.1
+
+      - name: Install dependencies
+        run: forge soldeer install
+        working-directory: ./ethexe/contracts
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v6
         with:
-          node-version: 22.x
+          node-version: 24.x
 
       - name: "Show: Versioning"
         run: forge --version
@@ -88,7 +97,7 @@ jobs:
         run: |
           npm cache clean --force
 
-          # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
+          # version from ethereum/dependencies/openzeppelin-foundry-upgrades-0.4.1/src/internal/Versions.sol
           npx @openzeppelin/upgrades-core@^1.37.0
 
           forge fmt --check
@@ -142,8 +151,6 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -167,8 +174,6 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -210,8 +215,6 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker

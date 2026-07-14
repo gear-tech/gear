@@ -37,7 +37,22 @@ runs:
         command: |
           set -e
           sudo apt update
-          sudo apt install -y protobuf-compiler binaryen
+          sudo apt install -y protobuf-compiler
+
+          # Binaryen may be outdated in Ubuntu 24.04, newer versions should have it from the apt package
+          binaryen_arch=$(uname -m)
+          if [[ "$binaryen_arch" == "x86_64" ]]; then
+            binaryen_prefix="x86_64-linux"
+          elif [[ "$binaryen_arch" == "aarch64" ]]; then
+            binaryen_prefix="aarch64-linux"
+          else
+            echo "Unsupported architecture: $binaryen_arch"
+            exit 1
+          fi
+
+          curl -o wasm-opt-linux.tar.gz -L `curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | jq -r ".assets[] | select(.name | contains(\"${binaryen_prefix}\")) | .browser_download_url" | grep -v sha256`
+          tar xzf wasm-opt-linux.tar.gz && sudo mv binaryen-version_*/bin/* /usr/local/bin/
+          wasm-opt --version
 
     - name: "Install: LLVM on Linux"
       if: ${{ runner.os == 'Linux' }}
@@ -118,7 +133,22 @@ runs:
           fi
 
           sudo apt update
-          sudo apt install -y protobuf-compiler binaryen innoextract
+          sudo apt install -y protobuf-compiler innoextract
+
+          # Binaryen may be outdated in Ubuntu 24.04, newer versions should have it from the apt package
+          binaryen_arch=$(uname -m)
+          if [[ "$binaryen_arch" == "x86_64" ]]; then
+            binaryen_prefix="x86_64-linux"
+          elif [[ "$binaryen_arch" == "aarch64" ]]; then
+            binaryen_prefix="aarch64-linux"
+          else
+            echo "Unsupported architecture: $binaryen_arch"
+            exit 1
+          fi
+
+          curl -o wasm-opt-linux.tar.gz -L `curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | jq -r ".assets[] | select(.name | contains(\"${binaryen_prefix}\")) | .browser_download_url" | grep -v sha256`
+          tar xzf wasm-opt-linux.tar.gz && sudo mv binaryen-version_*/bin/* /usr/local/bin/
+          wasm-opt --version
 
           wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl-lts.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
           innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe

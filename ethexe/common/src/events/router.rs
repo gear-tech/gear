@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::Digest;
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -21,6 +21,12 @@ pub struct MBCommittedEvent(pub H256);
 /// Carries the latest folded-in Ethereum block hash from a chain commitment.
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EBCommittedEvent(pub H256);
+
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct ProtocolVersionChangedEvent {
+    pub new_protocol_version: U256,
+}
 
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeGotValidatedEvent {
@@ -74,6 +80,7 @@ pub enum Event {
     // TODO: on review ask about backward compatibility
     StorageSlotChanged(StorageSlotChangedEvent),
     ValidatorsCommittedForEra(ValidatorsCommittedForEraEvent),
+    ProtocolVersionChanged(ProtocolVersionChangedEvent),
 }
 
 impl Event {
@@ -88,6 +95,7 @@ impl Event {
             Self::ValidatorsCommittedForEra(event) => {
                 RequestEvent::ValidatorsCommittedForEra(event)
             }
+            Self::ProtocolVersionChanged(event) => RequestEvent::ProtocolVersionChanged(event),
             Self::CodeGotValidated { .. }
             | Self::MBCommitted(_)
             | Self::EBCommitted(_)
@@ -104,4 +112,5 @@ pub enum RequestEvent {
     ProgramCreated(ProgramCreatedEvent),
     StorageSlotChanged(StorageSlotChangedEvent),
     ValidatorsCommittedForEra(ValidatorsCommittedForEraEvent),
+    ProtocolVersionChanged(ProtocolVersionChangedEvent),
 }

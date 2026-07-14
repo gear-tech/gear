@@ -9,15 +9,13 @@ ethexe-pre-commit-no-contracts: fmt clippy-gear
 # Building ethexe contracts
 .PHONY: ethexe-contracts-deps-check
 ethexe-contracts-deps-check:
-	@ echo " > Checking ethexe contract submodules are locked" && \
-		status="$$(git submodule status --recursive -- ethexe/contracts/lib)" && \
-		if printf '%s\n' "$$status" | grep -E '^[+-U]' >/dev/null; then \
-			printf '%s\n' "$$status"; \
-			echo "ethexe contract submodules must be initialized and checked out at the pinned revisions"; \
-			exit 1; \
+	@ echo " > Checking ethexe contracts dependencies" && \
+		if [ ! -d "./ethexe/contracts/dependencies" ]; then \
+			echo "Dependencies folder not found. Installing..." && \
+			(cd ./ethexe/contracts && forge soldeer install); \
+		else \
+			echo "Dependencies folder already exists."; \
 		fi
-	@ echo " > Checking ethexe contract submodules are clean" && \
-		(cd ethexe/contracts/lib && git submodule foreach --recursive 'git diff --quiet && git diff --cached --quiet || { echo "$$sm_path has uncommitted changes"; exit 1; }') >/dev/null
 	@ echo " > Checking ethexe ethereum ABI artifacts are present" && \
 		for artifact in \
 			BatchMulticall \
@@ -59,18 +57,18 @@ ethexe-contracts-lock-artifacts:
 	@ echo " > Locking DemoCaller artifact" && cp ./ethexe/contracts/out/DemoCaller.sol/DemoCaller.json ./ethexe/ethereum/abi
 	@ echo " > Locking Gear artifact" && cp ./ethexe/contracts/out/Gear.sol/Gear.json ./ethexe/ethereum/abi
 	@ echo " > Locking Symbiotic core artifacts" && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/DelegatorFactory.sol/DelegatorFactory.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/NetworkMiddlewareService.sol/NetworkMiddlewareService.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/NetworkRegistry.sol/NetworkRegistry.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/OperatorRegistry.sol/OperatorRegistry.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/OptInService.sol/OptInService.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/SlasherFactory.sol/SlasherFactory.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/Vault.sol/Vault.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/VaultFactory.sol/VaultFactory.json ./ethexe/ethereum/abi
+		cp ./ethexe/contracts/dependencies/symbiotic-core-main/out/DelegatorFactory.sol/DelegatorFactory.json ./ethexe/ethereum/abi && \
+		cp ./ethexe/contracts/dependencies/symbiotic-core-main/out/NetworkMiddlewareService.sol/NetworkMiddlewareService.json ./ethexe/ethereum/abi && \
+		cp ./ethexe/contracts/dependencies/symbiotic-core-main/out/NetworkRegistry.sol/NetworkRegistry.json ./ethexe/ethereum/abi && \
+		cp ./ethexe/contracts/dependencies/symbiotic-core-main/out/OperatorRegistry.sol/OperatorRegistry.json ./ethexe/ethereum/abi && \
+		cp ./ethexe/contracts/dependencies/symbiotic-core-main/out/OptInService.sol/OptInService.json ./ethexe/ethereum/abi && \
+		cp ./ethexe/contracts/dependencies/symbiotic-core-main/out/SlasherFactory.sol/SlasherFactory.json ./ethexe/ethereum/abi && \
+		cp ./ethexe/contracts/dependencies/symbiotic-core-main/out/Vault.sol/Vault.json ./ethexe/ethereum/abi && \
+		cp ./ethexe/contracts/dependencies/symbiotic-core-main/out/VaultFactory.sol/VaultFactory.json ./ethexe/ethereum/abi
 	@ echo " > Locking Symbiotic rewards artifacts" && \
-		cp ./ethexe/contracts/lib/symbiotic-rewards/out/DefaultOperatorRewards.sol/DefaultOperatorRewards.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-rewards/out/DefaultStakerRewards.sol/DefaultStakerRewards.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-rewards/out/DefaultStakerRewardsFactory.sol/DefaultStakerRewardsFactory.json ./ethexe/ethereum/abi
+		cp ./ethexe/contracts/dependencies/symbiotic-rewards-main/out/DefaultOperatorRewards.sol/DefaultOperatorRewards.json ./ethexe/ethereum/abi && \
+		cp ./ethexe/contracts/dependencies/symbiotic-rewards-main/out/DefaultStakerRewards.sol/DefaultStakerRewards.json ./ethexe/ethereum/abi && \
+		cp ./ethexe/contracts/dependencies/symbiotic-rewards-main/out/DefaultStakerRewardsFactory.sol/DefaultStakerRewardsFactory.json ./ethexe/ethereum/abi
 
 .PHONY: ethexe-contracts-pre-commit
 ethexe-contracts-pre-commit: ethexe-contracts-deps-check
