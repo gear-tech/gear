@@ -124,9 +124,9 @@ pub enum ComputeEvent {
     BlockPrepared(H256),
     #[from(skip)]
     MbComputed(H256),
+    Promise(Promise, H256),
     #[from(skip)]
     ProtocolVersionChanged(H256, U256),
-    Promise(Promise, H256),
 }
 
 #[derive(thiserror::Error, Debug)]
