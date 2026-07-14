@@ -3090,6 +3090,7 @@ async fn injected_tx_fungible_token_over_network() {
     stop_nodes([alice_node, bob_node]).await;
 }
 
+#[cfg(not(debug_assertions))]
 #[tokio::test]
 #[ntest::timeout(120_000)]
 async fn whole_network_restore() {

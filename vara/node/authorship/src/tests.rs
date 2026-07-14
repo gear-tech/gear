@@ -471,6 +471,7 @@ fn test_queue_remains_intact_if_processing_fails() {
     assert_eq!(queue_len, 8);
 }
 
+#[cfg(not(debug_assertions))]
 #[test]
 fn test_block_max_gas_works() {
     init_logger();
@@ -1057,6 +1058,7 @@ mod basic_tests {
         assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
     }
 
+    #[cfg(not(debug_assertions))]
     #[test]
     fn test_invalid_transactions_not_removed_when_skipping() {
         init_logger();
