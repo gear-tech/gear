@@ -13,8 +13,8 @@ use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubServic
 use ethexe_common::{
     PromiseEmissionMode, PromisePolicy, SimpleBlockData,
     db::{
-        CodesStorageRW, CompactMb, ConfigStorageRO, GlobalsStorageRO, MbStorageRO, MbStorageRW,
-        OnChainStorageRO,
+        BlockMetaStorageRO, CodesStorageRW, CompactMb, ConfigStorageRO, GlobalsStorageRO,
+        MbStorageRO, MbStorageRW, OnChainStorageRO,
     },
     events::BlockRequestEvent,
     injected::Promise,
@@ -85,6 +85,13 @@ pub struct ComputeSubService<P: ProcessorExt> {
     metrics: Metrics,
 
     input: VecDeque<MbComputeRequest>,
+    /// Requests whose prerequisite EB (the block this MB advances to) is not
+    /// yet prepared in the DB. Held here instead of executing — and moved back
+    /// into `input` by [`Self::receive_prepared_block`] once the prerequisite
+    /// lands. This is the gate Malachite used to apply before emitting events;
+    /// owning it here lets replayed/early MBs flow through as events while
+    /// their execution waits for the code-validation pipeline to catch up.
+    deferred: VecDeque<MbComputeRequest>,
     /// Head of the in-flight computation, kept so [`Self::receive_mb`] can
     /// skip duplicates that would otherwise re-emit `MbComputed`.
     in_flight_mb: Option<H256>,
@@ -111,6 +118,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             promise_emission_mode,
             metrics: Metrics::default(),
             input: VecDeque::new(),
+            deferred: VecDeque::new(),
             in_flight_mb: None,
             computation: None,
             promises_stream: None,
@@ -119,12 +127,13 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     }
 
     pub fn receive_mb(&mut self, mb_hash: H256, promise_policy: PromisePolicy) {
-        // Idempotent: skip if already computed, in flight, or queued —
-        // otherwise BlockProposal+BlockFinalized for the same head emit
-        // `MbComputed` twice.
+        // Idempotent: skip if already computed, in flight, or queued
+        // (`input` or `deferred`) — otherwise BlockProposal+BlockFinalized
+        // for the same head emit `MbComputed` twice.
         if self.db.mb_meta(mb_hash).computed
             || self.in_flight_mb == Some(mb_hash)
             || self.input.iter().any(|r| r.mb_hash == mb_hash)
+            || self.deferred.iter().any(|r| r.mb_hash == mb_hash)
         {
             return;
         }
@@ -132,6 +141,32 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             mb_hash,
             promise_policy,
         });
+    }
+
+    /// An Ethereum block has been prepared: requeue every deferred request
+    /// whose prerequisite EB is now satisfied. `PrepareSubService` prepares a
+    /// whole ancestor chain but only reports the head, so we re-check all
+    /// deferred requests rather than matching the reported hash.
+    pub fn receive_prepared_block(&mut self, _eb_hash: H256) {
+        let mut still_deferred = VecDeque::with_capacity(self.deferred.len());
+        while let Some(req) = self.deferred.pop_front() {
+            if self.db.mb_meta(req.mb_hash).computed {
+                continue;
+            }
+            if self.prerequisite_ready(req.mb_hash) {
+                self.input.push_back(req);
+            } else {
+                still_deferred.push_back(req);
+            }
+        }
+        self.deferred = still_deferred;
+    }
+
+    /// Whether the EB this MB advances to is prepared (or there is none).
+    /// Execution reads that EB's events, so it must wait until then.
+    fn prerequisite_ready(&self, mb_hash: H256) -> bool {
+        let eb = self.db.mb_meta(mb_hash).last_advanced_eb;
+        eb.is_zero() || self.db.block_meta(eb).prepared
     }
 
     async fn compute(
@@ -446,25 +481,37 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
     type Output = ComputeEvent;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
-        // (1) Pick up the next request whenever no work is in flight.
+        // (1) Pick up the next ready request whenever no work is in flight.
+        // Skip already-computed requests and park ones whose prerequisite EB
+        // is not prepared yet into `deferred`, scanning past them so a parked
+        // request never head-of-line blocks a ready one behind it.
         if self.computation.is_none()
             && self.promises_stream.is_none()
             && self.pending_event.is_none()
-            && let Some(req) = self.input.pop_front()
         {
-            let (sender, receiver) = mpsc::unbounded_channel();
-            self.in_flight_mb = Some(req.mb_hash);
-            self.promises_stream = Some(MbPromisesStream { receiver });
-            self.computation = Some(future_timing::timed(
-                Self::compute(
-                    self.db.clone(),
-                    self.processor.clone(),
-                    req,
-                    self.promise_emission_mode,
-                    sender,
-                )
-                .boxed(),
-            ));
+            while let Some(req) = self.input.pop_front() {
+                if self.db.mb_meta(req.mb_hash).computed {
+                    continue;
+                }
+                if !self.prerequisite_ready(req.mb_hash) {
+                    self.deferred.push_back(req);
+                    continue;
+                }
+                let (sender, receiver) = mpsc::unbounded_channel();
+                self.in_flight_mb = Some(req.mb_hash);
+                self.promises_stream = Some(MbPromisesStream { receiver });
+                self.computation = Some(future_timing::timed(
+                    Self::compute(
+                        self.db.clone(),
+                        self.processor.clone(),
+                        req,
+                        self.promise_emission_mode,
+                        sender,
+                    )
+                    .boxed(),
+                ));
+                break;
+            }
         }
 
         // (2) Forward streaming promises before anything else so the
@@ -560,6 +607,11 @@ mod tests {
             },
         );
         db.set_block_events(hash, &events);
+        // Compute now defers an MB until the EB it advances to is prepared, so
+        // these synthetic EBs (standing in for already-synced blocks) must carry
+        // the flag for the direct `ComputeSubService` tests that never pump a
+        // `BlockPrepared` notification.
+        db.mutate_block_meta(hash, |m| m.prepared = true);
         hash
     }
 

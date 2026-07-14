@@ -6,13 +6,13 @@
 use crate::{
     app,
     codec::ScaleCodec,
-    config::{MalachiteCoreConfig, NodeRole},
+    config::{Environment, MalachiteCoreConfig, NodeRole},
     context::{MalachiteCtx, Validator, ValidatorSet},
     externalities::Externalities,
     signing::{MalachiteSigner, private_key_from_gsigner, public_key_from_gsigner},
     state::{SharedValidatorSet, State},
     store::Store,
-    types::Address,
+    types::{Address, H256},
 };
 use advisory_lock::{AdvisoryFileLock, FileLockMode};
 use anyhow::{Context as _, Result};
@@ -66,6 +66,10 @@ pub struct MalachiteCore<EXT: Externalities> {
     wal_path: PathBuf,
     /// Shared with the app loop; [`Self::update_validators`] writes here.
     validator_set: SharedValidatorSet,
+    /// Persistent app store, shared with the app task. Kept here for
+    /// startup decisions that need to inspect replay state before the
+    /// app task is released.
+    store: Store,
     /// Validator proof bytes intended for network.
     validator_proof: Option<Bytes>,
     /// Keeps the externalities alive for the app task.
@@ -213,7 +217,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
         };
 
         // ---- engine ----
-        let inner_cfg = build_inner_config(&moniker);
+        let inner_cfg = build_inner_config(&moniker, config.env);
         let ctx = MalachiteCtx::new();
         let consensus_signer = MalachiteSigner::new(signer.private_key().clone());
         let (channels, engine) = EngineBuilder::new(ctx.clone(), inner_cfg)
@@ -236,7 +240,7 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             signer,
             validator_set.clone(),
             address,
-            store,
+            store.clone(),
             config.propose_timeout,
         )?;
 
@@ -256,9 +260,15 @@ impl<EXT: Externalities> MalachiteCore<EXT> {
             app_handle,
             wal_path,
             validator_set,
+            store,
             validator_proof,
             _externalities: externalities,
         })
+    }
+
+    /// Whether `block_hash` is already finalized in the persistent app store.
+    pub fn is_finalized(&self, block_hash: H256) -> Result<bool> {
+        self.store.is_finalized(block_hash)
     }
 
     /// Validator proof bytes intended for network.
@@ -304,7 +314,7 @@ impl<EXT: Externalities> FusedStream for MalachiteCore<EXT> {
 
 impl<EXT: Externalities> MService for MalachiteCore<EXT> {}
 
-fn build_inner_config(moniker: &str) -> InnerNodeConfig {
+fn build_inner_config(moniker: &str, env: Environment) -> InnerNodeConfig {
     let consensus = ConsensusConfig {
         enabled: true,
         value_payload: ValuePayload::ProposalAndParts,
@@ -312,10 +322,23 @@ fn build_inner_config(moniker: &str) -> InnerNodeConfig {
         // NOTE: the config is actually unused because we have our own network implementation
         p2p: P2pConfig::default(),
     };
+    let value_sync = match env {
+        Environment::Production => ValueSyncConfig::default(),
+        Environment::Test => ValueSyncConfig {
+            // Service tests do not run Malachite's application task forever, so
+            // use short value-sync waits and small batches to make missing replay
+            // data fail fast instead of blocking the event queue.
+            status_update_interval: Duration::from_millis(500),
+            request_timeout: Duration::from_secs(3),
+            parallel_requests: 16,
+            batch_size: 32,
+            ..Default::default()
+        },
+    };
     InnerNodeConfig {
         moniker: moniker.to_string(),
         consensus,
-        value_sync: ValueSyncConfig::default(),
+        value_sync,
         logging: LoggingConfig::default(),
         metrics: MetricsConfig::default(),
         runtime: RuntimeConfig::default(),

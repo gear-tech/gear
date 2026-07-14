@@ -422,7 +422,6 @@ where
         // proposer side. cascade_save guarantees ancestor-first
         // ordering against the application.
         self.record_assembled_block(block).await?;
-
         Ok(locally)
     }
 
@@ -778,7 +777,7 @@ mod tests {
         ConsensusRequest, NetworkRequest,
         app::{events::TxEvent, streaming::StreamId},
     };
-    use std::time::Duration;
+    use std::{sync::Arc, time::Duration};
     use tempfile::TempDir;
     use tokio::sync::mpsc;
 
@@ -897,8 +896,8 @@ mod tests {
     /// `process_received_proposal_part`, returning the final reply
     /// value (`Some(proposed)` on the same-height happy path, `None`
     /// when the parts were dropped or buffered).
-    async fn run_stream(
-        handler: &mut AppMsgHandler<NoopExt>,
+    async fn run_stream<EXT: Externalities>(
+        handler: &mut AppMsgHandler<EXT>,
         peer: PeerId,
         stream: Vec<StreamMessage<ProposalPart>>,
     ) -> Option<ProposedValue<MalachiteCtx>> {

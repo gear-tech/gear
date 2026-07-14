@@ -85,6 +85,7 @@ impl MalachiteServiceStarter {
         };
 
         let core_config = MalachiteCoreConfig {
+            env: config.env,
             base: config.home_dir.clone(),
             validator_secret,
             validators: config.validators.clone(),
@@ -109,7 +110,6 @@ impl MalachiteServiceStarter {
             },
             mempool: mempool.clone(),
             chain_head: chain_head.clone(),
-            pending_events: Default::default(),
             event_tx,
         });
 

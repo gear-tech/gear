@@ -72,7 +72,7 @@ use crate::{
 };
 use alloy::{
     consensus::SignableTransaction,
-    eips::BlockId,
+    eips::{BlockId, BlockNumberOrTag},
     network::{self, Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
     primitives::{Address as AlloyAddress, B256, ChainId, Signature, U256 as AlloyU256, address},
     providers::{
@@ -713,6 +713,29 @@ macro_rules! signatures_consts {
 pub(crate) use signatures_consts;
 
 use crate::wvara::WVara;
+
+/// A helping trait for converting various types into `alloy::eips::BlockNumberOrTag`.
+pub trait IntoBlockNumberOrTag {
+    fn into_block_number_or_tag(self) -> BlockNumberOrTag;
+}
+
+impl IntoBlockNumberOrTag for u32 {
+    fn into_block_number_or_tag(self) -> BlockNumberOrTag {
+        BlockNumberOrTag::Number(self as u64)
+    }
+}
+
+impl IntoBlockNumberOrTag for u64 {
+    fn into_block_number_or_tag(self) -> BlockNumberOrTag {
+        BlockNumberOrTag::Number(self)
+    }
+}
+
+impl IntoBlockNumberOrTag for BlockNumberOrTag {
+    fn into_block_number_or_tag(self) -> BlockNumberOrTag {
+        self
+    }
+}
 
 /// A helping trait for converting various types into `alloy::eips::BlockId`.
 pub trait IntoBlockId {

@@ -1,17 +1,13 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::db_sync::PeerId;
 use async_trait::async_trait;
 use ip_network::IpNetwork;
 use libp2p::{
-    Multiaddr, StreamProtocol,
+    Multiaddr, PeerId, StreamProtocol,
     futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     multiaddr, request_response,
-    swarm::{
-        ConnectionClosed, ConnectionId, DialError, DialFailure, FromSwarm, NewExternalAddrOfPeer,
-        behaviour::ConnectionEstablished,
-    },
+    swarm::{ConnectionId, DialError, DialFailure, FromSwarm, NewExternalAddrOfPeer},
 };
 use lru::LruCache;
 use parity_scale_codec::{Decode, DecodeAll, Encode};
@@ -212,29 +208,6 @@ impl ConnectionMap<NoLimits> {
             limit: NoLimits,
         }
     }
-
-    /// Returns true if a new connection added
-    pub(crate) fn on_swarm_event(&mut self, event: FromSwarm) -> bool {
-        match event {
-            FromSwarm::ConnectionEstablished(ConnectionEstablished {
-                peer_id,
-                connection_id,
-                ..
-            }) => {
-                let Ok(new) = self.add_connection(peer_id, connection_id);
-                new
-            }
-            FromSwarm::ConnectionClosed(ConnectionClosed {
-                peer_id,
-                connection_id,
-                ..
-            }) => {
-                self.remove_connection(peer_id, connection_id);
-                false
-            }
-            _ => false,
-        }
-    }
 }
 
 /// A helper struct for formatting collections (BTreeSet, BTreeMap) with two display modes:
@@ -401,11 +374,8 @@ impl Default for PeerAddresses {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::{
-        db_sync::PeerId,
-        utils::{ConnectionMap, ExponentialBackoffInterval},
-    };
-    use libp2p::swarm::ConnectionId;
+    use crate::utils::{ConnectionMap, ExponentialBackoffInterval};
+    use libp2p::{PeerId, swarm::ConnectionId};
     use proptest::{
         arbitrary::Arbitrary,
         strategy::{Strategy, ValueTree},

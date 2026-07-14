@@ -135,6 +135,7 @@ fn build_config(
     pub_key: gsigner::schemes::secp256k1::PublicKey,
 ) -> MalachiteServiceConfig {
     MalachiteServiceConfig {
+        env: Default::default(),
         gas_allowance: MalachiteServiceConfig::DEFAULT_GAS_ALLOWANCE,
         canonical_quarantine: 0,
         post_quarantine_delay: 0,

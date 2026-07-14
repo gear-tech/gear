@@ -4,15 +4,13 @@
 //! Validator-specific networking logic that verifies signed messages
 //! against on-chain state.
 
-use crate::{
-    db_sync::PeerId, gossipsub::MessageAcceptance, peer_score,
-    validator::list::ValidatorListSnapshot,
-};
+use crate::{gossipsub::MessageAcceptance, peer_score, validator::list::ValidatorListSnapshot};
 use ethexe_common::{
     Address, HashOf,
     injected::{InjectedTransaction, SignedCompactTxReceipt},
     network::VerifiedValidatorMessage,
 };
+use libp2p::PeerId;
 use lru::LruCache;
 use std::{cmp::Ordering, collections::VecDeque, mem, num::NonZeroUsize, sync::Arc};
 

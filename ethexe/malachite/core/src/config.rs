@@ -34,10 +34,18 @@ pub enum NodeRole {
     FullNode,
 }
 
+#[derive(Debug, Copy, Clone, Default)]
+pub enum Environment {
+    #[default]
+    Production,
+    Test,
+}
+
 /// All configuration the service needs to bootstrap the malachite engine.
 /// Application-specific knobs live behind [`crate::Externalities`].
 #[derive(Clone, Debug)]
 pub struct MalachiteCoreConfig {
+    pub env: Environment,
     /// Base directory; the service owns `<base>/malachite/` (consensus WAL
     /// + RocksDB store), created on first run and resumed on restarts.
     pub base: PathBuf,

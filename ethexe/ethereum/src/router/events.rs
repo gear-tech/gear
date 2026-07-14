@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    IRouter,
+    IRouter, IntoBlockNumberOrTag,
     abi::utils::{bytes32_to_code_id, bytes32_to_h256},
     decode_log,
     router::RouterQuery,
@@ -218,31 +218,47 @@ impl<'a> EBCommittedEventBuilder<'a> {
 
 pub struct CodeGotValidatedEventBuilder<'a> {
     event: Event<&'a RootProvider, IRouter::CodeGotValidated>,
-    valid: Option<bool>,
 }
 
 impl<'a> CodeGotValidatedEventBuilder<'a> {
     pub(crate) fn new(query: &'a RouterQuery) -> Self {
         Self {
             event: query.instance.CodeGotValidated_filter(),
-            valid: None,
         }
     }
 
     pub fn valid(mut self, valid: bool) -> Self {
-        self.valid = Some(valid);
+        self.event = self.event.topic1(valid);
         self
+    }
+
+    pub fn from_block(mut self, block: impl IntoBlockNumberOrTag) -> Self {
+        self.event = self.event.from_block(block.into_block_number_or_tag());
+        self
+    }
+
+    pub fn to_block(mut self, block: impl IntoBlockNumberOrTag) -> Self {
+        self.event = self.event.to_block(block.into_block_number_or_tag());
+        self
+    }
+
+    pub async fn query(self) -> Result<Vec<(CodeGotValidatedEvent, Log)>> {
+        Ok(self
+            .event
+            .chunked()
+            .query()
+            .await?
+            .into_iter()
+            .map(|(event, log)| (event.into(), log))
+            .collect())
     }
 
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(CodeGotValidatedEvent, Log), Error>> + Unpin + use<>>
     {
-        let mut event = self.event;
-        if let Some(valid) = self.valid {
-            event = event.topic1(valid);
-        }
-        Ok(event
+        Ok(self
+            .event
             .subscribe()
             .await?
             .into_stream()
@@ -337,31 +353,47 @@ impl<'a> ComputationSettingsChangedEventBuilder<'a> {
 
 pub struct ProgramCreatedEventBuilder<'a> {
     event: Event<&'a RootProvider, IRouter::ProgramCreated>,
-    code_id: Option<CodeId>,
 }
 
 impl<'a> ProgramCreatedEventBuilder<'a> {
     pub(crate) fn new(query: &'a RouterQuery) -> Self {
         Self {
             event: query.instance.ProgramCreated_filter(),
-            code_id: None,
         }
     }
 
     pub fn code_id(mut self, code_id: CodeId) -> Self {
-        self.code_id = Some(code_id);
+        let code_id: B256 = code_id.into_bytes().into();
+        self.event = self.event.topic1(code_id);
         self
+    }
+
+    pub fn from_block(mut self, block: impl IntoBlockNumberOrTag) -> Self {
+        self.event = self.event.from_block(block.into_block_number_or_tag());
+        self
+    }
+
+    pub fn to_block(mut self, block: impl IntoBlockNumberOrTag) -> Self {
+        self.event = self.event.to_block(block.into_block_number_or_tag());
+        self
+    }
+
+    pub async fn query(self) -> Result<Vec<(ProgramCreatedEvent, Log)>> {
+        Ok(self
+            .event
+            .chunked()
+            .query()
+            .await?
+            .into_iter()
+            .map(|(event, log)| (event.into(), log))
+            .collect())
     }
 
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ProgramCreatedEvent, Log), Error>> + Unpin + use<>> {
-        let mut event = self.event;
-        if let Some(code_id) = self.code_id {
-            let code_id: B256 = code_id.into_bytes().into();
-            event = event.topic1(code_id);
-        }
-        Ok(event
+        Ok(self
+            .event
             .subscribe()
             .await?
             .into_stream()

@@ -1,12 +1,12 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{db_sync::Multiaddr, malachite::Config};
+use crate::malachite::Config;
 use anyhow::anyhow;
 use bytes::Bytes;
-use itertools::Either;
+use either::Either;
 use libp2p::{
-    PeerId,
+    Multiaddr, PeerId,
     core::{Endpoint, transport::PortUse},
     request_response,
     swarm::{

@@ -35,8 +35,9 @@ use parity_scale_codec::{Decode, Encode};
 use rocksdb::{DB, Options, WriteBatch};
 
 use crate::{
+    BlockPayload,
     context::Height,
-    types::{Block, BlockPayload, CommitCertificate, H256},
+    types::{Block, CommitCertificate, H256},
 };
 
 mod prefix {
@@ -323,6 +324,11 @@ impl Store {
             Some(b) => Ok(Some(Self::decode_one(&b, "height index")?)),
             None => Ok(None),
         }
+    }
+
+    /// Whether `block_hash` is known and marked finalized.
+    pub fn is_finalized(&self, block_hash: H256) -> Result<bool> {
+        Ok(self.get_block(block_hash)?.is_some_and(|e| e.finalized))
     }
 
     /// Drive `save_fn` over every ancestor that is now ready, starting from
@@ -907,6 +913,20 @@ mod tests {
         store.insert_block(mk_entry(h(1), H256::zero(), 1)).unwrap();
         let err = store.mark_finalized(h(1), mk_cert(1, h(1))).unwrap_err();
         assert!(err.to_string().contains("not saved yet"));
+    }
+
+    #[test]
+    fn is_finalized_tracks_persistent_finalization_state() {
+        let (_d, store) = open_store();
+
+        assert!(!store.is_finalized(h(1)).unwrap());
+
+        store.insert_block(mk_entry(h(1), H256::zero(), 1)).unwrap();
+        store.mark_saved(h(1)).unwrap();
+        assert!(!store.is_finalized(h(1)).unwrap());
+
+        store.mark_finalized(h(1), mk_cert(1, h(1))).unwrap();
+        assert!(store.is_finalized(h(1)).unwrap());
     }
 
     // --- restart persistence --------------------------------------------

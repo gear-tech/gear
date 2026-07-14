@@ -292,6 +292,7 @@ fn build_config_with_role(
     role: NodeRole,
 ) -> MalachiteCoreConfig {
     MalachiteCoreConfig {
+        env: Default::default(),
         base: setup.home.path().to_path_buf(),
         validator_secret: setup.private_key.clone(),
         validators,

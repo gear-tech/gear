@@ -28,7 +28,7 @@
 //! - [`TxValidity`] (enum) — Validity verdict: `Valid`, `Duplicate`, `Outdated`, …
 //!
 //! Driver methods on [`MalachiteService`]: `receive_injected_transaction`,
-//! `receive_new_eb`, `receive_eb_synced`, `receive_eb_prepared`, `shutdown`.
+//! `receive_new_eb`, `receive_eb_synced`, `shutdown`.
 //!
 //! [`TxValidity`] gates inclusion: a producer drops any non-`Valid` tx when
 //! building an MB, and a validator rejects an entire MB that contains one.
@@ -44,9 +44,8 @@
 //!   height; both series are emitted ancestor-first.
 //! - Tendermint's quorum threshold is `> 2/3` of total voting power across the
 //!   validator list.
-//! - Peer discovery is disabled: every `persistent_peers` multiaddr must include a
-//!   `/p2p/<peer_id>` suffix, and every validator must be listed or transitively
-//!   reachable through a listed peer.
+//! - Network I/O is supplied by `ethexe-network`; every validator must be listed
+//!   in the configured validator set.
 //! - `Drop` is best-effort; call `shutdown().await` before an immediate restart so
 //!   RocksDB locks and sockets release.
 
@@ -61,10 +60,10 @@ mod types;
 
 pub use crate::{
     config::{MalachiteServiceConfig, ValidatorConfig, ValidatorEntry},
-    mempool::{InjectedTxMempool, Mempool, TxInsertionStatus},
+    mempool::{DEFAULT_POOL_CAPACITY, InjectedTxMempool, Mempool, TxInsertionStatus},
     service::MalachiteService,
     starter::MalachiteServiceStarter,
-    tx_validity::{TxValidity, TxValidityChecker},
+    tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
     types::{CommitCertificate, MalachiteEvent},
 };
-pub use ethexe_malachite_core::{MalachiteCtx, Multiaddr, ScaleCodec};
+pub use ethexe_malachite_core::{MalachiteConfigEnvironment, MalachiteCtx, Multiaddr, ScaleCodec};

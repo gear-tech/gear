@@ -30,14 +30,12 @@ struct Metrics {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum ScoreDecreaseReason {
-    ExcessiveData,
     InvalidData,
 }
 
 impl ScoreDecreaseReason {
     fn to_i8(self, config: &Config) -> i8 {
         match self {
-            ScoreDecreaseReason::ExcessiveData => config.excessive_data,
             ScoreDecreaseReason::InvalidData => config.invalid_data,
         }
     }
@@ -53,10 +51,6 @@ impl Handle {
         let (tx, rx) = mpsc::unbounded_channel();
         std::mem::forget(rx);
         Self(tx)
-    }
-
-    pub fn excessive_data(&self, peer_id: PeerId) {
-        let _res = self.0.send((peer_id, ScoreDecreaseReason::ExcessiveData));
     }
 
     pub fn invalid_data(&self, peer_id: PeerId) {
@@ -83,7 +77,6 @@ pub(crate) enum Event {
 /// Behaviour config.
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
-    excessive_data: i8,
     invalid_data: i8,
     decay: i8,
     blocked_threshold: i8,
@@ -94,7 +87,6 @@ pub(crate) struct Config {
 impl Config {
     const fn new() -> Self {
         Self {
-            excessive_data: i8::MIN / 5,
             invalid_data: i8::MIN / 3,
             decay: i8::MAX / 17,
             blocked_threshold: i8::MIN / 3,
@@ -364,12 +356,12 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn smoke() {
-        const EXCESSIVE_DATA: i8 = Config::new().blocked_threshold / 3 - 1;
+        const INVALID_DATA: i8 = Config::new().blocked_threshold / 3 - 1;
 
         init_logger();
 
         let alice_config = Config {
-            excessive_data: EXCESSIVE_DATA,
+            invalid_data: INVALID_DATA,
             ..Default::default()
         };
         let mut alice = new_swarm_with_config(alice_config.clone()).await;
@@ -379,37 +371,37 @@ mod tests {
         tokio::spawn(chad.loop_on_next());
 
         let handle = alice.behaviour_mut().handle();
-        handle.excessive_data(chad_peer_id);
+        handle.invalid_data(chad_peer_id);
 
         let event = future::poll_immediate(alice.next_behaviour_event()).await;
         assert_eq!(event, None);
         assert_eq!(
             alice.behaviour().get_score(chad_peer_id),
-            Some(EXCESSIVE_DATA)
+            Some(INVALID_DATA)
         );
 
-        handle.excessive_data(chad_peer_id);
+        handle.invalid_data(chad_peer_id);
 
         let event = future::poll_immediate(alice.next_behaviour_event()).await;
         assert_eq!(event, None);
         assert_eq!(
             alice.behaviour().get_score(chad_peer_id),
-            Some(2 * EXCESSIVE_DATA)
+            Some(2 * INVALID_DATA)
         );
 
-        handle.excessive_data(chad_peer_id);
+        handle.invalid_data(chad_peer_id);
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
             event,
             Event::PeerBlocked {
                 peer_id: chad_peer_id,
-                last_reason: ScoreDecreaseReason::ExcessiveData
+                last_reason: ScoreDecreaseReason::InvalidData
             }
         );
         assert_eq!(
             alice.behaviour().get_score(chad_peer_id),
-            Some(3 * EXCESSIVE_DATA)
+            Some(3 * INVALID_DATA)
         );
 
         let event = alice.next_swarm_event().await;
@@ -433,7 +425,7 @@ mod tests {
         );
         assert_eq!(
             alice.behaviour().get_score(chad_peer_id),
-            Some(EXCESSIVE_DATA * 3 + alice_config.decay)
+            Some(INVALID_DATA * 3 + alice_config.decay)
         );
     }
 

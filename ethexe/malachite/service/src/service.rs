@@ -140,12 +140,6 @@ impl MalachiteService {
         }
     }
 
-    /// Handle a prepared Ethereum block: release pending events whose
-    /// prerequisite is now satisfied.
-    pub async fn receive_eb_prepared(&self, _eb_hash: H256) {
-        self.externalities.drain_pending_events().await
-    }
-
     /// Tear down the inner consensus core, releasing its store and sockets.
     pub async fn shutdown(mut self) {
         if let Some(inner) = self.inner.take() {

@@ -3,14 +3,12 @@
 
 pub(crate) use libp2p::gossipsub::*;
 
-use crate::{
-    db_sync::{Multiaddr, PeerId},
-    malachite, peer_score,
-};
+use crate::{malachite, peer_score};
 use anyhow::anyhow;
 use bytes::Bytes;
 use ethexe_common::{Address, injected::SignedCompactTxReceipt, network::SignedValidatorMessage};
 use libp2p::{
+    Multiaddr, PeerId,
     core::{Endpoint, transport::PortUse},
     gossipsub,
     identity::Keypair,

@@ -81,6 +81,7 @@ demo-async-init = { workspace = true, features = ["debug", "ethexe"] }
 demo-piggy-bank = { workspace = true, features = ["debug", "ethexe"] }
 demo-reply-callback = { workspace = true, features = ["debug", "ethexe"] }
 demo-fungible-token = { workspace = true }
+demo-mul-by-const = { workspace = true }
 demo-delayed-sender-ethexe = { workspace = true, features = [
     "debug",
     "ethexe",

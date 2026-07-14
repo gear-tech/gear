@@ -3,7 +3,7 @@
 
 #![allow(clippy::double_parens)] // produced by `derive_more::TryUnwrap`
 
-use crate::Event;
+use crate::{Event, fast_sync::FastSyncReplayTarget};
 use alloy::providers::{RootProvider, ext::AnvilApi};
 use async_broadcast::{Receiver, RecvError, Sender};
 use ethexe_blob_loader::BlobLoaderEvent;
@@ -121,11 +121,10 @@ impl TestingRpcEvent {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::TryUnwrap)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingEvent {
     // Fast sync done. Sent just once.
-    #[allow(dead_code)]
-    FastSyncDone(H256),
+    FastSyncDone(FastSyncReplayTarget),
     // Basic event to notify that service has started. Sent just once.
     ServiceStarted,
     // Services events.
@@ -309,7 +308,6 @@ impl<T: Clone> KickingStream<EventReceiver<T>> {
 }
 
 impl TestingEventReceiver {
-    #[allow(dead_code)]
     pub async fn find_block_synced(&mut self) -> H256 {
         self.find_map(|event| {
             if let TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) = event {
@@ -323,7 +321,6 @@ impl TestingEventReceiver {
 
     /// Drive the compute stream forward until a `BlockPrepared(target)` event
     /// arrives.
-    #[allow(dead_code)]
     pub async fn find_block_prepared(&mut self, target: H256) -> H256 {
         self.find_map(|event| match event {
             TestingEvent::Compute(ComputeEvent::BlockPrepared(h)) if h == target => Some(h),
@@ -333,10 +330,13 @@ impl TestingEventReceiver {
     }
 
     /// Wait until any MB becomes computed, returning its hash.
-    #[allow(dead_code)]
-    pub async fn find_any_mb_computed(&mut self) -> H256 {
+    pub async fn find_mb_computed(&mut self, mb_hash: H256) -> H256 {
         self.find_map(|event| match event {
-            TestingEvent::Compute(ComputeEvent::MbComputed(mb_hash)) => Some(mb_hash),
+            TestingEvent::Compute(ComputeEvent::MbComputed(event_mb_hash))
+                if event_mb_hash == mb_hash =>
+            {
+                Some(mb_hash)
+            }
             _ => None,
         })
         .await
@@ -347,8 +347,7 @@ impl TestingEventReceiver {
     /// `AdvanceTillEthereumBlock` transaction — it suffices that it is an
     /// ancestor of this MB's `last_advanced_eb` (i.e., it sits inside
     /// the eth-chain segment this MB advanced over).
-    #[allow(dead_code)]
-    pub async fn wait_till_eth_block_finalized_in_mb(&mut self, target_eth_block: H256) {
+    pub async fn find_mb_advanced_eb(&mut self, eb_hash: H256) -> H256 {
         self.find_map_with_db(|db, event| {
             let TestingEvent::Malachite(MalachiteEvent::BlockFinalized { mb_hash, .. }) = event
             else {
@@ -368,8 +367,8 @@ impl TestingEventReceiver {
             // covers it.
             let mut cursor = last_advanced;
             while cursor != prev_advanced {
-                if cursor == target_eth_block {
-                    return Some(());
+                if cursor == eb_hash {
+                    return Some(mb_hash);
                 }
                 let header = db.block_header(cursor)?;
                 if header.parent_hash.is_zero() {
@@ -380,6 +379,25 @@ impl TestingEventReceiver {
             None
         })
         .await
+    }
+
+    /// Wait until an MB covering `eb_hash` is finalized and computed,
+    /// returning that MB hash.
+    ///
+    /// The finalized event identifies which MB advanced over the requested EB;
+    /// computation may already have happened by then, so this also accepts the
+    /// persisted `computed` marker instead of requiring a later event.
+    pub async fn find_mb_computed_eb(&mut self, eb_hash: H256) -> H256 {
+        let mb_hash = self.find_mb_advanced_eb(eb_hash).await;
+
+        // `MbComputed` can be emitted before the matching finalization event
+        // that lets us map `eb_hash` to `mb_hash`; don't wait for a duplicate
+        // event after compute already persisted its marker.
+        if self.db().mb_meta(mb_hash).computed {
+            return mb_hash;
+        }
+
+        self.find_mb_computed(mb_hash).await
     }
 
     pub async fn find_map_with_db<U>(
@@ -441,5 +459,65 @@ impl ObserverEventReceiver {
             .filter_map_block_synced_with_header()
             .map(|(event, _)| event);
         KickingStream::new(stream, kicks)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{
+        BlockHeader,
+        db::{CompactMb, OnChainStorageRW},
+    };
+    use ethexe_db::Database;
+    use ethexe_malachite::CommitCertificate;
+
+    #[tokio::test]
+    async fn find_mb_computed_eb_returns_when_mb_was_already_computed() {
+        let db = Database::memory();
+        let eb_hash = H256::from_low_u64_be(1);
+        let mb_hash = H256::from_low_u64_be(2);
+
+        db.set_block_header(
+            eb_hash,
+            BlockHeader {
+                height: 1,
+                timestamp: 12,
+                parent_hash: H256::zero(),
+            },
+        );
+        db.set_mb_compact_block(
+            mb_hash,
+            CompactMb {
+                parent: H256::zero(),
+                height: 1,
+                operations_hash: H256::zero(),
+            },
+        );
+        db.mutate_mb_meta(mb_hash, |meta| {
+            meta.computed = true;
+            meta.last_advanced_eb = eb_hash;
+        });
+
+        let (sender, mut receiver) = channel(db, None);
+        sender
+            .send(TestingEvent::Malachite(MalachiteEvent::BlockFinalized {
+                cert: CommitCertificate {
+                    height: 1,
+                    mb_hash,
+                    signatures: Vec::new(),
+                },
+                height: 1,
+                mb_hash,
+            }))
+            .await;
+
+        let found = receiver.find_mb_computed_eb(eb_hash);
+        futures::pin_mut!(found);
+        let found = futures::future::poll_immediate(&mut found)
+            .await
+            .expect("already-computed MB should not wait for another MbComputed event");
+
+        assert_eq!(found, mb_hash);
     }
 }

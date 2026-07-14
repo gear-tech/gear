@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    RouterDataProvider, Service,
+    Service,
     config::EthereumConfig,
+    fast_sync::FastSyncReplayTarget,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
         events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
 use alloy::{
+    eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::{Metadata, MineOptions},
@@ -38,12 +40,13 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_malachite::{
-    InjectedTxMempool, MalachiteServiceConfig, MalachiteServiceStarter, ValidatorEntry,
+    InjectedTxMempool, MalachiteConfigEnvironment, MalachiteServiceConfig, MalachiteServiceStarter,
+    ValidatorEntry,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
     ObserverConfig, ObserverService,
-    utils::{BlockId, BlockLoader, EthereumBlockLoader},
+    utils::{BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
 use ethexe_rpc_server::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
@@ -257,7 +260,7 @@ impl TestEnv {
         .unwrap();
         let latest_block = observer
             .block_loader()
-            .load_simple(BlockId::Latest)
+            .load_simple(BlockId::latest())
             .await
             .context("failed to get latest block")?;
         let latest_validators = router_query
@@ -320,7 +323,6 @@ impl TestEnv {
                 validator_key: None,
                 general_signer: signer.clone(),
                 network_signer: signer.clone(),
-                external_data_provider: Box::new(RouterDataProvider(router_query.clone())),
                 db: db.clone(),
             };
 
@@ -432,7 +434,7 @@ impl TestEnv {
             name,
             db,
             multiaddr: None,
-            latest_fast_synced_block: None,
+            latest_fast_synced_blocks: None,
             custom_committer: None,
             router_query: self.router_query.clone(),
             eth_cfg: self.eth_cfg.clone(),
@@ -699,7 +701,7 @@ impl TestEnv {
 
     pub async fn latest_block(&self) -> SimpleBlockData {
         EthereumBlockLoader::new(self.provider.clone(), self.eth_cfg.router_address)
-            .load_simple(BlockId::Latest)
+            .load_simple(BlockId::latest())
             .await
             .unwrap()
     }
@@ -916,7 +918,7 @@ pub struct Node {
     pub name: Option<String>,
     pub db: Database,
     pub multiaddr: Option<String>,
-    pub latest_fast_synced_block: Option<H256>,
+    pub latest_fast_synced_blocks: Option<FastSyncReplayTarget>,
     pub custom_committer: Option<Box<dyn BatchCommitter>>,
 
     router_query: RouterQuery,
@@ -970,7 +972,7 @@ impl Node {
         .unwrap();
         let latest_block = observer
             .block_loader()
-            .load_simple(BlockId::Latest)
+            .load_simple(BlockId::latest())
             .await
             .unwrap();
         let latest_validators = observer
@@ -1064,6 +1066,7 @@ impl Node {
 
             let mut mc =
                 MalachiteServiceConfig::from_home_dir(home_path).with_validators(validators);
+            mc.env = MalachiteConfigEnvironment::Test;
             mc.canonical_quarantine = self.canonical_quarantine;
             mc.post_quarantine_delay = self.post_quarantine_delay;
             // Tests drive content in bursts; a short propose timeout keeps
@@ -1141,9 +1144,12 @@ impl Node {
         self.shutdown_tx = Some(shutdown_tx);
 
         if self.fast_sync {
-            self.latest_fast_synced_block = Some(
+            self.latest_fast_synced_blocks = Some(
                 self.events()
-                    .find_map(|event| event.try_unwrap_fast_sync_done().ok())
+                    .find_map(|event| match event {
+                        TestingEvent::FastSyncDone(blocks) => Some(blocks),
+                        _ => None,
+                    })
                     .await,
             );
         }
@@ -1238,7 +1244,6 @@ impl Node {
             validator_key: self.validator_config.as_ref().map(|c| c.public_key),
             general_signer: self.signer.clone(),
             network_signer: self.signer.clone(),
-            external_data_provider: Box::new(RouterDataProvider(self.router_query.clone())),
             db: self.db.clone(),
         };
 
@@ -1260,7 +1265,7 @@ impl Node {
 
         let provider = RootProvider::connect(&self.eth_cfg.rpc).await.unwrap();
         let block_loader = EthereumBlockLoader::new(provider, self.eth_cfg.router_address);
-        let latest_block = block_loader.load_simple(BlockId::Latest).await.unwrap();
+        let latest_block = block_loader.load_simple(BlockId::latest()).await.unwrap();
         let latest_validators = self
             .router_query
             .validators_at(latest_block.hash)

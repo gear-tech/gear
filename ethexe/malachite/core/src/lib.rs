@@ -89,7 +89,10 @@ mod streaming;
 
 pub use crate::{
     codec::ScaleCodec,
-    config::{MalachiteCoreConfig, Multiaddr, NodeRole, ValidatorEntry},
+    config::{
+        Environment as MalachiteConfigEnvironment, MalachiteCoreConfig, Multiaddr, NodeRole,
+        ValidatorEntry,
+    },
     context::MalachiteCtx,
     externalities::Externalities,
     service::{MService, MalachiteCore, MalachiteNetworkParts},
