@@ -137,7 +137,7 @@ jobs:
     name: gear-cli (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -178,7 +178,7 @@ jobs:
     name: ethexe-cli (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -212,7 +212,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -253,7 +253,7 @@ jobs:
     name: workspace (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -326,7 +326,7 @@ jobs:
     needs: workspace
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with: 
           submodules: recursive
 
@@ -352,7 +352,7 @@ jobs:
     name: benchmarks
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -406,7 +406,7 @@ jobs:
     name: try-runtime (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -458,7 +458,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -513,7 +513,7 @@ jobs:
     if: ${{ inputs.production && contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -577,7 +577,7 @@ jobs:
     if: ${{ contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') || inputs.docker }}
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "ACTIONS: Download gear-cli artifact"
         uses: actions/download-artifact@v8
