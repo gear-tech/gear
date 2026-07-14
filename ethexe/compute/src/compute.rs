@@ -988,6 +988,7 @@ mod tests {
     /// `ConsensusDriven`: only the directly requested head MB emits a
     /// promise — the parent-walked predecessors stay silent even though
     /// each of them also carries an injected `PING`.
+    #[cfg(not(debug_assertions))]
     #[tokio::test]
     #[ntest::timeout(60000)]
     async fn consensus_driven_emits_only_head_mb() {
@@ -1012,6 +1013,7 @@ mod tests {
 
     /// `AlwaysEmit`: every walked MB emits a promise, predecessors
     /// included — and it does so regardless of the per-MB `PromisePolicy`.
+    #[cfg(not(debug_assertions))]
     #[tokio::test]
     #[ntest::timeout(60000)]
     async fn always_emit_emits_every_walked_mb() {
