@@ -357,10 +357,12 @@ fn test_pseudo_inherent_placed_in_each_block() {
     assert_eq!(block.extrinsics().len(), 3);
 }
 
+#[cfg(not(debug_assertions))]
 #[test]
 fn test_queue_remains_intact_if_processing_fails() {
-    init_logger();
     use sp_state_machine::IterArgs;
+
+    init_logger();
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
