@@ -18,16 +18,19 @@ runs:
         echo "CARGO_BUILD_TARGET=${{ inputs.target }}" >> $GITHUB_ENV
       shell: bash
 
-    - name: "Install: macOS aarch64 packages"
+    - name: "Install: Protoc"
+      uses: StackOverflowExcept1on/setup-protoc@node24
+
+    - name: "Install: macOS Binaryen"
       if: runner.os == 'macOS'
       uses: nick-fields/retry@v4
       with:
         timeout_minutes: 15
         max_attempts: 5
         retry_wait_seconds: 10
-        command: brew install protobuf binaryen
+        command: brew install binaryen
 
-    - name: "Install: Linux packages"
+    - name: "Install: Linux Binaryen"
       if: runner.os == 'Linux'
       uses: nick-fields/retry@v4
       with:
@@ -36,8 +39,6 @@ runs:
         retry_wait_seconds: 10
         command: |
           set -e
-          sudo apt update
-          sudo apt install -y protobuf-compiler
 
           # Binaryen may be outdated in Ubuntu 24.04, newer versions should have it from the apt package
           binaryen_arch=$(uname -m)
@@ -127,13 +128,14 @@ runs:
         retry_wait_seconds: 10
         command: |
           set -e
+
           if ! [[ "${{ runner.os }}" == "Linux" ]]; then
             echo "Linux runner expected for 'x86_64-pc-windows-msvc' target"
             exit 1
           fi
 
           sudo apt update
-          sudo apt install -y protobuf-compiler innoextract
+          sudo apt install -y innoextract
 
           # Binaryen may be outdated in Ubuntu 24.04, newer versions should have it from the apt package
           binaryen_arch=$(uname -m)
