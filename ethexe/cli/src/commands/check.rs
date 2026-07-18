@@ -321,6 +321,7 @@ impl Checker {
                 states,
                 schedule,
                 program_creations: _,
+                committed_message_ids: _,
             } = overlay
                 .as_mut()
                 .process_programs(executable, None)

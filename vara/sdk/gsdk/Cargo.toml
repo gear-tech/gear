@@ -1,16 +1,17 @@
 [package]
 name = "gsdk"
-description = "Rust SDK of the Gear network"
-documentation = "https://docs.rs/gsdk"
-categories = ["wasm", "api-bindings"]
-keywords = ["gear", "actor-model", "api", "sdk"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Rust SDK of the Gear network"
+documentation = "https://docs.rs/gsdk"
+readme = "README.md"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "vara", "sdk", "substrate", "api"]
+categories = ["api-bindings", "network-programming", "asynchronous"]
 
 [dependencies]
 colored.workspace = true

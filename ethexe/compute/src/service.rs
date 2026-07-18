@@ -79,6 +79,11 @@ impl<P: ProcessorExt> ComputeService<P> {
     pub fn compute_mb(&mut self, mb_hash: H256, policy: PromisePolicy) {
         self.mb_compute_sub_service.receive_mb(mb_hash, policy);
     }
+
+    pub fn process_finalized_mb_events(&mut self, mb_hash: H256) {
+        self.mb_compute_sub_service
+            .receive_finalized_mb_events(mb_hash);
+    }
 }
 
 impl<P: ProcessorExt> Stream for ComputeService<P> {

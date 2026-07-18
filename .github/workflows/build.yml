@@ -58,7 +58,7 @@ jobs:
             {
               name: "linux-x86_64",
               target: "x86_64-unknown-linux-gnu",
-              "runs-on": ["kuberunner"]
+              "runs-on": "ubuntu-latest"
             }
           ]')
           ethexe_targets=$(jq -c -n '[
@@ -106,7 +106,7 @@ jobs:
               {
                 name: "windows-x86_64",
                 target: "x86_64-pc-windows-msvc",
-                "runs-on": ["kuberunner"]
+                "runs-on": "ubuntu-latest"
               }
             ]')
             ethexe_targets=$(echo "$ethexe_targets" | jq -c '. += [
@@ -137,7 +137,7 @@ jobs:
     name: gear-cli (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -150,11 +150,8 @@ jobs:
         with:
           target: ${{ matrix.targets.target }}
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Build: Gear node"
         run: ./scripts/gear.sh build node --release --locked
@@ -181,9 +178,7 @@ jobs:
     name: ethexe-cli (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -196,11 +191,8 @@ jobs:
         with:
           target: ${{ matrix.targets.target }}
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Build: ethexe node"
         run: ./scripts/gear.sh build ethexe --release --locked
@@ -218,9 +210,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
+        uses: actions/checkout@v7
 
       - name: Setup linker
         uses: ./.github/actions/setup-linker
@@ -233,11 +223,8 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
 
-      - name: Setup caching
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - run: cargo doc --workspace --no-deps
         env:
@@ -254,7 +241,7 @@ jobs:
 
   workspace:
     needs: [dynamic-matrix, gear-cli]
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
@@ -262,9 +249,7 @@ jobs:
     name: workspace (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -277,17 +262,17 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.profiles.name }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.7.0
+          version: v1.7.1
+
+      - name: Install dependencies
+        run: forge soldeer install
+        working-directory: ./ethexe/contracts
 
       - name: "Show: Versioning"
         run: |
@@ -313,7 +298,13 @@ jobs:
           path: gear-cli-and-runtime-release
 
       - name: "Test: Workspace"
-        run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
+        run: |
+          # Temporary solution since GitHub Actions runners are quite slow for our tests
+          if [ -z "${{ matrix.profiles.flags }}" ]; then
+            sed -i 's/slow-timeout = { period = "1m"/slow-timeout = { period = "2m"/' .config/nextest.toml
+          fi
+
+          cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEAR_NODE_WRAPPER_LOG: info
@@ -335,13 +326,11 @@ jobs:
           path: target/nextest/ci/junit.xml
 
   crates-io:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     needs: workspace
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
-        with: 
-          submodules: recursive
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -351,12 +340,8 @@ jobs:
         with:
           targets: wasm32v1-none
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          cache-all-crates: true
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Test: crates-io packages publishing"
         run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
@@ -364,12 +349,12 @@ jobs:
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
   benchmarks:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     needs: workspace
     name: benchmarks
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -382,11 +367,8 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Build: gear-cli with enabled benchmarks"
         run: cargo build -p gear-cli -F runtime-benchmarks,runtime-benchmarks-checkers --release --locked
@@ -426,7 +408,7 @@ jobs:
     name: try-runtime (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -439,12 +421,8 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.profiles.name }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Install: try-runtime CLI"
         run: |
@@ -470,7 +448,7 @@ jobs:
 
   fuzzer:
     if: false # temporarily disabled until we fix it
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     needs: workspace
     env:
       RUSTFLAGS: "--cfg fuzz"
@@ -482,7 +460,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -502,11 +480,8 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
@@ -535,14 +510,12 @@ jobs:
         run: cat lazy_pages_fuzz_run
 
   production:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     needs: [dynamic-matrix, workspace]
     if: ${{ inputs.production && contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -604,7 +577,7 @@ jobs:
     if: ${{ contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') || inputs.docker }}
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "ACTIONS: Download gear-cli artifact"
         uses: actions/download-artifact@v8

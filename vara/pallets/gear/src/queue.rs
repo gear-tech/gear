@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use super::*;
-use core_processor::{
+use gear_core::{code::InstrumentedCodeAndMetadata, program::ProgramState};
+use gear_core_processor::{
     ContextCharged, ProcessExecutionContext,
     common::{DispatchResult, SuccessfulDispatchResultKind},
 };
-use gear_core::{code::InstrumentedCodeAndMetadata, program::ProgramState};
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
@@ -51,17 +51,17 @@ where
                 log::trace!(
                     "Message {dispatch_id} is sent to failed init program {destination_id}"
                 );
-                return core_processor::process_failed_init(context);
+                return gear_core_processor::process_failed_init(context);
             }
             Some(Program::Exited(program_id)) => {
                 log::trace!("Message {dispatch_id} is sent to exited program {destination_id}");
-                return core_processor::process_program_exited(context, program_id);
+                return gear_core_processor::process_program_exited(context, program_id);
             }
             None => {
                 log::trace!(
                     "Message {dispatch_id} is sent to nonexistent program {destination_id}"
                 );
-                return core_processor::process_code_not_exists(context);
+                return gear_core_processor::process_code_not_exists(context);
             }
         };
 
@@ -95,7 +95,7 @@ where
                 unreachable!("{err_msg}");
             }
 
-            return core_processor::process_uninitialized(context);
+            return gear_core_processor::process_uninitialized(context);
         }
 
         // Adjust gas counters for fetching code metadata.
@@ -121,7 +121,7 @@ where
         if !code_metadata.exports().contains(&dispatch_kind) {
             let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
-            return core_processor::process_success(
+            return gear_core_processor::process_success(
                 SuccessfulDispatchResultKind::Success,
                 DispatchResult::success(&dispatch, destination_id, gas_counter.to_amount()),
                 dispatch,
@@ -151,7 +151,7 @@ where
                         with instructions weights version {version}"
                     );
 
-                    return core_processor::process_instrumentation_failed(context);
+                    return gear_core_processor::process_instrumentation_failed(context);
                 }
 
                 true
@@ -182,7 +182,7 @@ where
                     Ok(code_and_metadata) => code_and_metadata,
                     Err(e) => {
                         log::debug!("Re-instrumentation error for code {code_id:?}: {e:?}");
-                        return core_processor::process_reinstrumentation_error(context);
+                        return gear_core_processor::process_reinstrumentation_error(context);
                     }
                 };
 
@@ -261,7 +261,7 @@ where
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 
-        core_processor::process::<Ext>(
+        gear_core_processor::process::<Ext>(
             block_config,
             ProcessExecutionContext::new(
                 context,
@@ -331,7 +331,7 @@ where
             // Otherwise we proceed with the regular flow.
             let builtin_dispatcher = ext_manager.builtins();
             if let Some(info) = builtin_dispatcher.lookup(&program_id) {
-                core_processor::handle_journal(
+                gear_core_processor::handle_journal(
                     builtin_dispatcher.run(info, dispatch, gas_limit),
                     &mut ext_manager,
                 );
@@ -351,7 +351,7 @@ where
                 balance: balance.unique_saturated_into(),
             });
 
-            core_processor::handle_journal(journal, &mut ext_manager);
+            gear_core_processor::handle_journal(journal, &mut ext_manager);
         }
 
         let post_data: QueuePostProcessingData = ext_manager.into();

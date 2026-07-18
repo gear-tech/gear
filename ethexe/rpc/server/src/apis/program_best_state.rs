@@ -11,10 +11,10 @@
 //! by the time `MbComputed` is emitted, so the DB is the source of truth and the
 //! cache only avoids repeated reads when many subscribers share an MB.
 
-use super::program::ProgramBestState;
+use crate::types::ProgramBestState;
 use ethexe_common::{db::MbStorageRO, gear::StateTransition};
 use ethexe_db::Database;
-use gprimitives::{ActorId, H160, H256};
+use gprimitives::{H160, H256};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -74,7 +74,7 @@ pub fn spawn_best_state_subscriber(
     manager: BestStateManager,
     program_id: H160,
 ) {
-    let actor_id: ActorId = program_id.into();
+    let actor_id = program_id.into();
     let mut receiver = manager.subscribe();
 
     let _handle = tokio::spawn(async move {

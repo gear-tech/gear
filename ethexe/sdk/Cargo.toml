@@ -1,28 +1,28 @@
 [package]
 name = "ethexe-sdk"
-description = "Rust SDK for the Vara Ethereum execution layer"
-documentation = "https://docs.rs/ethexe-sdk"
-categories = ["wasm", "api-bindings"]
-keywords = ["gear", "actor-model", "api", "sdk"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Rust SDK for the Vara.ETH execution layer"
+documentation = "https://docs.rs/ethexe-sdk"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["ethexe", "ethereum", "gear", "sdk", "rpc"]
+categories = ["api-bindings", "cryptography::cryptocurrencies", "asynchronous"]
 
 [dependencies]
-ethexe-node-wrapper.workspace = true
-
 alloy.workspace = true
 anyhow.workspace = true
 ethexe-common.workspace = true
 ethexe-ethereum.workspace = true
-ethexe-rpc = { workspace = true, features = ["client"], default-features = false }
+ethexe-node-wrapper.workspace = true
+ethexe-rpc-client.workspace = true
 ethexe-runtime-common.workspace = true
 futures.workspace = true
-gsigner.workspace = true
-gprimitives.workspace = true
-jsonrpsee = { workspace = true, features = ["client"] }
 gear-workspace-hack.workspace = true
+gprimitives.workspace = true
+gsigner.workspace = true
+jsonrpsee = { workspace = true, features = ["client"] }
+parity-scale-codec.workspace = true

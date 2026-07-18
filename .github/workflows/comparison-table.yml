@@ -16,10 +16,10 @@ env:
 
 jobs:
   comparison-table:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout & fetch all history"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

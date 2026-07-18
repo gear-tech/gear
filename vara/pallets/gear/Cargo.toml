@@ -29,7 +29,7 @@ common.workspace = true
 gear-runtime-interface = { workspace = true }
 gear-lazy-pages-interface.workspace = true
 gear-lazy-pages-common.workspace = true
-core-processor.workspace = true
+gear-core-processor.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-core-backend.workspace = true
@@ -144,7 +144,7 @@ std = [
     "frame-support-test/std",
     "frame-system/std",
     "gear-wasm-instrument/std",
-    "core-processor/std",
+    "gear-core-processor/std",
     "gear-core-backend/std",
     "gear-lazy-pages-interface/std",
     "scale-info/std",
@@ -197,7 +197,7 @@ runtime-benchmarks = [
     "demo-waiter/wasm-wrapper",
     "demo-init-wait/wasm-wrapper",
     "demo-signal-entry/wasm-wrapper",
-    "core-processor/mock",
+    "gear-core-processor/mock",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]

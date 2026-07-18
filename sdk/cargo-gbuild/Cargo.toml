@@ -1,14 +1,16 @@
 [package]
 name = "cargo-gbuild"
-description = "Cargo extension for Gear programs"
-documentation = "https://docs.rs/cargo-gbuild"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Cargo extension for Gear programs"
+documentation = "https://docs.rs/cargo-gbuild"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "cargo", "wasm", "builder", "smart-contracts"]
+categories = ["command-line-utilities", "development-tools::cargo-plugins", "wasm"]
 
 [dependencies]
 anyhow.workspace = true

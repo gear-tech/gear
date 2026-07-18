@@ -1754,21 +1754,142 @@ async fn injected_ping_pong() {
         promise.reply.code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
+}
 
-    let to_users = handler.transitions.current_messages();
+/// Verify that the committable-filter correctly partitions outgoing messages
+/// by message type.
+///
+/// A canonical PING reply (Canonical → committed) and an injected PING reply
+/// (Injected, value=0 → not committed) are both produced in a single block.
+/// After finalization, the canonical reply's id must appear in
+/// `committed_message_ids` while the injected reply's id must not.
+#[tokio::test]
+async fn committable_filter_canonical_vs_injected_value0() {
+    use gear_core::ids::prelude::MessageIdExt as _;
 
-    assert_eq!(to_users.len(), 3);
-    let message = &to_users[0].1;
-    assert_eq!(message.destination, user_1);
-    assert_eq!(message.payload, b"");
+    init_logger();
 
-    let message = &to_users[1].1;
-    assert_eq!(message.destination, user_2);
-    assert_eq!(message.payload, b"PONG");
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
+    let block1 = chain.blocks[1].to_simple();
 
-    let message = &to_users[2].1;
-    assert_eq!(message.destination, user_1);
-    assert_eq!(message.payload, b"PONG");
+    let canonical_user = ActorId::from(10);
+    let injected_user = ActorId::from(20);
+    let actor_id = ActorId::from(0x10000);
+
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 200_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+
+    // Init with non-PING payload so no reply is generated during init.
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: canonical_user,
+                payload: b"INIT".to_vec(),
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue init message");
+
+    handler.transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Send canonical PING (id=2) and injected PING (value=0).
+    let canonical_msg_id = MessageId::from(2);
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: canonical_msg_id,
+                source: canonical_user,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue canonical PING");
+
+    let injected_tx = injected(actor_id, b"PING", 0);
+    let injected_msg_id = injected_tx.to_message_id();
+    handler
+        .handle_injected_transaction(injected_user, injected_tx)
+        .expect("failed to queue injected PING");
+
+    handler.transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Locate the two PONG replies by their derived reply ids. The block also
+    // carries the empty INIT auto-reply (to `canonical_user`), so we match on id
+    // rather than destination to avoid the ambiguity with the canonical PONG.
+    let canonical_reply_id = MessageId::generate_reply(canonical_msg_id);
+    let injected_reply_id = MessageId::generate_reply(injected_msg_id);
+
+    let all_messages = handler.transitions.current_messages();
+    let canonical_reply = all_messages
+        .iter()
+        .find(|(_, m)| m.id == canonical_reply_id)
+        .map(|(_, m)| m)
+        .expect("canonical PONG reply must be present");
+    let injected_reply = all_messages
+        .iter()
+        .find(|(_, m)| m.id == injected_reply_id)
+        .map(|(_, m)| m)
+        .expect("injected PONG reply must be present");
+
+    // Both replies are PONG and addressed to the originating users.
+    assert_eq!(canonical_reply.payload, b"PONG");
+    assert_eq!(canonical_reply.destination, canonical_user);
+    assert_eq!(injected_reply.payload, b"PONG");
+    assert_eq!(injected_reply.destination, injected_user);
+
+    // Verify committed_message_ids: canonical committed, injected value-0 not committed.
+    let finalized = handler.transitions.finalize();
+    assert!(
+        finalized
+            .committed_message_ids
+            .contains(&canonical_reply_id),
+        "canonical PONG reply must be in committed_message_ids"
+    );
+    assert!(
+        !finalized.committed_message_ids.contains(&injected_reply_id),
+        "injected value-0 PONG reply must NOT be in committed_message_ids"
+    );
 }
 
 #[cfg(debug_assertions)] // FIXME: test fails in release mode
@@ -2428,7 +2549,8 @@ async fn injected_and_events_then_tasks_then_queues() {
     //   Phase 2: process_tasks — WakeMessage moves waiting dispatch to canonical queue
     //   Phase 3: process_queues — executes injected queue first, then canonical queue
     //
-    // We prove ordering by observing the output:
+    // All three replies land in one `messages` list (single bucket), in execution
+    // order, so we prove ordering by observing that list:
     //
     // ASSERT: Injected+events ran BEFORE queues.
     //   If queues ran first, no messages would be in queues → 0 replies.
@@ -2439,14 +2561,14 @@ async fn injected_and_events_then_tasks_then_queues() {
     //   back into the canonical queue → only 2 replies (injected + canonical event).
     //   We get 3 replies ⇒ tasks ran before queue processing.
     //
+    // ASSERT: Injected queue processed BEFORE canonical queue.
+    //   Injected reply is first in the list, before any canonical replies.
+    //
     // ASSERT: Injected+events ran BEFORE tasks (canonical queue is FIFO).
     //   The event message (phase 1) is queued to canonical queue before the woken dispatch
-    //   (phase 2). So in output, event reply appears before task-woken reply.
+    //   (phase 2). So in the list, event reply appears before task-woken reply.
     //   If tasks ran before events, the woken dispatch would be first in canonical queue,
     //   and we'd see task_user reply before canonical_user reply.
-    //
-    // ASSERT: Injected queue processed BEFORE canonical queue.
-    //   Injected reply is first in output, before any canonical replies.
 
     // Injected message must produce a promise (proves it was executed)
     let promise = promise_receiver
@@ -2460,16 +2582,18 @@ async fn injected_and_events_then_tasks_then_queues() {
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
 
-    // Collect all outgoing messages from the single process_programs call
+    // All outgoing replies live in the single `messages` list (committed +
+    // off-chain together), in execution order. The off-chain/on-chain split now
+    // happens later, at batch-commitment time — not here in `finalize()`.
     let to_users: Vec<_> = transitions
         .iter()
         .flat_map(|t| t.messages.iter().map(|m| (&t.actor_id, m)))
         .collect();
 
-    // --- ASSERT: All three sources produced replies ---
+    // --- ASSERT: All three sources produced replies in one list ---
     // This proves both injected+events AND tasks ran BEFORE queue processing.
     // If queues ran before injected+events: 0 replies (nothing in queues).
-    // If queues ran before tasks: 2 replies (no woken dispatch in canonical queue).
+    // If queues ran before tasks: only 2 (no woken dispatch in canonical queue).
     assert_eq!(
         to_users.len(),
         3,
@@ -2478,11 +2602,10 @@ async fn injected_and_events_then_tasks_then_queues() {
     );
 
     // --- ASSERT: Injected queue processed BEFORE canonical queue ---
-    // The injected reply must come first because process_queues runs
-    // injected queues before canonical queues.
+    // The injected queue runs first in phase 3, so its reply is first in the list.
     assert_eq!(
         to_users[0].1.destination, injected_user,
-        "Injected reply must come first: injected queue is processed before canonical queue"
+        "Injected reply must come first: injected queue is processed before the canonical queue"
     );
     assert_eq!(to_users[0].1.payload, b"DONE");
 

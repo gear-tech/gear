@@ -1,16 +1,17 @@
 [package]
 name = "gstd"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Gear programs standard library"
 documentation = "https://docs.rs/gstd"
-keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
-categories = ["api-bindings"]
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+readme = "README.md"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
+categories = ["wasm", "api-bindings", "no-std"]
 
 [dependencies]
 arrayvec = { workspace = true, optional = true }

@@ -17,16 +17,25 @@ jobs:
   unused-deps:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
       - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall --no-confirm cargo-shear
+
+      - name: "Install: cargo-shear"
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 15
+          max_attempts: 5
+          retry_wait_seconds: 10
+          command: cargo binstall --no-confirm cargo-shear
+
       - run: cargo shear --exclude=gear-workspace-hack
 
   fmt:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -38,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Check license headers"
         run: ./scripts/check-license-headers.sh .
@@ -46,9 +55,7 @@ jobs:
   typos:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
+      - uses: actions/checkout@v7
       - name: typos-action
         uses: crate-ci/typos@master
 
@@ -56,9 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
+        uses: actions/checkout@v7
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -74,12 +79,16 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.7.0
+          version: v1.7.1
+
+      - name: Install dependencies
+        run: forge soldeer install
+        working-directory: ./ethexe/contracts
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v6
         with:
-          node-version: 22.x
+          node-version: 24.x
 
       - name: "Show: Versioning"
         run: forge --version
@@ -88,7 +97,7 @@ jobs:
         run: |
           npm cache clean --force
 
-          # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
+          # version from ethereum/dependencies/openzeppelin-foundry-upgrades-0.4.1/src/internal/Versions.sol
           npx @openzeppelin/upgrades-core@^1.37.0
 
           forge fmt --check
@@ -128,12 +137,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macos-aarch64
-            target: aarch64-apple-darwin
-            runs-on: macos-latest
-          - name: macos-x86_64
-            target: x86_64-apple-darwin
-            runs-on: macos-latest
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
             runs-on: ubuntu-24.04-arm
@@ -147,9 +150,7 @@ jobs:
     name: clippy (${{ matrix.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -162,12 +163,8 @@ jobs:
         with:
           target: "${{ matrix.target }}"
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.name }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Check clippy"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
@@ -176,9 +173,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -209,14 +204,6 @@ jobs:
         with:
           args: manage-deps --dry-run
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          # we want to test the hack that doesn't interfere with some Substrate features
-          keep-workspace-hack: true
-
       - name: "Check clippy with workspace hack enabled"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
@@ -227,22 +214,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
 
-      - name: "Install: protobuf compiler"
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 5
-          retry_wait_seconds: 10
-          command: |
-            sudo apt update
-            sudo apt install -y protobuf-compiler
+      - name: "Install: Protoc"
+        uses: StackOverflowExcept1on/setup-protoc@node24
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -252,11 +230,8 @@ jobs:
         with:
           targets: wasm32v1-none
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Check: Wasm-builder recommended toolchain matches rust-toolchain.toml"
         run: |
@@ -282,7 +257,7 @@ jobs:
     needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -295,12 +270,8 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.name }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Build: Vara runtime and wasm-proc"
         run: cargo build -p vara-runtime -p wasm-proc --release
@@ -316,12 +287,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macos-aarch64
-            target: aarch64-apple-darwin
-            runs-on: macos-latest
-          - name: macos-x86_64
-            target: x86_64-apple-darwin
-            runs-on: macos-15-intel
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
             runs-on: ubuntu-latest
@@ -336,26 +301,18 @@ jobs:
     name: stack-height (${{ matrix.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
-        if: matrix.name != 'macos-x86_64'
         uses: ./.github/actions/setup-linker
 
       - name: "Install: Rust toolchain"
-        if: matrix.name != 'macos-x86_64'
         uses: ./.github/actions/install-rust
 
-      - name: "ACTIONS: Setup caching"
-        if: matrix.name != 'macos-x86_64'
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.name }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Run: Calculate stack height"
-        if: matrix.name != 'macos-x86_64'
         run: cargo run -p calc-stack-height --release --locked
 
   gsdk-metadata:
@@ -363,7 +320,7 @@ jobs:
     needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -376,11 +333,8 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Check: Changes in vara_runtime.scale file"
         run: |

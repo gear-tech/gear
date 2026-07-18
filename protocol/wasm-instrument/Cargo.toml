@@ -1,16 +1,16 @@
 [package]
 name = "gear-wasm-instrument"
-description = "Wasm instrument library for Gear programs"
-documentation = "https://docs.rs/gear-wasm-instrument"
-keywords = ["gear", "wasm"]
-categories = ["wasm"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Wasm instrument library for Gear programs"
+documentation = "https://docs.rs/gear-wasm-instrument"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "wasm", "instrumentation", "gas", "no-std"]
+categories = ["wasm", "no-std", "development-tools"]
 
 [dependencies]
 derive_more.workspace = true

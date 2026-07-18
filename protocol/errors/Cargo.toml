@@ -1,14 +1,16 @@
 [package]
 name = "gear-core-errors"
-description = "Shared errors for Gear core libraries"
-documentation = "https://docs.rs/gear-core-errors"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Shared errors for Gear core libraries"
+documentation = "https://docs.rs/gear-core-errors"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["gear", "errors", "protocol", "runtime", "no-std"]
+categories = ["no-std", "rust-patterns"]
 
 [dependencies]
 enum-iterator.workspace = true

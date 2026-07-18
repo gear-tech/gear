@@ -1,17 +1,19 @@
 [package]
 name = "ethexe-node-wrapper"
-description = "Node process wrapper utilities for ethexe"
-documentation = "https://docs.rs/ethexe-node-wrapper"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "Node process wrapper utilities for ethexe"
+documentation = "https://docs.rs/ethexe-node-wrapper"
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+license.workspace = true
+keywords = ["ethexe", "node", "process", "testing", "rpc"]
+categories = ["development-tools::testing", "asynchronous"]
 
 [dependencies]
-ethexe-rpc = { workspace = true, features = ["client"] }
+ethexe-rpc-client.workspace = true
 ethexe-common.workspace = true
 
 which.workspace = true

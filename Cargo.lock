@@ -5636,16 +5636,19 @@ dependencies = [
  "ethexe-network",
  "ethexe-processor",
  "ethexe-prometheus",
- "ethexe-rpc",
+ "ethexe-rpc-server",
  "ethexe-runtime-common",
  "ethexe-sdk",
  "ethexe-service",
+ "form_urlencoded",
  "gear-workspace-hack",
  "gprimitives",
  "gsigner",
+ "heck 0.5.0",
  "hex",
  "indicatif 0.18.3",
  "log",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "sp-core",
@@ -5799,7 +5802,13 @@ version = "2.0.0"
 dependencies = [
  "alloy",
  "anyhow",
+ "arc-malachitebft-app-channel",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-network",
+ "arc-malachitebft-signing",
  "async-trait",
+ "bytes",
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
@@ -5829,6 +5838,7 @@ dependencies = [
  "arc-malachitebft-core-consensus",
  "arc-malachitebft-core-types",
  "arc-malachitebft-engine",
+ "arc-malachitebft-network",
  "arc-malachitebft-signing",
  "arc-malachitebft-signing-ecdsa",
  "arc-malachitebft-sync",
@@ -5860,12 +5870,21 @@ name = "ethexe-network"
 version = "2.0.0"
 dependencies = [
  "anyhow",
+ "arc-malachitebft-app-channel",
+ "arc-malachitebft-codec",
+ "arc-malachitebft-core-consensus",
+ "arc-malachitebft-core-types",
+ "arc-malachitebft-engine",
+ "arc-malachitebft-network",
+ "arc-malachitebft-sync",
  "assert_matches",
  "async-trait",
  "auto_impl",
+ "bytes",
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-malachite-core",
  "ethexe-service-utils",
  "futures",
  "gear-workspace-hack",
@@ -5876,6 +5895,7 @@ dependencies = [
  "itertools 0.13.0",
  "libp2p 0.56.0",
  "libp2p-gossipsub",
+ "libp2p-scatter",
  "libp2p-swarm-test",
  "log",
  "lru 0.16.3",
@@ -5885,7 +5905,9 @@ dependencies = [
  "parity-scale-codec",
  "prometheus-client 0.23.1",
  "proptest",
+ "ractor",
  "rand 0.8.5",
+ "seahash",
  "tokio",
  "tracing-subscriber",
 ]
@@ -5923,7 +5945,7 @@ name = "ethexe-node-wrapper"
 version = "2.0.0"
 dependencies = [
  "ethexe-common",
- "ethexe-rpc",
+ "ethexe-rpc-client",
  "gear-workspace-hack",
  "jsonrpsee",
  "libc",
@@ -6013,7 +6035,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-rpc"
+name = "ethexe-rpc-client"
+version = "2.0.0"
+dependencies = [
+ "ethexe-common",
+ "ethexe-rpc-common",
+ "ethexe-runtime-common",
+ "gear-workspace-hack",
+ "gprimitives",
+ "jsonrpsee",
+ "sp-core",
+]
+
+[[package]]
+name = "ethexe-rpc-common"
+version = "2.0.0"
+dependencies = [
+ "ethexe-common",
+ "ethexe-runtime-common",
+ "gear-core",
+ "gear-workspace-hack",
+ "gprimitives",
+ "serde",
+]
+
+[[package]]
+name = "ethexe-rpc-server"
 version = "2.0.0"
 dependencies = [
  "anyhow",
@@ -6021,6 +6068,8 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
+ "ethexe-rpc-client",
+ "ethexe-rpc-common",
  "ethexe-runtime-common",
  "futures",
  "gear-core",
@@ -6034,7 +6083,6 @@ dependencies = [
  "ntest",
  "parity-scale-codec",
  "scopeguard",
- "serde",
  "sp-core",
  "thiserror 2.0.17",
  "tokio",
@@ -6091,13 +6139,14 @@ dependencies = [
  "ethexe-common",
  "ethexe-ethereum",
  "ethexe-node-wrapper",
- "ethexe-rpc",
+ "ethexe-rpc-client",
  "ethexe-runtime-common",
  "futures",
  "gear-workspace-hack",
  "gprimitives",
  "gsigner",
  "jsonrpsee",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -6128,7 +6177,8 @@ dependencies = [
  "ethexe-observer",
  "ethexe-processor",
  "ethexe-prometheus",
- "ethexe-rpc",
+ "ethexe-rpc-client",
+ "ethexe-rpc-server",
  "ethexe-runtime-common",
  "ethexe-service-utils",
  "futures",

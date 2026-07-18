@@ -20,7 +20,7 @@ env:
 
 jobs:
   build-windows:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
@@ -28,7 +28,7 @@ jobs:
     name: build-windows (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "ACTIONS: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -44,12 +44,8 @@ jobs:
         with:
           target: x86_64-pc-windows-msvc
 
-      - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/rust-cache
-        with:
-          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-          key: "${{ matrix.profiles.name }}"
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Build: Specific tests"
         run: >-
@@ -77,7 +73,7 @@ jobs:
     name: test-windows (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust

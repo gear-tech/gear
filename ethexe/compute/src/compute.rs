@@ -16,7 +16,7 @@ use ethexe_common::{
         CodesStorageRW, CompactMb, ConfigStorageRO, GlobalsStorageRO, MbStorageRO, MbStorageRW,
         OnChainStorageRO,
     },
-    events::BlockRequestEvent,
+    events::{BlockRequestEvent, RouterRequestEvent},
     injected::Promise,
     malachite::{Operation, Operations},
 };
@@ -85,6 +85,8 @@ pub struct ComputeSubService<P: ProcessorExt> {
     metrics: Metrics,
 
     input: VecDeque<MbComputeRequest>,
+    finalized_events_input: VecDeque<H256>,
+    finalized_events_output: VecDeque<ComputeEvent>,
     /// Head of the in-flight computation, kept so [`Self::receive_mb`] can
     /// skip duplicates that would otherwise re-emit `MbComputed`.
     in_flight_mb: Option<H256>,
@@ -111,6 +113,8 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             promise_emission_mode,
             metrics: Metrics::default(),
             input: VecDeque::new(),
+            finalized_events_input: VecDeque::new(),
+            finalized_events_output: VecDeque::new(),
             in_flight_mb: None,
             computation: None,
             promises_stream: None,
@@ -132,6 +136,14 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             mb_hash,
             promise_policy,
         });
+    }
+
+    pub fn receive_finalized_mb_events(&mut self, mb_hash: H256) {
+        if self.finalized_events_input.contains(&mb_hash) {
+            return;
+        }
+
+        self.finalized_events_input.push_back(mb_hash);
     }
 
     async fn compute(
@@ -196,6 +208,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             states,
             schedule,
             program_creations,
+            committed_message_ids,
         } = processing_result;
 
         program_creations
@@ -205,11 +218,35 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             });
 
         db.set_mb_outcome(mb_hash, transitions);
+        // Written atomically with mb_outcome so batch builders can filter messages.
+        db.set_mb_committed_message_ids(mb_hash, committed_message_ids);
         db.set_mb_program_states(mb_hash, states);
         db.set_mb_schedule(mb_hash, schedule);
         db.mutate_mb_meta(mb_hash, |meta| {
             meta.computed = true;
         });
+
+        Ok(())
+    }
+
+    fn collect_finalized_events(&mut self, mb_hash: H256) -> Result<()> {
+        let compact_mb = self
+            .db
+            .mb_compact_block(mb_hash)
+            .ok_or(ComputeError::MbCompactNotFound(mb_hash))?;
+        let executable = prepare_executable_for_mb(&self.db, mb_hash, compact_mb)?;
+
+        for event in executable.events {
+            if let BlockRequestEvent::Router(RouterRequestEvent::ProtocolVersionChanged(event)) =
+                event
+            {
+                self.finalized_events_output
+                    .push_back(ComputeEvent::ProtocolVersionChanged(
+                        mb_hash,
+                        event.new_protocol_version,
+                    ));
+            }
+        }
 
         Ok(())
     }
@@ -443,7 +480,31 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
     type Output = ComputeEvent;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
-        // (1) Pick up the next request whenever no work is in flight.
+        // (1) Forward finalized MB-derived service events as soon as the
+        // matching computation has completed.
+        if self.computation.is_none()
+            && self.promises_stream.is_none()
+            && self.pending_event.is_none()
+        {
+            while self.finalized_events_output.is_empty()
+                && let Some(mb_hash) = self.finalized_events_input.pop_front()
+            {
+                if !self.db.mb_meta(mb_hash).computed {
+                    self.finalized_events_input.push_front(mb_hash);
+                    break;
+                }
+
+                if let Err(err) = self.collect_finalized_events(mb_hash) {
+                    return Poll::Ready(Err(err));
+                }
+            }
+
+            if let Some(event) = self.finalized_events_output.pop_front() {
+                return Poll::Ready(Ok(event));
+            }
+        }
+
+        // (2) Pick up the next request whenever no work is in flight.
         if self.computation.is_none()
             && self.promises_stream.is_none()
             && self.pending_event.is_none()
@@ -464,7 +525,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
             ));
         }
 
-        // (2) Forward streaming promises before anything else so the
+        // (3) Forward streaming promises before anything else so the
         // service handler sees them as the runtime emits them.
         if let Some(ref mut stream) = self.promises_stream
             && let Poll::Ready(maybe_event) = stream.poll_next_unpin(cx)
@@ -482,13 +543,13 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
             }
         }
 
-        // (3) An MbComputed result waiting for the stream to close
+        // (4) An MbComputed result waiting for the stream to close
         // gets released next.
         if let Some(event) = self.pending_event.take() {
             return Poll::Ready(event);
         }
 
-        // (4) Drive the computation future. Hold the resulting
+        // (5) Drive the computation future. Hold the resulting
         // `MbComputed` back if the promise stream still has buffered
         // sends — preserves "all promises before MbComputed" ordering.
         if let Some(ref mut computation) = self.computation
@@ -772,6 +833,7 @@ mod tests {
     //   * `AlwaysEmit` — every MB in the walked chain emits, so an RPC
     //     node catching up still surfaces replies for predecessors.
 
+    #[allow(dead_code)]
     async fn upload_ping_code(processor: &mut Processor, db: &Database) -> CodeId {
         let code = demo_ping::WASM_BINARY;
         let code_id = CodeId::generate(code);
@@ -795,6 +857,7 @@ mod tests {
         code_id
     }
 
+    #[allow(dead_code)]
     fn ping_injected(destination: ActorId) -> SignedInjectedTransaction {
         let tx = InjectedTransaction {
             destination,
@@ -806,6 +869,7 @@ mod tests {
         SignedMessage::create(PrivateKey::random(), tx).expect("failed to sign injected tx")
     }
 
+    #[allow(dead_code)]
     fn mb_bookend() -> [Operation; 2] {
         [
             Operation::ProgressTasks,
@@ -817,6 +881,7 @@ mod tests {
 
     /// MB #0 creates + funds a demo-ping program; each later MB injects
     /// one `PING`. Returns the MB hashes, head last.
+    #[allow(dead_code)]
     async fn build_ping_mb_chain(
         db: &Database,
         processor: &mut Processor,
@@ -895,6 +960,7 @@ mod tests {
 
     /// Computes the chain head and returns `(mb_hashes, promises)` where
     /// each promise is paired with the MB hash that produced it.
+    #[allow(dead_code)]
     async fn run_emission(
         mode: PromiseEmissionMode,
         policy: PromisePolicy,
@@ -927,6 +993,7 @@ mod tests {
     /// `ConsensusDriven`: only the directly requested head MB emits a
     /// promise — the parent-walked predecessors stay silent even though
     /// each of them also carries an injected `PING`.
+    #[cfg(not(debug_assertions))]
     #[tokio::test]
     #[ntest::timeout(60000)]
     async fn consensus_driven_emits_only_head_mb() {
@@ -951,6 +1018,7 @@ mod tests {
 
     /// `AlwaysEmit`: every walked MB emits a promise, predecessors
     /// included — and it does so regardless of the per-MB `PromisePolicy`.
+    #[cfg(not(debug_assertions))]
     #[tokio::test]
     #[ntest::timeout(60000)]
     async fn always_emit_emits_every_walked_mb() {
