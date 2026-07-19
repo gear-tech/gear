@@ -5605,6 +5605,7 @@ name = "ethexe-blob-loader"
 version = "2.0.0"
 dependencies = [
  "alloy",
+ "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
@@ -5626,6 +5627,7 @@ dependencies = [
  "alloy-chains",
  "anyhow",
  "clap 4.5.54",
+ "derive_more 2.1.1",
  "directories",
  "ethexe-common",
  "ethexe-compute",
@@ -5918,6 +5920,7 @@ dependencies = [
  "anyhow",
  "clap 4.5.54",
  "demo-syscalls-ethexe",
+ "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-ethereum",
  "ethexe-sdk",
