@@ -523,6 +523,9 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Install: Protoc"
+        uses: StackOverflowExcept1on/setup-protoc@node24
+
       - name: "ACTIONS: Download example WASMs"
         uses: actions/download-artifact@v8
         with:
