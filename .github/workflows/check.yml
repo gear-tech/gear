@@ -86,7 +86,7 @@ jobs:
         working-directory: ./ethexe/contracts
 
       - name: "Install: Node.js"
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24.x
 
