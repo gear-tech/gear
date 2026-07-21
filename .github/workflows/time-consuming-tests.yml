@@ -17,10 +17,10 @@ env:
 
 jobs:
   time-consuming-tests:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust

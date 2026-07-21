@@ -1,11 +1,10 @@
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-pragma solidity ^0.8.33;
+pragma solidity ^0.8.35;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {
-    ReentrancyGuardTransientUpgradeable
-} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {IMiddleware} from "src/IMiddleware.sol";
@@ -13,13 +12,7 @@ import {IPOAMiddleware} from "src/IPOAMiddleware.sol";
 import {Gear} from "src/libraries/Gear.sol";
 import {MapWithTimeData} from "src/libraries/MapWithTimeData.sol";
 
-contract POAMiddleware is
-    IMiddleware,
-    IPOAMiddleware,
-    OwnableUpgradeable,
-    ReentrancyGuardTransientUpgradeable,
-    UUPSUpgradeable
-{
+contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, ReentrancyGuardTransient, UUPSUpgradeable {
     // keccak256(abi.encode(uint256(keccak256("middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant SLOT_STORAGE = 0x0b8c56af6cc9ad401ad225bfe96df77f3049ba17eadac1cb95ee89df1e69d100;
     // keccak256(abi.encode(uint256(keccak256("poa_middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
@@ -34,7 +27,6 @@ contract POAMiddleware is
 
     function initialize(InitParams calldata _params) public initializer {
         __Ownable_init(_params.owner);
-        __ReentrancyGuardTransient_init();
 
         _setStorageSlot("middleware.storage.MiddlewareV1");
         Storage storage $ = _storage();

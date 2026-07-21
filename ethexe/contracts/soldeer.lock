@@ -1,0 +1,45 @@
+[[dependencies]]
+name = "@openzeppelin-contracts"
+version = "5.6.1"
+url = "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_6_1_15-03-2026_09:19:50_contracts.zip"
+checksum = "a3b6bc661be858c7c27f60a1708cbebe8c71034b4cc1e9fe270d0a05b069352f"
+integrity = "bce03af7ada1eee21a7fff393f238bcd7cd75a022a4db55ffb6b0dbb32433d35"
+
+[[dependencies]]
+name = "@openzeppelin-contracts-upgradeable"
+version = "5.6.1"
+url = "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts-upgradeable/5_6_1_15-03-2026_09:19:56_contracts-upgradeable.zip"
+checksum = "f6257dbc993c2499fe08fdc93f66e12459fe3458ee62ce716b92e1d95ee0b504"
+integrity = "2f539b6241258fc3c127c97225b3cb1b5e9225e422d2c1cb233c52a6f5c29002"
+
+[[dependencies]]
+name = "forge-std"
+version = "1.16.2"
+url = "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_16_2_03-07-2026_07:37:45_forge-std-1.16.zip"
+checksum = "405dccc9d60d753f6abc412b4adf0359f4390f65dbadbbb277a12b4946ed8969"
+integrity = "5fb4325b60d7d4194bd0481e2f94398cf1d9c6561dd12a66fb2748ef4a68205f"
+
+[[dependencies]]
+name = "frost-secp256k1-evm"
+version = "master"
+git = "https://github.com/StackOverflowExcept1on/frost-secp256k1-evm.git"
+rev = "2968699d0673e7a6466e115c2e1a13515c36628d"
+
+[[dependencies]]
+name = "openzeppelin-foundry-upgrades"
+version = "0.4.1"
+url = "https://soldeer-revisions.s3.amazonaws.com/openzeppelin-foundry-upgrades/0_4_1_01-06-2026_15:47:35_oz-pkg.zip"
+checksum = "934bc0ecb0f2509c7392c4a7375e6f4a58e532028c16ec42525d77ef9a1abd95"
+integrity = "f129a0da6ad83c1e65109daeca385eaafd66d8831dba728f2e35aac67a0f7b71"
+
+[[dependencies]]
+name = "symbiotic-core"
+version = "main"
+git = "https://github.com/StackOverflowExcept1on/symbiotic-core.git"
+rev = "a53d5450c74c6998c4dde49f2b8354816c305ccf"
+
+[[dependencies]]
+name = "symbiotic-rewards"
+version = "main"
+git = "https://github.com/StackOverflowExcept1on/symbiotic-rewards.git"
+rev = "e81720a589e638a8a71d9fd1a8c321eca1214cf1"

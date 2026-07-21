@@ -16,7 +16,7 @@ Gear Protocol is a Substrate-based platform for developers, enabling anyone to s
 [![CI][c1]][c2]
 [![GitHubStars][g1]][g2]
 [![Discord][d1]][d2]
-[![Twitter][t1]][t2]
+[![X][t1]][t2]
 [![License][l1]][l2]
 
 [c1]: https://github.com/gear-tech/gear/workflows/CI/badge.svg
@@ -26,7 +26,7 @@ Gear Protocol is a Substrate-based platform for developers, enabling anyone to s
 [g2]: https://github.com/gear-tech/gear
 
 [t1]: https://img.shields.io/twitter/follow/gear_techs?style=social
-[t2]: https://twitter.com/gear_techs
+[t2]: https://x.com/gear_techs
 
 [d1]: https://img.shields.io/discord/891063355526217738?style=flat-square&label=Discord
 [d2]: https://discord.com/invite/7BQznC9uD9
@@ -64,12 +64,12 @@ Refer to the **[Technical Paper](https://github.com/gear-tech/gear-technical/blo
 
 # Getting Started
 
-1. :book: Visit **[Gear Wiki](https://wiki.gear-tech.io/)** to get all the details about how to start implementing your own blockchain application.
-    1. Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile your first Rust test program to Wasm.
+1. :book: Visit **[Gear Wiki](https://wiki.vara.network/)** to get all the details about how to start implementing your own blockchain application.
+    1. Follow the instructions from ["Getting started in 5 minutes"](https://wiki.vara.network/docs/vara-network/quick-start/) to compile your first Rust test program to Wasm.
     2. Upload and run the program on the Vara Network Testnet via **[Gear Idea](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Ftestnet.vara.network)**, send a message to a program and read the program's state.
-2. :scroll: Write your own program or take one from the comprehensive [examples library](https://wiki.gear-tech.io/docs/examples/prerequisites) as a basis for a convenient and swift onboarding process.
+2. :scroll: Write your own program or take one from the comprehensive [examples library](https://wiki.vara.network/docs/vara-network/examples) as a basis for a convenient and swift onboarding process.
     1. Explore dApp examples in action and gain a deeper understanding of their functionalities. Write your own program or use one from the available templates. Adapt a template according to your business needs.
-    2. [Test](https://wiki.gear-tech.io/docs/developing-contracts/testing) your program off-chain and on-chain using a [local node](https://wiki.gear-tech.io/docs/node/setting-up).
+    2. [Test](https://wiki.vara.network/docs/developing/build/testing) your program off-chain and on-chain using a [local node](https://wiki.vara.network/docs/vara-network/node).
     3. Then upload it via Gear Idea to the [Vara Network](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Frpc.vara.network).
 3. :microscope: Dive into the documentation on Gear Protocol crates at [сrates.io](https://crates.io/teams/github:gear-tech:dev). Particular attention should be paid to - [sails_rs](https://crates.io/crates/sails_rs), [gstd](https://crates.io/crates/gstd), [gcore](https://crates.io/crates/gcore), [gtest](https://crates.io/crates/gtest), [gsdk](https://crates.io/crates/gsdk). More details can be found in the Documentation section for each crate.
 
@@ -79,7 +79,7 @@ Refer to the **[Technical Paper](https://github.com/gear-tech/gear-technical/blo
 
 ### Get the binaries
 
-To build Vara node binaries from source follow the step-by-step instructions provided in [Node README](https://github.com/gear-tech/gear/tree/master/node/README.md).
+To build Vara node binaries from source follow the step-by-step instructions provided in [Node README](https://github.com/gear-tech/gear/tree/master/vara/node/README.md).
 
 Alternatively, you can download pre-built packages for your OS/architecture:
 
@@ -114,8 +114,8 @@ Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](LI
 
 <h4>
 <p align="left" nowrap>
-    <a href="https://twitter.com/gear_techs">
-        <img src=".github/images/social-icon-1.svg" alt="twit" style="vertical-align:middle" >
+    <a href="https://x.com/gear_techs">
+        <img src=".github/images/social-icon-1.svg" alt="x" style="vertical-align:middle" >
     </a>
     <a href="https://github.com/gear-tech">
         <img src=".github/images/social-icon-2.svg" alt="github" style="vertical-align:middle" >
@@ -133,7 +133,7 @@ Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](LI
     <a href="https://gear-tech.io">
       About us
     </a> •
-    <a href="https://wiki.gear-tech.io/" nowrap>
+    <a href="https://wiki.vara.network" nowrap>
       Gear Wiki
     </a> •
     <a href="https://gear.foundation/news">
@@ -142,7 +142,7 @@ Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](LI
       <a href="https://gear.foundation/events">
       Events
     </a> •
-    <a href="https://vara.network/">
+    <a href="https://vara.network">
       Vara Network
     </a> •
 </p>

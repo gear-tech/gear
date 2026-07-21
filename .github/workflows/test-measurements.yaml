@@ -14,13 +14,11 @@ env:
 
 jobs:
   build:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     timeout-minutes: 720
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
+        uses: actions/checkout@v7
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
