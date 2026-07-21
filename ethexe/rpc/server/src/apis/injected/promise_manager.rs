@@ -1,8 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use anyhow::Result;
-use dashmap::{DashMap, mapref::entry::Entry};
+use dashmap::DashMap;
 use ethexe_common::{
     Address, HashOf,
     db::{
@@ -14,13 +13,21 @@ use ethexe_common::{
     },
 };
 use ethexe_db::Database;
-use std::sync::Arc;
-use tokio::sync::oneshot;
+use std::{sync::Arc, time::Duration};
+use tokio::sync::watch;
 use tracing::{trace, warn};
 
-// TODO: #5385.
-type PromiseSubscribers =
-    Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedTxReceipt>>>;
+/// Bounds how many concurrent watchers a single not-yet-resolved transaction can
+/// accumulate, so one client cannot pin unbounded background tasks and map entries
+/// on the server by opening many watches for the same transaction.
+const MAX_SUBSCRIBERS_PER_TX: usize = 32;
+
+/// `None` until `dispatch_receipt` publishes the receipt.
+type ReceiptSlot = Option<Arc<SignedTxReceipt>>;
+pub(crate) type ReceiptWatcher = watch::Receiver<ReceiptSlot>;
+// One `watch` channel per transaction: subscribers are receiver clones, so a watcher
+// cancels by dropping its receiver — no per-subscriber id bookkeeping needed.
+type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, watch::Sender<ReceiptSlot>>>;
 type PendingReceiptsCache = moka::sync::Cache<HashOf<InjectedTransaction>, UnfilledPromiseReceipt>;
 
 /// The manager for promise subscribers.
@@ -33,38 +40,67 @@ pub struct PromiseSubscriptionManager {
     pending_receipts: PendingReceiptsCache,
 }
 
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum RegisterSubscriberError {
-    #[error("Subscriber for this transaction already exists, tx_hash={0}")]
-    AlreadyRegistered(HashOf<InjectedTransaction>),
+pub enum RegisterSubscriberResult {
+    Ready(SignedTxReceipt),
+    Pending(PendingSubscriber),
+    /// Too many concurrent watchers already registered for this transaction.
+    TooManyWatchers,
 }
-
-type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedTxReceipt>>;
 
 /// The pending [SignedTxReceipt] subscriber.
 /// Subscriber will be spawned in separate tokio runtime task and will wait for promise.
 ///
-/// Important: to avoid infinite waiting we wrap [oneshot::Receiver] into [tokio::time::timeout].
+/// Important: to avoid infinite waiting the spawner bounds the wait by `timeout`.
+///
+/// Owns a handle to the subscribers map and removes its own entry on `Drop`,
+/// so cleanup happens whether the subscriber finishes normally, is released
+/// before spawning, or is dropped by future cancellation (e.g. client
+/// disconnect) — no call site can forget it.
 pub struct PendingSubscriber {
     /// Tx hash waiting promise for.
     tx_hash: HashOf<InjectedTransaction>,
-    /// Wrapped tx receipt [oneshot::Receiver].
-    receiver: TimeoutReceiver,
+    receiver: ReceiptWatcher,
+    /// Maximum time to wait for the receipt.
+    timeout: Duration,
+    subscribers: PromiseSubscribers,
 }
 
 impl PendingSubscriber {
-    pub fn new(
-        db: &Database,
+    fn new(
+        manager: &PromiseSubscriptionManager,
         tx_hash: HashOf<InjectedTransaction>,
-        receiver: oneshot::Receiver<SignedTxReceipt>,
+        receiver: ReceiptWatcher,
     ) -> Self {
-        let timeout_duration = utils::receipt_waiting_timeout(db);
-        let receiver = tokio::time::timeout(timeout_duration, receiver);
-        Self { tx_hash, receiver }
+        Self {
+            tx_hash,
+            receiver,
+            timeout: utils::receipt_waiting_timeout(&manager.db),
+            subscribers: manager.subscribers.clone(),
+        }
     }
 
-    pub fn into_parts(self) -> (HashOf<InjectedTransaction>, TimeoutReceiver) {
-        (self.tx_hash, self.receiver)
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
+    pub fn receiver_mut(&mut self) -> &mut ReceiptWatcher {
+        &mut self.receiver
+    }
+
+    /// Test-only: clones the receiver so tests can drive the channel directly.
+    /// The clone keeps the map entry's receiver count above the removal
+    /// threshold, so `self`'s subsequent `Drop` leaves the entry in place for it.
+    #[cfg(test)]
+    pub fn into_parts(self) -> (HashOf<InjectedTransaction>, ReceiptWatcher, Duration) {
+        (self.tx_hash, self.receiver.clone(), self.timeout)
+    }
+}
+
+impl Drop for PendingSubscriber {
+    fn drop(&mut self) {
+        // `self.receiver` hasn't dropped yet, so a count of 1 means it's the last one.
+        self.subscribers
+            .remove_if(&self.tx_hash, |_, sender| sender.receiver_count() == 1);
     }
 }
 
@@ -77,26 +113,61 @@ impl PromiseSubscriptionManager {
         }
     }
 
-    // TODO: Issue #5402
     pub fn try_register_subscriber(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> Result<PendingSubscriber, RegisterSubscriberError> {
-        match self.subscribers.entry(tx_hash) {
-            Entry::Occupied(_) => Err(RegisterSubscriberError::AlreadyRegistered(tx_hash)),
-            Entry::Vacant(entry) => {
-                let (sender, receiver) = oneshot::channel();
-                entry.insert(sender);
-                Ok(PendingSubscriber::new(&self.db, tx_hash, receiver))
-            }
-        }
+    ) -> RegisterSubscriberResult {
+        self.try_register_subscriber_inner(tx_hash, || {})
     }
 
-    pub fn cancel_registration(
+    /// `after_insert` is a test-only seam: it runs between the subscriber-map insert
+    /// and the race-closing recheck below, so a test can deterministically land a
+    /// receipt in that exact window (see `race_window_receipt_is_still_served_ready`).
+    fn try_register_subscriber_inner(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> Option<oneshot::Sender<SignedTxReceipt>> {
-        self.subscribers.remove(&tx_hash).map(|(_, v)| v)
+        after_insert: impl FnOnce(),
+    ) -> RegisterSubscriberResult {
+        if let Some(receipt) = self.ready_stored_receipt(tx_hash) {
+            return RegisterSubscriberResult::Ready(receipt);
+        }
+
+        let receiver = {
+            let sender = self
+                .subscribers
+                .entry(tx_hash)
+                .or_insert_with(|| watch::channel(None).0);
+            if sender.receiver_count() >= MAX_SUBSCRIBERS_PER_TX {
+                return RegisterSubscriberResult::TooManyWatchers;
+            }
+            sender.subscribe()
+        };
+
+        after_insert();
+
+        // Recheck: `store_and_dispatch_receipt` persists before dispatching, so a receipt
+        // landing mid-registration is visible here even if its dispatch ran before our insert.
+        if let Some(receipt) = self.ready_stored_receipt(tx_hash) {
+            drop(receiver);
+            // Drops the per-transaction entry, since no live watchers remain.
+            self.subscribers
+                .remove_if(&tx_hash, |_, sender| sender.receiver_count() == 0);
+            return RegisterSubscriberResult::Ready(receipt);
+        }
+
+        RegisterSubscriberResult::Pending(PendingSubscriber::new(self, tx_hash, receiver))
+    }
+
+    /// Stored receipt that can answer a registration, or `None` if there is none yet
+    /// or the only one stored is a stale `Purged` marker — which must not block a
+    /// resubmission from getting its own relay.
+    fn ready_stored_receipt(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> Option<SignedTxReceipt> {
+        self.db
+            .receipt(tx_hash)
+            .filter(|receipt| !receipt.data().is_purged())
     }
 
     // TODO: Issue #5403
@@ -207,10 +278,13 @@ impl PromiseSubscriptionManager {
     }
 
     fn dispatch_receipt(&self, receipt: SignedTxReceipt) {
-        if let Some((_, sender)) = self.subscribers.remove(&receipt.data().tx_hash())
-            && let Err(unsent_receipt) = sender.send(receipt)
-        {
-            trace!("failed to send receipt to subscriber, receipt={unsent_receipt:?}");
+        let tx_hash = receipt.data().tx_hash();
+        let Some((_tx_hash, sender)) = self.subscribers.remove(&tx_hash) else {
+            return;
+        };
+
+        if sender.send(Some(Arc::new(receipt))).is_err() {
+            trace!(%tx_hash, "no live subscribers left for the receipt");
         }
     }
 
@@ -221,7 +295,10 @@ impl PromiseSubscriptionManager {
 
     #[cfg(test)]
     pub fn subscribers_count(&self) -> usize {
-        self.subscribers.len()
+        self.subscribers
+            .iter()
+            .map(|entry| entry.value().receiver_count())
+            .sum()
     }
 }
 
@@ -302,16 +379,22 @@ mod tests {
     fn register(
         manager: &PromiseSubscriptionManager,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> std::pin::Pin<Box<oneshot::Receiver<SignedTxReceipt>>> {
+    ) -> ReceiptWatcher {
         let pending = match manager.try_register_subscriber(tx_hash) {
-            Ok(pending) => pending,
-            Err(err) => panic!("first registration must succeed: {err}"),
+            RegisterSubscriberResult::Pending(pending) => pending,
+            _ => panic!("empty database must produce a pending registration"),
         };
-        let (_, receiver) = pending.into_parts();
-        // Inner oneshot::Receiver is Unpin; the outer Timeout is not,
-        // hence we discard the timeout wrapper (tests drive their own
-        // timing via tokio::time::timeout below).
-        Box::pin(receiver.into_inner())
+        let (_tx_hash, receiver, _timeout) = pending.into_parts();
+        receiver
+    }
+
+    async fn next_receipt(receiver: &mut ReceiptWatcher) -> Arc<SignedTxReceipt> {
+        receiver
+            .wait_for(|receipt| receipt.is_some())
+            .await
+            .expect("receipt sender must be alive")
+            .clone()
+            .expect("`wait_for` guarantees the receipt is set")
     }
 
     /// Producer signature lands after the local node has already
@@ -334,7 +417,7 @@ mod tests {
         set_current_validators(&db, vec![receipt.address()]);
         manager.on_tx_receipt(receipt.into());
 
-        let delivered = receiver.as_mut().await.unwrap();
+        let delivered = next_receipt(&mut receiver).await;
         let expected_receipt = Receipt::Promise(promise.clone());
         assert_eq!(delivered.data().clone(), expected_receipt);
         assert_eq!(manager.subscribers_count(), 0);
@@ -364,7 +447,7 @@ mod tests {
         assert_eq!(manager.subscribers_count(), 1);
 
         manager.on_computed_promise(promise.clone());
-        let delivered = receiver.as_mut().await.unwrap();
+        let delivered = next_receipt(&mut receiver).await;
         let expected_receipt = Receipt::Promise(promise.clone());
 
         assert_eq!(delivered.data(), &Receipt::Promise(promise.clone()));
@@ -374,19 +457,6 @@ mod tests {
             db.receipt(tx_hash).unwrap().data().clone(),
             expected_receipt
         );
-    }
-
-    /// A duplicate registration for the same tx hash is rejected.
-    #[tokio::test]
-    async fn duplicate_subscriber_rejected() {
-        let manager = PromiseSubscriptionManager::new(Database::memory());
-        let (promise, _) = make_promise();
-        let _first = manager.try_register_subscriber(promise.tx_hash).ok();
-        let err = manager
-            .try_register_subscriber(promise.tx_hash)
-            .err()
-            .expect("second registration must fail");
-        assert!(matches!(err, RegisterSubscriberError::AlreadyRegistered(_)));
     }
 
     /// A compact promise whose signature does not match the body that
@@ -416,8 +486,11 @@ mod tests {
         manager.on_tx_receipt(bad_receipt.into());
         manager.on_computed_promise(promise.clone());
 
-        let elapsed =
-            tokio::time::timeout(std::time::Duration::from_millis(50), receiver.as_mut()).await;
+        let elapsed = tokio::time::timeout(
+            std::time::Duration::from_millis(50),
+            receiver.wait_for(|receipt| receipt.is_some()),
+        )
+        .await;
         assert!(elapsed.is_err(), "no signed promise should be delivered");
         assert_eq!(db.promise(tx_hash), Some(promise));
         assert_eq!(db.receipt(tx_hash), None);
@@ -498,5 +571,128 @@ mod tests {
         manager.on_tx_receipt(receipt.into());
 
         assert_eq!(db.receipt(tx_hash), None);
+    }
+
+    #[tokio::test]
+    async fn multiple_subscribers_receive_same_receipt() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+
+        let mut first = register(&manager, tx_hash);
+        let mut second = register(&manager, tx_hash);
+
+        manager.on_computed_promise(promise.clone());
+        let receipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.to_compact())).unwrap();
+        set_current_validators(&db, vec![receipt.address()]);
+        manager.on_tx_receipt(receipt.into());
+
+        let first_receipt = next_receipt(&mut first).await;
+        let second_receipt = next_receipt(&mut second).await;
+
+        assert_eq!(first_receipt.data(), &Receipt::Promise(promise.clone()));
+        assert_eq!(second_receipt.data(), &Receipt::Promise(promise));
+        assert_eq!(manager.subscribers_count(), 0);
+    }
+
+    #[test]
+    fn late_subscriber_gets_stored_receipt_without_registration() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+        let receipt: SignedTxReceipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.clone()))
+                .unwrap()
+                .into();
+
+        db.set_receipt(&receipt);
+
+        match manager.try_register_subscriber(tx_hash) {
+            RegisterSubscriberResult::Ready(ready) => assert_eq!(ready, receipt),
+            _ => panic!("stored receipt must be returned immediately"),
+        }
+
+        assert_eq!(manager.subscribers_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn release_one_subscriber_keeps_other_subscriber() {
+        let manager = PromiseSubscriptionManager::new(Database::memory());
+        let (promise, _) = make_promise();
+        let tx_hash = promise.tx_hash;
+
+        let first = match manager.try_register_subscriber(tx_hash) {
+            RegisterSubscriberResult::Pending(subscriber) => subscriber,
+            _ => panic!("empty database must produce a pending registration"),
+        };
+        let second = match manager.try_register_subscriber(tx_hash) {
+            RegisterSubscriberResult::Pending(subscriber) => subscriber,
+            _ => panic!("empty database must produce a pending registration"),
+        };
+
+        assert_eq!(manager.subscribers_count(), 2);
+        drop(first);
+        assert_eq!(manager.subscribers_count(), 1);
+        drop(second);
+        assert_eq!(manager.subscribers_count(), 0);
+    }
+
+    /// Forces a receipt to land in the exact window the second `db.receipt` check in
+    /// `try_register_subscriber` exists to close (between the subscriber-map insert and
+    /// that recheck), via the `after_insert` test seam.
+    #[test]
+    fn race_window_receipt_is_still_served_ready() {
+        let db = Database::memory();
+        let manager = PromiseSubscriptionManager::new(db.clone());
+        let (promise, private_key) = make_promise();
+        let tx_hash = promise.tx_hash;
+        let receipt: SignedTxReceipt =
+            SignedMessage::create(private_key, Receipt::Promise(promise.clone()))
+                .unwrap()
+                .into();
+
+        let result = manager.try_register_subscriber_inner(tx_hash, || {
+            db.set_receipt(&receipt);
+        });
+
+        match result {
+            RegisterSubscriberResult::Ready(ready) => assert_eq!(ready, receipt),
+            _ => panic!("a receipt landing mid-registration must still be served as Ready"),
+        }
+        assert_eq!(
+            manager.subscribers_count(),
+            0,
+            "the race-window registration must be rolled back"
+        );
+    }
+
+    /// A single transaction cannot accumulate unbounded live watchers, and a released
+    /// watcher frees its slot.
+    #[tokio::test]
+    async fn too_many_watchers_for_one_tx_hash_is_rejected() {
+        let manager = PromiseSubscriptionManager::new(Database::memory());
+        let (promise, _) = make_promise();
+        let tx_hash = promise.tx_hash;
+
+        let subscribers: Vec<_> = (0..MAX_SUBSCRIBERS_PER_TX)
+            .map(|_| match manager.try_register_subscriber(tx_hash) {
+                RegisterSubscriberResult::Pending(subscriber) => subscriber,
+                _ => panic!("registrations under the cap must be pending"),
+            })
+            .collect();
+
+        assert!(matches!(
+            manager.try_register_subscriber(tx_hash),
+            RegisterSubscriberResult::TooManyWatchers
+        ));
+
+        drop(subscribers);
+        assert!(matches!(
+            manager.try_register_subscriber(tx_hash),
+            RegisterSubscriberResult::Pending(_)
+        ));
     }
 }
