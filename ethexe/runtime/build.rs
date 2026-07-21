@@ -18,6 +18,7 @@ fn main() {
         skip_build_on_intellij_sync();
         substrate_wasm_builder::WasmBuilder::new()
             .with_current_project()
+            .export_heap_base()
             .disable_runtime_version_section_check()
             .append_to_cargo_flags(
                 r#"--config=patch.crates-io.gear-workspace-hack.registry="crates-io-patch-hack""#,
