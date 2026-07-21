@@ -39,6 +39,7 @@ macro_rules! declare {
             use super::*;
 
             #[allow(improper_ctypes)]
+            #[cfg_attr(target_arch = "wasm32", link(wasm_import_module = "env"))]
             unsafe extern "C" {
                 $(
                     $(#[$attrs])*

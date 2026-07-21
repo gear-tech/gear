@@ -43,6 +43,14 @@ impl From<IMirror::ValueClaimingRequested> for ValueClaimingRequestedEvent {
     }
 }
 
+impl From<IMirror::GearEvent> for GearEvent {
+    fn from(value: IMirror::GearEvent) -> Self {
+        Self {
+            payload: value.payload.into(),
+        }
+    }
+}
+
 impl From<IMirror::OwnedBalanceTopUpRequested> for OwnedBalanceTopUpRequestedEvent {
     fn from(value: IMirror::OwnedBalanceTopUpRequested) -> Self {
         Self { value: value.value }

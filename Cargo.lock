@@ -4773,6 +4773,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-sails-events"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gear-workspace-hack",
+ "gstd",
+]
+
+[[package]]
 name = "demo-send-from-reservation"
 version = "0.1.0"
 dependencies = [
@@ -6164,6 +6173,7 @@ dependencies = [
  "demo-piggy-bank",
  "demo-ping",
  "demo-reply-callback",
+ "demo-sails-events",
  "demo-value-sender-ethexe",
  "derive_more 2.1.1",
  "ethexe-blob-loader",

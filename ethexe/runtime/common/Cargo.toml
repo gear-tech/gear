@@ -18,7 +18,7 @@ ethexe-common.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-core-processor.workspace = true
 gear-core.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["ethexe"] }
 gsys.workspace = true
 gear-core-errors.workspace = true
 gear-core-backend.workspace = true

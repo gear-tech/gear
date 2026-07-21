@@ -321,6 +321,16 @@ contract Base is POCBaseTest {
                 _messagesHashesBytes = bytes.concat(_messagesHashesBytes, Gear.messageHash(_transition.messages[j]));
             }
 
+            bytes memory _eventsHashesBytes;
+            for (uint256 j = 0; j < _transition.events.length; j++) {
+                _eventsHashesBytes = bytes.concat(_eventsHashesBytes, keccak256(_transition.events[j]));
+            }
+
+            bytes memory _ethEventsHashesBytes;
+            for (uint256 j = 0; j < _transition.ethEvents.length; j++) {
+                _ethEventsHashesBytes = bytes.concat(_ethEventsHashesBytes, keccak256(_transition.ethEvents[j]));
+            }
+
             _transitionsHashes[i] = Gear.stateTransitionHash(
                 _transition.actorId,
                 _transition.newStateHash,
@@ -329,7 +339,9 @@ contract Base is POCBaseTest {
                 _transition.valueToReceive,
                 _transition.valueToReceiveNegativeSign,
                 keccak256(_valueClaimsBytes),
-                keccak256(_messagesHashesBytes)
+                keccak256(_messagesHashesBytes),
+                keccak256(_eventsHashesBytes),
+                keccak256(_ethEventsHashesBytes)
             );
         }
 

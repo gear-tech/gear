@@ -169,6 +169,8 @@ impl From<StateTransition> for Gear::StateTransition {
             valueToReceiveNegativeSign: value.value_to_receive_negative_sign,
             valueClaims: value.value_claims.into_iter().map(Into::into).collect(),
             messages: value.messages.into_iter().map(Into::into).collect(),
+            events: value.events.into_iter().map(Into::into).collect(),
+            ethEvents: value.eth_events.into_iter().map(Into::into).collect(),
         }
     }
 }
