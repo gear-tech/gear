@@ -189,7 +189,7 @@ extern "C" fn handle() {
         HandleAction::IncorrectFree => {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
-            #[allow(invalid_runtime_symbol_definitions)]
+            #[allow(suspicious_runtime_symbol_definitions)]
             unsafe extern "C" {
                 fn free(ptr: *mut u8) -> *mut u8;
             }
