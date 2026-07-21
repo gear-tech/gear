@@ -24,7 +24,7 @@ use anyhow::Result;
 use ethexe_common::{Address as EthexeAddress, events::MirrorEvent, injected::Promise};
 use ethexe_ethereum::{
     Ethereum, TryGetReceipt,
-    abi::{IMirror, IRouter::commitBatchCall},
+    abi::{IMirror, IRouter::commitBatchCall, utils::bytes32_to_h256},
     mirror::events::try_extract_event,
 };
 use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
@@ -164,6 +164,32 @@ struct TransitionedMessage {
     replied_to: Option<MessageId>,
 }
 
+fn apply_requested_value_claim_update(
+    context_update: &mut ContextUpdate,
+    actor_id: ActorId,
+    message_id: MessageId,
+) {
+    context_update.upsert_message_owner(message_id, actor_id);
+    context_update.remove_mailbox_message(actor_id, message_id);
+    context_update.add_pending_value_claim(actor_id, message_id);
+    context_update
+        .stats_mut(actor_id)
+        .increment_claims_requested();
+}
+
+fn apply_processed_value_claim_update(
+    context_update: &mut ContextUpdate,
+    actor_id: ActorId,
+    message_id: MessageId,
+) {
+    context_update.upsert_message_owner(message_id, actor_id);
+    context_update.remove_mailbox_message(actor_id, message_id);
+    context_update.remove_pending_value_claim(actor_id, message_id);
+    context_update
+        .stats_mut(actor_id)
+        .increment_claims_succeeded();
+}
+
 fn apply_mirror_event_update(context_update: &mut ContextUpdate, event: &Event) {
     let actor_id = event.actor_id;
     match &event.event {
@@ -210,30 +236,14 @@ fn apply_mirror_event_update(context_update: &mut ContextUpdate, event: &Event) 
             context_update.stats_mut(actor_id).increment_state_changes();
         }
         MirrorEvent::ValueClaimed(ev) => {
-            context_update.upsert_message_owner(ev.claimed_id, actor_id);
-            context_update.remove_mailbox_message(actor_id, ev.claimed_id);
-            context_update.remove_pending_value_claim(actor_id, ev.claimed_id);
-            context_update
-                .stats_mut(actor_id)
-                .increment_claims_succeeded();
+            apply_processed_value_claim_update(context_update, actor_id, ev.claimed_id);
         }
         MirrorEvent::ValueClaimingRequested(ev) => {
-            context_update.upsert_message_owner(ev.claimed_id, actor_id);
-            context_update.add_pending_value_claim(actor_id, ev.claimed_id);
-            context_update
-                .stats_mut(actor_id)
-                .increment_claims_requested();
+            apply_requested_value_claim_update(context_update, actor_id, ev.claimed_id);
         }
         MirrorEvent::TransferLockedValueToInheritorFailed(_)
         | MirrorEvent::ReplyTransferFailed(_) => {
             context_update.stats_mut(actor_id).increment_failures();
-        }
-        MirrorEvent::ValueClaimFailed(ev) => {
-            context_update.upsert_message_owner(ev.claimed_id, actor_id);
-            context_update.remove_pending_value_claim(actor_id, ev.claimed_id);
-            let stats = context_update.stats_mut(actor_id);
-            stats.increment_claims_failed();
-            stats.increment_failures();
         }
     }
 }
@@ -680,6 +690,8 @@ async fn run_batch_impl(
             let wait_for_event_blocks = blocks_window(tx_count, 2, 6);
             let mut report = process_events(
                 api,
+                rpc_pool,
+                endpoint_idx,
                 messages,
                 rx,
                 block_number,
@@ -796,6 +808,8 @@ async fn run_batch_impl(
                 send_message_wait_window(dispatched_txs, use_send_message_multicall);
             process_events(
                 api,
+                rpc_pool,
+                endpoint_idx,
                 messages,
                 rx,
                 block_number,
@@ -807,7 +821,7 @@ async fn run_batch_impl(
         }
 
         PreparedBatch::ClaimValue(args) => {
-            let removed_from_mailbox = args.clone().into_iter().map(|ClaimValueArgs(mid)| mid);
+            let requested_claims = args.clone().into_iter().map(|ClaimValueArgs(mid)| mid);
 
             for (call_id, arg) in args.iter().enumerate() {
                 let mid = arg.0;
@@ -822,13 +836,9 @@ async fn run_batch_impl(
             }
 
             let mut context_update = ContextUpdate::default();
-            for mid in removed_from_mailbox {
+            for mid in requested_claims {
                 if let Some(actor_id) = mid_map.read().await.get(&mid).copied() {
-                    context_update.remove_mailbox_message(actor_id, mid);
-                    context_update.remove_pending_value_claim(actor_id, mid);
-                    context_update
-                        .stats_mut(actor_id)
-                        .increment_claims_succeeded();
+                    apply_requested_value_claim_update(&mut context_update, actor_id, mid);
                 }
             }
 
@@ -863,6 +873,8 @@ async fn run_batch_impl(
             let event_mid_map = mid_map.clone();
             let mut report = process_events(
                 api,
+                rpc_pool,
+                endpoint_idx,
                 messages,
                 rx,
                 block_number,
@@ -913,6 +925,8 @@ async fn run_batch_impl(
             let wait_for_event_blocks = blocks_window(tx_count, 1, 6);
             let mut report = process_events(
                 api,
+                rpc_pool,
+                endpoint_idx,
                 messages,
                 rx,
                 block_number,
@@ -1311,12 +1325,15 @@ fn batch_watchdog_timeout(batch: &PreparedBatch, use_send_message_multicall: boo
 #[allow(clippy::too_many_arguments)]
 async fn parse_router_transitions(
     api: &Ethereum,
+    rpc_pool: &mut EthexeRpcPool,
+    endpoint_idx: usize,
     current_bn: FixedBytes<32>,
     to: Address,
     sent_message_ids: &BTreeSet<MessageId>,
     context_update: &mut ContextUpdate,
     mid_map: &MidMap,
     transition_outcomes: &mut BTreeMap<MessageId, Option<String>>,
+    processed_value_claims: &mut BTreeSet<(ActorId, MessageId)>,
 ) -> Result<()> {
     let full_block = api
         .provider()
@@ -1345,11 +1362,27 @@ async fn parse_router_transitions(
                                     tracing::debug!(program = %actor_id, "Program exited");
                                 }
 
-                                let value_claim_ids: Vec<_> = tr
-                                    .valueClaims
-                                    .iter()
-                                    .map(|vc| MessageId::new(vc.messageId.0))
-                                    .collect();
+                                let state_hash = bytes32_to_h256(tr.newStateHash);
+                                let value_claim_ids = match rpc_pool
+                                    .process_outgoing_value_claims(
+                                        endpoint_idx,
+                                        api,
+                                        actor_id,
+                                        state_hash,
+                                    )
+                                    .await
+                                {
+                                    Ok(value_claim_ids) => value_claim_ids,
+                                    Err(err) => {
+                                        tracing::warn!(
+                                            program = %actor_id,
+                                            %state_hash,
+                                            error = %err,
+                                            "Failed to process outgoing value claims"
+                                        );
+                                        Vec::new()
+                                    }
+                                };
 
                                 let transitioned_messages: Vec<_> = tr
                                     .messages
@@ -1388,9 +1421,18 @@ async fn parse_router_transitions(
                                     context_update,
                                     actor_id,
                                     tr.exited,
-                                    value_claim_ids,
+                                    value_claim_ids.iter().copied(),
                                     transitioned_messages.iter().cloned(),
                                 );
+
+                                for message_id in value_claim_ids {
+                                    apply_processed_value_claim_update(
+                                        context_update,
+                                        actor_id,
+                                        message_id,
+                                    );
+                                    processed_value_claims.insert((actor_id, message_id));
+                                }
 
                                 for msg in tr.messages.iter() {
                                     let is_reply = msg.replyDetails.to.0 != [0u8; 32];
@@ -1456,6 +1498,7 @@ async fn parse_mirror_logs(
     mid_map: &MidMap,
     events: &mut Vec<Event>,
     context_update: &mut ContextUpdate,
+    processed_value_claims: &BTreeSet<(ActorId, MessageId)>,
 ) -> Result<()> {
     let logs = api
         .provider()
@@ -1495,8 +1538,25 @@ async fn parse_mirror_logs(
                 }
             }
 
-            apply_mirror_event_update(context_update, &event);
-            events.push(event);
+            let already_applied_value_claim = matches!(
+                &event.event,
+                MirrorEvent::ValueClaimed(ev)
+                    if processed_value_claims.contains(&(actor_id, ev.claimed_id))
+            );
+
+            if already_applied_value_claim {
+                tracing::trace!(
+                    %actor_id,
+                    claimed_id = %match &event.event {
+                        MirrorEvent::ValueClaimed(ev) => ev.claimed_id,
+                        _ => unreachable!(),
+                    },
+                    "Skipping already applied value-claim event"
+                );
+            } else {
+                apply_mirror_event_update(context_update, &event);
+                events.push(event);
+            }
         }
     }
 
@@ -1526,8 +1586,11 @@ async fn recv_next_header<T: Clone>(rx: &mut Receiver<T>) -> Result<T> {
 ///
 /// The resulting [`BatchReport`] captures new codes, programs, mailbox mutations,
 /// exits, and reply outcomes for the batch that was just submitted.
+#[allow(clippy::too_many_arguments)]
 async fn process_events(
     api: Ethereum,
+    rpc_pool: &mut EthexeRpcPool,
+    endpoint_idx: usize,
     mut messages: BTreeMap<MessageId, (ActorId, usize)>,
     mut rx: Receiver<Header>,
     block_number: u64,
@@ -1572,22 +1635,34 @@ async fn process_events(
         let to: Address = api.provider().default_signer_address();
         let sent_message_ids: BTreeSet<MessageId> = messages.keys().copied().collect();
         let mut transition_outcomes: BTreeMap<MessageId, Option<String>> = BTreeMap::new();
+        let mut processed_value_claims: BTreeSet<(ActorId, MessageId)> = BTreeSet::new();
         let mut v = Vec::new();
         let mut current_bn = block.hash();
 
         for _ in 0..wait_for_event_blocks {
             parse_router_transitions(
                 &api,
+                rpc_pool,
+                endpoint_idx,
                 current_bn,
                 to,
                 &sent_message_ids,
                 &mut context_update,
                 &mid_map,
                 &mut transition_outcomes,
+                &mut processed_value_claims,
             )
             .await?;
 
-            parse_mirror_logs(&api, current_bn, &mid_map, &mut v, &mut context_update).await?;
+            parse_mirror_logs(
+                &api,
+                current_bn,
+                &mid_map,
+                &mut v,
+                &mut context_update,
+                &processed_value_claims,
+            )
+            .await?;
 
             block = recv_next_header(&mut rx).await?;
             current_bn = block.hash();
@@ -1663,6 +1738,7 @@ async fn process_events(
 mod tests {
     use super::{
         Event, MIN_BATCH_TIMEOUT, TransitionedMessage, apply_mirror_event_update,
+        apply_processed_value_claim_update, apply_requested_value_claim_update,
         apply_router_transition_update, batch_watchdog_timeout, schedule_initial_workers,
         send_message_wait_window,
     };
@@ -1674,8 +1750,8 @@ mod tests {
         MirrorEvent,
         mirror::{
             ExecutableBalanceTopUpRequestedEvent, OwnedBalanceTopUpRequestedEvent,
-            ReplyCallFailedEvent, ReplyEvent, StateChangedEvent, ValueClaimFailedEvent,
-            ValueClaimedEvent, ValueClaimingRequestedEvent,
+            ReplyCallFailedEvent, ReplyEvent, StateChangedEvent, ValueClaimedEvent,
+            ValueClaimingRequestedEvent,
         },
     };
     use gear_call_gen::SendMessageArgs;
@@ -1748,23 +1824,12 @@ mod tests {
                 }),
             },
         );
-        apply_mirror_event_update(
-            &mut update,
-            &Event {
-                actor_id,
-                event: MirrorEvent::ValueClaimFailed(ValueClaimFailedEvent {
-                    claimed_id: mid,
-                    value: 0,
-                }),
-            },
-        );
 
         let program = update.programs.get(&actor_id).expect("program update");
         assert!(program.pending_value_claims_removed.contains(&mid));
         assert_eq!(program.last_state_hash, Some(hash(3)));
         assert_eq!(program.stats_delta.claims_requested, 1);
         assert_eq!(program.stats_delta.claims_succeeded, 1);
-        assert_eq!(program.stats_delta.claims_failed, 1);
         assert_eq!(program.stats_delta.state_changes, 1);
         assert_eq!(program.stats_delta.executable_topups, 1);
         assert_eq!(program.stats_delta.owned_topups, 1);
@@ -1839,6 +1904,37 @@ mod tests {
         assert_eq!(update.message_owners.get(&claim_mid), Some(&actor_id));
         assert_eq!(update.message_owners.get(&mailbox_mid), Some(&actor_id));
         assert_eq!(update.message_owners.get(&replied_to), Some(&actor_id));
+    }
+
+    #[test]
+    fn processed_outgoing_value_claim_removes_pending_and_mailbox() {
+        let actor_id = actor(10);
+        let claim_mid = message(11);
+
+        let mut update = ContextUpdate::default();
+        apply_processed_value_claim_update(&mut update, actor_id, claim_mid);
+
+        let program = update.programs.get(&actor_id).expect("program update");
+        assert!(program.mailbox_removed.contains(&claim_mid));
+        assert!(program.pending_value_claims_removed.contains(&claim_mid));
+        assert_eq!(program.stats_delta.claims_succeeded, 1);
+        assert_eq!(update.message_owners.get(&claim_mid), Some(&actor_id));
+    }
+
+    #[test]
+    fn requested_value_claim_removes_mailbox_and_tracks_pending() {
+        let actor_id = actor(12);
+        let claim_mid = message(13);
+
+        let mut update = ContextUpdate::default();
+        apply_requested_value_claim_update(&mut update, actor_id, claim_mid);
+
+        let program = update.programs.get(&actor_id).expect("program update");
+        assert!(program.mailbox_removed.contains(&claim_mid));
+        assert!(program.pending_value_claims_added.contains(&claim_mid));
+        assert_eq!(program.stats_delta.claims_requested, 1);
+        assert_eq!(program.stats_delta.claims_succeeded, 0);
+        assert_eq!(update.message_owners.get(&claim_mid), Some(&actor_id));
     }
 
     #[test]

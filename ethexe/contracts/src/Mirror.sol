@@ -10,6 +10,7 @@ import {ICallbacks} from "src/ICallbacks.sol";
 import {IMirror} from "src/IMirror.sol";
 import {IRouter} from "src/IRouter.sol";
 import {IWrappedVara} from "src/IWrappedVara.sol";
+import {BinaryMerkleTree} from "src/libraries/BinaryMerkleTree.sol";
 import {Gear} from "src/libraries/Gear.sol";
 
 /**
@@ -43,6 +44,104 @@ contract Mirror is IMirror {
      *      - https://github.com/gear-tech/sails/blob/master/rs/src/solidity.rs
      */
     address internal constant ETH_EVENT_ADDR = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
+
+    /**
+     * @dev `uint8 discriminant` bit shift.
+     */
+    uint256 internal constant DISCRIMINANT_BIT_SHIFT = 248;
+    /**
+     * @dev `address destination` bit shift.
+     */
+    uint256 internal constant DESTINATION_BIT_SHIFT = 96;
+    /**
+     * @dev `uint128 value` bit shift.
+     */
+    uint256 internal constant VALUE_BIT_SHIFT = 128;
+    /**
+     * @dev `bool call` bit shift.
+     */
+    uint256 internal constant CALL_BIT_SHIFT = 120;
+    /**
+     * @dev `bytes4 replyCode` bit shift.
+     */
+    uint256 internal constant REPLY_CODE_BIT_SHIFT = 88;
+
+    /**
+     * @dev Mailboxed message discriminant.
+     */
+    uint256 internal constant MAILBOXED_MESSAGE = 0x00;
+    /**
+     * @dev Reply message discriminant.
+     */
+    uint256 internal constant REPLY_MESSAGE = 0x01;
+    /**
+     * @dev Value claim discriminant.
+     */
+    uint256 internal constant VALUE_CLAIM = 0x02;
+
+    /**
+     * @dev `uint8 discriminant` size.
+     */
+    uint256 internal constant DISCRIMINANT_SIZE = 1;
+    /**
+     * @dev `bytes32 messageId` size.
+     */
+    uint256 internal constant MESSAGE_ID_SIZE = 32;
+    /**
+     * @dev `address destination` size.
+     */
+    uint256 internal constant DESTINATION_SIZE = 20;
+    /**
+     * @dev `uint128 value` size.
+     */
+    uint256 internal constant VALUE_SIZE = 16;
+    /**
+     * @dev `bool call` size.
+     */
+    uint256 internal constant CALL_SIZE = 1;
+    /**
+     * @dev `bytes4 replyCode` size.
+     */
+    uint256 internal constant REPLY_CODE_SIZE = 4;
+    /**
+     * @dev `bytes32 replyTo` size.
+     */
+    uint256 internal constant REPLY_TO_SIZE = 32;
+
+    /**
+     * @dev `MESSAGE_ID_SIZE + DESTINATION_SIZE + VALUE_SIZE` common header size.
+     */
+    uint256 internal constant COMMON_HEADER_SIZE = 68;
+
+    /**
+     * @dev `DISCRIMINANT_SIZE` offset.
+     */
+    uint256 internal constant OFFSET1 = 1;
+    /**
+     * @dev `DISCRIMINANT_SIZE + MESSAGE_ID_SIZE` offset.
+     */
+    uint256 internal constant OFFSET2 = 33;
+    /**
+     * @dev `DISCRIMINANT_SIZE + MESSAGE_ID_SIZE + DESTINATION_SIZE` offset.
+     */
+    uint256 internal constant OFFSET3 = 53;
+    /**
+     * @dev `DISCRIMINANT_SIZE + MESSAGE_ID_SIZE + DESTINATION_SIZE + VALUE_SIZE + CALL_SIZE + REPLY_CODE_SIZE` offset.
+     */
+    uint256 internal constant OFFSET4 = 74;
+
+    /**
+     * @dev `DISCRIMINANT_SIZE + MESSAGE_ID_SIZE + DESTINATION_SIZE + VALUE_SIZE + CALL_SIZE` size.
+     */
+    uint256 internal constant MAILBOXED_MESSAGE_SIZE = 70;
+    /**
+     * @dev `DISCRIMINANT_SIZE + MESSAGE_ID_SIZE + DESTINATION_SIZE + VALUE_SIZE + CALL_SIZE + REPLY_CODE_SIZE + REPLY_TO_SIZE` size.
+     */
+    uint256 internal constant REPLY_MESSAGE_SIZE = 106;
+    /**
+     * @dev `DISCRIMINANT_SIZE + MESSAGE_ID_SIZE + DESTINATION_SIZE + VALUE_SIZE` size.
+     */
+    uint256 internal constant VALUE_CLAIM_SIZE = 69;
 
     /**
      * @dev Address of the `Router` contract, which is the sole authority
@@ -128,6 +227,9 @@ contract Mirror is IMirror {
      *        (calls) in `Mirror` will NOT be processed in `Mirror.fallback()`.
      */
     bool isSmall;
+
+    mapping(bytes32 stateHash => bytes32 merkleRoot) private _merkleRoots;
+    mapping(bytes32 messageId => bool isProcessed) private _processedMessages;
 
     /**
      * @dev Minimal constructor that only sets the immutable `Router` address.
@@ -257,6 +359,27 @@ contract Mirror is IMirror {
         }
     }
 
+    /* # View functions */
+
+    /**
+     * @dev Returns the outgoing actions merkle root for the specified state hash.
+     *      Returns `bytes32(0)` if no merkle root was provided for the given state hash.
+     * @param _stateHash Target state hash.
+     * @return merkleRoot Outgoing actions merkle root for the specified state hash.
+     */
+    function getOutgoingActionsMerkleRoot(bytes32 _stateHash) external view returns (bytes32) {
+        return _merkleRoots[_stateHash];
+    }
+
+    /**
+     * @dev Checks if outgoing action was already processed.
+     * @param _messageId Message ID to check.
+     * @return isProcessed `true` if outgoing action was already processed, `false` otherwise.
+     */
+    function isOutgoingActionsProcessed(bytes32 _messageId) external view returns (bool) {
+        return _processedMessages[_messageId];
+    }
+
     /* # Primary Gear logic (external calls) */
 
     /**
@@ -349,6 +472,29 @@ contract Mirror is IMirror {
         require(success, TransferLockedValueToInheritorExternalFailed());
     }
 
+    /* # Primary Gear logic (external calls, pull-based methods) */
+
+    /**
+     * @dev Processes outgoing action.
+     * @param _stateHash The state hash for which to process outgoing action.
+     * @param _totalLeaves The total number of leaves in the merkle tree.
+     * @param _leafIndex The index of the leaf for which to process outgoing action.
+     * @param _payload The payload for the outgoing action.
+     * @param _proof The merkle proof for the claim.
+     */
+    function processOutgoingAction(
+        bytes32 _stateHash,
+        uint256 _totalLeaves,
+        uint256 _leafIndex,
+        bytes calldata _payload,
+        bytes32[] calldata _proof
+    ) external {
+        require(
+            _tryParseAndProcessOutgoingAction(_stateHash, _totalLeaves, _leafIndex, _payload, _proof),
+            OutgoingActionInvalidPayload()
+        );
+    }
+
     /* # Router-driven state and funds management */
 
     /**
@@ -413,9 +559,9 @@ contract Mirror is IMirror {
         bytes32 messagesHashesHash = _sendMessages(_transition.messages);
 
         /**
-         * @dev Send value for each claim.
+         * @dev Sets merkle root of outgoing actions for the new state hash.
          */
-        bytes32 valueClaimsHash = _claimValues(_transition.valueClaims);
+        _updateOutgoingActionsMerkleRoot(_transition.newStateHash, _transition.merkleRoot);
 
         /**
          * @dev Set inheritor if exited.
@@ -443,12 +589,137 @@ contract Mirror is IMirror {
             _transition.inheritor,
             _transition.valueToReceive,
             _transition.valueToReceiveNegativeSign,
-            valueClaimsHash,
+            _transition.merkleRoot,
             messagesHashesHash
         );
     }
 
     /* # Private calls, related to primary Gear logic */
+
+    // TODO: add documentation for this function
+    function _tryParseAndProcessOutgoingAction(
+        bytes32 _stateHash,
+        uint256 _totalLeaves,
+        uint256 _leafIndex,
+        bytes calldata _payload,
+        bytes32[] calldata _proof
+    ) private returns (bool) {
+        if (!(_payload.length > 0)) {
+            return false;
+        }
+
+        uint256 discriminant;
+        assembly ("memory-safe") {
+            // `DISCRIMINANT_BIT_SHIFT` right bit shift is required to remove extra bits since `calldataload` returns `uint256`
+            discriminant := shr(DISCRIMINANT_BIT_SHIFT, calldataload(_payload.offset))
+        }
+
+        // TODO: support more discriminants when implementing mailboxed and reply messages
+        /*if (!(discriminant >= MAILBOXED_MESSAGE && discriminant <= VALUE_CLAIM)) {
+            return false;
+        }*/
+        if (!(discriminant == VALUE_CLAIM)) {
+            return false;
+        }
+
+        if (!(_payload.length > COMMON_HEADER_SIZE)) {
+            return false;
+        }
+
+        // we use offset `OFFSET1 = DISCRIMINANT_SIZE` to skip `uint8 discriminant`
+        bytes32 messageId;
+        assembly ("memory-safe") {
+            messageId := calldataload(add(_payload.offset, OFFSET1))
+        }
+
+        require(!_processedMessages[messageId], OutgoingActionAlreadyProcessed(messageId));
+
+        // we use offset `OFFSET2 = DISCRIMINANT_SIZE + MESSAGE_ID_SIZE` to skip `uint8 discriminant` and `bytes32 messageId`
+        address destination;
+        assembly ("memory-safe") {
+            // `DESTINATION_BIT_SHIFT` right bit shift is required to remove extra bits since `calldataload` returns `uint256`
+            destination := shr(DESTINATION_BIT_SHIFT, calldataload(add(_payload.offset, OFFSET2)))
+        }
+
+        // we use offset `OFFSET3 = DISCRIMINANT_SIZE + MESSAGE_ID_SIZE + DESTINATION_SIZE` to skip `uint8 discriminant`, `bytes32 messageId`,
+        // `address destination`
+        uint256 word;
+        assembly ("memory-safe") {
+            word := calldataload(add(_payload.offset, OFFSET3))
+        }
+
+        // casting to 'uint128' is safe because value is represented as `uint128` on our chain
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint128 value = uint128(word >> VALUE_BIT_SHIFT);
+
+        if (discriminant == VALUE_CLAIM) {
+            if (!(_payload.length == VALUE_CLAIM_SIZE)) {
+                return false;
+            }
+        }
+
+        // casting to 'uint8' is safe because `bool call` is represented as `uint8`
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bool call = uint8(word >> CALL_BIT_SHIFT) != 0;
+        // casting to 'uint32' is safe because `bytes4 replyCode` is represented as `uint32`
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes4 replyCode = bytes4(uint32(word >> REPLY_CODE_BIT_SHIFT));
+
+        bytes calldata payload = _payload[:0]; // empty payload by default
+        if (discriminant == MAILBOXED_MESSAGE) {
+            if (!(_payload.length >= MAILBOXED_MESSAGE_SIZE)) {
+                return false;
+            }
+            payload = _payload[MAILBOXED_MESSAGE_SIZE:];
+        } else if (discriminant == REPLY_MESSAGE) {
+            if (!(_payload.length >= REPLY_MESSAGE_SIZE)) {
+                return false;
+            }
+            payload = _payload[REPLY_MESSAGE_SIZE:];
+        }
+
+        // we use offset `OFFSET4 = DISCRIMINANT_SIZE + MESSAGE_ID_SIZE + DESTINATION_SIZE + VALUE_SIZE + CALL_SIZE + REPLY_CODE_SIZE` to skip `uint8 discriminant`, `bytes32 messageId`,
+        // `address destination`, `uint128 value`, `bool call`, `bytes4 replyCode`
+        bytes32 replyTo;
+        assembly ("memory-safe") {
+            replyTo := calldataload(add(_payload.offset, OFFSET4))
+        }
+
+        bytes32 merkleRoot = _merkleRoots[_stateHash];
+        require(merkleRoot != bytes32(0), OutgoingActionMerkleRootNotFound(_stateHash));
+
+        bytes32 outgoingActionHash;
+
+        if (discriminant == MAILBOXED_MESSAGE) {
+            // TODO: implement hash for mailboxed message
+        } else if (discriminant == REPLY_MESSAGE) {
+            // TODO: implement hash for reply message
+        } else if (discriminant == VALUE_CLAIM) {
+            outgoingActionHash = Gear.valueClaimHash(messageId, destination, value);
+        }
+
+        require(
+            BinaryMerkleTree.verifyProofCalldata(merkleRoot, _proof, _totalLeaves, _leafIndex, outgoingActionHash),
+            OutgoingActionInvalidMerkleProof()
+        );
+
+        _processedMessages[messageId] = true;
+
+        if (discriminant == MAILBOXED_MESSAGE) {
+            // TODO: implement mailboxed message
+        } else if (discriminant == REPLY_MESSAGE) {
+            // TODO: implement reply message
+        } else if (discriminant == VALUE_CLAIM) {
+            // TODO: remove gas limit 5_000 after full migration to merkle roots
+            //       currently it's ok bcz we don't use claims as smart-contracts
+            bool success = _transferEther(destination, value);
+            require(success, ValueClaimFailed(messageId, value));
+
+            emit ValueClaimed(messageId, value);
+        }
+
+        return true;
+    }
 
     /**
      * @dev Internal implementation of `sendMessage` function.
@@ -707,8 +978,7 @@ contract Mirror is IMirror {
             topic1 != ReplyCallFailed.selector &&
             topic1 != ValueClaimed.selector &&
             topic1 != TransferLockedValueToInheritorFailed.selector &&
-            topic1 != ReplyTransferFailed.selector &&
-            topic1 != ValueClaimFailed.selector
+            topic1 != ReplyTransferFailed.selector
         )) {
             return false;
         }
@@ -924,36 +1194,12 @@ contract Mirror is IMirror {
 
     // TODO (breathx): claimValues will fail if the program is exited: keep the funds on `Router`.
     /**
-     * @dev Internal function to claim values from messages in mailbox.
-     *     It transfers value to each claim destination and emits appropriate events:
-     *     - `ValueClaimed` event is emitted if transfer is successful
-     *     - `ValueClaimFailed` event is emitted if transfer fails
-     * @param _claims The array of value claims to be claimed.
-     * @return claimsHash The hash of the claimed values.
+     * @dev Internal function to pass outgoing actions as merkle root.
+     * @param _stateHash The state hash for which the merkle root of outgoing actions is set.
+     * @param _merkleRoot The merkle root of outgoing actions for the state hash.
      */
-    function _claimValues(Gear.ValueClaim[] calldata _claims) private returns (bytes32 claimsHash) {
-        uint256 claimsLen = _claims.length;
-        uint256 claimsHashesSize = claimsLen * 32;
-        uint256 claimsHashesMemPtr = Memory.allocate(claimsHashesSize);
-        uint256 offset = 0;
-
-        for (uint256 i = 0; i < claimsLen; i++) {
-            Gear.ValueClaim calldata claim = _claims[i];
-            bytes32 claimHash = Gear.valueClaimHash(claim.messageId, claim.destination, claim.value);
-            Memory.writeWordAsBytes32(claimsHashesMemPtr, offset, claimHash);
-            unchecked {
-                offset += 32;
-            }
-
-            bool success = _transferEther(claim.destination, claim.value);
-            if (success) {
-                emit ValueClaimed(claim.messageId, claim.value);
-            } else {
-                emit ValueClaimFailed(claim.messageId, claim.value);
-            }
-        }
-
-        return Hashes.efficientKeccak256AsBytes32(claimsHashesMemPtr, 0, claimsHashesSize);
+    function _updateOutgoingActionsMerkleRoot(bytes32 _stateHash, bytes32 _merkleRoot) private {
+        _merkleRoots[_stateHash] = _merkleRoot;
     }
 
     // TODO (breathx): allow zero inheritor in `Router`.

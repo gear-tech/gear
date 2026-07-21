@@ -43,6 +43,11 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                         .expect("failed to find message in mailbox")
                 });
 
+                state.outgoing_actions_counter = state
+                    .outgoing_actions_counter
+                    .checked_add(1)
+                    .expect("Overflow in state.outgoing_actions_counter += 1");
+
                 transitions.modify_transition(program_id, |transition| {
                     transition.claims.push(ValueClaim {
                         message_id,

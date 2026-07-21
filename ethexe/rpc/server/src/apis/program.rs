@@ -4,12 +4,12 @@
 use crate::{
     apis::program_best_state::{BestStateManager, spawn_best_state_subscriber},
     errors,
-    types::{CalculateReplyForHandleResult, FullProgramState},
+    types::{CalculateReplyForHandleResult, FullProgramState, OutgoingActions, Proof},
     utils,
 };
 use ethexe_common::{
-    HashOf,
-    db::{CodesStorageRO, MbStorageRO},
+    HashOf, ToDigest,
+    db::{CodesStorageRO, MbStorageRO, OutgoingActionStorageRO},
 };
 use ethexe_db::Database;
 use ethexe_processor::{ExecutableDataForReply, OverlaidProcessor};
@@ -18,7 +18,7 @@ use ethexe_runtime_common::state::{
     QueryableStorage, Storage, UserMailbox, Waitlist,
 };
 use gear_core::buffer::Payload;
-use gprimitives::{H160, H256};
+use gprimitives::{H160, H256, MessageId};
 use jsonrpsee::{
     core::{SubscriptionResult, async_trait},
     proc_macros::rpc,
@@ -26,6 +26,7 @@ use jsonrpsee::{
 };
 use parity_scale_codec::Encode;
 use sp_core::Bytes;
+use sp_runtime::traits::Keccak256;
 
 #[rpc(server)]
 pub trait Program {
@@ -86,6 +87,19 @@ pub trait Program {
         item = crate::types::ProgramBestState
     )]
     async fn subscribe_best_state(&self, program_id: H160) -> jsonrpsee::core::SubscriptionResult;
+
+    #[method(name = "program_readOutgoingActions")]
+    async fn read_outgoing_actions(
+        &self,
+        hash: H256,
+    ) -> jsonrpsee::core::RpcResult<OutgoingActions>;
+
+    #[method(name = "program_outgoingActionMerkleProof")]
+    async fn read_outgoing_action_merkle_proof(
+        &self,
+        state_hash: H256,
+        message_id: MessageId,
+    ) -> jsonrpsee::core::RpcResult<Proof>;
 }
 
 pub struct ProgramApi {
@@ -242,6 +256,7 @@ impl ProgramServer for ProgramApi {
             mailbox_hash,
             balance,
             executable_balance,
+            outgoing_actions_counter,
         }) = self.db.program_state(hash)
         else {
             return Err(errors::db("Failed to read state by hash"));
@@ -262,6 +277,7 @@ impl ProgramServer for ProgramApi {
             mailbox,
             balance,
             executable_balance,
+            outgoing_actions_counter,
         })
     }
 
@@ -297,5 +313,56 @@ impl ProgramServer for ProgramApi {
         let sink = pending.accept().await?;
         spawn_best_state_subscriber(sink, self.best_state(), program_id);
         Ok(())
+    }
+
+    async fn read_outgoing_actions(
+        &self,
+        hash: H256,
+    ) -> jsonrpsee::core::RpcResult<OutgoingActions> {
+        self.db
+            .outgoing_actions(hash)
+            .ok_or_else(|| errors::db("Failed to read outgoing actions by hash"))
+    }
+
+    async fn read_outgoing_action_merkle_proof(
+        &self,
+        state_hash: H256,
+        message_id: MessageId,
+    ) -> jsonrpsee::core::RpcResult<Proof> {
+        let outgoing_actions = self
+            .db
+            .outgoing_actions(state_hash)
+            .ok_or_else(|| errors::db("Failed to read outgoing actions by hash"))?
+            .into_inner();
+
+        let leaf_index = outgoing_actions
+            .iter()
+            .position(|action| action.message_id() == message_id)
+            .ok_or_else(|| errors::db("Failed to find outgoing action with given message id"))?;
+
+        let outgoing_action = outgoing_actions
+            .get(leaf_index)
+            .ok_or_else(|| errors::db("Failed to get outgoing action by index"))?
+            .clone();
+
+        let outgoing_actions_hashes: Vec<_> = outgoing_actions
+            .iter()
+            .map(|action| H256(action.to_digest().0))
+            .collect();
+
+        let leaf_index: u32 = leaf_index
+            .try_into()
+            .map_err(|_| errors::db("Outgoing action index exceeds u32 range"))?;
+        let merkle_proof = binary_merkle_tree::merkle_proof_raw::<Keccak256, _>(
+            outgoing_actions_hashes,
+            leaf_index,
+        );
+
+        Ok(Proof {
+            total_leaves: merkle_proof.number_of_leaves.into(),
+            leaf_index: merkle_proof.leaf_index.into(),
+            outgoing_action,
+            proof: merkle_proof.proof,
+        })
     }
 }

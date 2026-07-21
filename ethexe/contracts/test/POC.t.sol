@@ -15,6 +15,7 @@ contract POCTest is Base {
     using MessageHashUtils for address;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using FROSTOffchain for SigningKey;
+    using Gear for Gear.ValueClaim;
 
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
@@ -106,8 +107,12 @@ contract POCTest is Base {
         rollBlocks(1);
         commitCode(_privateKeys, Gear.CodeCommitment(_codeId, true));
 
+        address _piggyBank = doPiggyBankValueClaim(_privateKeys, _codeId);
+        IMirror actor = IMirror(_piggyBank);
+        assertEq(actor.stateHash(), bytes32(uint256(2)));
+
         address _ping = deployPing(_privateKeys, _codeId);
-        IMirror actor = IMirror(_ping);
+        actor = IMirror(_ping);
         assertEq(actor.stateHash(), bytes32(uint256(1)));
         assertEq(actor.nonce(), uint256(1));
 
@@ -241,7 +246,7 @@ contract POCTest is Base {
             address(0), // inheritor
             uint128(0), // value to receive
             false, // value to receive negative sign
-            new Gear.ValueClaim[](0), // value claims
+            bytes32(uint256(2)), // merkle root
             _outgoingMessages // messages
         );
 
@@ -278,12 +283,52 @@ contract POCTest is Base {
             address(0), // inheritor
             0, // value to receive
             false, // value to receive negative sign
-            new Gear.ValueClaim[](0), // value claims
+            bytes32(uint256(3)), // merkle root
             _outgoingMessages // messages
         );
 
         vm.expectEmit(true, false, false, false);
         emit IMirror.Message(0, admin, "PONG", 0);
         commitBlock(_privateKeys, _transitions);
+    }
+
+    function doPiggyBankValueClaim(uint256[] memory _privateKeys, bytes32 _codeId)
+        private
+        returns (address _piggyBank)
+    {
+        vm.startPrank(admin, admin);
+        {
+            vm.expectEmit(true, false, false, false);
+            emit IRouter.ProgramCreated(address(0), bytes32(uint256(1)));
+            _piggyBank = router.createProgram(_codeId, "salt1", address(0));
+            vm.deal(address(router), 1 ether);
+        }
+        vm.stopPrank();
+
+        address depositReceiver = makeAddr("depositReceiver");
+        assertEq(depositReceiver.balance, 0 ether);
+
+        Gear.ValueClaim memory valueClaim =
+            Gear.ValueClaim({messageId: bytes32(uint256(2)), destination: depositReceiver, value: 1 ether});
+
+        // [H256::from([0x11; 32]), H256::from([0x22; 32]), valueClaim.outgoingActionHash()]
+        Gear.StateTransition[] memory _transitions = new Gear.StateTransition[](1);
+        _transitions[0] = Gear.StateTransition(
+            _piggyBank, // actor id
+            bytes32(uint256(2)), // new state hash
+            false, // exited
+            address(0), // inheritor
+            uint128(1 ether), // value to receive
+            false, // value to receive negative sign
+            0x929735af7aa0c21d834f89c8f8e54d2a0342eb202f7940192f9c8b49fe6de4eb, // merkle root
+            new Gear.Message[](0) // messages
+        );
+
+        commitBlock(_privateKeys, _transitions);
+
+        bytes32[] memory proof = new bytes32[](1);
+        proof[0] = 0x3e92e0db88d6afea9edc4eedf62fffa4d92bcdfc310dccbe943747fe8302e871;
+        IMirror(_piggyBank).processOutgoingAction(_transitions[0].newStateHash, 3, 2, valueClaim.pack(), proof);
+        assertEq(depositReceiver.balance, 1 ether);
     }
 }

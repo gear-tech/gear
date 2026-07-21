@@ -5667,6 +5667,7 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "auto_impl",
+ "binary-merkle-tree",
  "derive_more 2.1.1",
  "ferveo-gear-tdec",
  "gear-core",
@@ -5685,6 +5686,8 @@ dependencies = [
  "serde_json",
  "sha3",
  "sp-core",
+ "sp-io",
+ "sp-runtime",
  "tap",
 ]
 
@@ -5780,6 +5783,7 @@ dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
+ "binary-merkle-tree",
  "ethexe-common",
  "futures",
  "gear-core",
@@ -5792,6 +5796,7 @@ dependencies = [
  "nonempty 0.12.0",
  "rand 0.8.5",
  "serde",
+ "sp-runtime",
  "tokio",
  "tracing",
 ]
@@ -6064,6 +6069,7 @@ name = "ethexe-rpc-server"
 version = "2.0.0"
 dependencies = [
  "anyhow",
+ "binary-merkle-tree",
  "dashmap 5.5.3",
  "ethexe-common",
  "ethexe-db",
@@ -6084,6 +6090,7 @@ dependencies = [
  "parity-scale-codec",
  "scopeguard",
  "sp-core",
+ "sp-runtime",
  "thiserror 2.0.17",
  "tokio",
  "tower 0.4.13",
@@ -6157,6 +6164,7 @@ dependencies = [
  "anyhow",
  "async-broadcast",
  "async-trait",
+ "binary-merkle-tree",
  "demo-async",
  "demo-async-init",
  "demo-delayed-sender-ethexe",
@@ -6180,6 +6188,7 @@ dependencies = [
  "ethexe-rpc-client",
  "ethexe-rpc-server",
  "ethexe-runtime-common",
+ "ethexe-sdk",
  "ethexe-service-utils",
  "futures",
  "gear-core",
@@ -6191,6 +6200,7 @@ dependencies = [
  "log",
  "ntest",
  "parity-scale-codec",
+ "sp-runtime",
  "tempfile",
  "tokio",
  "tracing",
