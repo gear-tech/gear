@@ -132,6 +132,12 @@ Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](ht
     <a href="https://t.me/gear_tech">
       <img src=".github/images/social-icon-5.svg" alt="telegram" style="vertical-align:middle" >
     </a>
+    <a href="https://iq.wiki/wiki/vara-network">
+      <img src=".github/images/social-icon-6.svg" alt="iq-wiki" style="vertical-align:middle" >
+    </a>
+    <a href="https://defillama.com/chain/vara">
+      <img src=".github/images/social-icon-7.svg" alt="defillama" style="vertical-align:middle" >
+    </a>
     <br> •
     <a href="https://gear-tech.io">
       About us
