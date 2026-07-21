@@ -210,7 +210,6 @@ features = ["rocksdb", "test-helpers"]
 
 ### BEGIN HAKARI SECTION
 [target.'cfg(not(any(target_arch = "wasm32", loom)))'.dependencies]
-aead = { version = "0.5", default-features = false, features = ["getrandom", "std"] }
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -251,7 +250,6 @@ byte-slice-cast = { version = "1", default-features = false, features = ["std"] 
 bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive", "min_const_generics", "must_cast"] }
 byteorder = { version = "1", features = ["i128"] }
 bytes = { version = "1", features = ["serde"] }
-cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
 clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
@@ -306,8 +304,8 @@ hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
-hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["allocator-api2", "default-hasher", "inline-more", "serde"] }
-hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16" }
+hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["default-hasher"] }
+hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16", features = ["serde"] }
 hex = { version = "0.4", features = ["serde"] }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
 hmac = { version = "0.12", default-features = false, features = ["reset", "std"] }
@@ -327,11 +325,15 @@ jsonrpsee = { version = "0.24", default-features = false, features = ["client", 
 jsonrpsee-client-transport = { version = "0.24", default-features = false, features = ["tls-rustls-platform-verifier", "web", "ws"] }
 jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
 k256 = { version = "0.13", features = ["serde"] }
+keccak = { version = "0.1", default-features = false, features = ["asm"] }
 libc = { version = "0.2" }
 libp2p-11df1a741327a505 = { package = "libp2p", version = "0.56", default-features = false, features = ["cbor", "dns", "ecdsa", "ed25519", "gossipsub", "identify", "kad", "macros", "mdns", "metrics", "noise", "ping", "plaintext", "quic", "request-response", "secp256k1", "serde", "tcp", "tls", "tokio", "yamux"] }
 libp2p-b21d60becc0929df = { package = "libp2p", version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
+libp2p-core = { version = "0.43", default-features = false, features = ["serde"] }
 libp2p-gossipsub = { version = "0.49", default-features = false, features = ["metrics", "serde"] }
 libp2p-identity = { version = "0.2", default-features = false, features = ["ecdsa", "ed25519", "peerid", "rand", "secp256k1", "serde"] }
+libp2p-kad = { version = "0.48", default-features = false, features = ["serde"] }
+libp2p-request-response = { version = "0.29", default-features = false, features = ["cbor"] }
 libsecp256k1 = { version = "0.7" }
 libsecp256k1-core = { version = "0.3" }
 log = { version = "0.4", default-features = false, features = ["std"] }
@@ -370,7 +372,6 @@ prost = { version = "0.12", features = ["prost-derive"] }
 pulley-interpreter = { version = "44", default-features = false, features = ["disas", "interp", "std"] }
 quanta = { version = "0.12" }
 quote = { version = "1" }
-ractor = { version = "0.15", features = ["async-trait"] }
 rand-274715c4dabd11b0 = { package = "rand", version = "0.9" }
 rand-c38e5c1d305a1b54 = { package = "rand", version = "0.8", features = ["small_rng"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
@@ -402,7 +403,7 @@ serde_core = { version = "1", features = ["alloc", "rc"] }
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
-sha3 = { version = "0.10" }
+sha3 = { version = "0.10", features = ["asm"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
 soketto = { version = "0.8", features = ["http"] }
@@ -442,12 +443,12 @@ spki = { version = "0.7", default-features = false, features = ["pem", "std"] }
 ss58-registry = { version = "1", default-features = false, features = ["std"] }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
+strum-754bda37e0fb3874 = { package = "strum", version = "0.27", default-features = false, features = ["derive", "std"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
 substrate-bip39 = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 subtle = { version = "2" }
 subxt-metadata = { version = "0.44", default-features = false, features = ["std"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
-sync_wrapper = { version = "1", default-features = false, features = ["futures"] }
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tiny-keccak = { version = "2", features = ["keccak", "shake"] }
@@ -465,7 +466,6 @@ trie-db = { version = "0.29" }
 trie-root = { version = "0.18", default-features = false, features = ["std"] }
 trybuild = { version = "1", default-features = false, features = ["diff"] }
 twox-hash = { version = "1", default-features = false, features = ["digest_0_10", "std"] }
-typenum = { version = "1", default-features = false, features = ["const-generics"] }
 uint-274715c4dabd11b0 = { package = "uint", version = "0.9" }
 uint-93f6ce9d446188ac = { package = "uint", version = "0.10" }
 unicode-normalization = { version = "0.1", default-features = false, features = ["std"] }
@@ -479,13 +479,11 @@ wasmparser = { version = "0.230", default-features = false, features = ["compone
 wasmtime = { version = "44", default-features = false, features = ["anyhow", "cache", "cranelift", "parallel-compilation", "pooling-allocator", "winch"] }
 wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "serde", "std"] }
 wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["pulley"] }
-winnow-ca01ad9e24f5d932 = { package = "winnow", version = "0.7" }
-winnow-dff4ba8e3ae991db = { package = "winnow", version = "1", default-features = false, features = ["ascii", "std"] }
+winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [target.'cfg(not(any(target_arch = "wasm32", loom)))'.build-dependencies]
-aead = { version = "0.5", default-features = false, features = ["getrandom", "std"] }
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -530,7 +528,6 @@ bytemuck = { version = "1", default-features = false, features = ["const_zeroed"
 byteorder = { version = "1", features = ["i128"] }
 bytes = { version = "1", features = ["serde"] }
 cc = { version = "1", default-features = false, features = ["parallel"] }
-cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
 clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
@@ -589,8 +586,8 @@ hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
-hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["allocator-api2", "default-hasher", "inline-more", "serde"] }
-hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16" }
+hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["default-hasher"] }
+hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16", features = ["serde"] }
 hex = { version = "0.4", features = ["serde"] }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
 hmac = { version = "0.12", default-features = false, features = ["reset", "std"] }
@@ -610,11 +607,15 @@ jsonrpsee = { version = "0.24", default-features = false, features = ["client", 
 jsonrpsee-client-transport = { version = "0.24", default-features = false, features = ["tls-rustls-platform-verifier", "web", "ws"] }
 jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
 k256 = { version = "0.13", features = ["serde"] }
+keccak = { version = "0.1", default-features = false, features = ["asm"] }
 libc = { version = "0.2" }
 libp2p-11df1a741327a505 = { package = "libp2p", version = "0.56", default-features = false, features = ["cbor", "dns", "ecdsa", "ed25519", "gossipsub", "identify", "kad", "macros", "mdns", "metrics", "noise", "ping", "plaintext", "quic", "request-response", "secp256k1", "serde", "tcp", "tls", "tokio", "yamux"] }
 libp2p-b21d60becc0929df = { package = "libp2p", version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
+libp2p-core = { version = "0.43", default-features = false, features = ["serde"] }
 libp2p-gossipsub = { version = "0.49", default-features = false, features = ["metrics", "serde"] }
 libp2p-identity = { version = "0.2", default-features = false, features = ["ecdsa", "ed25519", "peerid", "rand", "secp256k1", "serde"] }
+libp2p-kad = { version = "0.48", default-features = false, features = ["serde"] }
+libp2p-request-response = { version = "0.29", default-features = false, features = ["cbor"] }
 libsecp256k1 = { version = "0.7" }
 libsecp256k1-core = { version = "0.3" }
 log = { version = "0.4", default-features = false, features = ["std"] }
@@ -654,7 +655,6 @@ prost = { version = "0.12", features = ["prost-derive"] }
 pulley-interpreter = { version = "44", default-features = false, features = ["disas", "interp", "std"] }
 quanta = { version = "0.12" }
 quote = { version = "1" }
-ractor = { version = "0.15", features = ["async-trait"] }
 rand-274715c4dabd11b0 = { package = "rand", version = "0.9" }
 rand-c38e5c1d305a1b54 = { package = "rand", version = "0.8", features = ["small_rng"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
@@ -687,7 +687,7 @@ serde_core = { version = "1", features = ["alloc", "rc"] }
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
-sha3 = { version = "0.10" }
+sha3 = { version = "0.10", features = ["asm"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
 soketto = { version = "0.8", features = ["http"] }
@@ -729,13 +729,13 @@ spki = { version = "0.7", default-features = false, features = ["pem", "std"] }
 ss58-registry = { version = "1", default-features = false, features = ["std"] }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
+strum-754bda37e0fb3874 = { package = "strum", version = "0.27", default-features = false, features = ["derive", "std"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
 substrate-bip39 = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 subtle = { version = "2" }
 subxt-metadata = { version = "0.44", default-features = false, features = ["std"] }
 syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "full", "visit"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
-sync_wrapper = { version = "1", default-features = false, features = ["futures"] }
 thiserror = { version = "2" }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 tiny-keccak = { version = "2", features = ["keccak", "shake"] }
@@ -753,7 +753,6 @@ trie-db = { version = "0.29" }
 trie-root = { version = "0.18", default-features = false, features = ["std"] }
 trybuild = { version = "1", default-features = false, features = ["diff"] }
 twox-hash = { version = "1", default-features = false, features = ["digest_0_10", "std"] }
-typenum = { version = "1", default-features = false, features = ["const-generics"] }
 uint-274715c4dabd11b0 = { package = "uint", version = "0.9" }
 uint-93f6ce9d446188ac = { package = "uint", version = "0.10" }
 unicode-normalization = { version = "0.1", default-features = false, features = ["std"] }
@@ -767,8 +766,7 @@ wasmparser = { version = "0.230", default-features = false, features = ["compone
 wasmtime = { version = "44", default-features = false, features = ["anyhow", "cache", "cranelift", "parallel-compilation", "pooling-allocator", "winch"] }
 wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "serde", "std"] }
 wasmtime-internal-cranelift = { version = "44", default-features = false, features = ["pulley"] }
-winnow-ca01ad9e24f5d932 = { package = "winnow", version = "0.7" }
-winnow-dff4ba8e3ae991db = { package = "winnow", version = "1", default-features = false, features = ["ascii", "std"] }
+winnow = { version = "0.7" }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive", "std"] }
 
