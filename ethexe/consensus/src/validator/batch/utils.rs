@@ -239,32 +239,40 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         return Ok(last_committed_mb);
     }
 
-    // Aggregate transitions incrementally; stop when the next MB blows the size budget.
-    let mut transitions: Vec<StateTransition> = Vec::new();
+    // Aggregate transitions incrementally; stop when the next MB blows the
+    // size budget. Trial-fitting probes the *squashed and sorted* payload —
+    // exactly the bytes that end up in the commitment — so repeated actors
+    // are charged once (#5356).
+    let mut squasher = TransitionsSquasher::default();
     let mut last_included = last_committed_mb;
+    let mut last_advanced_eth_block = H256::zero();
     for mb_hash in &pending {
         let Some(mb_transitions) = committed_mb_outcome(db, *mb_hash) else {
             anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
         };
 
-        // Trial-fit this MB; bail if it pushes us past the batch size budget.
-        let len_before = transitions.len();
-        transitions.extend(mb_transitions);
+        let mut trial = squasher.clone();
+        trial.extend(mb_transitions);
+        let mut trial_transitions = trial.squashed();
+        sort_transitions_by_value_to_receive(&mut trial_transitions);
         let trial_commitment = ChainCommitment {
             head: *mb_hash,
-            transitions,
+            transitions: trial_transitions,
             last_advanced_eth_block: db.mb_meta(*mb_hash).last_advanced_eb,
         };
-        let would_fit = batch_filler.would_fit_chain_commitment(&trial_commitment);
-        transitions = trial_commitment.transitions;
 
-        if !would_fit {
-            let _ = transitions.split_off(len_before);
+        if !batch_filler.would_fit_chain_commitment(&trial_commitment) {
             break;
         }
 
+        squasher = trial;
         last_included = *mb_hash;
+        // Keep the exact bytes the probe accepted — don't re-read the DB
+        // for the final commitment.
+        last_advanced_eth_block = trial_commitment.last_advanced_eth_block;
     }
+
+    let mut transitions = squasher.finish();
 
     // Skip the commitment entirely when there are no state transitions
     // to carry on-chain. Pushing the Ethereum anchor forward on every
@@ -276,10 +284,12 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         return Ok(last_committed_mb);
     }
 
+    sort_transitions_by_value_to_receive(&mut transitions);
+
     let commitment = ChainCommitment {
         head: last_included,
         transitions,
-        last_advanced_eth_block: db.mb_meta(last_included).last_advanced_eb,
+        last_advanced_eth_block,
     };
 
     if let Err(err) = batch_filler.include_chain_commitment(commitment) {
@@ -361,27 +371,54 @@ pub fn try_include_checkpoint_chain_commitment<
 /// messages / value claims / `value_to_receive`, exit-inheritor from the newest
 /// exit. First-seen order is preserved.
 pub fn squash_transitions_by_actor(transitions: Vec<StateTransition>) -> Vec<StateTransition> {
-    let mut positions = HashMap::new();
-    let mut aggregations = Vec::new();
+    let mut squasher = TransitionsSquasher::default();
+    squasher.extend(transitions);
+    squasher.finish()
+}
 
-    for transition in transitions {
-        match positions.entry(transition.actor_id) {
-            Entry::Vacant(entry) => {
-                entry.insert(aggregations.len());
-                aggregations.push(ActorAggregation::new(transition));
-            }
-            Entry::Occupied(entry) => {
-                aggregations[*entry.get()].join(transition);
+/// Incremental form of [`squash_transitions_by_actor`]: feed transitions
+/// MB by MB and snapshot the collapsed per-actor set at any point. Lets
+/// the producer trial-fit the *post-squash* payload against the batch
+/// size budget before adopting the next MB.
+#[derive(Default, Clone)]
+pub struct TransitionsSquasher {
+    positions: HashMap<ActorId, usize>,
+    aggregations: Vec<ActorAggregation>,
+}
+
+impl TransitionsSquasher {
+    pub fn extend(&mut self, transitions: impl IntoIterator<Item = StateTransition>) {
+        for transition in transitions {
+            match self.positions.entry(transition.actor_id) {
+                Entry::Vacant(entry) => {
+                    entry.insert(self.aggregations.len());
+                    self.aggregations.push(ActorAggregation::new(transition));
+                }
+                Entry::Occupied(entry) => {
+                    self.aggregations[*entry.get()].join(transition);
+                }
             }
         }
     }
 
-    aggregations
-        .into_iter()
-        .map(|aggregation| aggregation.finish())
-        .collect()
+    /// Squashed transitions accumulated so far, first-seen actor order.
+    pub fn squashed(&self) -> Vec<StateTransition> {
+        self.aggregations
+            .iter()
+            .cloned()
+            .map(ActorAggregation::finish)
+            .collect()
+    }
+
+    pub fn finish(self) -> Vec<StateTransition> {
+        self.aggregations
+            .into_iter()
+            .map(ActorAggregation::finish)
+            .collect()
+    }
 }
 
+#[derive(Clone)]
 struct ActorAggregation {
     newest: StateTransition,
     messages: Vec<Message>,
@@ -1022,6 +1059,108 @@ mod tests {
         );
     }
 
+    /// Exactly what `BatchSizeCounter::charge_for_chain_commitment` charges.
+    fn charged_chain_size(commitment: &ChainCommitment) -> u64 {
+        use alloy::sol_types::SolValue;
+        let encoded: Vec<ethexe_ethereum::abi::Gear::ChainCommitment> =
+            vec![commitment.clone().into()];
+        encoded.abi_encoded_size() as u64
+    }
+
+    /// The core of #5356: with a budget that fits the SQUASHED payload but
+    /// not the raw concatenation, the producer must still include all MBs —
+    /// repeated actors are charged once.
+    #[test]
+    fn producer_charges_squashed_payload() {
+        use crate::validator::batch::{filler::BatchFiller, types::BatchLimits};
+
+        let db = Database::memory();
+        let actor = ActorId::from([7; 32]);
+        let transition = |seed: u8| StateTransition {
+            actor_id: actor,
+            new_state_hash: H256::from([seed; 32]),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: seed as u128,
+            value_to_receive_negative_sign: false,
+            value_claims: vec![],
+            messages: vec![],
+        };
+
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![transition(1)]);
+        let mb2 = write_mb(&db, mb1, 2, vec![transition(2)]);
+
+        let squashed_commitment = ChainCommitment {
+            head: mb2,
+            transitions: squash_transitions_by_actor(vec![transition(1), transition(2)]),
+            last_advanced_eth_block: H256::zero(),
+        };
+        let raw_commitment = ChainCommitment {
+            transitions: vec![transition(1), transition(2)],
+            ..squashed_commitment.clone()
+        };
+
+        // Budget fits the squashed payload only — pre-#5356 trial-fitting of
+        // the raw concatenation would have stopped at mb1.
+        let limit = charged_chain_size(&squashed_commitment);
+        assert!(charged_chain_size(&raw_commitment) > limit);
+
+        let mut filler = BatchFiller::new(BatchLimits {
+            batch_size_limit: limit,
+            ..BatchLimits::default()
+        });
+
+        let last_included =
+            try_include_chain_commitment(&db, H256::from([0xB1; 32]), mb2, &mut filler).unwrap();
+        assert_eq!(last_included, mb2, "both MBs must fit post-squash");
+
+        let chain = filler
+            .into_parts()
+            .chain_commitment
+            .expect("chain commitment must be included");
+        assert_eq!(chain.head, mb2);
+        assert_eq!(chain.transitions.len(), 1, "single squashed actor");
+        assert_eq!(chain.transitions[0].new_state_hash, H256::from([2; 32]));
+        assert_eq!(chain.transitions[0].value_to_receive, 3);
+    }
+
+    /// Chunked incremental squashing must equal the one-shot squash and
+    /// `squashed()` snapshots must not disturb later accumulation.
+    #[test]
+    fn incremental_squasher_matches_one_shot() {
+        let t = |seed: u8, actor: u8, negative: bool| StateTransition {
+            actor_id: ActorId::from([actor; 32]),
+            new_state_hash: H256::from([seed; 32]),
+            exited: seed.is_multiple_of(3),
+            inheritor: ActorId::from([seed; 32]),
+            value_to_receive: seed as u128,
+            value_to_receive_negative_sign: negative,
+            value_claims: vec![],
+            messages: vec![],
+        };
+
+        let mb1 = vec![t(1, 0xA, false), t(2, 0xB, true)];
+        let mb2 = vec![t(3, 0xA, true), t(4, 0xC, false)];
+        let mb3 = vec![t(5, 0xB, false), t(6, 0xA, false)];
+
+        let one_shot =
+            squash_transitions_by_actor([mb1.clone(), mb2.clone(), mb3.clone()].concat());
+
+        let mut squasher = TransitionsSquasher::default();
+        squasher.extend(mb1);
+        let _ = squasher.squashed(); // snapshot must be side-effect free
+        squasher.extend(mb2);
+        assert_eq!(
+            squasher.squashed(),
+            squash_transitions_by_actor(squasher.squashed(),),
+            "snapshot must be squash-idempotent"
+        );
+        squasher.extend(mb3);
+
+        assert_eq!(squasher.squashed(), one_shot);
+        assert_eq!(squasher.finish(), one_shot);
+    }
+
     #[test]
     fn test_squash_mixed_sign_value_to_receive() {
         let actor = ActorId::from([0xAB; 32]);
@@ -1052,6 +1191,141 @@ mod tests {
         assert_eq!(squashed.len(), 1);
         assert_eq!(squashed[0].value_to_receive, 50);
         assert!(!squashed[0].value_to_receive_negative_sign);
+    }
+
+    mod props {
+        use super::*;
+        use proptest::prelude::*;
+
+        /// Small actor pool forces collisions; `value_to_receive` bounded to
+        /// `u64::MAX` so 64 summed items can never overflow the `u128`
+        /// magnitude (or the `i128` reference model).
+        fn arb_transition() -> impl Strategy<Value = StateTransition> {
+            (
+                0u8..4,
+                any::<u8>(),
+                any::<bool>(),
+                any::<u8>(),
+                0u128..=u64::MAX as u128,
+                any::<bool>(),
+            )
+                .prop_map(|(actor, hash, exited, inheritor, value, negative)| {
+                    StateTransition {
+                        actor_id: ActorId::from([actor; 32]),
+                        new_state_hash: H256::from([hash; 32]),
+                        exited,
+                        inheritor: ActorId::from([inheritor; 32]),
+                        value_to_receive: value,
+                        value_to_receive_negative_sign: negative,
+                        value_claims: vec![],
+                        messages: vec![],
+                    }
+                })
+        }
+
+        proptest! {
+            #[test]
+            fn squash_is_idempotent(
+                transitions in proptest::collection::vec(arb_transition(), 0..64),
+            ) {
+                let once = squash_transitions_by_actor(transitions);
+                let twice = squash_transitions_by_actor(once.clone());
+                prop_assert_eq!(once, twice);
+            }
+
+            #[test]
+            fn incremental_squasher_equals_one_shot(
+                transitions in proptest::collection::vec(arb_transition(), 0..64),
+                cuts in proptest::collection::vec(any::<prop::sample::Index>(), 0..6),
+            ) {
+                let one_shot = squash_transitions_by_actor(transitions.clone());
+
+                let mut bounds: Vec<usize> = cuts
+                    .iter()
+                    .map(|i| i.index(transitions.len() + 1))
+                    .collect();
+                bounds.push(0);
+                bounds.push(transitions.len());
+                bounds.sort_unstable();
+
+                let mut squasher = TransitionsSquasher::default();
+                for w in bounds.windows(2) {
+                    squasher.extend(transitions[w[0]..w[1]].iter().cloned());
+                }
+                prop_assert_eq!(squasher.finish(), one_shot);
+            }
+
+            #[test]
+            fn squashed_value_matches_signed_sum(
+                transitions in proptest::collection::vec(arb_transition(), 0..64),
+            ) {
+                let mut expected: HashMap<ActorId, i128> = HashMap::new();
+                for t in &transitions {
+                    let v = t.value_to_receive as i128;
+                    *expected.entry(t.actor_id).or_default() +=
+                        if t.value_to_receive_negative_sign { -v } else { v };
+                }
+
+                for st in squash_transitions_by_actor(transitions) {
+                    let signed = if st.value_to_receive_negative_sign {
+                        -(st.value_to_receive as i128)
+                    } else {
+                        st.value_to_receive as i128
+                    };
+                    prop_assert_eq!(signed, expected[&st.actor_id]);
+                    if st.value_to_receive == 0 {
+                        prop_assert!(
+                            !st.value_to_receive_negative_sign,
+                            "zero must be canonicalized to non-negative",
+                        );
+                    }
+                }
+            }
+
+            #[test]
+            fn squash_preserves_first_seen_order_and_uniqueness(
+                transitions in proptest::collection::vec(arb_transition(), 0..64),
+            ) {
+                let mut expected_order = Vec::new();
+                let mut seen = std::collections::HashSet::new();
+                for t in &transitions {
+                    if seen.insert(t.actor_id) {
+                        expected_order.push(t.actor_id);
+                    }
+                }
+
+                let actual: Vec<_> = squash_transitions_by_actor(transitions)
+                    .into_iter()
+                    .map(|t| t.actor_id)
+                    .collect();
+                prop_assert_eq!(actual, expected_order);
+            }
+
+            /// `sort_transitions_by_value_to_receive` puts router-returning
+            /// (negative) transitions first and is stable within each group.
+            #[test]
+            fn sort_is_negative_first_and_stable(
+                transitions in proptest::collection::vec(arb_transition(), 0..64),
+            ) {
+                let squashed = squash_transitions_by_actor(transitions);
+                let mut sorted = squashed.clone();
+                sort_transitions_by_value_to_receive(&mut sorted);
+
+                prop_assert!(
+                    sorted.is_sorted_by_key(|t| !t.value_to_receive_negative_sign)
+                );
+                for negative in [true, false] {
+                    let group =
+                        |ts: &[StateTransition]| -> Vec<ActorId> {
+                            ts.iter()
+                                .filter(|t| t.value_to_receive_negative_sign == negative)
+                                .map(|t| t.actor_id)
+                                .collect()
+                        };
+                    prop_assert_eq!(group(&sorted), group(&squashed));
+                }
+            }
+        }
     }
 
     #[test]
