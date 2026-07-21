@@ -82,6 +82,7 @@ where
     ///
     /// Useful for operations like when you want to execute a block, but also need the state of the
     /// block *before* it.
+    #[allow(clippy::result_large_err)]
     pub async fn prev_block_live_state(self) -> sc_cli::Result<LiveState<Block>> {
         // We want to execute the block `block`, therefore need the state of the block *before* it.
         let rpc = ws_client(&self.uri).await?;
@@ -126,6 +127,7 @@ where
     Block::Header: DeserializeOwned,
 {
     /// Create [`RemoteExternalities`] based on a state.
+    #[allow(clippy::result_large_err)]
     pub async fn to_ext(
         &self,
         state_snapshot: Option<SnapshotConfig>,

@@ -101,8 +101,7 @@ impl Program {
         let nodes = Program::nodes().lock().await;
         let subnodes_count = nodes.as_ref().len() as u64;
 
-        if subnodes_count > 0 {
-            let distributed_per_node = amount / subnodes_count;
+        if let Some(distributed_per_node) = amount.checked_div(subnodes_count) {
             let distributed_total = distributed_per_node * subnodes_count;
             let mut left_over = amount - distributed_total;
 
@@ -116,10 +115,10 @@ impl Program {
             }
 
             debug!("Set own amount to: {left_over}");
-            *Self::amount() = *Self::amount() + left_over;
+            *Self::amount() += left_over;
         } else {
             debug!("Set own amount to: {amount}");
-            *Self::amount() = *Self::amount() + amount;
+            *Self::amount() += amount;
         }
 
         Reply::Success

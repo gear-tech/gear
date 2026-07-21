@@ -58,6 +58,7 @@ impl<Block: BlockT> GearRunCmd<Block> {
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub(crate) async fn run<Block>(
     shared: SharedParams,
     command: GearRunCmd<Block>,

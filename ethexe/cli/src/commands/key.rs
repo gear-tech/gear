@@ -80,10 +80,10 @@ fn apply_default_storage_keyring(command: &mut SchemeKeyringCommands, default: &
         | SchemeKeyringCommands::Show { storage, .. }
         | SchemeKeyringCommands::Init { storage }
         | SchemeKeyringCommands::Create { storage, .. }
-        | SchemeKeyringCommands::Vanity { storage, .. } => {
-            if storage.path.is_none() && !storage.memory {
-                storage.path = Some(default.to_path_buf());
-            }
+        | SchemeKeyringCommands::Vanity { storage, .. }
+            if storage.path.is_none() && !storage.memory =>
+        {
+            storage.path = Some(default.to_path_buf());
         }
         _ => {}
     }

@@ -190,6 +190,7 @@ impl SignedApi {
     }
 
     /// Wrapper for submit and watch with nonce.
+    #[allow(clippy::result_large_err)]
     async fn sign_and_submit_then_watch<Call: Payload>(
         &self,
         call: &Call,

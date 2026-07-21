@@ -64,6 +64,7 @@ impl<B: BlockT> fmt::Display for BlockHashOrNumber<B> {
 }
 
 impl<Block: BlockT> BlockHashOrNumber<Block> {
+    #[allow(clippy::result_large_err)]
     pub(crate) async fn as_hash(&self, rpc: &WsClient) -> sc_cli::Result<Block::Hash>
     where
         Block: DeserializeOwned,
@@ -134,6 +135,7 @@ pub(crate) fn build_executor<H: HostFunctions>(shared: &SharedParams) -> WasmExe
         .build()
 }
 
+#[allow(clippy::result_large_err)]
 pub(crate) async fn fetch_block<Block>(
     rpc: &WsClient,
     hash: Option<HashFor<Block>>,
@@ -151,6 +153,7 @@ where
     )
 }
 
+#[allow(clippy::result_large_err)]
 pub(crate) async fn fetch_header<Block>(
     rpc: &WsClient,
     hash: Option<HashFor<Block>>,

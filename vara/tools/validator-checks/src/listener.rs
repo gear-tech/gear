@@ -29,6 +29,7 @@ pub struct Listener {
 
 impl Listener {
     /// Create new block listener.
+    #[allow(clippy::result_large_err)]
     pub async fn new(opt: Opt) -> Result<Self> {
         Ok(Self {
             api: Api::new(opt.endpoint.as_deref().unwrap_or(Api::VARA_ENDPOINT)).await?,
@@ -37,6 +38,7 @@ impl Listener {
     }
 
     /// Listen to finalized blocks.
+    #[allow(clippy::result_large_err)]
     pub async fn listen_finalized(
         &self,
     ) -> Result<impl Stream<Item = Result<Block, subxt::Error>>> {
@@ -48,6 +50,7 @@ impl Listener {
     }
 
     /// Run validator checks.
+    #[allow(clippy::result_large_err)]
     pub async fn check(&self) -> Result<()> {
         let all_validators = self.api.validators().await?;
         let validators_to_be_checked = if !self.opt.validators.is_empty() {

@@ -1621,7 +1621,7 @@ async fn process_events(
     let mut ok_count = 0usize;
     let mut unknown_count = 0usize;
     let mut err_count = 0usize;
-    for (_mid, status) in results.iter() {
+    for status in results.values() {
         match status {
             None => ok_count += 1,
             Some(s) if s == "UNKNOWN" => unknown_count += 1,

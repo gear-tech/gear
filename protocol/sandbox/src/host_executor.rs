@@ -312,7 +312,7 @@ impl<T> super::SandboxInstance<T> for Instance<T> {
         // It's very important to instantiate thunk with the right type.
         let dispatch_thunk = dispatch_thunk::<T>;
         let result = sandbox::instantiate(
-            dispatch_thunk as usize as u32,
+            dispatch_thunk as *const () as usize as u32,
             code,
             &serialized_env_def,
             store.data_mut() as *const T as _,

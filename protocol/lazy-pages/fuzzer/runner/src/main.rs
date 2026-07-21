@@ -47,8 +47,10 @@ fn generate_or_read_seed(silent: bool) -> Vec<u32> {
         if !silent {
             log::info!("Seed file already exists, skipping seed creation.");
         }
-        seed.chunks_exact(4)
-            .map(|chunk| u32::from_le_bytes(chunk.try_into().expect("Invalid seed chunk size")))
+        seed.as_chunks::<4>()
+            .0
+            .iter()
+            .map(|chunk| u32::from_le_bytes(*chunk))
             .collect()
     } else {
         let input_seed = generate_seed(ts());

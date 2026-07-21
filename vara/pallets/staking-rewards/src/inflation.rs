@@ -144,7 +144,7 @@ mod test {
         ];
         assert_eq!(staked.len(), expected_payouts.len());
 
-        for (p, expected) in staked.into_iter().zip(expected_payouts.into_iter()) {
+        for (p, expected) in staked.into_iter().zip(expected_payouts) {
             assert_eq!(
                 super::compute_total_payout(
                     p * STAKEABLE,
@@ -196,7 +196,7 @@ mod test {
         ];
         assert_eq!(staked.len(), expected_payouts.len());
 
-        for (p, expected) in staked.into_iter().zip(expected_payouts.into_iter()) {
+        for (p, expected) in staked.into_iter().zip(expected_payouts) {
             assert_eq!(
                 super::compute_total_payout(
                     p * STAKEABLE,
@@ -248,7 +248,7 @@ mod test {
         ];
         assert_eq!(staked.len(), expected_payouts.len());
 
-        for (p, expected) in staked.into_iter().zip(expected_payouts.into_iter()) {
+        for (p, expected) in staked.into_iter().zip(expected_payouts) {
             let inflation = super::compute_total_payout(
                 p * STAKEABLE,
                 STAKEABLE,

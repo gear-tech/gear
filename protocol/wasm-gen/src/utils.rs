@@ -375,14 +375,10 @@ impl WasmWords {
         }
 
         let words = data
-            .chunks_exact(Self::WASM_WORD_SIZE)
-            .map(|word_bytes| {
-                i32::from_le_bytes(
-                    word_bytes
-                        .try_into()
-                        .expect("Chunks are of the exact size."),
-                )
-            })
+            .as_chunks::<{ Self::WASM_WORD_SIZE }>()
+            .0
+            .iter()
+            .map(|word_bytes| i32::from_le_bytes(*word_bytes))
             .collect();
 
         Self(words)

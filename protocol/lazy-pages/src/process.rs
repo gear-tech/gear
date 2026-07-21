@@ -177,7 +177,7 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
                         let err_msg = format!(
                             "process_lazy_pages: `read` returns, that page has no data, but `exist` returns that there is one. \
                             Page - {page:?}, program storage prefix - {:?}",
-                            &exec_ctx.program_storage_prefix,
+                            exec_ctx.program_storage_prefix,
                         );
 
                         log::error!("{err_msg}");

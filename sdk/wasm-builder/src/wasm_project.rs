@@ -174,7 +174,7 @@ impl WasmProject {
         self.file_base_name = Some(crate_info.snake_case_name.clone());
 
         let mut package = Table::new();
-        package.insert("name".into(), format!("{}-wasm", &crate_info.name).into());
+        package.insert("name".into(), format!("{}-wasm", crate_info.name).into());
         package.insert("version".into(), crate_info.version.clone().into());
         package.insert("edition".into(), "2024".into());
 
