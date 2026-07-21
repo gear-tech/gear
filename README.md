@@ -1,4 +1,3 @@
-
 <p align="center">
   <a href="https://gear-tech.io">
     <img src=".github/images/title-grey.png" width="700" alt="Gear">
@@ -6,36 +5,42 @@
 </p>
 
 <h3 align="center">
-Gear Protocol is a Substrate-based platform for developers, enabling anyone to spin up a dApp in just a few minutes.
+  Gear Protocol is a Substrate-based platform for developers, enabling anyone to spin up a dApp in just a few minutes.
 </h3>
 
 #
 
 <div align="center">
 
-[![CI][c1]][c2]
-[![GitHubStars][g1]][g2]
-[![Discord][d1]][d2]
-[![Twitter][t1]][t2]
-[![License][l1]][l2]
+  [![CI][CIBadge]][CIWorkflow]
+  [![GitHubStars][GitHubStarsBadge]][GitHubStarsLink]
+  [![Discord][DiscordBadge]][DiscordLink]
+  [![X][XBadge]][XLink]
+  [![License][LicenseBadge]][LicenseLink]
 
-[c1]: https://github.com/gear-tech/gear/workflows/CI/badge.svg
-[c2]: https://github.com/gear-tech/gear/actions/workflows/CI.yaml
+  [CIBadge]: https://github.com/gear-tech/gear/workflows/CI/badge.svg
+  [CIWorkflow]: https://github.com/gear-tech/gear/actions/workflows/CI.yaml
 
-[g1]: https://img.shields.io/github/stars/gear-tech/gear?style=flat-square&label=Stars
-[g2]: https://github.com/gear-tech/gear
+  [GitHubStarsBadge]: https://img.shields.io/github/stars/gear-tech/gear?style=flat-square&label=Stars
+  [GitHubStarsLink]: https://github.com/gear-tech/gear
 
-[t1]: https://img.shields.io/twitter/follow/gear_techs?style=social
-[t2]: https://twitter.com/gear_techs
+  [DiscordBadge]: https://img.shields.io/discord/891063355526217738?style=flat-square&label=Discord
+  [DiscordLink]: https://discord.com/invite/7BQznC9uD9
 
-[d1]: https://img.shields.io/discord/891063355526217738?style=flat-square&label=Discord
-[d2]: https://discord.com/invite/7BQznC9uD9
+  [XBadge]: https://img.shields.io/twitter/follow/gear_techs?style=social
+  [XLink]: https://x.com/gear_techs
 
-[l1]: https://img.shields.io/badge/License-GPL%203.0-success
-[l2]: https://github.com/gear-tech/gear/blob/master/LICENSE
+  [LicenseBadge]: https://img.shields.io/badge/License-GPL%203.0-success
+  [LicenseLink]: https://github.com/gear-tech/gear/blob/master/LICENSE
+
 </div>
 
-<p align="center">Hit the <a href="https://github.com/gear-tech/gear">:star:</a> button to keep up with the daily protocol development progress!</p>
+<p align="center">
+  Hit the <a href="https://github.com/gear-tech/gear">:star:</a> button to keep up with the daily protocol development progress!
+</p>
+
+> [!TIP]
+> [Gear Technologies](https://gear-tech.io) is also developing [Vara.ETH](https://eth.vara.network), Ethereum-based application platform. You can track its daily progress in [`ethexe`](https://github.com/gear-tech/gear/tree/master/ethexe) folder.
 
 # Overview
 
@@ -64,38 +69,37 @@ Refer to the **[Technical Paper](https://github.com/gear-tech/gear-technical/blo
 
 # Getting Started
 
-1. :book: Visit **[Gear Wiki](https://wiki.gear-tech.io/)** to get all the details about how to start implementing your own blockchain application.
-    1. Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile your first Rust test program to Wasm.
+1. :book: Visit **[Gear Wiki](https://wiki.vara.network/)** to get all the details about how to start implementing your own blockchain application.
+    1. Follow the instructions from ["Getting started in 5 minutes"](https://wiki.vara.network/docs/vara-network/quick-start/) to compile your first Rust test program to Wasm.
     2. Upload and run the program on the Vara Network Testnet via **[Gear Idea](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Ftestnet.vara.network)**, send a message to a program and read the program's state.
-2. :scroll: Write your own program or take one from the comprehensive [examples library](https://wiki.gear-tech.io/docs/examples/prerequisites) as a basis for a convenient and swift onboarding process.
+2. :scroll: Write your own program or take one from the comprehensive [examples library](https://wiki.vara.network/docs/vara-network/examples) as a basis for a convenient and swift onboarding process.
     1. Explore dApp examples in action and gain a deeper understanding of their functionalities. Write your own program or use one from the available templates. Adapt a template according to your business needs.
-    2. [Test](https://wiki.gear-tech.io/docs/developing-contracts/testing) your program off-chain and on-chain using a [local node](https://wiki.gear-tech.io/docs/node/setting-up).
+    2. [Test](https://wiki.vara.network/docs/developing/build/testing) your program off-chain and on-chain using a [local node](https://wiki.vara.network/docs/vara-network/node).
     3. Then upload it via Gear Idea to the [Vara Network](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Frpc.vara.network).
 3. :microscope: Dive into the documentation on Gear Protocol crates at [сrates.io](https://crates.io/teams/github:gear-tech:dev). Particular attention should be paid to - [sails_rs](https://crates.io/crates/sails_rs), [gstd](https://crates.io/crates/gstd), [gcore](https://crates.io/crates/gcore), [gtest](https://crates.io/crates/gtest), [gsdk](https://crates.io/crates/gsdk). More details can be found in the Documentation section for each crate.
-
 4. :iphone: Implement a frontend application that interacts with your program using the [JS API](https://github.com/gear-tech/gear-js/tree/main/apis/gear). React application examples are available [here](https://github.com/gear-foundation/dapps/tree/master/frontend/apps).
 
 # Run Vara Node
 
 ### Get the binaries
 
-To build Vara node binaries from source follow the step-by-step instructions provided in [Node README](https://github.com/gear-tech/gear/tree/master/node/README.md).
+To build Vara node binaries from source, follow the step-by-step instructions provided in [Node README](https://github.com/gear-tech/gear/tree/master/vara/node/README.md).
 
-Alternatively, you can download pre-built packages for your OS/architecture:
+Alternatively, you can download pre-built packages for your OS/architecture using the links below. For other versions, including specific releases and nightly builds, visit https://get.gear.rs/#vara.
 
-  - **macOS M-series (ARM)**: [gear-nightly-aarch64-apple-darwin.tar.xz](https://get.gear.rs/gear-nightly-aarch64-apple-darwin.tar.xz)
+  - **macOS M-series (ARM64)**: [gear-nightly-aarch64-apple-darwin.tar.xz](https://get.gear.rs/gear-nightly-aarch64-apple-darwin.tar.xz)
   - **macOS Intel x64**: [gear-nightly-x86_64-apple-darwin.tar.xz](https://get.gear.rs/gear-nightly-x86_64-apple-darwin.tar.xz)
-  - **Linux x64**: [gear-nightly-x86_64-unknown-linux-gnu.tar.xz](https://get.gear.rs/gear-nightly-x86_64-unknown-linux-gnu.tar.xz)
+  - **Linux x64**: [gear-nightly-x86_64-unknown-linux-gnu.tar.xz](https://get.gear.rs/gear-nightly-x86_64-unknown-linux-gnu.tar.xz), [gear-nightly-x86_64-unknown-linux-gnu.deb](https://get.gear.rs/gear-nightly-x86_64-unknown-linux-gnu.deb)
+  - **Linux ARM64**: [gear-nightly-aarch64-unknown-linux-gnu.tar.xz](https://get.gear.rs/gear-nightly-aarch64-unknown-linux-gnu.tar.xz), [gear-nightly-aarch64-unknown-linux-gnu.deb](https://get.gear.rs/gear-nightly-aarch64-unknown-linux-gnu.deb)
   - **Windows x64**: [gear-nightly-x86_64-pc-windows-msvc.zip](https://get.gear.rs/gear-nightly-x86_64-pc-windows-msvc.zip)
-
 
 ### Run Vara Dev network locally
 
 Running the following command will start a single-node Vara Dev net with two users - Alice and Bob:
 
-  ```bash
-  gear --dev
-  ```
+```bash
+gear --dev
+```
 
 # Performance
 
@@ -103,47 +107,58 @@ Performance charts can be seen here: https://gear-tech.github.io/performance-cha
 
 # Contribution
 
-You can request a new feature by [creating a new issue](https://github.com/gear-tech/gear/issues/new/choose) or discuss it with us on [Discord](https://discord.gg/7BQznC9uD9).
-Here are some features in progress or planned: https://github.com/gear-tech/gear/issues
+You can request a new feature by [creating a new issue](https://github.com/gear-tech/gear/issues/new/choose) or discuss it with us on [Discord](https://discord.gg/7BQznC9uD9). Here are some features in progress or planned: https://github.com/gear-tech/gear/issues.
 
 # License
 
-Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](LICENSE).
+Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](https://github.com/gear-tech/gear/blob/master/LICENSE).
 
 ##
 
 <h4>
-<p align="left" nowrap>
-    <a href="https://twitter.com/gear_techs">
-        <img src=".github/images/social-icon-1.svg" alt="twit" style="vertical-align:middle" >
+  <p align="left" nowrap>
+    <a href="https://x.com/gear_techs">
+      <img src=".github/images/social-icon-1.svg" alt="x" style="vertical-align:middle" >
     </a>
     <a href="https://github.com/gear-tech">
-        <img src=".github/images/social-icon-2.svg" alt="github" style="vertical-align:middle" >
+      <img src=".github/images/social-icon-2.svg" alt="github" style="vertical-align:middle" >
     </a>
     <a href="https://discord.gg/7BQznC9uD9">
-        <img src=".github/images/social-icon-3.svg" alt="discord" style="vertical-align:middle" >
+      <img src=".github/images/social-icon-3.svg" alt="discord" style="vertical-align:middle" >
     </a>
     <a href="https://medium.com/@gear_techs">
-        <img src=".github/images/social-icon-4.svg" alt="medium" style="vertical-align:middle" >
+      <img src=".github/images/social-icon-4.svg" alt="medium" style="vertical-align:middle" >
     </a>
     <a href="https://t.me/gear_tech">
-        <img src=".github/images/social-icon-5.svg" alt="telegram" style="vertical-align:middle" >
-   </a>
+      <img src=".github/images/social-icon-5.svg" alt="telegram" style="vertical-align:middle" >
+    </a>
+    <a href="https://iq.wiki/wiki/vara-network">
+      <img src=".github/images/social-icon-6.svg" alt="iq-wiki" style="vertical-align:middle" >
+    </a>
+    <a href="https://defillama.com/chain/vara">
+      <img src=".github/images/social-icon-7.svg" alt="defillama" style="vertical-align:middle" >
+    </a>
     <br> •
     <a href="https://gear-tech.io">
       About us
     </a> •
-    <a href="https://wiki.gear-tech.io/" nowrap>
+    <a href="https://wiki.vara.network" nowrap>
       Gear Wiki
     </a> •
     <a href="https://gear.foundation/news">
       News
     </a> •
-      <a href="https://gear.foundation/events">
+    <a href="https://gear.foundation/events">
       Events
     </a> •
-    <a href="https://vara.network/">
+    <a href="https://gear-tech.io/blog">
+      Technical blog
+    </a> •
+    <a href="https://eth.vara.network/">
+      Vara.ETH
+    </a> •
+    <a href="https://vara.network">
       Vara Network
     </a> •
-</p>
+  </p>
 </h4>

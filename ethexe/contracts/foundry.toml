@@ -3,7 +3,7 @@ src = "src"
 out = "out"
 libs = ["dependencies"]
 remappings = [
-    "forge-std/=dependencies/forge-std-1.16.1/src/",
+    "forge-std/=dependencies/forge-std-1.16.2/src/",
     "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.6.1/",
     "@openzeppelin/contracts-upgradeable/=dependencies/@openzeppelin-contracts-upgradeable-5.6.1/",
     "@symbioticfi/core/=dependencies/symbiotic-core-main/",
@@ -28,9 +28,9 @@ extra_output = ["storageLayout"]
 # - https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades/issues/115
 # - https://github.com/OpenZeppelin/openzeppelin-contracts/issues/5577
 ignored_warnings_from = [
-    "dependencies/openzeppelin-foundry-upgrades-0.4.0/src/internal/Core.sol",
-    "dependencies/openzeppelin-foundry-upgrades-0.4.0/src/internal/DefenderDeploy.sol",
-    "dependencies/openzeppelin-foundry-upgrades-0.4.0/src/internal/StringFinder.sol",
+    "dependencies/openzeppelin-foundry-upgrades-0.4.1/src/internal/Core.sol",
+    "dependencies/openzeppelin-foundry-upgrades-0.4.1/src/internal/DefenderDeploy.sol",
+    "dependencies/openzeppelin-foundry-upgrades-0.4.1/src/internal/StringFinder.sol",
 
     "dependencies/@openzeppelin-contracts-5.6.1/utils/cryptography/ECDSA.sol",
     "dependencies/@openzeppelin-contracts-5.6.1/utils/structs/EnumerableMap.sol",
@@ -43,10 +43,10 @@ ignored_warnings_from = [
 fs_permissions = [ { access = "read-write", path = "out" }, { access = "read", path = "dependencies" } ]
 
 [dependencies]
-forge-std = "1.16.1"
+forge-std = "1.16.2"
 "@openzeppelin-contracts" = "5.6.1"
 "@openzeppelin-contracts-upgradeable" = "5.6.1"
-openzeppelin-foundry-upgrades = "0.4.0"
+openzeppelin-foundry-upgrades = "0.4.1"
 symbiotic-core = { version = "main", git = "https://github.com/StackOverflowExcept1on/symbiotic-core.git", branch = "main" }
 symbiotic-rewards = { version = "main", git = "https://github.com/StackOverflowExcept1on/symbiotic-rewards.git", branch = "main" }
 frost-secp256k1-evm = { version = "master", git = "https://github.com/StackOverflowExcept1on/frost-secp256k1-evm.git", branch = "master" }

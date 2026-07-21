@@ -31,6 +31,9 @@ env:
 
 jobs:
   benchmarks:
+    # NOTE: The self-hosted `bench-runner` no longer exists. Benchmarks require long
+    # runtimes and CPU frequency tuning that GitHub-hosted runners can't provide, so
+    # provision a dedicated runner with this label before running this workflow.
     runs-on: [bench-runner]
     timeout-minutes: 720
     permissions:
@@ -38,17 +41,20 @@ jobs:
       pull-requests: write
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Install: Protoc"
+        uses: StackOverflowExcept1on/setup-protoc@node24
+
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt wget bzip2
           sudo apt install -y linux-tools-common linux-tools-generic
-          curl -o wasm-opt-linux-x64.tar.gz -L `curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | jq -r '.assets[] | select(.name | contains("x86_64-linux")) | .browser_download_url' |grep -v sha256`
+          curl -o wasm-opt-linux-x64.tar.gz -L `curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | jq -r '.assets[] | select(.name | contains("x86_64-linux")) | .browser_download_url' | grep -v sha256`
           tar xzf wasm-opt-linux-x64.tar.gz && sudo mv binaryen-version_*/bin/* /usr/local/bin/
           wasm-opt --version
 

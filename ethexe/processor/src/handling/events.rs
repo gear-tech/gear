@@ -68,7 +68,8 @@ impl ProcessingHandler {
                 log::trace!("Event is handled by other modules: {event:?}");
             }
             RouterRequestEvent::ComputationSettingsChanged { .. }
-            | RouterRequestEvent::StorageSlotChanged { .. } => {
+            | RouterRequestEvent::StorageSlotChanged { .. }
+            | RouterRequestEvent::ProtocolVersionChanged { .. } => {
                 log::debug!("Handler not yet implemented: {event:?}");
             }
         };

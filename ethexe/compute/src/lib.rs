@@ -98,7 +98,7 @@ use ethexe_processor::{
     BoundPromiseSink, ExecutableData, ProcessedCodeInfo, Processor, ProcessorError,
 };
 use ethexe_runtime_common::FinalizedBlockTransitions;
-use gprimitives::{CodeId, H256};
+use gprimitives::{CodeId, H256, U256};
 use std::collections::HashSet;
 
 pub use compute::{ComputeSubService, prepare_executable_for_mb};
@@ -125,6 +125,8 @@ pub enum ComputeEvent {
     #[from(skip)]
     MbComputed(H256),
     Promise(Promise, H256),
+    #[from(skip)]
+    ProtocolVersionChanged(H256, U256),
 }
 
 #[derive(thiserror::Error, Debug)]

@@ -30,6 +30,7 @@ advisory-lock.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
+derive_more.workspace = true
 futures.workspace = true
 hex.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive", "std"] }
@@ -39,7 +40,6 @@ tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync
 tracing.workspace = true
 libp2p-identity.workspace = true
 rocksdb.workspace = true
-derive_more.workspace = true
 
 [dev-dependencies]
 advisory-lock.workspace = true

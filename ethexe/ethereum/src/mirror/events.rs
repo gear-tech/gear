@@ -11,7 +11,7 @@ use alloy::{
 };
 use anyhow::Result;
 use ethexe_common::events::{
-    MirrorEvent, MirrorRequestEvent,
+    MirrorEvent,
     mirror::{
         ExecutableBalanceTopUpRequestedEvent, MessageCallFailedEvent, MessageEvent,
         MessageQueueingRequestedEvent, OwnedBalanceTopUpRequestedEvent, ReplyCallFailedEvent,
@@ -100,18 +100,6 @@ pub fn try_extract_event(log: &Log) -> Result<Option<MirrorEvent>> {
     };
 
     Ok(Some(event))
-}
-
-pub fn try_extract_request_event(log: &Log) -> Result<Option<MirrorRequestEvent>> {
-    if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
-        return Ok(None);
-    }
-
-    let request_event = try_extract_event(log)?
-        .and_then(|v| v.to_request())
-        .expect("filtered above");
-
-    Ok(Some(request_event))
 }
 
 pub struct AllEventsBuilder<'a> {

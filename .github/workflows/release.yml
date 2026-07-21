@@ -42,20 +42,23 @@ env:
 
 jobs:
   build:
-    runs-on: [kuberunner]
+    runs-on: ubuntu-latest
     steps:
       - name: "Actions: Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.tag_name }}
 
       - name: "Environment: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Environment: Install Protoc"
+        uses: StackOverflowExcept1on/setup-protoc@node24
+
       - name: "Environment: Build dependencies"
         run: |
           sudo apt update -y
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wget bzip2
 
       - name: "Environment: Export versions"
         run: |

@@ -93,7 +93,7 @@ impl PrivateKey {
 
 impl core::fmt::Debug for PrivateKey {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "PrivateKey(0x{}...)", &hex::encode(&self.seed()[..4]))
+        write!(f, "PrivateKey(0x{}...)", hex::encode(&self.seed()[..4]))
     }
 }
 
@@ -209,7 +209,7 @@ impl Signature {
 
 impl core::fmt::Debug for Signature {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Signature(0x{}...)", &hex::encode(&self.to_bytes()[..8]))
+        write!(f, "Signature(0x{}...)", hex::encode(&self.to_bytes()[..8]))
     }
 }
 

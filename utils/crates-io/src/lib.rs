@@ -20,14 +20,14 @@ use anyhow::Result;
 use std::process::ExitStatus;
 use tokio::process::Command;
 
-/// Username that owns crates.
-pub const USER_OWNER: &str = "breathx";
+/// Individual users that own crates.
+pub const USER_OWNERS: [&str; 2] = ["NikVolf", "pv-gear"];
 
 /// Team that owns crates.
 pub const TEAM_OWNER: &str = "github:gear-tech:dev";
 
 /// Expected owners of crates.
-pub const EXPECTED_OWNERS: [&str; 2] = [USER_OWNER, TEAM_OWNER];
+pub const EXPECTED_OWNERS: [&str; 3] = [TEAM_OWNER, USER_OWNERS[0], USER_OWNERS[1]];
 
 /// Local Polkadot SDK-compatible crates that Gear publishes under `g*` aliases.
 ///
@@ -134,15 +134,21 @@ pub async fn test(package: &str, test: &str) -> Result<ExitStatus> {
 }
 
 /// Publish the input package
-pub async fn publish(manifest: &str) -> Result<ExitStatus> {
+pub async fn publish(manifest: &str, dry_run: bool) -> Result<ExitStatus> {
+    let mut args = vec![
+        "+stable",
+        "publish",
+        "--manifest-path",
+        manifest,
+        "--allow-dirty",
+    ];
+
+    if dry_run {
+        args.push("--dry-run");
+    }
+
     Command::new("cargo")
-        .args([
-            "+stable",
-            "publish",
-            "--manifest-path",
-            manifest,
-            "--allow-dirty",
-        ])
+        .args(args)
         .status()
         .await
         .map_err(Into::into)

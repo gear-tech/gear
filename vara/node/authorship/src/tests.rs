@@ -18,9 +18,7 @@ use core::convert::TryFrom;
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use frame_support::{assert_ok, storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
-use gear_core::program::Program;
-use pallet_gear_rpc_runtime_api::GearApi;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use parking_lot::Mutex;
 use runtime_primitives::{Block as TestBlock, BlockNumber};
 use sc_client_api::Backend as _;
@@ -359,10 +357,12 @@ fn test_pseudo_inherent_placed_in_each_block() {
     assert_eq!(block.extrinsics().len(), 3);
 }
 
+#[cfg(not(debug_assertions))]
 #[test]
 fn test_queue_remains_intact_if_processing_fails() {
-    init_logger();
     use sp_state_machine::IterArgs;
+
+    init_logger();
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
@@ -471,11 +471,16 @@ fn test_queue_remains_intact_if_processing_fails() {
     assert_eq!(queue_len, 8);
 }
 
+#[cfg(not(debug_assertions))]
 #[test]
 fn test_block_max_gas_works() {
-    init_logger();
+    use gear_core::program::Program;
     use pallet_gear_builtin::WeightInfo;
+    use pallet_gear_rpc_runtime_api::GearApi;
+    use parity_scale_codec::Decode;
     use sp_state_machine::IterArgs;
+
+    init_logger();
 
     // Amount of gas burned in each block (even empty) by default
     const FIXED_BLOCK_GAS: u64 = 25_000_000;
@@ -667,7 +672,7 @@ fn test_block_builder_cloned_ok() {
         .unwrap();
 
     extrinsics.into_iter().for_each(|xt: OpaqueExtrinsic| {
-        log::info!("{:?}", &xt);
+        log::info!("{xt:?}");
         assert_ok!(block_builder.push(xt));
     });
 
@@ -1057,6 +1062,7 @@ mod basic_tests {
         assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
     }
 
+    #[cfg(not(debug_assertions))]
     #[test]
     fn test_invalid_transactions_not_removed_when_skipping() {
         init_logger();

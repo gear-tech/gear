@@ -67,6 +67,10 @@ interface IRouter {
          *         This extra fee is paid in WVARA ERC20 token.
          */
         uint256 requestCodeValidationExtraFee;
+        /**
+         * @notice The version of the protocol, used by nodes.
+         */
+        uint256 protocolVersion;
     }
 
     /**
@@ -143,6 +147,13 @@ interface IRouter {
      *                     chain commitment's MB head.
      */
     event EBCommitted(bytes32 ethBlockHash);
+
+    /**
+     * @notice Emitted when the protocol version is changed.
+     * @dev This is an *informational* event, signaling that the protocol version has been changed.
+     * @param newProtocolVersion The new version of the protocol.
+     */
+    event ProtocolVersionChanged(uint256 newProtocolVersion);
 
     /**
      * @notice Emitted when a code, previously requested for validation, receives validation results, so its `Gear.CodeState` changed.
@@ -472,6 +483,19 @@ interface IRouter {
     function requestCodeValidationExtraFee() external view returns (uint256);
 
     /**
+     * @dev Returns the current protocol version.
+     * @return protocolVersion The current protocol version.
+     */
+    function protocolVersion() external view returns (uint256);
+
+    /**
+     * @dev Returns the sub-protocol version for the given version type.
+     * @param versionType The type of version (major, minor, patch).
+     * @return subProtocolVersion The sub-protocol version.
+     */
+    function subProtocolVersion(Gear.VersionType versionType) external view returns (uint256);
+
+    /**
      * @dev Returns the timelines.
      * @return timelines The timelines.
      */
@@ -502,6 +526,13 @@ interface IRouter {
      * @param newExtraFee The new extra fee for requesting code validation on behalf of someone else.
      */
     function setRequestCodeValidationExtraFee(uint256 newExtraFee) external;
+
+    /**
+     * @dev Bumps the version of the protocol, used by nodes.
+     * @param versionType The type of version bump (major, minor, patch).
+     *      Emits `ProtocolVersionChanged` event.
+     */
+    function bumpProtocolVersion(Gear.VersionType versionType) external;
 
     /**
      * @dev Pauses the contract.

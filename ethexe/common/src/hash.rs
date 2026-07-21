@@ -6,7 +6,6 @@ use anyhow::Result;
 use core::{
     any::Any,
     cmp::Ordering,
-    fmt::Debug,
     hash::{Hash, Hasher},
     marker::PhantomData,
 };
@@ -21,6 +20,7 @@ fn option_string<T: ToString>(value: &Option<T>) -> String {
         .unwrap_or_else(|| "<none>".to_string())
 }
 
+#[allow(dead_code)] // Called from derive_more::Debug format args, which dead_code lint misses.
 fn shortname<T: Any>() -> &'static str {
     core::any::type_name::<T>()
         .split("::")
@@ -28,10 +28,11 @@ fn shortname<T: Any>() -> &'static str {
         .expect("name is empty")
 }
 
-#[derive(Encode, Decode, TypeInfo, derive_more::Into, derive_more::Display)]
+#[derive(Encode, Decode, TypeInfo, derive_more::Into, derive_more::Display, derive_more::Debug)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(transparent))]
 #[display("{hash}")]
+#[debug("HashOf<{}>({hash:?})", shortname::<T>())]
 #[scale_info(skip_type_params(T))]
 pub struct HashOf<T: 'static> {
     hash: H256,
@@ -39,12 +40,6 @@ pub struct HashOf<T: 'static> {
     #[codec(skip)]
     #[cfg_attr(feature = "std", serde(skip))]
     _phantom: PhantomData<T>,
-}
-
-impl<T> Debug for HashOf<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "HashOf<{}>({:?})", shortname::<T>(), self.hash)
-    }
 }
 
 impl<T> PartialEq for HashOf<T> {
@@ -125,7 +120,14 @@ impl<T> Default for HashOf<T> {
 }
 
 #[derive(
-    Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::From, derive_more::Display,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    derive_more::Into,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Debug,
 )]
 #[cfg_attr(
     feature = "std",
@@ -133,14 +135,12 @@ impl<T> Default for HashOf<T> {
     serde(bound = "")
 )]
 #[display("{}", option_string(_0))]
+#[debug(
+    "MaybeHashOf<{}>({})",
+    shortname::<T>(),
+    option_string(&_0.map(HashOf::inner))
+)]
 pub struct MaybeHashOf<T: 'static>(Option<HashOf<T>>);
-
-impl<T> Debug for MaybeHashOf<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let option_string = option_string(&Self::to_inner(*self).map(HashOf::inner));
-        write!(f, "MaybeHashOf<{}>({})", shortname::<T>(), option_string)
-    }
-}
 
 impl<T> Clone for MaybeHashOf<T> {
     fn clone(&self) -> Self {

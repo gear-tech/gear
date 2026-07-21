@@ -50,6 +50,7 @@ pub enum Command {
 }
 
 impl Command {
+    #[allow(clippy::result_large_err)]
     pub async fn run(&self, shared: &SharedParams) -> sc_cli::Result<()> {
         gear_runtime_interface::sandbox_init(
             gear_runtime_interface::SandboxBackend::Wasmtime,

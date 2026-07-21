@@ -66,6 +66,7 @@ impl<Block: BlockT> ReplayBlockCmd<Block> {
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub(crate) async fn run<Block>(
     shared: SharedParams,
     command: ReplayBlockCmd<Block>,

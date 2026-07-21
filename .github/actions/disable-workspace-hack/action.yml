@@ -1,0 +1,18 @@
+name: disable-workspace-hack
+description: >-
+  Disable the cargo-hakari workspace-hack so builds resolve each crate's natural
+  feature set. Feature unification via workspace-hack is only guaranteed for the
+  host target (see the `workspace-hack` job); leaving it enabled breaks no_std
+  wasm and Windows cross-compile builds.
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/cargo-hakari
+      with:
+        args: disable
+
+    # our workspace-hack has manually written deps, so drop it as a dependency too
+    - uses: ./.github/actions/cargo-hakari
+      with:
+        args: remove-deps --yes

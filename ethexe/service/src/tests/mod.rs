@@ -45,7 +45,7 @@ use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailable
 use gprimitives::{ActorId, H160, H256, MessageId, U256 as GpU256};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
@@ -3455,9 +3455,12 @@ async fn injected_tx_fungible_token_over_network() {
     stop_nodes([alice_node, bob_node]).await;
 }
 
+#[cfg(not(debug_assertions))]
 #[tokio::test]
 #[ntest::timeout(120_000)]
 async fn whole_network_restore() {
+    use std::collections::HashSet;
+
     init_logger();
 
     let config = TestEnvConfig {

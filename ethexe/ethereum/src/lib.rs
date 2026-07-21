@@ -289,6 +289,31 @@ pub struct Ethereum {
 }
 
 impl Ethereum {
+    /// Client major protocol version.
+    pub const CLIENT_MAJOR_PROTOCOL_VERSION: u8 = 0;
+    /// Client minor protocol version.
+    pub const CLIENT_MINOR_PROTOCOL_VERSION: u8 = 1;
+    /// Client patch protocol version.
+    pub const CLIENT_PATCH_PROTOCOL_VERSION: u8 = 0;
+
+    /// Offsets for encoding protocol version into a single `u64` value.
+    pub const MAJOR_PROTOCOL_VERSION_OFFSET: u64 = 16;
+    /// Offsets for encoding protocol version into a single `u64` value.
+    pub const MINOR_PROTOCOL_VERSION_OFFSET: u64 = 8;
+    /// Bit mask for a single protocol version component.
+    pub const PROTOCOL_VERSION_COMPONENT_MASK: u64 = u8::MAX as u64;
+
+    /// Client protocol version.
+    pub const CLIENT_PROTOCOL_VERSION: (u8, u8, u8) = (
+        Self::CLIENT_MAJOR_PROTOCOL_VERSION,
+        Self::CLIENT_MINOR_PROTOCOL_VERSION,
+        Self::CLIENT_PATCH_PROTOCOL_VERSION,
+    );
+
+    /// Client protocol version encoded into a single `u64` value.
+    pub const CLIENT_PROTOCOL_VERSION_PACKED: u64 =
+        Self::encode_protocol_version(Self::CLIENT_PROTOCOL_VERSION);
+
     /// Default Ethereum RPC.
     pub const DEFAULT_ETHEREUM_RPC: &str = "ws://localhost:8545";
     /// Default Ethereum router contract address.
@@ -314,6 +339,23 @@ impl Ethereum {
 
     /// Default offset for permit deadline from the current block timestamp.
     pub const PERMIT_DEADLINE_OFFSET: u64 = 300; // 5 minutes
+
+    /// Helper function to encode protocol version components into a single `u64` value.
+    pub const fn encode_protocol_version((major, minor, patch): (u8, u8, u8)) -> u64 {
+        (major as u64) << Self::MAJOR_PROTOCOL_VERSION_OFFSET
+            | (minor as u64) << Self::MINOR_PROTOCOL_VERSION_OFFSET
+            | (patch as u64)
+    }
+
+    /// Helper function to decode protocol version components from a single `u64` value.
+    pub const fn decode_protocol_version(protocol_version: u64) -> (u8, u8, u8) {
+        (
+            (protocol_version >> Self::MAJOR_PROTOCOL_VERSION_OFFSET) as u8,
+            ((protocol_version >> Self::MINOR_PROTOCOL_VERSION_OFFSET)
+                & Self::PROTOCOL_VERSION_COMPONENT_MASK) as u8,
+            (protocol_version & Self::PROTOCOL_VERSION_COMPONENT_MASK) as u8,
+        )
+    }
 
     /// Builds a new Ethereum client builder.
     pub fn builder() -> EthereumBuilder {
@@ -342,6 +384,15 @@ impl Ethereum {
         let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         let router = router_address.into();
         let (wvara, middleware) = if initialize_addresses {
+            let protocol_version = router_query.protocol_version().await?;
+            let (major_protocol_version, _, _) = protocol_version;
+            if major_protocol_version != Self::CLIENT_MAJOR_PROTOCOL_VERSION {
+                return Err(anyhow!(
+                    "Client protocol version mismatch. Expected {client_protocol_version:?}, got {protocol_version:?}. \
+                    Please make sure to use compatible version of Ethereum client with `Router` contract.",
+                    client_protocol_version = Self::CLIENT_PROTOCOL_VERSION,
+                ));
+            }
             (
                 router_query.wvara_address().await?.into(),
                 router_query.middleware_address().await?.into(),

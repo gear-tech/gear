@@ -880,6 +880,10 @@ fn build_bloaty_blob(
             }
 
             rustflags.push_str("-C link-arg=--export-table ");
+
+            if cargo_cmd.requires_allow_undefined_wasm_imports() {
+                rustflags.push_str("-C link-arg=--allow-undefined ");
+            }
         }
         RuntimeTarget::Riscv => {
             rustflags.push_str("-C target-feature=+lui-addi-fusion -C relocation-model=pie -C link-arg=--emit-relocs -C link-arg=--unique ");
