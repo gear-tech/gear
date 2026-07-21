@@ -5,7 +5,7 @@ edition = "2024"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.91"
+rust-version = "1.94.1"
 
 [workspace]
 resolver = "3"
@@ -149,10 +149,10 @@ members = [
 [workspace.dependencies]
 gear-workspace-hack = "0.1.0"
 
-alloy = "2.0"
-alloy-chains = "0.2.33"
-alloy-primitives = { version = "1.5.7", default-features = false }
-alloy-sol-types = { version = "1.5.7", default-features = false }
+alloy = "2.2"
+alloy-chains = "0.2"
+alloy-primitives = { version = "1.6", default-features = false }
+alloy-sol-types = { version = "1.6", default-features = false }
 advisory-lock = "0.3.0"
 anyhow = { version = "1.0.86", default-features = false }
 array-bytes = { version = "6.2.2", default-features = false }

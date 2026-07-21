@@ -657,29 +657,27 @@ fn active_era_query_via_contract_works() {
         // The contract should have sent its reply containing the ActiveEra data
         assert!(System::events().into_iter().any(|e| {
             match e.event {
-                RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent { message, .. }) => {
-                    if message.destination() == ActorId::from(SIGNER.into_origin()) {
-                        let payload = message.payload_bytes();
-                        if payload.is_empty() {
-                            return false;
-                        }
-                        let active_era = Response::decode(&mut &payload[..]).unwrap();
-                        // Check that the reply contains information about ActiveEra
-                        assert_eq!(
-                            active_era,
-                            Response::ActiveEra {
-                                info: ActiveEraInfo {
-                                    index: test_era_index,
-                                    start: Some(test_start_block),
-                                },
-                                executed_at: 2,
-                                executed_at_gear_block: 2,
-                            }
-                        );
-                        true
-                    } else {
-                        false
+                RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent { message, .. })
+                    if message.destination() == ActorId::from(SIGNER.into_origin()) =>
+                {
+                    let payload = message.payload_bytes();
+                    if payload.is_empty() {
+                        return false;
                     }
+                    let active_era = Response::decode(&mut &payload[..]).unwrap();
+                    // Check that the reply contains information about ActiveEra
+                    assert_eq!(
+                        active_era,
+                        Response::ActiveEra {
+                            info: ActiveEraInfo {
+                                index: test_era_index,
+                                start: Some(test_start_block),
+                            },
+                            executed_at: 2,
+                            executed_at_gear_block: 2,
+                        }
+                    );
+                    true
                 }
                 _ => false,
             }

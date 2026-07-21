@@ -38,7 +38,7 @@ impl<T: Into<u32>> CostOf<T> {
 
 impl<T> Debug for CostOf<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_fmt(format_args!("{}", &self.cost))
+        f.write_fmt(format_args!("{}", self.cost))
     }
 }
 

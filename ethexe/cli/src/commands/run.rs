@@ -45,10 +45,12 @@ impl RunCommand {
         let default = if self.verbose { "debug" } else { "info" };
         crate::enable_logging(default)?;
 
+        #[allow(unused_variables)]
         let mut anvil_instance = None;
         let mut dev_validator_pub_key = None;
         let is_dev_node = self.params.node.as_ref().map(|n| n.dev).unwrap_or_default();
 
+        #[allow(unused_assignments)]
         if let Some(node) = self.params.node.as_mut()
             && is_dev_node
         {

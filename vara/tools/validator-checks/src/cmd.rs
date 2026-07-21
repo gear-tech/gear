@@ -25,6 +25,7 @@ pub struct Opt {
 
 impl Opt {
     /// Run validator checks.
+    #[allow(clippy::result_large_err)]
     pub async fn run(self) -> Result<()> {
         tracing_subscriber::fmt()
             .with_env_filter(

@@ -118,10 +118,9 @@ where
     // Then, we generate a thunk for each original function.
 
     // Save current func_idx
-    let mut next_func_idx = module.functions_space() as u32;
-
+    let functions_space = module.functions_space() as u32;
     let mut mbuilder = ModuleBuilder::from_module(module);
-    for thunk in replacement_map.values_mut() {
+    for (next_func_idx, thunk) in (functions_space..).zip(replacement_map.values_mut()) {
         // TODO: Don't generate a signature, but find an existing one.
 
         let thunk_body = thunk.body.take().expect("can't get thunk function body");
@@ -133,7 +132,6 @@ where
         );
 
         thunk.idx = Some(next_func_idx);
-        next_func_idx += 1;
     }
     let mut module = mbuilder.build();
 

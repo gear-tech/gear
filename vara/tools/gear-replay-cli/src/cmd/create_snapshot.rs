@@ -27,6 +27,7 @@ pub struct CreateSnapshotCmd<Block: BlockT> {
     pub snapshot_path: Option<String>,
 }
 
+#[allow(clippy::result_large_err)]
 pub(crate) async fn run<Block>(
     _shared: SharedParams,
     command: CreateSnapshotCmd<Block>,
