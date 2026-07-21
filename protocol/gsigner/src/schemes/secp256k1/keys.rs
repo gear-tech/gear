@@ -66,7 +66,7 @@ impl PrivateKey {
 
 impl fmt::Debug for PrivateKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PrivateKey(0x{}...)", &hex::encode(&self.seed()[..4]))
+        write!(f, "PrivateKey(0x{}...)", hex::encode(&self.seed()[..4]))
     }
 }
 

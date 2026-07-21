@@ -672,7 +672,7 @@ fn test_block_builder_cloned_ok() {
         .unwrap();
 
     extrinsics.into_iter().for_each(|xt: OpaqueExtrinsic| {
-        log::info!("{:?}", &xt);
+        log::info!("{xt:?}");
         assert_ok!(block_builder.push(xt));
     });
 

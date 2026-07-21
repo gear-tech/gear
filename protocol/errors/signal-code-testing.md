@@ -847,6 +847,7 @@ This signal is sent when the `TrapExplanation::Unknown` trap is triggered. This 
 
     static mut INITIATOR: ActorId = ActorId::zero();
 
+    #[allow(suspicious_runtime_symbol_definitions)]
     extern "C" {
         fn free(ptr: *mut u8) -> *mut u8;
     }

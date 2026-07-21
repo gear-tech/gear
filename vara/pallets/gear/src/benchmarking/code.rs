@@ -345,11 +345,8 @@ where
             ..Default::default()
         };
 
-        if data_segment_num != 0 {
-            let (data_segment_size, residual_bytes) = (
-                data_section_bytes / data_segment_num,
-                data_section_bytes % data_segment_num,
-            );
+        if let Some(data_segment_size) = data_section_bytes.checked_div(data_segment_num) {
+            let residual_bytes = data_section_bytes % data_segment_num;
 
             for seg_idx in 0..data_segment_num {
                 module.data_segments.push(DataSegment {
@@ -358,12 +355,12 @@ where
                 });
             }
 
-            // Add residual bytes to the last data segment
+            // Add residual bytes to the last data segment.
             if residual_bytes != 0
                 && let Some(last) = module.data_segments.last_mut()
             {
                 last.value
-                    .resize(data_segment_size as usize + residual_bytes as usize, 0xA5)
+                    .resize(data_segment_size as usize + residual_bytes as usize, 0xA5);
             }
         }
 

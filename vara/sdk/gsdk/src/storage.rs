@@ -338,6 +338,7 @@ impl Api {
             .memory_pages_iter1(program_id);
 
         let metadata = self.metadata();
+        #[allow(clippy::result_large_err)]
         let hashers = subxt::ext::subxt_core::storage::lookup_storage_entry_details(
             address.pallet_name(),
             address.entry_name(),

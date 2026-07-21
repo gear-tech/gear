@@ -155,15 +155,16 @@ impl RuntimeInterface {
         &self,
     ) -> impl Iterator<Item = (u32, &RuntimeInterfaceFunction)> {
         self.items
-            .iter()
-            .filter_map(|(_, item)| item.latest_version_to_call())
+            .values()
+            .filter_map(|item| item.latest_version_to_call())
     }
 
     pub fn all_versions(&self) -> impl Iterator<Item = (u32, &RuntimeInterfaceFunction)> {
-        self.items
-            .iter()
-            .flat_map(|(_, item)| item.versions.iter())
-            .map(|(v, i)| (*v, i))
+        self.items.values().flat_map(|item| {
+            item.versions
+                .iter()
+                .map(|(&version, function)| (version, function))
+        })
     }
 }
 
@@ -377,18 +378,16 @@ pub fn get_runtime_interface(trait_def: &ItemTrait) -> Result<RuntimeInterface> 
     }
 
     for function in functions.values() {
-        let mut next_expected = 1;
-        for (version, item) in function.versions.iter() {
-            if next_expected != *version {
+        for (expected, (version, item)) in (1u32..).zip(function.versions.iter()) {
+            if expected != *version {
                 return Err(Error::new(
                     item.span(),
                     format!(
                         "Unexpected version attribute: missing version '{}' for this function",
-                        next_expected
+                        expected,
                     ),
                 ));
             }
-            next_expected += 1;
         }
     }
 

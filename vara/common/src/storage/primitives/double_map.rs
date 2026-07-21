@@ -419,8 +419,8 @@ pub mod auxiliary_double_map {
 
         fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(mut f: F) {
             T::with_storage_mut(|map| {
-                for (_, inner_map) in map.inner.iter_mut() {
-                    for (_, value) in inner_map.iter_mut() {
+                for inner_map in map.inner.values_mut() {
+                    for value in inner_map.values_mut() {
                         *value = f(value.clone());
                     }
                 }
