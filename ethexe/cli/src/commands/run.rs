@@ -45,13 +45,10 @@ impl RunCommand {
         let default = if self.verbose { "debug" } else { "info" };
         crate::enable_logging(default)?;
 
-        #[allow(unused_variables)]
-        let mut anvil_instance = None;
         let mut dev_validator_pub_key = None;
         let is_dev_node = self.params.node.as_ref().map(|n| n.dev).unwrap_or_default();
 
-        #[allow(unused_assignments)]
-        if let Some(node) = self.params.node.as_mut()
+        let _anvil_instance = if let Some(node) = self.params.node.as_mut()
             && is_dev_node
         {
             // set block time to 1 second if not set explicitly
@@ -91,9 +88,12 @@ impl RunCommand {
             // make sure RPC is enabled as RPC is disabled by default
             self.params.rpc.get_or_insert_with(Default::default);
 
-            anvil_instance = Some(anvil);
             dev_validator_pub_key = Some(validator_public_key);
-        }
+
+            Some(anvil)
+        } else {
+            None
+        };
 
         let config = {
             let mut config = self

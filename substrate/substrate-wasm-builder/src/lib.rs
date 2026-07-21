@@ -389,6 +389,14 @@ impl CargoCommand {
             version.major > 1 || (version.major == 1 && version.minor >= 84)
         })
     }
+
+    /// Returns whether this version requires explicit opt-in for undefined WASM imports.
+    fn requires_allow_undefined_wasm_imports(&self) -> bool {
+        self.version.map_or(false, |version| {
+            // Rust 1.96 stopped converting undefined WASM symbols into imports by default.
+            version.major > 1 || (version.major == 1 && version.minor >= 96)
+        })
+    }
 }
 
 /// Wraps a [`CargoCommand`] and the version of `rustc` the cargo command uses.
