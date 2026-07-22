@@ -86,11 +86,12 @@ impl ReplyInfo {
 
 /// Serializer and deserializer for ReplyCode as 0x-prefixed hex string.
 #[cfg(feature = "std")]
-pub(crate) mod serialize_reply_code {
+pub mod serialize_reply_code {
     use super::ReplyCode;
     use core::fmt::Write;
     use serde::de;
 
+    /// Serializes a reply code as a `0x`-prefixed hex string.
     pub fn serialize<S>(code: &ReplyCode, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -103,6 +104,7 @@ pub(crate) mod serialize_reply_code {
         serializer.serialize_str(&s)
     }
 
+    /// Deserializes a reply code from a `0x`-prefixed hex string.
     pub fn deserialize<'de, D>(deserializer: D) -> Result<ReplyCode, D::Error>
     where
         D: serde::Deserializer<'de>,

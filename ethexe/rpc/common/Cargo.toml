@@ -20,5 +20,8 @@ gprimitives = { workspace = true, features = ["serde", "ethexe"] }
 serde = { workspace = true, features = ["std"] }
 gear-workspace-hack.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+
 [lints]
 workspace = true
