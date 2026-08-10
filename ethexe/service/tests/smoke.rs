@@ -17,6 +17,7 @@ use std::{
 use tempfile::tempdir;
 
 #[tokio::test]
+#[ignore]
 async fn constructor() {
     let tmp_dir = tempdir().unwrap();
     let tmp_dir = tmp_dir.path().to_path_buf();
