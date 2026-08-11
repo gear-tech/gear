@@ -22,8 +22,19 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
 
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+
+      - name: "Disable workspace-hack"
+        uses: ./.github/actions/disable-workspace-hack
 
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
