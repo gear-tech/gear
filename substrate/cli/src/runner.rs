@@ -359,6 +359,7 @@ mod tests {
             let output = std::process::Command::new(std::env::current_exe().unwrap())
                 .arg(test_name)
                 .env("RUN_FORKED_TEST", "1")
+                .env("RUST_LOG", "sc_cli=error")
                 .output()
                 .unwrap();
 
