@@ -468,7 +468,7 @@ pub(crate) mod tests {
         Error, RuntimeCache, RuntimeVersion, VersionedRuntime, VersionedRuntimeId,
         WasmExecutionMethod,
     };
-    use crate::{executor::WasmExecutor, RuntimeVersionOf};
+    use crate::{RuntimeVersionOf, executor::WasmExecutor};
     use codec::Encode;
     use sc_executor_common::wasm_runtime::{HeapAllocStrategy, WasmInstance, WasmModule};
     use sp_core::traits::{RuntimeCode, WrappedRuntimeCode};
@@ -476,8 +476,8 @@ pub(crate) mod tests {
     use std::{
         borrow::Cow,
         sync::{
-            atomic::{AtomicUsize, Ordering},
             Arc,
+            atomic::{AtomicUsize, Ordering},
         },
     };
 
@@ -599,15 +599,21 @@ pub(crate) mod tests {
             new_instance_calls.clone(),
         );
 
-        assert!(cache
-            .cached_runtime_version(&runtime_code(&[4, 5, 6]), wasm_method, heap_alloc_strategy)
-            .is_none());
-        assert!(cache
-            .cached_runtime_version(&code, other_wasm_method, heap_alloc_strategy)
-            .is_none());
-        assert!(cache
-            .cached_runtime_version(&code, wasm_method, other_heap_alloc_strategy)
-            .is_none());
+        assert!(
+            cache
+                .cached_runtime_version(&runtime_code(&[4, 5, 6]), wasm_method, heap_alloc_strategy)
+                .is_none()
+        );
+        assert!(
+            cache
+                .cached_runtime_version(&code, other_wasm_method, heap_alloc_strategy)
+                .is_none()
+        );
+        assert!(
+            cache
+                .cached_runtime_version(&code, wasm_method, other_heap_alloc_strategy)
+                .is_none()
+        );
         assert_eq!(new_instance_calls.load(Ordering::SeqCst), 0);
     }
     #[test]

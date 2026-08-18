@@ -1,20 +1,5 @@
-// This file is part of Substrate.
-
 // Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Substrate RPC servers.
 
@@ -26,7 +11,6 @@ pub mod utils;
 use std::{error::Error as StdError, sync::Arc, time::Duration};
 
 use jsonrpsee::{
-    core::BoxError,
     server::{serve_with_graceful_shutdown, stop_channel, ws, PingConfig, StopHandle},
     Methods, RpcModule,
 };
@@ -148,7 +132,7 @@ where
             .option_layer(host_filter)
             // Proxy `GET /health, /health/readiness` requests to the internal
             // `system_health` method.
-            .layer(NodeHealthProxyLayer::default())
+            .layer(NodeHealthProxyLayer)
             .layer(cors);
 
         let mut builder = jsonrpsee::server::Server::builder()
@@ -257,16 +241,17 @@ where
 								// Spawn a task to handle when the connection is closed.
 								tokio_handle.spawn(async move {
 									let now = std::time::Instant::now();
-									middleware_layer.as_ref().map(|m| m.ws_connect());
+									if let Some(middleware) = middleware_layer.as_ref() {
+										middleware.ws_connect();
+									}
 									on_disconnect.await;
-									middleware_layer.as_ref().map(|m| m.ws_disconnect(now));
+									if let Some(middleware) = middleware_layer.as_ref() {
+										middleware.ws_disconnect(now);
+									}
 								});
 							}
 
-							// https://github.com/rust-lang/rust/issues/102211 the error type can't be inferred
-							// to be `Box<dyn std::error::Error + Send + Sync>` so we need to
-							// convert it to a concrete type as workaround.
-							svc.call(req).await.map_err(|e| BoxError::from(e))
+							svc.call(req).await
 						}
 					});
 

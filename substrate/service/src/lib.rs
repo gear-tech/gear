@@ -1,26 +1,19 @@
-// This file is part of Substrate.
-
 // Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Substrate service. Starts a thread that spins up the network, client, and extrinsic pool.
 //! Manages communication between them.
 
 #![warn(missing_docs)]
 #![recursion_limit = "1024"]
+// These structural lints are required by the pinned Polkadot SDK API; changing the signatures would break API compatibility.
+#![allow(
+    clippy::result_large_err,
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    clippy::module_inception,
+    clippy::extra_unused_type_parameters
+)]
 
 pub mod chain_ops;
 pub mod config;
@@ -342,7 +335,7 @@ pub async fn build_system_rpc_future<
                 use sc_rpc::system::NodeRole;
 
                 let node_role = match role {
-                    Role::Authority { .. } => NodeRole::Authority,
+                    Role::Authority => NodeRole::Authority,
                     Role::Full => NodeRole::Full,
                 };
 
@@ -424,7 +417,7 @@ where
                 max_payload_in_mb: rpc_configuration.max_request_size,
                 max_payload_out_mb: rpc_configuration.max_response_size,
                 max_subscriptions_per_connection: rpc_configuration.max_subs_per_conn,
-                rpc_methods: rpc_configuration.methods.into(),
+                rpc_methods: rpc_configuration.methods,
                 rate_limit: rpc_configuration.rate_limit,
                 rate_limit_trust_proxy_headers: rpc_configuration.rate_limit_trust_proxy_headers,
                 rate_limit_whitelisted_ips: rpc_configuration.rate_limit_whitelisted_ips.clone(),
@@ -440,7 +433,7 @@ where
                 max_payload_in_mb: rpc_configuration.max_request_size,
                 max_payload_out_mb: rpc_configuration.max_response_size,
                 max_subscriptions_per_connection: rpc_configuration.max_subs_per_conn,
-                rpc_methods: rpc_configuration.methods.into(),
+                rpc_methods: rpc_configuration.methods,
                 rate_limit: rpc_configuration.rate_limit,
                 rate_limit_trust_proxy_headers: rpc_configuration.rate_limit_trust_proxy_headers,
                 rate_limit_whitelisted_ips: rpc_configuration.rate_limit_whitelisted_ips.clone(),

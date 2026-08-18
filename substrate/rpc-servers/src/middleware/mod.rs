@@ -1,20 +1,5 @@
-// This file is part of Substrate.
-
 // Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! JSON-RPC specific middleware.
 
@@ -97,12 +82,16 @@ impl MiddlewareLayer {
 
     /// Register a new websocket connection.
     pub fn ws_connect(&self) {
-        self.metrics.as_ref().map(|m| m.ws_connect());
+        if let Some(metrics) = self.metrics.as_ref() {
+            metrics.ws_connect();
+        }
     }
 
     /// Register that a websocket connection was closed.
     pub fn ws_disconnect(&self, now: Instant) {
-        self.metrics.as_ref().map(|m| m.ws_disconnect(now));
+        if let Some(metrics) = self.metrics.as_ref() {
+            metrics.ws_disconnect(now);
+        }
     }
 }
 
@@ -146,7 +135,9 @@ where
     fn call(&self, req: Request<'a>) -> Self::Future {
         let now = Instant::now();
 
-        self.metrics.as_ref().map(|m| m.on_call(&req));
+        if let Some(metrics) = self.metrics.as_ref() {
+            metrics.on_call(&req);
+        }
 
         let service = self.service.clone();
         let rate_limit = self.rate_limit.clone();
@@ -164,10 +155,10 @@ where
                         let canonical_name = limiters.canonical(method_name);
                         let canonical = canonical_name.as_deref().unwrap_or(method_name);
                         let rp = reject_method_limit(req.id.clone());
-                        metrics.as_ref().map(|m| {
-                            m.method_limit_rejected(canonical, reason.as_str());
-                            m.on_response(&req, &rp, true, now);
-                        });
+                        if let Some(metrics) = metrics.as_ref() {
+                            metrics.method_limit_rejected(canonical, reason.as_str());
+                            metrics.on_response(&req, &rp, true, now);
+                        }
                         log_rpc_call(
                             trusted_client_ip,
                             protocol,
@@ -205,9 +196,9 @@ where
                 loop {
                     if attempts >= MAX_RETRIES {
                         let rp = reject_too_many_calls(req.id.clone());
-                        metrics
-                            .as_ref()
-                            .map(|m| m.on_response(&req, &rp, true, now));
+                        if let Some(metrics) = metrics.as_ref() {
+                            metrics.on_response(&req, &rp, true, now);
+                        }
                         log_rpc_call(
                             trusted_client_ip,
                             protocol,
@@ -234,9 +225,9 @@ where
             }
 
             let rp = service.call(req.clone()).await;
-            metrics
-                .as_ref()
-                .map(|m| m.on_response(&req, &rp, is_rate_limited, now));
+            if let Some(metrics) = metrics.as_ref() {
+                metrics.on_response(&req, &rp, is_rate_limited, now);
+            }
             log_rpc_call(
                 trusted_client_ip,
                 protocol,
@@ -258,6 +249,10 @@ where
     }
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "The arguments form one structured RPC trace event"
+)]
 fn log_rpc_call(
     trusted_client_ip: Option<IpAddr>,
     protocol: &'static str,

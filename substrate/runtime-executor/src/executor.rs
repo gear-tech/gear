@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
+    RuntimeVersionOf,
     error::{Error, Result},
     wasm_runtime::{RuntimeCache, WasmExecutionMethod},
-    RuntimeVersionOf,
 };
 
 use std::{
@@ -18,7 +18,7 @@ use codec::Encode;
 use sc_executor_common::{
     runtime_blob::RuntimeBlob,
     wasm_runtime::{
-        AllocationStats, HeapAllocStrategy, WasmInstance, WasmModule, DEFAULT_HEAP_ALLOC_STRATEGY,
+        AllocationStats, DEFAULT_HEAP_ALLOC_STRATEGY, HeapAllocStrategy, WasmInstance, WasmModule,
     },
 };
 use sp_core::traits::{CallContext, CodeExecutor, Externalities, RuntimeCode};
@@ -773,15 +773,15 @@ impl<D: NativeExecutionDispatch> sp_core::traits::ReadRuntimeVersion for NativeE
 mod tests {
     use super::WasmExecutor;
     use crate::{
+        RuntimeVersionOf,
         error::Error,
         wasm_runtime::tests::{insert_cached_runtime, runtime_code},
-        RuntimeVersionOf,
     };
     use sp_io::TestExternalities;
     use sp_version::RuntimeVersion;
     use std::sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     };
 
     #[test]
