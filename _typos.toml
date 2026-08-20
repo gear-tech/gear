@@ -13,7 +13,9 @@ extend-ignore-identifiers-re = [
   "instr_\\w+",
   "i(32|64)\\w+",
   # `sp-state-machine` crate
-  "OverlayedChanges"
+  "OverlayedChanges",
+  # generic backend type parameter
+  "^BA$",
 ]
 
 [files]

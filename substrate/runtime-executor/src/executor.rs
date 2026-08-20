@@ -546,6 +546,12 @@ where
                 })
                 .unwrap_or_else(|| self.default_onchain_heap_alloc_strategy)
         };
+        if let Some(result) =
+            self.cache
+                .cached_runtime_version(runtime_code, self.method, on_chain_heap_pages)
+        {
+            return result;
+        }
 
         self.with_instance(
             runtime_code,
@@ -761,5 +767,67 @@ impl<D: NativeExecutionDispatch> sp_core::traits::ReadRuntimeVersion for NativeE
         ext: &mut dyn Externalities,
     ) -> std::result::Result<Vec<u8>, String> {
         self.wasm.read_runtime_version(wasm_code, ext)
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::WasmExecutor;
+    use crate::{
+        RuntimeVersionOf,
+        error::Error,
+        wasm_runtime::tests::{insert_cached_runtime, runtime_code},
+    };
+    use sp_io::TestExternalities;
+    use sp_version::RuntimeVersion;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    #[test]
+    fn cached_runtime_version_skips_instance_allocation() {
+        let executor = WasmExecutor::<sp_io::SubstrateHostFunctions>::builder().build();
+        let method = executor.method;
+        let heap_alloc_strategy = executor.default_onchain_heap_alloc_strategy;
+
+        let known_code = runtime_code(&[1, 2, 3]);
+        let known_calls = Arc::new(AtomicUsize::new(0));
+        let expected = RuntimeVersion {
+            spec_name: "cached".into(),
+            ..Default::default()
+        };
+        insert_cached_runtime(
+            &executor.cache,
+            &known_code.hash,
+            method,
+            heap_alloc_strategy,
+            Some(expected.clone()),
+            known_calls.clone(),
+        );
+
+        let unknown_code = runtime_code(&[4, 5, 6]);
+        let unknown_calls = Arc::new(AtomicUsize::new(0));
+        insert_cached_runtime(
+            &executor.cache,
+            &unknown_code.hash,
+            method,
+            heap_alloc_strategy,
+            None,
+            unknown_calls.clone(),
+        );
+
+        let mut ext = TestExternalities::default();
+        let actual = RuntimeVersionOf::runtime_version(&executor, &mut ext.ext(), &known_code)
+            .expect("cached runtime version should be returned");
+        assert_eq!(actual, expected);
+        assert_eq!(known_calls.load(Ordering::SeqCst), 0);
+
+        let error = RuntimeVersionOf::runtime_version(&executor, &mut ext.ext(), &unknown_code)
+            .expect_err("cached missing runtime version should remain unknown");
+        match error {
+            Error::ApiError(message) => assert_eq!(message.to_string(), "Unknown version"),
+            other => panic!("expected unknown version error, got {other:?}"),
+        }
+        assert_eq!(unknown_calls.load(Ordering::SeqCst), 0);
     }
 }

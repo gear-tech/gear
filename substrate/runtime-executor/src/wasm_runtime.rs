@@ -178,6 +178,31 @@ impl RuntimeCache {
         }
     }
 
+    /// Returns the cached runtime version without acquiring an instance.
+    pub(crate) fn cached_runtime_version(
+        &self,
+        runtime_code: &RuntimeCode,
+        wasm_method: WasmExecutionMethod,
+        heap_alloc_strategy: HeapAllocStrategy,
+    ) -> Option<Result<RuntimeVersion, Error>> {
+        let versioned_runtime_id = VersionedRuntimeId {
+            code_hash: runtime_code.hash.clone(),
+            wasm_method,
+            heap_alloc_strategy,
+        };
+
+        let mut runtimes = self.runtimes.lock();
+        let runtime = runtimes.get(&versioned_runtime_id).cloned();
+        drop(runtimes);
+
+        runtime.map(|runtime| {
+            runtime
+                .version
+                .clone()
+                .ok_or_else(|| Error::ApiError("Unknown version".into()))
+        })
+    }
+
     /// Prepares a WASM module instance and executes given function for it.
     ///
     /// This uses internal cache to find available instance or create a new one.
@@ -436,4 +461,225 @@ where
         version,
         instances,
     })
+}
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::{
+        Error, RuntimeCache, RuntimeVersion, VersionedRuntime, VersionedRuntimeId,
+        WasmExecutionMethod,
+    };
+    use crate::{RuntimeVersionOf, executor::WasmExecutor};
+    use codec::Encode;
+    use sc_executor_common::wasm_runtime::{HeapAllocStrategy, WasmInstance, WasmModule};
+    use sp_core::traits::{RuntimeCode, WrappedRuntimeCode};
+    use sp_io::TestExternalities;
+    use std::{
+        borrow::Cow,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+
+    struct CountingModule {
+        new_instance_calls: Arc<AtomicUsize>,
+    }
+
+    impl WasmModule for CountingModule {
+        fn new_instance(&self) -> Result<Box<dyn WasmInstance>, Error> {
+            self.new_instance_calls.fetch_add(1, Ordering::SeqCst);
+            Err(Error::Other("new_instance called".into()))
+        }
+    }
+
+    pub(crate) fn runtime_code(hash: &[u8]) -> RuntimeCode<'static> {
+        let mut runtime_code = RuntimeCode::empty();
+        runtime_code.hash = hash.to_vec();
+        runtime_code
+    }
+
+    pub(crate) fn insert_cached_runtime(
+        cache: &RuntimeCache,
+        code_hash: &[u8],
+        wasm_method: WasmExecutionMethod,
+        heap_alloc_strategy: HeapAllocStrategy,
+        version: Option<RuntimeVersion>,
+        new_instance_calls: Arc<AtomicUsize>,
+    ) {
+        cache.runtimes.lock().insert(
+            VersionedRuntimeId {
+                code_hash: code_hash.to_vec(),
+                wasm_method,
+                heap_alloc_strategy,
+            },
+            Arc::new(VersionedRuntime {
+                module: Box::new(CountingModule { new_instance_calls }),
+                version,
+                instances: Vec::new(),
+            }),
+        );
+    }
+
+    #[test]
+    fn cached_runtime_version_returns_known_version_without_new_instance() {
+        let cache = RuntimeCache::new(1, None, 1);
+        let code = runtime_code(&[1, 2, 3]);
+        let wasm_method = WasmExecutionMethod::default();
+        let heap_alloc_strategy = HeapAllocStrategy::Static { extra_pages: 1 };
+        let new_instance_calls = Arc::new(AtomicUsize::new(0));
+        let version = RuntimeVersion {
+            spec_name: "cached".into(),
+            ..Default::default()
+        };
+
+        insert_cached_runtime(
+            &cache,
+            &code.hash,
+            wasm_method,
+            heap_alloc_strategy,
+            Some(version.clone()),
+            new_instance_calls.clone(),
+        );
+
+        match cache.cached_runtime_version(&code, wasm_method, heap_alloc_strategy) {
+            Some(Ok(actual)) => assert_eq!(actual, version),
+            other => panic!("expected cached runtime version, got {other:?}"),
+        }
+        assert_eq!(new_instance_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn cached_runtime_version_reports_unknown_without_new_instance() {
+        let cache = RuntimeCache::new(1, None, 1);
+        let code = runtime_code(&[1, 2, 3]);
+        let wasm_method = WasmExecutionMethod::default();
+        let heap_alloc_strategy = HeapAllocStrategy::Static { extra_pages: 1 };
+        let new_instance_calls = Arc::new(AtomicUsize::new(0));
+
+        insert_cached_runtime(
+            &cache,
+            &code.hash,
+            wasm_method,
+            heap_alloc_strategy,
+            None,
+            new_instance_calls.clone(),
+        );
+
+        let error = cache
+            .cached_runtime_version(&code, wasm_method, heap_alloc_strategy)
+            .expect("expected an exact cache hit")
+            .expect_err("expected cached absence to report an unknown version");
+        match error {
+            Error::ApiError(message) => assert_eq!(message.to_string(), "Unknown version"),
+            other => panic!("expected unknown version error, got {other:?}"),
+        }
+        assert_eq!(new_instance_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn cached_runtime_version_requires_exact_cache_key() {
+        let cache = RuntimeCache::new(1, None, 1);
+        let code = runtime_code(&[1, 2, 3]);
+        let wasm_method = WasmExecutionMethod::default();
+        let other_wasm_method = WasmExecutionMethod::Compiled {
+            instantiation_strategy: sc_executor_wasmtime::InstantiationStrategy::RecreateInstance,
+        };
+        let heap_alloc_strategy = HeapAllocStrategy::Static { extra_pages: 1 };
+        let other_heap_alloc_strategy = HeapAllocStrategy::Dynamic {
+            maximum_pages: Some(1),
+        };
+        let new_instance_calls = Arc::new(AtomicUsize::new(0));
+
+        insert_cached_runtime(
+            &cache,
+            &code.hash,
+            wasm_method,
+            heap_alloc_strategy,
+            Some(Default::default()),
+            new_instance_calls.clone(),
+        );
+
+        assert!(
+            cache
+                .cached_runtime_version(&runtime_code(&[4, 5, 6]), wasm_method, heap_alloc_strategy)
+                .is_none()
+        );
+        assert!(
+            cache
+                .cached_runtime_version(&code, other_wasm_method, heap_alloc_strategy)
+                .is_none()
+        );
+        assert!(
+            cache
+                .cached_runtime_version(&code, wasm_method, other_heap_alloc_strategy)
+                .is_none()
+        );
+        assert_eq!(new_instance_calls.load(Ordering::SeqCst), 0);
+    }
+    #[test]
+    fn runtime_version_miss_returns_embedded_version() {
+        let wasm = wat::parse_str(r#"(module (memory (export "memory") 1))"#)
+            .expect("minimal WAT should parse");
+        let expected = RuntimeVersion {
+            spec_name: "embedded-spec".into(),
+            impl_name: "embedded-impl".into(),
+            transaction_version: 1,
+            ..Default::default()
+        };
+        let wasm = sp_version::embed::embed_runtime_version(&wasm, expected.clone())
+            .expect("runtime version should embed");
+        let code_fetcher = WrappedRuntimeCode(Cow::Owned(wasm));
+        let runtime_code = RuntimeCode {
+            code_fetcher: &code_fetcher,
+            heap_pages: None,
+            hash: vec![0xeb, 0xed, 0x00, 0x01],
+        };
+        let executor = WasmExecutor::<sp_io::SubstrateHostFunctions>::builder().build();
+        let mut ext = TestExternalities::default();
+        let actual = RuntimeVersionOf::runtime_version(&executor, &mut ext.ext(), &runtime_code)
+            .expect("embedded runtime version should be returned");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn runtime_version_miss_returns_legacy_core_version() {
+        let expected = RuntimeVersion {
+            spec_name: "legacy-spec".into(),
+            impl_name: "legacy-impl".into(),
+            transaction_version: 1,
+            ..Default::default()
+        };
+        let encoded = expected.encode();
+        let data = encoded
+            .iter()
+            .map(|byte| format!(r#"\{byte:02x}"#))
+            .collect::<String>();
+        let wat = format!(
+            r#"(module
+                (memory (export "memory") 1)
+                (global (export "__heap_base") i32 (i32.const 1024))
+                (data (i32.const 0) "{data}")
+                (func (export "Core_version") (param i32 i32) (result i64)
+                    i64.const {}
+                )
+            )"#,
+            (encoded.len() as u64) << 32,
+        );
+        let wasm = wat::parse_str(wat).expect("valid legacy runtime WAT");
+        let code = WrappedRuntimeCode(Cow::Owned(wasm));
+        let runtime_code = RuntimeCode {
+            code_fetcher: &code,
+            heap_pages: None,
+            hash: vec![0xde, 0xad, 0xbe, 0xef],
+        };
+        let executor = crate::WasmExecutor::<sp_io::SubstrateHostFunctions>::builder().build();
+        let mut ext = sp_io::TestExternalities::default();
+
+        let actual =
+            crate::RuntimeVersionOf::runtime_version(&executor, &mut ext.ext(), &runtime_code)
+                .expect("legacy Core_version decodes");
+
+        assert_eq!(actual, expected);
+    }
 }

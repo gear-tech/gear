@@ -53,6 +53,9 @@ sp-version.default-features = true
 sp-wasm-interface.workspace = true
 sp-wasm-interface.default-features = true
 
+[dev-dependencies]
+wat.workspace = true
+
 [features]
 default = ["std"]
 # This crate does not have `no_std` support, we just require this for tests
