@@ -154,7 +154,8 @@ impl<T> RwLock<T> {
     }
 }
 
-// we are always single-threaded
+// Check target is wasm32 to prevent multi-threaded use
+#[cfg(target_arch = "wasm32")]
 unsafe impl<T> Sync for RwLock<T> {}
 
 /// RAII structure used to release the shared read access of a lock when
