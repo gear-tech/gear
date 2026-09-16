@@ -502,7 +502,7 @@ parameter_types! {
 }
 
 impl pallet_mmr::Config for Runtime {
-    const INDEXING_PREFIX: &'static [u8] = b"mmr";
+    const INDEXING_PREFIX: &'static [u8] = sp_mmr_primitives::INDEXING_PREFIX;
     type Hashing = Keccak256;
     // BEEFY-specific leaf (authority sets + `LeafExtra`), not the plain
     // parent-number-and-hash leaf, so that `MmrLeaf` (`pallet_beefy_mmr`) drives what's

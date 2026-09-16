@@ -84,6 +84,13 @@ pub type ValidatorAccountId = (
     ecdsa::Public,
 );
 
+/// Deterministic ECDSA (BEEFY) public key for a `//<seed>` test account.
+fn beefy_key(seed: &str) -> ecdsa::Public {
+    ecdsa::Pair::from_string(&format!("//{seed}"), None)
+        .expect("static seed is valid; qed")
+        .public()
+}
+
 // (who, vesting_start_block, vesting_duration, unfrozen_balance)
 type VestingInfo = (AccountId, BlockNumber, BlockNumber, Balance);
 
@@ -289,7 +296,7 @@ fn tokens_locking_works() {
                     .public(),
                 alice.public(),
                 alice.public(),
-                ecdsa::Pair::from_string("//Alice", None).unwrap().public(),
+                beefy_key("Alice"),
             ),
             (
                 bob.into(),
@@ -298,7 +305,7 @@ fn tokens_locking_works() {
                 ed25519::Pair::from_string("//Bob", None).unwrap().public(),
                 bob.public(),
                 bob.public(),
-                ecdsa::Pair::from_string("//Bob", None).unwrap().public(),
+                beefy_key("Bob"),
             ),
         ])
         .stash(STASH)
@@ -393,7 +400,7 @@ fn treasury_surplus_is_not_burned() {
                     .public(),
                 alice.public(),
                 alice.public(),
-                ecdsa::Pair::from_string("//Alice", None).unwrap().public(),
+                beefy_key("Alice"),
             ),
             (
                 bob.into(),
@@ -402,7 +409,7 @@ fn treasury_surplus_is_not_burned() {
                 ed25519::Pair::from_string("//Bob", None).unwrap().public(),
                 bob.public(),
                 bob.public(),
-                ecdsa::Pair::from_string("//Bob", None).unwrap().public(),
+                beefy_key("Bob"),
             ),
         ])
         .stash(STASH)
@@ -477,7 +484,7 @@ fn dust_ends_up_in_offset_pool() {
                     .public(),
                 alice.public(),
                 alice.public(),
-                ecdsa::Pair::from_string("//Alice", None).unwrap().public(),
+                beefy_key("Alice"),
             ),
             (
                 bob.into(),
@@ -486,7 +493,7 @@ fn dust_ends_up_in_offset_pool() {
                 ed25519::Pair::from_string("//Bob", None).unwrap().public(),
                 bob.public(),
                 bob.public(),
-                ecdsa::Pair::from_string("//Bob", None).unwrap().public(),
+                beefy_key("Bob"),
             ),
         ])
         .stash(STASH)
@@ -554,7 +561,7 @@ fn dusting_prevented_by_lock() {
                     .public(),
                 alice.public(),
                 alice.public(),
-                ecdsa::Pair::from_string("//Alice", None).unwrap().public(),
+                beefy_key("Alice"),
             ),
             (
                 bob.into(),
@@ -563,7 +570,7 @@ fn dusting_prevented_by_lock() {
                 ed25519::Pair::from_string("//Bob", None).unwrap().public(),
                 bob.public(),
                 bob.public(),
-                ecdsa::Pair::from_string("//Bob", None).unwrap().public(),
+                beefy_key("Bob"),
             ),
         ])
         .stash(STASH)
@@ -661,7 +668,7 @@ fn fungible_api_works() {
                     .public(),
                 alice.public(),
                 alice.public(),
-                ecdsa::Pair::from_string("//Alice", None).unwrap().public(),
+                beefy_key("Alice"),
             ),
             (
                 bob.into(),
@@ -670,7 +677,7 @@ fn fungible_api_works() {
                 ed25519::Pair::from_string("//Bob", None).unwrap().public(),
                 bob.public(),
                 bob.public(),
-                ecdsa::Pair::from_string("//Bob", None).unwrap().public(),
+                beefy_key("Bob"),
             ),
         ])
         .stash(STASH)
@@ -968,7 +975,7 @@ fn test_fees_and_tip_split() {
                 .public(),
             alice.public(),
             alice.public(),
-            ecdsa::Pair::from_string("//Alice", None).unwrap().public(),
+            beefy_key("Alice"),
         )])
         .stash(STASH)
         .endowment(ENDOWMENT)

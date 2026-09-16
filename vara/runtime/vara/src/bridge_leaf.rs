@@ -10,11 +10,13 @@
 
 use crate::GearEthBridge;
 use sp_runtime::traits::{Hash, Keccak256};
-use sp_std::vec::Vec;
 
 /// Network identifier committed into the leaf, distinguishing Vara from other chains that
 /// may reuse the same leaf-extra encoding.
 const NETWORK_ID: [u8; 4] = *b"vara";
+
+/// `version(1B) || network_id(4B) || queue_id(8B) || merkle_root(32B)`.
+const ENCODED_LEN: usize = 1 + NETWORK_ID.len() + 8 + 32;
 
 /// Version byte for a snapshot taken while the bridge is initialized.
 const VERSION_INITIALIZED: u8 = 0x00;
@@ -32,11 +34,11 @@ impl sp_consensus_beefy::mmr::BeefyDataProvider<[u8; 32]> for VaraBridgeProvider
             None => (VERSION_NOT_INITIALIZED, 0u64, sp_core::H256::zero()),
         };
 
-        let mut encoded = Vec::with_capacity(1 + NETWORK_ID.len() + 8 + 32);
-        encoded.push(version);
-        encoded.extend_from_slice(&NETWORK_ID);
-        encoded.extend_from_slice(&queue_id.to_le_bytes());
-        encoded.extend_from_slice(root.as_bytes());
+        let mut encoded = [0u8; ENCODED_LEN];
+        encoded[0] = version;
+        encoded[1..5].copy_from_slice(&NETWORK_ID);
+        encoded[5..13].copy_from_slice(&queue_id.to_le_bytes());
+        encoded[13..45].copy_from_slice(root.as_bytes());
 
         Keccak256::hash(&encoded).0
     }

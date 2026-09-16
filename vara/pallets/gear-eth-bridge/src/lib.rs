@@ -426,12 +426,11 @@ pub mod pallet {
         ///
         /// Narrow public accessor for consumers (e.g. the BEEFY MMR leaf provider) that only
         /// need the snapshot, not the pallet's full (`pub(crate)`) storage surface.
+        ///
+        /// `QueueMerkleRoot` is only ever `put` (never `kill`ed) once the bridge initializes,
+        /// so its presence already implies `Initialized`; no need to read that flag too.
         pub fn bridge_snapshot() -> Option<(u64, H256)> {
-            Initialized::<T>::get().then(|| {
-                let root = QueueMerkleRoot::<T>::get()
-                    .expect("invariant: QueueMerkleRoot is set once the bridge is initialized");
-                (QueueId::<T>::get(), root)
-            })
+            QueueMerkleRoot::<T>::get().map(|root| (QueueId::<T>::get(), root))
         }
 
         /// Returns pallet prefix, storage prefix and resulting prefix hash for `QueueMerkleRoot` storage.
