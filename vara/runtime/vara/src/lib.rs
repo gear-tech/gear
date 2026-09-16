@@ -401,6 +401,11 @@ impl pallet_transaction_payment::Config for Runtime {
 }
 
 // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
+//
+// Appending `beefy` changes the SCALE encoding of every already-stored `NextKeys`/
+// `QueuedKeys` entry (4 fixed-size keys -> 5). Deploying this on a live chain with bonded
+// validators requires the `Session::upgrade_keys` migration (tracked separately) run in
+// the *same* runtime upgrade — without it, existing validators' stored keys fail to decode.
 impl_opaque_keys! {
     pub struct SessionKeys {
         pub babe: Babe,
@@ -493,7 +498,6 @@ impl pallet_session_historical::Config for Runtime {
 }
 
 parameter_types! {
-    pub const BeefySetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
     pub BeefyMmrLeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
 }
 
@@ -515,7 +519,7 @@ impl pallet_beefy::Config for Runtime {
     type BeefyId = BeefyId;
     type MaxAuthorities = MaxAuthorities;
     type MaxNominators = MaxNominators;
-    type MaxSetIdSessionEntries = BeefySetIdSessionEntries;
+    type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
     type OnNewValidatorSet = MmrLeaf;
     type AncestryHelper = MmrLeaf;
     type WeightInfo = ();
