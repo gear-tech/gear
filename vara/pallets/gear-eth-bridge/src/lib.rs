@@ -421,6 +421,19 @@ pub mod pallet {
             )
         }
 
+        /// Returns the current bridge queue snapshot `(queue_id, merkle_root)`, or `None` if
+        /// the bridge has not been initialized yet.
+        ///
+        /// Narrow public accessor for consumers (e.g. the BEEFY MMR leaf provider) that only
+        /// need the snapshot, not the pallet's full (`pub(crate)`) storage surface.
+        pub fn bridge_snapshot() -> Option<(u64, H256)> {
+            Initialized::<T>::get().then(|| {
+                let root = QueueMerkleRoot::<T>::get()
+                    .expect("invariant: QueueMerkleRoot is set once the bridge is initialized");
+                (QueueId::<T>::get(), root)
+            })
+        }
+
         /// Returns pallet prefix, storage prefix and resulting prefix hash for `QueueMerkleRoot` storage.
         pub fn queue_merkle_root_storage_info() -> (&'static str, &'static str, [u8; 32]) {
             type Storage<T> = _GeneratedPrefixForStorageQueueMerkleRoot<T>;

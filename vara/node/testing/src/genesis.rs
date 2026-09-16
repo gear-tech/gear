@@ -7,9 +7,9 @@ use crate::keyring::*;
 use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    AccountId, BABE_GENESIS_EPOCH_CONFIG, BabeConfig, BalancesConfig, GearBank, GearBankConfig,
-    GrandpaConfig, RuntimeGenesisConfig, SessionConfig, StakerStatus, StakingConfig,
-    StakingRewardsConfig, SudoConfig, constants::currency::*,
+    AccountId, BABE_GENESIS_EPOCH_CONFIG, BabeConfig, BalancesConfig, BeefyConfig, GearBank,
+    GearBankConfig, GrandpaConfig, RuntimeGenesisConfig, SessionConfig, StakerStatus,
+    StakingConfig, StakingRewardsConfig, SudoConfig, constants::currency::*,
 };
 
 /// Create genesis runtime configuration for tests.
@@ -47,6 +47,12 @@ pub fn config_endowed(extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
         grandpa: GrandpaConfig {
             authorities: vec![],
             _config: Default::default(),
+        },
+        // BEEFY ships inactive: no genesis authorities, no signing until governance
+        // activates it (`genesis_block: None`).
+        beefy: BeefyConfig {
+            authorities: vec![],
+            genesis_block: None,
         },
         session: SessionConfig {
             keys: vec![

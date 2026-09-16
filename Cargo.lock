@@ -694,7 +694,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -850,7 +850,7 @@ checksum = "23ecd298fb0e6a31bd90c72efba2728e3d7569f1c89a3719576fb0e4e40b0fc8"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "reqwest 0.13.2",
  "serde_json",
  "tower 0.5.2",
@@ -2439,6 +2439,15 @@ checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
 
 [[package]]
 name = "binary-merkle-tree"
+version = "15.0.1"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "hash-db",
+ "log",
+]
+
+[[package]]
+name = "binary-merkle-tree"
 version = "16.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6d867f1ffee8b07e7bee466f4f33a043b91f868f5c7b1d22d8a02f86e92bee8"
@@ -3366,7 +3375,7 @@ checksum = "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681"
 dependencies = [
  "serde",
  "termcolor",
- "unicode-width 0.1.14",
+ "unicode-width 0.2.2",
 ]
 
 [[package]]
@@ -8079,7 +8088,7 @@ dependencies = [
  "ark-std 0.4.0",
  "arrayvec 0.7.6",
  "base64 0.22.1",
- "binary-merkle-tree",
+ "binary-merkle-tree 16.1.1",
  "bitflags 2.10.0",
  "bitvec",
  "blake2 0.10.6",
@@ -12837,6 +12846,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-beefy"
+version = "39.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-authorship",
+ "pallet-session",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-consensus-beefy",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+]
+
+[[package]]
+name = "pallet-beefy-mmr"
+version = "39.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "array-bytes",
+ "binary-merkle-tree 15.0.1",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-beefy",
+ "pallet-mmr",
+ "pallet-session",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-api",
+ "sp-consensus-beefy",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+]
+
+[[package]]
 name = "pallet-bounties"
 version = "37.0.2"
 source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
@@ -13118,7 +13171,7 @@ dependencies = [
 name = "pallet-gear-eth-bridge"
 version = "2.0.0"
 dependencies = [
- "binary-merkle-tree",
+ "binary-merkle-tree 16.1.1",
  "bp-header-chain",
  "builtins-common",
  "frame-benchmarking",
@@ -13160,7 +13213,7 @@ dependencies = [
 name = "pallet-gear-eth-bridge-primitives"
 version = "2.0.0"
 dependencies = [
- "binary-merkle-tree",
+ "binary-merkle-tree 16.1.1",
  "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
@@ -13510,6 +13563,23 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-staking",
+]
+
+[[package]]
+name = "pallet-mmr"
+version = "38.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-mmr-primitives",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -14242,6 +14312,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-ckb-merkle-mountain-range"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4b44320e5f7ce2c18227537a3032ae5b2c476a7e8eddba45333e1011fc31b92"
+dependencies = [
+ "cfg-if",
+ "itertools 0.10.5",
+]
+
+[[package]]
 name = "polkavm"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14801,7 +14881,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
  "heck 0.5.0",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "log",
  "multimap 0.10.1",
  "once_cell",
@@ -14847,7 +14927,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -15773,6 +15853,7 @@ dependencies = [
  "sha-1",
  "sp-authority-discovery",
  "sp-consensus-babe",
+ "sp-consensus-beefy",
  "sp-consensus-grandpa",
  "sp-consensus-slots",
  "sp-core",
@@ -18304,6 +18385,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-consensus-beefy"
+version = "22.1.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "lazy_static",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
+ "sp-io",
+ "sp-keystore",
+ "sp-mmr-primitives",
+ "sp-runtime",
+ "sp-weights",
+ "strum 0.26.3",
+]
+
+[[package]]
 name = "sp-consensus-grandpa"
 version = "21.0.0"
 source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
@@ -18563,6 +18665,23 @@ dependencies = [
  "scale-info",
  "sp-api",
  "sp-application-crypto",
+]
+
+[[package]]
+name = "sp-mmr-primitives"
+version = "34.1.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "log",
+ "parity-scale-codec",
+ "polkadot-ckb-merkle-mountain-range",
+ "scale-info",
+ "serde",
+ "sp-api",
+ "sp-core",
+ "sp-debug-derive",
+ "sp-runtime",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -20723,6 +20842,8 @@ dependencies = [
  "pallet-babe",
  "pallet-bags-list",
  "pallet-balances",
+ "pallet-beefy",
+ "pallet-beefy-mmr",
  "pallet-bounties",
  "pallet-child-bounties",
  "pallet-conviction-voting",
@@ -20746,6 +20867,7 @@ dependencies = [
  "pallet-grandpa-signer",
  "pallet-identity",
  "pallet-im-online",
+ "pallet-mmr",
  "pallet-multisig",
  "pallet-nomination-pools",
  "pallet-nomination-pools-runtime-api",
@@ -20776,6 +20898,7 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
+ "sp-consensus-beefy",
  "sp-consensus-grandpa",
  "sp-core",
  "sp-externalities",
@@ -20783,6 +20906,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
+ "sp-mmr-primitives",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
