@@ -3,9 +3,13 @@
 
 use crate::Runtime;
 
+mod session_keys;
+pub use session_keys::MigrateSessionKeys;
+
 /// All migrations that will run on the next runtime upgrade for dev chain.
 #[cfg(feature = "dev")]
 pub type Migrations = (
+    MigrateSessionKeys,
     pallet_gear_eth_bridge::migrations::set_hash::Migration<Runtime>,
     // migrate to v3 of the Gear Scheduler with removal of program pause tasks
     pallet_gear_scheduler::migrations::v3_remove_program_pause_tasks::MigrateRemoveProgramPauseTasks<Runtime>,
@@ -14,6 +18,7 @@ pub type Migrations = (
 /// All migrations that will run on the next runtime upgrade for prod chain.
 #[cfg(not(feature = "dev"))]
 pub type Migrations = (
+    MigrateSessionKeys,
     pallet_gear_eth_bridge::migrations::set_hash::Migration<Runtime>,
 	LockEdForBuiltin<crate::GearEthBridgeBuiltinAddress>,
 	// migrate to v3 of the Gear Scheduler with removal of program pause tasks
