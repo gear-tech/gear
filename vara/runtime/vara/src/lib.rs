@@ -1968,6 +1968,16 @@ impl_runtime_apis_plus_common! {
         }
     }
 
+    impl pallet_beefy_mmr::BeefyMmrApi<Block, mmr::Hash> for Runtime {
+        fn authority_set_proof() -> sp_consensus_beefy::mmr::BeefyAuthoritySet<mmr::Hash> {
+            MmrLeaf::authority_set_proof()
+        }
+
+        fn next_authority_set_proof() -> sp_consensus_beefy::mmr::BeefyNextAuthoritySet<mmr::Hash> {
+            MmrLeaf::next_authority_set_proof()
+        }
+    }
+
     impl sp_authority_discovery::AuthorityDiscoveryApi<Block> for Runtime {
         fn authorities() -> Vec<AuthorityDiscoveryId> {
             AuthorityDiscovery::authorities()

@@ -3375,7 +3375,7 @@ checksum = "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681"
 dependencies = [
  "serde",
  "termcolor",
- "unicode-width 0.2.2",
+ "unicode-width 0.1.14",
 ]
 
 [[package]]
@@ -7826,6 +7826,8 @@ dependencies = [
  "gear-workspace-hack",
  "jsonrpsee",
  "log",
+ "mmr-gadget",
+ "mmr-rpc",
  "pallet-gear",
  "pallet-gear-builtin-rpc",
  "pallet-gear-builtin-rpc-runtime-api",
@@ -7845,6 +7847,8 @@ dependencies = [
  "sc-consensus",
  "sc-consensus-babe",
  "sc-consensus-babe-rpc",
+ "sc-consensus-beefy",
+ "sc-consensus-beefy-rpc",
  "sc-consensus-grandpa",
  "sc-consensus-grandpa-rpc",
  "sc-consensus-slots",
@@ -7867,11 +7871,13 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
+ "sp-consensus-beefy",
  "sp-consensus-grandpa",
  "sp-core",
  "sp-crypto-ec-utils",
  "sp-io",
  "sp-keystore",
+ "sp-mmr-primitives",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
@@ -8088,6 +8094,7 @@ dependencies = [
  "ark-std 0.4.0",
  "arrayvec 0.7.6",
  "base64 0.22.1",
+ "binary-merkle-tree 15.0.1",
  "binary-merkle-tree 16.1.1",
  "bitflags 2.10.0",
  "bitvec",
@@ -8223,6 +8230,8 @@ dependencies = [
  "pallet-babe",
  "pallet-bags-list",
  "pallet-balances",
+ "pallet-beefy",
+ "pallet-beefy-mmr",
  "pallet-bounties",
  "pallet-child-bounties",
  "pallet-conviction-voting",
@@ -8230,6 +8239,7 @@ dependencies = [
  "pallet-grandpa",
  "pallet-identity",
  "pallet-im-online",
+ "pallet-mmr",
  "pallet-multisig",
  "pallet-nomination-pools",
  "pallet-nomination-pools-runtime-api",
@@ -8257,6 +8267,7 @@ dependencies = [
  "pbkdf2",
  "percent-encoding",
  "pkcs8",
+ "polkadot-ckb-merkle-mountain-range",
  "polkavm-common",
  "portable-atomic",
  "ppv-lite86",
@@ -8321,6 +8332,7 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
+ "sp-consensus-beefy",
  "sp-consensus-grandpa",
  "sp-consensus-slots",
  "sp-core",
@@ -8335,6 +8347,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "sp-metadata-ir",
+ "sp-mmr-primitives",
  "sp-npos-elections",
  "sp-offchain",
  "sp-runtime-interface",
@@ -11961,6 +11974,40 @@ dependencies = [
  "subtle 2.6.1",
  "thiserror 1.0.69",
  "zeroize",
+]
+
+[[package]]
+name = "mmr-gadget"
+version = "40.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "futures",
+ "log",
+ "parity-scale-codec",
+ "sc-client-api",
+ "sc-offchain",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-beefy",
+ "sp-core",
+ "sp-mmr-primitives",
+ "sp-runtime",
+]
+
+[[package]]
+name = "mmr-rpc"
+version = "38.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "jsonrpsee",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-mmr-primitives",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -16418,6 +16465,62 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "sp-keystore",
+ "sp-runtime",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "sc-consensus-beefy"
+version = "24.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "array-bytes",
+ "async-channel 1.9.0",
+ "async-trait",
+ "fnv",
+ "futures",
+ "log",
+ "parity-scale-codec",
+ "parking_lot 0.12.5",
+ "sc-client-api",
+ "sc-consensus",
+ "sc-network",
+ "sc-network-gossip",
+ "sc-network-sync",
+ "sc-network-types",
+ "sc-utils",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-beefy",
+ "sp-core",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
+ "sp-keystore",
+ "sp-runtime",
+ "substrate-prometheus-endpoint",
+ "thiserror 1.0.69",
+ "tokio",
+ "wasm-timer",
+]
+
+[[package]]
+name = "sc-consensus-beefy-rpc"
+version = "24.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "futures",
+ "jsonrpsee",
+ "log",
+ "parity-scale-codec",
+ "parking_lot 0.12.5",
+ "sc-consensus-beefy",
+ "sc-rpc",
+ "serde",
+ "sp-application-crypto",
+ "sp-consensus-beefy",
+ "sp-core",
  "sp-runtime",
  "thiserror 1.0.69",
 ]

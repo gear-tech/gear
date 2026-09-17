@@ -57,6 +57,8 @@ pub trait RuntimeApiCollection:
     + sp_api::ApiExt<Block>
     + sp_consensus_babe::BabeApi<Block>
     + sp_consensus_grandpa::GrandpaApi<Block>
+    + sp_consensus_beefy::BeefyApi<Block, sp_consensus_beefy::ecdsa_crypto::AuthorityId>
+    + sp_mmr_primitives::MmrApi<Block, Hash, BlockNumber>
     + sp_block_builder::BlockBuilder<Block>
     + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>
     + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
@@ -76,6 +78,8 @@ impl<Api> RuntimeApiCollection for Api where
         + sp_api::ApiExt<Block>
         + sp_consensus_babe::BabeApi<Block>
         + sp_consensus_grandpa::GrandpaApi<Block>
+        + sp_consensus_beefy::BeefyApi<Block, sp_consensus_beefy::ecdsa_crypto::AuthorityId>
+        + sp_mmr_primitives::MmrApi<Block, Hash, BlockNumber>
         + sp_block_builder::BlockBuilder<Block>
         + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>
         + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
