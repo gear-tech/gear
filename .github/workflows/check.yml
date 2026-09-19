@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: typos-action
-        uses: crate-ci/typos@master
+        uses: crate-ci/typos@v1.50.2
 
   ethexe-contracts:
     runs-on: ubuntu-latest

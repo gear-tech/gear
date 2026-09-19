@@ -461,7 +461,7 @@ where
             | I64Load32S { .. }
             | I64Load32U { .. } => {
                 // These instructions pop the address and pushes the result,
-                // which effictively don't modify the stack height.
+                // which effectively don't modify the stack height.
                 stack.pop_values(1)?;
                 stack.push_values(1)?;
             }
