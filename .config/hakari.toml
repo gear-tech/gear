@@ -27,6 +27,9 @@ platforms = [
 
 workspace-hack-line-style = "workspace-dotted"
 
+[traversal-excludes]
+workspace-members = ["sc-consensus-beefy"]
+
 [final-excludes]
 workspace-members = [
     "sc-cli",

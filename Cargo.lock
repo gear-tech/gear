@@ -3375,7 +3375,7 @@ checksum = "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681"
 dependencies = [
  "serde",
  "termcolor",
- "unicode-width 0.1.14",
+ "unicode-width 0.2.2",
 ]
 
 [[package]]
@@ -16470,7 +16470,6 @@ dependencies = [
 [[package]]
 name = "sc-consensus-beefy"
 version = "24.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
 dependencies = [
  "array-bytes",
  "async-channel 1.9.0",
@@ -16480,25 +16479,34 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.12.5",
+ "sc-block-builder",
  "sc-client-api",
  "sc-consensus",
  "sc-network",
  "sc-network-gossip",
  "sc-network-sync",
+ "sc-network-test",
  "sc-network-types",
  "sc-utils",
+ "serde",
  "sp-api",
  "sp-application-crypto",
  "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-beefy",
+ "sp-consensus-grandpa",
  "sp-core",
  "sp-crypto-hashing 0.1.0 (git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c)",
+ "sp-keyring",
  "sp-keystore",
+ "sp-mmr-primitives",
  "sp-runtime",
+ "sp-tracing",
  "substrate-prometheus-endpoint",
- "thiserror 1.0.69",
+ "substrate-test-runtime-client",
+ "tempfile",
+ "thiserror 2.0.17",
  "tokio",
  "wasm-timer",
 ]
@@ -16891,6 +16899,38 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
+]
+
+[[package]]
+name = "sc-network-test"
+version = "0.8.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?rev=298f676c91d64f15f38ea7fd78f125c5889ab09c#298f676c91d64f15f38ea7fd78f125c5889ab09c"
+dependencies = [
+ "async-trait",
+ "futures",
+ "futures-timer",
+ "libp2p 0.52.4",
+ "log",
+ "parking_lot 0.12.5",
+ "rand 0.8.5",
+ "sc-block-builder",
+ "sc-client-api",
+ "sc-consensus",
+ "sc-network",
+ "sc-network-common",
+ "sc-network-light",
+ "sc-network-sync",
+ "sc-network-types",
+ "sc-service",
+ "sc-utils",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-runtime",
+ "sp-tracing",
+ "substrate-test-runtime",
+ "substrate-test-runtime-client",
+ "tokio",
 ]
 
 [[package]]
