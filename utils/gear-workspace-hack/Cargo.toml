@@ -351,8 +351,6 @@ num-traits = { version = "0.2", features = ["i128", "libm"] }
 numerated = { version = "2", default-features = false, features = ["mock"] }
 once_cell = { version = "1" }
 pallet-beefy = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std", "try-runtime"] }
-pallet-beefy-mmr = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std", "try-runtime"] }
-pallet-mmr = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std", "try-runtime"] }
 pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 pallet-staking-reward-fn = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 pallet-staking-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
@@ -642,8 +640,6 @@ num-traits = { version = "0.2", features = ["i128", "libm"] }
 numerated = { version = "2", default-features = false, features = ["mock"] }
 once_cell = { version = "1" }
 pallet-beefy = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std", "try-runtime"] }
-pallet-beefy-mmr = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std", "try-runtime"] }
-pallet-mmr = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std", "try-runtime"] }
 pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 pallet-staking-reward-fn = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 pallet-staking-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }

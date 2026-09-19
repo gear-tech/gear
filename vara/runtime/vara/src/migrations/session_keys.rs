@@ -19,6 +19,15 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 
+#[cfg(feature = "try-runtime")]
+use {
+    frame_support::ensure,
+    parity_scale_codec::Decode,
+    sp_runtime::{TryRuntimeError, traits::OpaqueKeys},
+};
+
+const MIGRATION_SPEC_VERSION: u32 = 2_01_00;
+
 impl_opaque_keys! {
     /// Mirrors `SessionKeys` as it existed before BEEFY was added.
     pub struct SessionKeysOld {
@@ -34,19 +43,106 @@ pub struct MigrateSessionKeys;
 impl OnRuntimeUpgrade for MigrateSessionKeys {
     fn on_runtime_upgrade() -> Weight {
         let db_weight = <Runtime as frame_system::Config>::DbWeight::get();
+        let mut weight = db_weight.reads(1);
+
+        if !should_migrate() {
+            return weight;
+        }
+
         let validators_migrated = pallet_session::NextKeys::<Runtime>::iter_keys().count() as u64;
+        weight = weight.saturating_add(db_weight.reads(validators_migrated));
 
-        pallet_session::Pallet::<Runtime>::upgrade_keys::<SessionKeysOld, _>(|validator, old| {
-            SessionKeys {
-                babe: old.babe,
-                grandpa: old.grandpa,
-                im_online: old.im_online,
-                authority_discovery: old.authority_discovery,
-                beefy: placeholder_beefy_key(&validator),
+        let queued_keys = frame_support::storage::unhashed::get::<
+            Vec<(crate::AccountId, SessionKeysOld)>,
+        >(&pallet_session::QueuedKeys::<Runtime>::hashed_key())
+        .map_or(0, |keys| keys.len() as u64);
+        weight = weight.saturating_add(db_weight.reads(1));
+
+        pallet_session::Pallet::<Runtime>::upgrade_keys::<SessionKeysOld, _>(migrate_keys);
+
+        // `upgrade_keys` reads and rewrites every `NextKeys` entry, removes four old
+        // ownership mappings, installs five new mappings, and translates `QueuedKeys`.
+        weight = weight.saturating_add(db_weight.reads_writes(
+            validators_migrated.saturating_add(1),
+            validators_migrated.saturating_mul(10).saturating_add(1),
+        ));
+        // Conservatively charge one database read per placeholder derivation; a read is
+        // more expensive than the fixed-size SCALE encoding and Keccak hash performed.
+        weight.saturating_add(db_weight.reads(validators_migrated.saturating_add(queued_keys)))
+    }
+
+    #[cfg(feature = "try-runtime")]
+    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+        if !should_migrate() {
+            return Ok(None::<(u64, u64)>.encode());
+        }
+
+        let validators = pallet_session::NextKeys::<Runtime>::iter_keys().collect::<Vec<_>>();
+        for validator in &validators {
+            ensure!(
+                frame_support::storage::unhashed::get::<SessionKeysOld>(
+                    &pallet_session::NextKeys::<Runtime>::hashed_key_for(validator)
+                )
+                .is_some(),
+                "NextKeys contains a value that does not decode as the old four-key layout"
+            );
+        }
+
+        let queued =
+            frame_support::storage::unhashed::get::<Vec<(crate::AccountId, SessionKeysOld)>>(
+                &pallet_session::QueuedKeys::<Runtime>::hashed_key(),
+            )
+            .unwrap_or_default();
+
+        Ok(Some((validators.len() as u64, queued.len() as u64)).encode())
+    }
+
+    #[cfg(feature = "try-runtime")]
+    fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
+        let Some((registered_count, queued_count)) =
+            Option::<(u64, u64)>::decode(&mut state.as_ref())
+                .map_err(|_| "`pre_upgrade` provided an invalid state")?
+        else {
+            return Ok(());
+        };
+
+        let registered = pallet_session::NextKeys::<Runtime>::iter().collect::<Vec<_>>();
+        ensure!(
+            registered.len() as u64 == registered_count,
+            "registered validator count changed during session-key migration"
+        );
+        ensure!(
+            pallet_session::QueuedKeys::<Runtime>::get().len() as u64 == queued_count,
+            "queued validator count changed during session-key migration"
+        );
+
+        for (validator, keys) in registered {
+            for key_type in SessionKeys::key_ids() {
+                ensure!(
+                    pallet_session::KeyOwner::<Runtime>::get((
+                        *key_type,
+                        keys.get_raw(*key_type).to_vec()
+                    )) == Some(validator.clone()),
+                    "migrated session key has an incorrect owner"
+                );
             }
-        });
+        }
 
-        db_weight.reads_writes(validators_migrated, validators_migrated)
+        Ok(())
+    }
+}
+
+fn should_migrate() -> bool {
+    frame_system::Pallet::<Runtime>::last_runtime_upgrade_spec_version() < MIGRATION_SPEC_VERSION
+}
+
+fn migrate_keys(validator: crate::AccountId, old: SessionKeysOld) -> SessionKeys {
+    SessionKeys {
+        babe: old.babe,
+        grandpa: old.grandpa,
+        im_online: old.im_online,
+        authority_discovery: old.authority_discovery,
+        beefy: placeholder_beefy_key(&validator),
     }
 }
 
@@ -67,6 +163,8 @@ fn placeholder_beefy_key(validator: &crate::AccountId) -> BeefyId {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sp_core::Pair;
+    use sp_runtime::traits::OpaqueKeys;
 
     fn validator(seed: u8) -> crate::AccountId {
         crate::AccountId::new([seed; 32])
@@ -89,58 +187,200 @@ mod tests {
         }
     }
 
-    #[test]
-    fn migrates_next_and_queued_keys() {
-        sp_io::TestExternalities::default().execute_with(|| {
-            let alice = validator(1);
-            let bob = validator(2);
-            let alice_old = old_keys(1);
-            let bob_old = old_keys(2);
+    fn current_keys(seed: u8) -> SessionKeys {
+        migrate_keys(validator(seed), old_keys(seed))
+    }
 
-            // Write pre-migration `NextKeys` entries using the old 4-key encoding, at
-            // the exact storage keys `pallet_session::NextKeys` will later read as the
-            // current 5-key `SessionKeys`.
-            frame_support::storage::unhashed::put(
-                &pallet_session::NextKeys::<Runtime>::hashed_key_for(&alice),
-                &alice_old,
-            );
-            frame_support::storage::unhashed::put(
-                &pallet_session::NextKeys::<Runtime>::hashed_key_for(&bob),
-                &bob_old,
-            );
+    fn set_last_runtime_upgrade(spec_version: u32) {
+        frame_system::LastRuntimeUpgrade::<Runtime>::put(frame_system::LastRuntimeUpgradeInfo {
+            spec_version: spec_version.into(),
+            spec_name: crate::VERSION.spec_name.clone(),
+        });
+    }
 
-            // Same for `QueuedKeys`, a single `Vec<(ValidatorId, Keys)>` value.
-            let queued_old = vec![
-                (alice.clone(), alice_old.clone()),
-                (bob.clone(), bob_old.clone()),
-            ];
+    fn seed_old_next_keys(entries: &[(crate::AccountId, SessionKeysOld)]) {
+        for (validator, keys) in entries {
             frame_support::storage::unhashed::put(
-                &pallet_session::QueuedKeys::<Runtime>::hashed_key().to_vec(),
-                &queued_old,
+                &pallet_session::NextKeys::<Runtime>::hashed_key_for(validator),
+                keys,
             );
+            for key_type in SessionKeysOld::key_ids() {
+                pallet_session::KeyOwner::<Runtime>::insert(
+                    (*key_type, keys.get_raw(*key_type).to_vec()),
+                    validator,
+                );
+            }
+        }
+    }
 
-            let weight = MigrateSessionKeys::on_runtime_upgrade();
+    fn seed_old_queued_keys(entries: &[(crate::AccountId, SessionKeysOld)]) {
+        frame_support::storage::unhashed::put(
+            &pallet_session::QueuedKeys::<Runtime>::hashed_key(),
+            &entries.to_vec(),
+        );
+    }
+
+    fn assert_migrated(validator: &crate::AccountId, old: &SessionKeysOld) {
+        let migrated = pallet_session::NextKeys::<Runtime>::get(validator)
+            .expect("migration must preserve every existing NextKeys entry");
+
+        assert_eq!(migrated.babe, old.babe);
+        assert_eq!(migrated.grandpa, old.grandpa);
+        assert_eq!(migrated.im_online, old.im_online);
+        assert_eq!(migrated.authority_discovery, old.authority_discovery);
+        assert_eq!(migrated.beefy, placeholder_beefy_key(validator));
+
+        for key_type in SessionKeysOld::key_ids() {
             assert_eq!(
-                weight,
-                <Runtime as frame_system::Config>::DbWeight::get().reads_writes(2, 2)
+                pallet_session::KeyOwner::<Runtime>::get((
+                    *key_type,
+                    old.get_raw(*key_type).to_vec()
+                )),
+                Some(validator.clone())
+            );
+        }
+        assert_eq!(
+            pallet_session::KeyOwner::<Runtime>::get((
+                sp_consensus_beefy::KEY_TYPE,
+                migrated.get_raw(sp_consensus_beefy::KEY_TYPE).to_vec()
+            )),
+            Some(validator.clone())
+        );
+    }
+
+    #[test]
+    fn migrates_next_queued_and_key_ownership_once() {
+        sp_io::TestExternalities::default().execute_with(|| {
+            let entries = [(validator(1), old_keys(1)), (validator(2), old_keys(2))];
+            seed_old_next_keys(&entries);
+            seed_old_queued_keys(&entries);
+
+            let db_weight = <Runtime as frame_system::Config>::DbWeight::get();
+            assert_eq!(
+                MigrateSessionKeys::on_runtime_upgrade(),
+                db_weight.reads_writes(11, 21)
             );
 
-            for (id, old) in [(alice, alice_old), (bob, bob_old)] {
-                let migrated = pallet_session::NextKeys::<Runtime>::get(&id)
-                    .expect("migration must preserve every existing NextKeys entry");
-
-                assert_eq!(migrated.babe, old.babe);
-                assert_eq!(migrated.grandpa, old.grandpa);
-                assert_eq!(migrated.im_online, old.im_online);
-                assert_eq!(migrated.authority_discovery, old.authority_discovery);
-                assert_eq!(migrated.beefy, placeholder_beefy_key(&id));
+            for (validator, old) in &entries {
+                assert_migrated(validator, old);
+            }
+            let mut queued = pallet_session::QueuedKeys::<Runtime>::get();
+            assert_eq!(queued.len(), entries.len());
+            for (validator, keys) in &queued {
+                assert_eq!(keys.beefy, placeholder_beefy_key(validator));
             }
 
-            let queued = pallet_session::QueuedKeys::<Runtime>::get();
-            assert_eq!(queued.len(), 2);
-            for (id, keys) in &queued {
-                assert_eq!(keys.beefy, placeholder_beefy_key(id));
+            for (index, (validator, _)) in entries.iter().enumerate() {
+                let mut keys = pallet_session::NextKeys::<Runtime>::get(validator)
+                    .expect("migrated keys exist");
+                pallet_session::KeyOwner::<Runtime>::remove((
+                    sp_consensus_beefy::KEY_TYPE,
+                    keys.get_raw(sp_consensus_beefy::KEY_TYPE).to_vec(),
+                ));
+                keys.beefy = BeefyId::from(
+                    sp_core::ecdsa::Pair::from_seed(&[(index + 10) as u8; 32]).public(),
+                );
+                pallet_session::KeyOwner::<Runtime>::insert(
+                    (
+                        sp_consensus_beefy::KEY_TYPE,
+                        keys.get_raw(sp_consensus_beefy::KEY_TYPE).to_vec(),
+                    ),
+                    validator,
+                );
+                pallet_session::NextKeys::<Runtime>::insert(validator, &keys);
+                queued[index].1 = keys;
             }
+            pallet_session::QueuedKeys::<Runtime>::put(queued);
+            set_last_runtime_upgrade(MIGRATION_SPEC_VERSION);
+
+            let next_before = entries
+                .iter()
+                .map(|(validator, _)| {
+                    sp_io::storage::get(&pallet_session::NextKeys::<Runtime>::hashed_key_for(
+                        validator,
+                    ))
+                })
+                .collect::<Vec<_>>();
+            let queued_before =
+                sp_io::storage::get(&pallet_session::QueuedKeys::<Runtime>::hashed_key());
+            let owners_before = pallet_session::KeyOwner::<Runtime>::iter().collect::<Vec<_>>();
+
+            assert_eq!(MigrateSessionKeys::on_runtime_upgrade(), db_weight.reads(1));
+            assert_eq!(
+                entries
+                    .iter()
+                    .map(|(validator, _)| {
+                        sp_io::storage::get(&pallet_session::NextKeys::<Runtime>::hashed_key_for(
+                            validator,
+                        ))
+                    })
+                    .collect::<Vec<_>>(),
+                next_before
+            );
+            assert_eq!(
+                sp_io::storage::get(&pallet_session::QueuedKeys::<Runtime>::hashed_key()),
+                queued_before
+            );
+            assert_eq!(
+                pallet_session::KeyOwner::<Runtime>::iter().collect::<Vec<_>>(),
+                owners_before
+            );
+        });
+    }
+
+    #[test]
+    fn migrates_nonempty_queue_without_next_keys() {
+        sp_io::TestExternalities::default().execute_with(|| {
+            let queued = [(validator(1), old_keys(1)), (validator(2), old_keys(2))];
+            seed_old_queued_keys(&queued);
+
+            let db_weight = <Runtime as frame_system::Config>::DbWeight::get();
+            assert_eq!(
+                MigrateSessionKeys::on_runtime_upgrade(),
+                db_weight.reads_writes(5, 1)
+            );
+            assert_eq!(
+                pallet_session::QueuedKeys::<Runtime>::get(),
+                queued
+                    .into_iter()
+                    .map(|(validator, keys)| {
+                        let migrated = migrate_keys(validator.clone(), keys);
+                        (validator, migrated)
+                    })
+                    .collect::<Vec<_>>()
+            );
+        });
+    }
+
+    #[test]
+    fn skips_fresh_five_key_genesis() {
+        sp_io::TestExternalities::default().execute_with(|| {
+            let validator = validator(1);
+            let keys = current_keys(1);
+            pallet_session::NextKeys::<Runtime>::insert(&validator, &keys);
+            pallet_session::QueuedKeys::<Runtime>::put(vec![(validator.clone(), keys)]);
+            set_last_runtime_upgrade(MIGRATION_SPEC_VERSION);
+
+            let next_before = sp_io::storage::get(
+                &pallet_session::NextKeys::<Runtime>::hashed_key_for(&validator),
+            );
+            let queued_before =
+                sp_io::storage::get(&pallet_session::QueuedKeys::<Runtime>::hashed_key());
+
+            assert_eq!(
+                MigrateSessionKeys::on_runtime_upgrade(),
+                <Runtime as frame_system::Config>::DbWeight::get().reads(1)
+            );
+            assert_eq!(
+                sp_io::storage::get(&pallet_session::NextKeys::<Runtime>::hashed_key_for(
+                    &validator
+                )),
+                next_before
+            );
+            assert_eq!(
+                sp_io::storage::get(&pallet_session::QueuedKeys::<Runtime>::hashed_key()),
+                queued_before
+            );
         });
     }
 

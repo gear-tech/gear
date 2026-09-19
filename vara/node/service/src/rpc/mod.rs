@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use jsonrpsee::RpcModule;
+use jsonrpsee::{RpcModule, core::RpcResult, types::ErrorObject};
 use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
 use sc_client_api::{
     AuxStore, Backend, BlockBackend, BlockchainEvents, StorageProvider, backend::StateBackend,
@@ -96,6 +96,64 @@ pub struct FullDeps<C, P, SC, B, AuthorityId: AuthorityIdBound> {
     pub backend: Arc<B>,
 }
 
+const RUNTIME_ERROR: i32 = 8000;
+
+struct BoundedMmr<M> {
+    inner: M,
+    max_batch_size: u64,
+}
+
+impl<M> BoundedMmr<M> {
+    fn new(inner: M, max_batch_size: u64) -> Self {
+        Self {
+            inner,
+            max_batch_size,
+        }
+    }
+}
+
+impl<M> mmr_rpc::MmrApiServer<Hash, BlockNumber, Hash> for BoundedMmr<M>
+where
+    M: mmr_rpc::MmrApiServer<Hash, BlockNumber, Hash> + Send + Sync + 'static,
+{
+    fn mmr_root(&self, at: Option<Hash>) -> RpcResult<Hash> {
+        self.inner.mmr_root(at)
+    }
+
+    fn generate_proof(
+        &self,
+        block_numbers: Vec<BlockNumber>,
+        best_known_block_number: Option<BlockNumber>,
+        at: Option<Hash>,
+    ) -> RpcResult<mmr_rpc::LeavesProof<Hash>> {
+        if block_numbers.len() as u64 > self.max_batch_size {
+            return Err(ErrorObject::owned(
+                RUNTIME_ERROR,
+                "Runtime error",
+                Some(format!(
+                    "Batch size must not exceed {}",
+                    self.max_batch_size
+                )),
+            ));
+        }
+
+        self.inner
+            .generate_proof(block_numbers, best_known_block_number, at)
+    }
+
+    fn verify_proof(&self, proof: mmr_rpc::LeavesProof<Hash>) -> RpcResult<bool> {
+        self.inner.verify_proof(proof)
+    }
+
+    fn verify_proof_stateless(
+        &self,
+        mmr_root: Hash,
+        proof: mmr_rpc::LeavesProof<Hash>,
+    ) -> RpcResult<bool> {
+        self.inner.verify_proof_stateless(mmr_root, proof)
+    }
+}
+
 /// Instantiate all Full RPC extensions.
 pub fn create_full<C, P, SC, B, AuthorityId: AuthorityIdBound>(
     FullDeps {
@@ -180,11 +238,14 @@ where
 
     io.merge(System::new(client.clone(), pool).into_rpc())?;
     io.merge(
-        mmr_rpc::Mmr::new(
-            client.clone(),
-            backend
-                .offchain_storage()
-                .ok_or("Backend doesn't provide an offchain storage")?,
+        BoundedMmr::new(
+            mmr_rpc::Mmr::new(
+                client.clone(),
+                backend
+                    .offchain_storage()
+                    .ok_or("Backend doesn't provide an offchain storage")?,
+            ),
+            max_batch_size,
         )
         .into_rpc(),
     )?;
@@ -259,4 +320,61 @@ where
     io.merge(GearEthBridge::new(client).into_rpc())?;
 
     Ok(io)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mmr_rpc::MmrApiServer;
+    use sp_core::Bytes;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct CountingMmr(Arc<AtomicUsize>);
+
+    impl MmrApiServer<Hash, BlockNumber, Hash> for CountingMmr {
+        fn mmr_root(&self, _at: Option<Hash>) -> RpcResult<Hash> {
+            Ok(Hash::zero())
+        }
+
+        fn generate_proof(
+            &self,
+            _block_numbers: Vec<BlockNumber>,
+            _best_known_block_number: Option<BlockNumber>,
+            _at: Option<Hash>,
+        ) -> RpcResult<mmr_rpc::LeavesProof<Hash>> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            Ok(mmr_rpc::LeavesProof {
+                block_hash: Hash::zero(),
+                leaves: Bytes(Vec::new()),
+                proof: Bytes(Vec::new()),
+            })
+        }
+
+        fn verify_proof(&self, _proof: mmr_rpc::LeavesProof<Hash>) -> RpcResult<bool> {
+            Ok(true)
+        }
+
+        fn verify_proof_stateless(
+            &self,
+            _mmr_root: Hash,
+            _proof: mmr_rpc::LeavesProof<Hash>,
+        ) -> RpcResult<bool> {
+            Ok(true)
+        }
+    }
+
+    #[test]
+    fn mmr_proof_batch_limit_rejects_before_delegating() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let rpc = BoundedMmr::new(CountingMmr(calls.clone()), 2);
+
+        assert!(rpc.generate_proof(vec![1, 2], None, None).is_ok());
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+
+        let error = rpc
+            .generate_proof(vec![1, 2, 3], None, None)
+            .expect_err("over-limit proof request is rejected");
+        assert_eq!(error.code(), RUNTIME_ERROR);
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+    }
 }

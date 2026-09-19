@@ -82,7 +82,7 @@ pub use frame_support::{
     parameter_types,
     traits::{
         ConstU16, ConstU32, ConstU128, Contains, Currency, EitherOf, EitherOfDiverse,
-        EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
+        EqualPrivilegeOnly, Everything, FindAuthor, Get, InstanceFilter, KeyOwnerProofSystem,
         LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, SortedMembers,
         StorageInfo, VariantCountOf, WithdrawReasons,
         fungible::HoldConsideration,
@@ -501,6 +501,15 @@ parameter_types! {
     pub BeefyMmrLeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
 }
 
+pub struct VaraMmrWeight;
+
+impl pallet_mmr::WeightInfo for VaraMmrWeight {
+    fn on_initialize(peaks: u32) -> Weight {
+        <() as pallet_mmr::WeightInfo>::on_initialize(peaks)
+            .saturating_add(<Runtime as frame_system::Config>::DbWeight::get().reads_writes(5, 1))
+    }
+}
+
 impl pallet_mmr::Config for Runtime {
     const INDEXING_PREFIX: &'static [u8] = sp_mmr_primitives::INDEXING_PREFIX;
     type Hashing = Keccak256;
@@ -510,7 +519,7 @@ impl pallet_mmr::Config for Runtime {
     type LeafData = MmrLeaf;
     type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
     type BlockHashProvider = pallet_mmr::DefaultBlockHashProvider<Runtime>;
-    type WeightInfo = ();
+    type WeightInfo = VaraMmrWeight;
     #[cfg(feature = "runtime-benchmarks")]
     type BenchmarkHelper = ();
 }
@@ -1771,6 +1780,8 @@ mod benches {
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
+        [pallet_mmr, Mmr]
+        [pallet_beefy_mmr, MmrLeaf]
         // Gear pallets
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]

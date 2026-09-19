@@ -234,6 +234,8 @@ runtime-benchmarks = [
     "frame-system-benchmarking/runtime-benchmarks",
     "frame-election-provider-support/runtime-benchmarks",
     "pallet-balances/runtime-benchmarks",
+    "pallet-mmr/runtime-benchmarks",
+    "pallet-beefy-mmr/runtime-benchmarks",
     "pallet-timestamp/runtime-benchmarks",
     "pallet-utility/runtime-benchmarks",
     "pallet-gear/runtime-benchmarks",
