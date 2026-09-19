@@ -115,11 +115,11 @@ pub fn testnet_genesis(
             epoch_config: BABE_GENESIS_EPOCH_CONFIG,
             ..Default::default()
         },
-        // BEEFY ships inactive: no genesis authorities, no signing until governance
-        // activates it (`genesis_block: None`) — see the runtime migration plan.
+        // Development chains exercise the production BEEFY/MMR path from genesis
+        // before mainnet activation.
         beefy: BeefyConfig {
             authorities: vec![],
-            genesis_block: None,
+            genesis_block: Some(1),
         },
         #[cfg(feature = "dev")]
         sudo: SudoConfig {
