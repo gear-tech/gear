@@ -1115,10 +1115,16 @@ fn session_boundary_leaf_uses_new_authorities_and_preclear_bridge_root() {
         .stash(STASH)
         .build();
 
-    let (key, expected_extra, expected_authorities) = ext.execute_with(|| {
+    let (key, expected_extra, expected_authorities_root) = ext.execute_with(|| {
         let alice = session_validator(&alice);
         let bob = session_validator(&bob);
         let charlie = session_validator(&charlie);
+        let beefy_address = <pallet_beefy_mmr::BeefyEcdsaToEthereum as
+            sp_runtime::traits::Convert<_, Vec<u8>>>::convert(charlie.1.beefy.clone());
+        let expected_authorities_root =
+            <<Runtime as pallet_mmr::Config>::Hashing as sp_runtime::traits::Hash>::hash(
+                &beefy_address,
+            );
 
         <GearEthBridge as OneSessionHandler<AccountId>>::on_new_session(
             true,
@@ -1140,20 +1146,24 @@ fn session_boundary_leaf_uses_new_authorities_and_preclear_bridge_root() {
             std::slice::from_ref(&bob),
             &[charlie],
         );
-        let expected_authorities = MmrLeaf::next_authority_set_proof();
-        Mmr::on_initialize(2);
+        <AllPalletsWithSystem as OnInitialize<BlockNumberFor<Runtime>>>::on_initialize(2);
         let key = (
             <Runtime as pallet_mmr::Config>::INDEXING_PREFIX,
             0_u64,
             System::parent_hash(),
         )
             .encode();
-        (key, expected_extra, expected_authorities)
+        (key, expected_extra, expected_authorities_root)
     });
 
     let leaf = read_first_mmr_leaf(&mut ext, key);
     assert_eq!(leaf.leaf_extra, expected_extra);
-    assert_eq!(leaf.beefy_next_authority_set, expected_authorities);
+    assert_eq!(leaf.beefy_next_authority_set.id, 2);
+    assert_eq!(leaf.beefy_next_authority_set.len, 1);
+    assert_eq!(
+        leaf.beefy_next_authority_set.keyset_commitment,
+        expected_authorities_root
+    );
 }
 
 #[test]

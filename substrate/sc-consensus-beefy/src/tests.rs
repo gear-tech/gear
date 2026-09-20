@@ -57,7 +57,7 @@ use sp_core::H256;
 use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 use sp_mmr_primitives::{Error as MmrError, MmrApi};
 use sp_runtime::{
-    codec::{Decode, Encode},
+    codec::{Decode, DecodeAll, Encode},
     traits::{Header as HeaderT, NumberFor},
     BuildStorage, DigestItem, EncodedJustification, Justifications, Storage,
 };
@@ -553,6 +553,8 @@ async fn wait_for_best_beefy_blocks(
 async fn wait_for_beefy_signed_commitments(
     streams: Vec<NotificationReceiver<BeefyVersionedFinalityProof<Block, AuthorityId>>>,
     net: &Arc<Mutex<BeefyTestNet>>,
+    validator_set: &BeefyValidatorSet,
+    expected_mmr_root: Option<MmrRootHash>,
     expected_commitment_block_nums: &[u64],
 ) {
     let mut wait_for = Vec::new();
@@ -563,12 +565,28 @@ async fn wait_for_beefy_signed_commitments(
             move |versioned_finality_proof| {
                 let expected = expected.next();
                 async move {
-                    let signed_commitment = match versioned_finality_proof {
-                        sp_consensus_beefy::VersionedFinalityProof::V1(sc) => sc,
+                    let signed_commitment = match &versioned_finality_proof {
+                        VersionedFinalityProof::V1(sc) => sc,
                     };
                     let commitment_block_num = signed_commitment.commitment.block_number;
                     assert_eq!(expected, Some(commitment_block_num).as_ref());
-                    // TODO: also verify commitment payload, validator set id, and signatures.
+                    verify_with_validator_set::<Block, AuthorityId>(
+                        commitment_block_num,
+                        validator_set,
+                        &versioned_finality_proof,
+                    )
+                    .expect("signed commitment must be valid for the expected validator set");
+
+                    let encoded_mmr_root = signed_commitment
+                        .commitment
+                        .payload
+                        .get_raw(&known_payloads::MMR_ROOT_ID)
+                        .expect("signed commitment must contain an MMR root");
+                    let mmr_root = MmrRootHash::decode_all(&mut encoded_mmr_root.as_slice())
+                        .expect("signed commitment MMR root must decode");
+                    if let Some(expected_mmr_root) = expected_mmr_root {
+                        assert_eq!(mmr_root, expected_mmr_root);
+                    }
                 }
             },
         )));
@@ -610,6 +628,7 @@ async fn streams_empty_after_timeout<T>(
 
 async fn finalize_block_and_wait_for_beefy(
     net: &Arc<Mutex<BeefyTestNet>>,
+    validator_set: &BeefyValidatorSet,
     // peer index and key
     peers: impl Iterator<Item = (usize, BeefyKeyring<AuthorityId>)> + Clone,
     finalize_target: &H256,
@@ -630,7 +649,14 @@ async fn finalize_block_and_wait_for_beefy(
     } else {
         // run until expected beefy blocks are received
         wait_for_best_beefy_blocks(best_blocks, &net, expected_beefy).await;
-        wait_for_beefy_signed_commitments(versioned_finality_proof, &net, expected_beefy).await;
+        wait_for_beefy_signed_commitments(
+            versioned_finality_proof,
+            &net,
+            &validator_set,
+            None,
+            expected_beefy,
+        )
+        .await;
     }
 }
 
@@ -664,20 +690,23 @@ async fn beefy_finalizing_blocks() {
 
     let peers = peers.into_iter().enumerate();
     // finalize block #5 -> BEEFY should finalize #1 (mandatory) and #5 from diff-power-of-two rule.
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[1], &[1]).await;
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[5], &[5]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[1], &[1]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[5], &[5]).await;
 
     // GRANDPA finalize #10 -> BEEFY finalize #10 (mandatory)
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[10], &[10]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[10], &[10])
+        .await;
 
     // GRANDPA finalize #18 -> BEEFY finalize #14, then #18 (diff-power-of-two rule)
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[18], &[14, 18]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[18], &[14, 18])
+        .await;
 
     // GRANDPA finalize #20 -> BEEFY finalize #20 (mandatory)
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[20], &[20]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[20], &[20])
+        .await;
 
     // GRANDPA finalize #21 -> BEEFY finalize nothing (yet) because min delta is 4
-    finalize_block_and_wait_for_beefy(&net, peers, &hashes[21], &[]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers, &hashes[21], &[]).await;
 }
 
 #[tokio::test]
@@ -712,8 +741,15 @@ async fn lagging_validators() {
     let peers = peers.into_iter().enumerate();
     // finalize block #15 -> BEEFY should finalize #1 (mandatory) and #9, #13, #14, #15 from
     // diff-power-of-two rule.
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[1], &[1]).await;
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[15], &[9, 13, 14, 15]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[1], &[1]).await;
+    finalize_block_and_wait_for_beefy(
+        &net,
+        &validator_set,
+        peers.clone(),
+        &hashes[15],
+        &[9, 13, 14, 15],
+    )
+    .await;
 
     // Alice and Bob finalize #25, Charlie lags behind
     let finalize = hashes[25];
@@ -745,11 +781,20 @@ async fn lagging_validators() {
         .unwrap();
     // expected beefy finalizes blocks 23, 24, 25 from diff-power-of-two
     wait_for_best_beefy_blocks(best_blocks, &net, &[23, 24, 25]).await;
-    wait_for_beefy_signed_commitments(versioned_finality_proof, &net, &[23, 24, 25]).await;
+    wait_for_beefy_signed_commitments(
+        versioned_finality_proof,
+        &net,
+        &validator_set,
+        None,
+        &[23, 24, 25],
+    )
+    .await;
 
     // Both finalize #30 (mandatory session) and #32 -> BEEFY finalize #30 (mandatory), #31, #32
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[30], &[30]).await;
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[32], &[31, 32]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[30], &[30])
+        .await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[32], &[31, 32])
+        .await;
 
     // Verify that session-boundary votes get buffered by client and only processed once
     // session-boundary block is GRANDPA-finalized (this guarantees authenticity for the new session
@@ -785,7 +830,8 @@ async fn lagging_validators() {
         .unwrap();
     // verify beefy skips intermediary votes, and successfully finalizes mandatory block #60
     wait_for_best_beefy_blocks(best_blocks, &net, &[60]).await;
-    wait_for_beefy_signed_commitments(versioned_finality_proof, &net, &[60]).await;
+    wait_for_beefy_signed_commitments(versioned_finality_proof, &net, &validator_set, None, &[60])
+        .await;
 }
 
 #[tokio::test]
@@ -830,8 +876,8 @@ async fn correct_beefy_payload() {
     let net = Arc::new(Mutex::new(net));
     let peers = peers.into_iter().enumerate();
     // with 3 good voters and 1 bad one, consensus should happen and best blocks produced.
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[1], &[1]).await;
-    finalize_block_and_wait_for_beefy(&net, peers, &hashes[10], &[9]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[1], &[1]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers, &hashes[10], &[9]).await;
 
     let (best_blocks, versioned_finality_proof) =
         get_beefy_streams(&mut net.lock(), [(0, BeefyKeyring::Alice)].into_iter());
@@ -874,7 +920,14 @@ async fn correct_beefy_payload() {
 
     // verify consensus is reached
     wait_for_best_beefy_blocks(best_blocks, &net, &[11]).await;
-    wait_for_beefy_signed_commitments(versioned_finality_proof, &net, &[11]).await;
+    wait_for_beefy_signed_commitments(
+        versioned_finality_proof,
+        &net,
+        &validator_set,
+        Some(GOOD_MMR_ROOT),
+        &[11],
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -1112,11 +1165,16 @@ async fn on_demand_beefy_justification_sync() {
     let net = Arc::new(Mutex::new(net));
     // With 3 active voters and one inactive, consensus should happen and blocks BEEFY-finalized.
     // Need to finalize at least one block in each session, choose randomly.
-    finalize_block_and_wait_for_beefy(&net, fast_peers.clone(), &hashes[1], &[1]).await;
-    finalize_block_and_wait_for_beefy(&net, fast_peers.clone(), &hashes[6], &[5]).await;
-    finalize_block_and_wait_for_beefy(&net, fast_peers.clone(), &hashes[10], &[10]).await;
-    finalize_block_and_wait_for_beefy(&net, fast_peers.clone(), &hashes[17], &[15]).await;
-    finalize_block_and_wait_for_beefy(&net, fast_peers.clone(), &hashes[24], &[20]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, fast_peers.clone(), &hashes[1], &[1])
+        .await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, fast_peers.clone(), &hashes[6], &[5])
+        .await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, fast_peers.clone(), &hashes[10], &[10])
+        .await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, fast_peers.clone(), &hashes[17], &[15])
+        .await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, fast_peers.clone(), &hashes[24], &[20])
+        .await;
 
     // Spawn Dave, they are now way behind voting and can only catch up through on-demand justif
     // sync.
@@ -1145,8 +1203,9 @@ async fn on_demand_beefy_justification_sync() {
     // freshly spun up Dave now needs to listen for gossip to figure out the state of their peers.
 
     // Have the other peers do some gossip so Dave finds out about their progress.
-    finalize_block_and_wait_for_beefy(&net, fast_peers.clone(), &hashes[25], &[25]).await;
-    finalize_block_and_wait_for_beefy(&net, fast_peers, &hashes[29], &[29]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, fast_peers.clone(), &hashes[25], &[25])
+        .await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, fast_peers, &hashes[29], &[29]).await;
 
     // Kick Dave's async loop by finalizing another block.
     client.finalize_block(hashes[2], None).unwrap();
@@ -1640,13 +1699,15 @@ async fn beefy_finalizing_after_pallet_genesis() {
     // Minimum BEEFY block delta is 1.
 
     // GRANDPA finalize blocks leading up to BEEFY pallet genesis -> BEEFY should finalize nothing.
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[14], &[]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[14], &[]).await;
 
     // GRANDPA finalize block #16 -> BEEFY should finalize #15 (genesis mandatory) and #16.
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[16], &[15, 16]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[16], &[15, 16])
+        .await;
 
     // GRANDPA finalize #21 -> BEEFY finalize #20 (mandatory) and #21
-    finalize_block_and_wait_for_beefy(&net, peers.clone(), &hashes[21], &[20, 21]).await;
+    finalize_block_and_wait_for_beefy(&net, &validator_set, peers.clone(), &hashes[21], &[20, 21])
+        .await;
 }
 
 #[tokio::test]
@@ -1840,7 +1901,8 @@ async fn gossipped_finality_proofs() {
     charlie_gossip_engine.gossip_message(proofs_topic::<Block>(), encoded_proof, true);
     // Expect #1 is finalized.
     wait_for_best_beefy_blocks(best_blocks, &net, &[1]).await;
-    wait_for_beefy_signed_commitments(versioned_finality_proof, &net, &[1]).await;
+    wait_for_beefy_signed_commitments(versioned_finality_proof, &net, &validator_set, None, &[1])
+        .await;
 
     // Code above verifies gossipped finality proofs are correctly imported and consumed by voters.
     // Next, let's verify finality proofs are correctly generated and gossipped by voters.
@@ -1895,7 +1957,8 @@ async fn gossipped_finality_proofs() {
 
     // Expect #2 is finalized.
     wait_for_best_beefy_blocks(best_blocks, &net, &[2]).await;
-    wait_for_beefy_signed_commitments(versioned_finality_proof, &net, &[2]).await;
+    wait_for_beefy_signed_commitments(versioned_finality_proof, &net, &validator_set, None, &[2])
+        .await;
 
     // Now verify Charlie also sees the gossipped proof generated by either Alice or Bob.
     let mut charlie_gossip_proofs = Box::pin(

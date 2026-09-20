@@ -268,8 +268,6 @@ where
     ) -> Action<B::Hash> {
         let round = vote.commitment.block_number;
         let set_id = vote.commitment.validator_set_id;
-        self.known_peers.lock().note_vote_for(*sender, round);
-
         // Verify general usefulness of the message.
         // We are going to discard old votes right away (without verification).
         {
@@ -296,6 +294,7 @@ where
         }
 
         if BeefyKeystore::verify(&vote.id, &vote.signature, &vote.commitment.encode()) {
+            self.known_peers.lock().note_vote_for(*sender, round);
             Action::Keep(self.votes_topic, benefit::VOTE_MESSAGE)
         } else {
             debug!(
@@ -312,8 +311,6 @@ where
         sender: &PeerId,
     ) -> Action<B::Hash> {
         let (round, set_id) = proof_block_num_and_set_id::<B, AuthorityId>(&proof);
-        self.known_peers.lock().note_vote_for(*sender, round);
-
         let action = {
             let guard = self.gossip_filter.read();
 
@@ -356,6 +353,7 @@ where
         };
         if matches!(action, Action::Keep(_, _)) {
             self.gossip_filter.write().mark_round_as_proven(round);
+            self.known_peers.lock().note_vote_for(*sender, round);
         }
         action
     }
@@ -383,7 +381,7 @@ where
             Ok(GossipMessage::FinalityProof(proof)) => self.validate_finality_proof(proof, sender),
             Err(e) => {
                 debug!(target: LOG_TARGET, "Error decoding message: {}", e);
-                let bytes = raw.len().min(i32::MAX as usize) as i32;
+                let bytes = raw.len().max(1).min(i32::MAX as usize) as i32;
                 let cost = ReputationChange::new(
                     bytes.saturating_mul(cost::PER_UNDECODABLE_BYTE),
                     "BEEFY: Bad packet",
@@ -394,7 +392,7 @@ where
         match action {
             Action::Keep(topic, cb) => {
                 self.report(*sender, cb);
-                context.broadcast_message(topic, data.to_vec(), false);
+                context.broadcast_message(topic, raw.to_vec(), false);
                 ValidationResult::ProcessAndKeep(topic)
             }
             Action::Discard(cb) => {
@@ -587,13 +585,18 @@ pub(crate) mod tests {
         }
     }
 
-    struct TestContext;
+    #[derive(Default)]
+    struct TestContext {
+        broadcast: Option<Vec<u8>>,
+    }
     impl<B: sp_runtime::traits::Block> ValidatorContext<B> for TestContext {
         fn broadcast_topic(&mut self, _topic: B::Hash, _force: bool) {
             unimplemented!()
         }
 
-        fn broadcast_message(&mut self, _topic: B::Hash, _message: Vec<u8>, _force: bool) {}
+        fn broadcast_message(&mut self, _topic: B::Hash, message: Vec<u8>, _force: bool) {
+            self.broadcast = Some(message);
+        }
 
         fn send_message(&mut self, _who: &sc_network_types::PeerId, _message: Vec<u8>) {
             unimplemented!()
@@ -677,14 +680,27 @@ pub(crate) mod tests {
 
         let (network, mut report_stream) = TestNetwork::new();
 
+        let known_peers = Arc::new(Mutex::new(KnownPeers::new()));
         let gv = GossipValidator::<Block, _, ecdsa_crypto::AuthorityId>::new(
-            Arc::new(Mutex::new(KnownPeers::new())),
+            known_peers.clone(),
             Arc::new(network),
         );
         let sender = PeerId::random();
-        let mut context = TestContext;
+        let mut context = TestContext::default();
 
         // reject message, decoding error
+        let res = gv.validate(&mut context, &sender, &[]);
+        assert!(matches!(res, ValidationResult::Discard));
+        assert_eq!(
+            report_stream.try_next().unwrap().unwrap(),
+            PeerReport {
+                who: sender,
+                cost_benefit: ReputationChange::new(
+                    cost::PER_UNDECODABLE_BYTE,
+                    "BEEFY: Bad packet",
+                ),
+            }
+        );
         let bad_encoding = b"0000000000".as_slice();
         let expected_cost = ReputationChange::new(
             (bad_encoding.len() as i32).saturating_mul(cost::PER_UNDECODABLE_BYTE),
@@ -709,6 +725,7 @@ pub(crate) mod tests {
         assert!(matches!(res, ValidationResult::Discard));
         // nothing reported
         assert!(report_stream.try_next().is_err());
+        assert!(known_peers.lock().further_than(0).is_empty());
 
         gv.update_filter(GossipFilterCfg {
             start: 0,
@@ -718,8 +735,10 @@ pub(crate) mod tests {
         // nothing in cache first time
         let res = gv.validate(&mut context, &sender, &encoded);
         assert!(matches!(res, ValidationResult::ProcessAndKeep(_)));
+        assert_eq!(context.broadcast.take(), Some(encoded.clone()));
         expected_report.cost_benefit = benefit::VOTE_MESSAGE;
         assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+        assert_eq!(known_peers.lock().further_than(0).len(), 1);
 
         // reject vote, voter not in validator set
         let mut bad_vote = vote.clone();
@@ -814,6 +833,7 @@ pub(crate) mod tests {
         expected_report.cost_benefit = cost::INVALID_PROOF;
         expected_report.cost_benefit.value += cost::PER_SIGNATURE_CHECKED;
         assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+        assert!(known_peers.lock().further_than(20).is_empty());
     }
 
     #[test]

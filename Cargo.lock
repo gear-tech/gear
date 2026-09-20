@@ -8230,7 +8230,6 @@ dependencies = [
  "pallet-babe",
  "pallet-bags-list",
  "pallet-balances",
- "pallet-beefy",
  "pallet-bounties",
  "pallet-child-bounties",
  "pallet-conviction-voting",
