@@ -195,7 +195,6 @@ expander = "2.0.0"
 fdlimit = { version = "0.3.0" }
 filetime = "0.2.16"
 flate2 = "1"
-fnv = "1.0.6"
 forwarded-header-value = { version = "0.1.1" }
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.3"
@@ -502,7 +501,6 @@ sc-consensus-beefy = { path = "substrate/sc-consensus-beefy" }
 sc-consensus-beefy-rpc = { version = "24.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-consensus-slots = { version = "0.44.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-crypto-ec-utils = { version = "0.14.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
-sp-crypto-hashing = { version = "0.1.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sp-debug-derive = { version = "14.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false }
 sc-chain-spec = { version = "38.0.0", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sc-cli = { path = "substrate/cli" }

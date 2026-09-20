@@ -16,7 +16,6 @@ array-bytes = { workspace = true, default-features = true }
 async-channel = { workspace = true }
 async-trait = { workspace = true }
 codec = { features = ["derive"], workspace = true, default-features = true }
-fnv = { workspace = true }
 futures = { workspace = true }
 log = { workspace = true, default-features = true }
 parking_lot = { workspace = true, default-features = true }
@@ -52,8 +51,6 @@ sp-consensus-beefy.workspace = true
 sp-consensus-beefy.default-features = true
 sp-core.workspace = true
 sp-core.default-features = true
-sp-crypto-hashing.workspace = true
-sp-crypto-hashing.default-features = true
 sp-keystore.workspace = true
 sp-keystore.default-features = true
 sp-runtime.workspace = true
@@ -62,11 +59,8 @@ tokio = { workspace = true, default-features = true }
 
 [dev-dependencies]
 serde = { workspace = true, default-features = true }
-tempfile = { workspace = true }
 sc-block-builder = { workspace = true, default-features = true }
 sc-network-test.workspace = true
-sp-consensus-grandpa = { workspace = true, default-features = true }
-sp-keyring = { workspace = true, default-features = true }
 sp-mmr-primitives = { workspace = true, default-features = true }
 sp-tracing = { workspace = true, default-features = true }
 substrate-test-runtime-client.workspace = true
