@@ -36,6 +36,11 @@ impl SubstrateCli for Cli {
     }
 
     fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
+        #[cfg(feature = "fast-runtime")]
+        if !matches!(id, "dev" | "vara-dev" | "local" | "vara-local") {
+            return Err("fast-runtime builds only support dev/local chains".into());
+        }
+
         Ok(match id {
             // Common "dev" chain. `vara-runtime` is prioritized.
             #[cfg(feature = "vara-native")]

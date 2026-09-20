@@ -68,6 +68,7 @@ vara-native = [
 	"service/vara-native",
 	"pallet-gear-staking-rewards",
 ]
+fast-runtime = ["vara-native", "vara-runtime?/fast-runtime", "service/fast-runtime"]
 runtime-benchmarks = [
 	"vara-runtime?/runtime-benchmarks",
 	"service/runtime-benchmarks",
