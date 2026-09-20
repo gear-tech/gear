@@ -109,6 +109,7 @@ vara-native = [
 	"vara-runtime",
 	"sp-authority-discovery"
 ]
+fast-runtime = ["vara-runtime?/fast-runtime"]
 runtime-benchmarks = [
  	"frame-benchmarking/runtime-benchmarks",
  	"frame-benchmarking-cli/runtime-benchmarks",

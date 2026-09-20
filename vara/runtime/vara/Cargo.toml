@@ -305,6 +305,7 @@ try-runtime = [
     "gear-runtime-common/try-runtime",
 ]
 dev = ["pallet-sudo", "pallet-gear/dev"]
+fast-runtime = ["dev"]
 metadata-hash = ["substrate-wasm-builder?/metadata-hash"]
 
 [package.metadata.cargo-shear]

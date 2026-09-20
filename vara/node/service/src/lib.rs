@@ -653,7 +653,7 @@ where
         runtime: client.clone(),
         key_store: keystore.clone(),
         network_params: beefy_network_params,
-        min_block_delta: 8,
+        min_block_delta: if cfg!(feature = "fast-runtime") { 1 } else { 8 },
         prometheus_registry: prometheus_registry.clone(),
         links: beefy_links,
         on_demand_justifications_handler: beefy_on_demand_justifications_handler,
