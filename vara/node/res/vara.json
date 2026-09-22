@@ -3,7 +3,7 @@
   "id": "vara_network",
   "chainType": "Live",
   "bootNodes": [
-    "/dns4/vara-connect-1.vara.network/tcp/30333/ws/p2p/12D3KooWLDpZ5sWtSmZtiHXBstoQVwMAZ5yRWpDUBdjQHV7vBLHy"
+    "/dns4/vara-connect-1.vara.network/tcp/30333/p2p/12D3KooWLDpZ5sWtSmZtiHXBstoQVwMAZ5yRWpDUBdjQHV7vBLHy"
   ],
   "telemetryEndpoints": null,
   "protocolId": "vara",
