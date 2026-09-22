@@ -12,7 +12,7 @@ env:
 
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       image_name: ${{ steps.image.outputs.image_name }}
     steps:
@@ -38,7 +38,7 @@ jobs:
           echo "image_name=$image_name" >> $GITHUB_OUTPUT
 
   build-update-validator:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: prepare
     steps:
       - name: Checkout repository
@@ -74,7 +74,7 @@ jobs:
 
   notify:
     if: failure()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Notify build failure in Telegram
         if: failure()

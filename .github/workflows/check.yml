@@ -15,7 +15,7 @@ env:
 
 jobs:
   unused-deps:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -32,7 +32,7 @@ jobs:
       - run: cargo shear --exclude=gear-workspace-hack
 
   fmt:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
@@ -44,7 +44,7 @@ jobs:
         run: ./scripts/gear.sh format gear --check
 
   license-headers:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
@@ -53,14 +53,14 @@ jobs:
         run: ./scripts/check-license-headers.sh .
 
   typos:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: typos-action
-        uses: crate-ci/typos@master
+        uses: crate-ci/typos@v1.50.2
 
   ethexe-contracts:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
@@ -170,7 +170,7 @@ jobs:
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
   workspace-hack:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
@@ -211,7 +211,7 @@ jobs:
         run: __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 cargo clippy -p gear-cli
 
   wasm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
@@ -253,7 +253,7 @@ jobs:
       - run: cargo +stable check --manifest-path sdk/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
   vara-runtime-imports:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"
@@ -289,7 +289,7 @@ jobs:
         include:
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04
           - name: linux-aarch64
             target: aarch64-unknown-linux-gnu
             runs-on: ubuntu-24.04-arm
@@ -316,7 +316,7 @@ jobs:
         run: cargo run -p calc-stack-height --release --locked
 
   gsdk-metadata:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"

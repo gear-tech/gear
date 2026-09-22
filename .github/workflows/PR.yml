@@ -12,7 +12,7 @@ concurrency:
 jobs:
   gate:
     name: Skip duplicates
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       should_skip: ${{ steps.skip.outputs.should_skip }}
 
@@ -87,7 +87,7 @@ jobs:
                   | map(select(.pull_requests | any(.number == ($PR|tonumber))))
                   | sort_by(.run_number)
                   | last
-                  | .id
+                  | .id // empty
                 '
           )
 

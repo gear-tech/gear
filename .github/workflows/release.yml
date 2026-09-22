@@ -42,7 +42,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: "Actions: Checkout"
         uses: actions/checkout@v7
@@ -124,7 +124,7 @@ jobs:
 
   trigger-multiplatform-build:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Dispatch Multiplatform Build Workflow
         uses: actions/github-script@v9
@@ -144,7 +144,7 @@ jobs:
 
   trigger-docker-build:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Dispatch Docker Build Workflow
         uses: actions/github-script@v9
@@ -164,7 +164,7 @@ jobs:
 
   notify:
     if: failure()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Notify build failure in Telegram
         if: failure()
