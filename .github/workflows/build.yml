@@ -37,7 +37,7 @@ env:
 
 jobs:
   dynamic-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       profiles: ${{ steps.profiles.outputs.value }}
       targets: ${{ steps.targets.outputs.targets }}
@@ -58,14 +58,14 @@ jobs:
             {
               name: "linux-x86_64",
               target: "x86_64-unknown-linux-gnu",
-              "runs-on": "ubuntu-latest"
+              "runs-on": "ubuntu-24.04"
             }
           ]')
           ethexe_targets=$(jq -c -n '[
             {
               name: "linux-x86_64",
               target: "x86_64-unknown-linux-gnu",
-              "runs-on": "ubuntu-latest"
+              "runs-on": "ubuntu-24.04"
             }
           ]')
           unix_targets="[]"
@@ -106,7 +106,7 @@ jobs:
               {
                 name: "windows-x86_64",
                 target: "x86_64-pc-windows-msvc",
-                "runs-on": "ubuntu-latest"
+                "runs-on": "ubuntu-24.04"
               }
             ]')
             ethexe_targets=$(echo "$ethexe_targets" | jq -c '. += [
@@ -205,7 +205,7 @@ jobs:
 
   docs:
     needs: gear-cli
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
@@ -241,7 +241,7 @@ jobs:
 
   workspace:
     needs: [dynamic-matrix, gear-cli]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
@@ -326,7 +326,7 @@ jobs:
           path: target/nextest/ci/junit.xml
 
   crates-io:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: workspace
     steps:
       - name: "ACTIONS: Checkout"
@@ -349,7 +349,7 @@ jobs:
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
   benchmarks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: workspace
     name: benchmarks
     steps:
@@ -400,7 +400,7 @@ jobs:
 
   try-runtime:
     needs: [dynamic-matrix, gear-cli]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
@@ -433,7 +433,7 @@ jobs:
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
       - name: "Test: Download Vara Mainnet snapshot"
-        run: curl -o vara_ci.snap -L https://snapshots.vara.network/vara-mainnet.snap
+        run: curl -o vara_ci.snap -L https://archive.vara.network/runtime.snap
 
       - name: "Test: on-runtime-upgrade"
         run: >-
@@ -448,7 +448,7 @@ jobs:
 
   fuzzer:
     if: false # temporarily disabled until we fix it
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: workspace
     env:
       RUSTFLAGS: "--cfg fuzz"
@@ -510,7 +510,7 @@ jobs:
         run: cat lazy_pages_fuzz_run
 
   production:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [dynamic-matrix, workspace]
     if: ${{ inputs.production && contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
     steps:
@@ -575,7 +575,7 @@ jobs:
 
   docker-build:
     name: Build Docker images for gear-cli, ethexe-cli (linux-x86_64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [dynamic-matrix, gear-cli, ethexe-cli]
     if: ${{ contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') || inputs.docker }}
     steps:

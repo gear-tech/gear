@@ -28,7 +28,7 @@ jobs:
 
   upload:
     if: github.event_name == 'push' && github.ref_name == 'master'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build
     permissions:
       contents: write

@@ -8,7 +8,7 @@ env:
 
 jobs:
   build-gear-loader:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v7
@@ -28,7 +28,7 @@ jobs:
             target/release/gear-node-loader
 
   update-gear-loader:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-gear-loader
     steps:
       - name: "ACTIONS: Checkout"
