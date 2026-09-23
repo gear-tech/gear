@@ -664,6 +664,9 @@ impl Service {
         if let Some(c) = consensus.as_ref() {
             roles.push(c.role());
         }
+        if rpc_handle.is_some() {
+            roles.push("RPC".to_string());
+        }
         log::info!("⚙️ Node service starting, roles: {roles:?}");
 
         #[cfg(test)]
