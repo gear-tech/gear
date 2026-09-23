@@ -1,0 +1,278 @@
+// Copyright (C) Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+//! Generating request logic for request/response protocol for syncing BEEFY justifications.
+
+use codec::Encode;
+use futures::channel::{oneshot, oneshot::Canceled};
+use log::{debug, warn};
+use parking_lot::Mutex;
+use sc_network::{
+    request_responses::{IfDisconnected, RequestFailure},
+    NetworkRequest, ProtocolName,
+};
+use sc_network_types::PeerId;
+use sp_consensus_beefy::{AuthorityIdBound, ValidatorSet};
+use sp_runtime::traits::{Block, NumberFor};
+use std::{collections::VecDeque, result::Result, sync::Arc};
+
+use crate::{
+    communication::{
+        benefit, cost,
+        peers::PeerReport,
+        request_response::{Error, JustificationRequest, BEEFY_SYNC_LOG_TARGET},
+    },
+    justification::{decode_and_verify_finality_proof, BeefyVersionedFinalityProof},
+    metric_inc,
+    metrics::{register_metrics, OnDemandOutgoingRequestsMetrics},
+    KnownPeers,
+};
+
+/// Response type received from network.
+type Response = Result<(Vec<u8>, ProtocolName), RequestFailure>;
+/// Used to receive a response from the network.
+type ResponseReceiver = oneshot::Receiver<Response>;
+
+#[derive(Clone, Debug)]
+struct RequestInfo<B: Block, AuthorityId: AuthorityIdBound> {
+    block: NumberFor<B>,
+    active_set: ValidatorSet<AuthorityId>,
+}
+
+enum State<B: Block, AuthorityId: AuthorityIdBound> {
+    Idle,
+    AwaitingResponse(PeerId, RequestInfo<B, AuthorityId>, ResponseReceiver),
+}
+
+/// Possible engine responses.
+pub(crate) enum ResponseInfo<B: Block, AuthorityId: AuthorityIdBound> {
+    /// No peer response available yet.
+    Pending,
+    /// Valid justification provided alongside peer reputation changes.
+    ValidProof(BeefyVersionedFinalityProof<B, AuthorityId>, PeerReport),
+    /// No justification yet, only peer reputation changes.
+    PeerReport(PeerReport),
+}
+
+pub struct OnDemandJustificationsEngine<B: Block, AuthorityId: AuthorityIdBound> {
+    network: Arc<dyn NetworkRequest + Send + Sync>,
+    protocol_name: ProtocolName,
+
+    live_peers: Arc<Mutex<KnownPeers<B>>>,
+    peers_cache: VecDeque<PeerId>,
+
+    state: State<B, AuthorityId>,
+    metrics: Option<OnDemandOutgoingRequestsMetrics>,
+}
+
+impl<B: Block, AuthorityId: AuthorityIdBound> OnDemandJustificationsEngine<B, AuthorityId> {
+    pub fn new(
+        network: Arc<dyn NetworkRequest + Send + Sync>,
+        protocol_name: ProtocolName,
+        live_peers: Arc<Mutex<KnownPeers<B>>>,
+        prometheus_registry: Option<prometheus_endpoint::Registry>,
+    ) -> Self {
+        let metrics = register_metrics(prometheus_registry);
+        Self {
+            network,
+            protocol_name,
+            live_peers,
+            peers_cache: VecDeque::new(),
+            state: State::Idle,
+            metrics,
+        }
+    }
+
+    fn reset_peers_cache_for_block(&mut self, block: NumberFor<B>) {
+        self.peers_cache = self.live_peers.lock().further_than(block);
+    }
+
+    fn try_next_peer(&mut self) -> Option<PeerId> {
+        let live = self.live_peers.lock();
+        while let Some(peer) = self.peers_cache.pop_front() {
+            if live.contains(&peer) {
+                return Some(peer);
+            }
+        }
+        None
+    }
+
+    fn request_from_peer(&mut self, peer: PeerId, req_info: RequestInfo<B, AuthorityId>) {
+        debug!(
+            target: BEEFY_SYNC_LOG_TARGET,
+            "🥩 requesting justif #{:?} from peer {:?}", req_info.block, peer,
+        );
+
+        let payload = JustificationRequest::<B> {
+            begin: req_info.block,
+        }
+        .encode();
+
+        let (tx, rx) = oneshot::channel();
+
+        self.network.start_request(
+            peer,
+            self.protocol_name.clone(),
+            payload,
+            None,
+            tx,
+            IfDisconnected::ImmediateError,
+        );
+
+        self.state = State::AwaitingResponse(peer, req_info, rx);
+    }
+
+    /// Start new justification request for `block`, if no other request is in progress.
+    ///
+    /// `active_set` will be used to verify validity of potential responses.
+    pub fn request(&mut self, block: NumberFor<B>, active_set: ValidatorSet<AuthorityId>) {
+        // ignore new requests while there's already one pending
+        if matches!(self.state, State::AwaitingResponse(_, _, _)) {
+            return;
+        }
+        self.reset_peers_cache_for_block(block);
+
+        // Start the requests engine - each unsuccessful received response will automatically
+        // trigger a new request to the next peer in the `peers_cache` until there are none left.
+        if let Some(peer) = self.try_next_peer() {
+            self.request_from_peer(peer, RequestInfo { block, active_set });
+        } else {
+            metric_inc!(
+                self.metrics,
+                beefy_on_demand_justification_no_peer_to_request_from
+            );
+            debug!(
+                target: BEEFY_SYNC_LOG_TARGET,
+                "🥩 no good peers to request justif #{:?} from", block
+            );
+        }
+    }
+
+    /// Cancel any pending request for block numbers smaller or equal to `block`.
+    pub fn cancel_requests_older_than(&mut self, block: NumberFor<B>) {
+        match &self.state {
+            State::AwaitingResponse(_, req_info, _) if req_info.block <= block => {
+                debug!(
+                    target: BEEFY_SYNC_LOG_TARGET,
+                    "🥩 cancel pending request for justification #{:?}", req_info.block
+                );
+                self.state = State::Idle;
+            }
+            _ => (),
+        }
+    }
+
+    fn process_response(
+        &mut self,
+        peer: &PeerId,
+        req_info: &RequestInfo<B, AuthorityId>,
+        response: Result<Response, Canceled>,
+    ) -> Result<BeefyVersionedFinalityProof<B, AuthorityId>, Error> {
+        response
+            .map_err(|e| {
+                debug!(
+                    target: BEEFY_SYNC_LOG_TARGET,
+                    "🥩 on-demand sc-network channel sender closed, err: {:?}", e
+                );
+                Error::ResponseError
+            })?
+            .map_err(|e| {
+                debug!(
+                    target: BEEFY_SYNC_LOG_TARGET,
+                    "🥩 for on demand justification #{:?}, peer {:?} error: {:?}",
+                    req_info.block,
+                    peer,
+                    e
+                );
+                match e {
+                    RequestFailure::Refused => {
+                        metric_inc!(self.metrics, beefy_on_demand_justification_peer_refused);
+                        let peer_report = PeerReport {
+                            who: *peer,
+                            cost_benefit: cost::REFUSAL_RESPONSE,
+                        };
+                        Error::InvalidResponse(peer_report)
+                    }
+                    _ => {
+                        metric_inc!(self.metrics, beefy_on_demand_justification_peer_error);
+                        Error::ResponseError
+                    }
+                }
+            })
+            .and_then(|(encoded, _)| {
+                decode_and_verify_finality_proof::<B, AuthorityId>(
+					&encoded[..],
+					req_info.block,
+					&req_info.active_set,
+				)
+				.map_err(|(err, signatures_checked)| {
+					metric_inc!(self.metrics, beefy_on_demand_justification_invalid_proof);
+					debug!(
+						target: BEEFY_SYNC_LOG_TARGET,
+						"🥩 for on demand justification #{:?}, peer {:?} responded with invalid proof: {:?}",
+						req_info.block, peer, err
+					);
+					let mut cost = cost::INVALID_PROOF;
+					cost.value +=
+						cost::PER_SIGNATURE_CHECKED.saturating_mul(signatures_checked as i32);
+					Error::InvalidResponse(PeerReport { who: *peer, cost_benefit: cost })
+				})
+            })
+    }
+
+    pub(crate) async fn next(&mut self) -> ResponseInfo<B, AuthorityId> {
+        let (peer, req_info, resp) = match &mut self.state {
+            State::Idle => {
+                futures::future::pending::<()>().await;
+                return ResponseInfo::Pending;
+            }
+            State::AwaitingResponse(peer, req_info, receiver) => {
+                let resp = receiver.await;
+                (*peer, req_info.clone(), resp)
+            }
+        };
+        // We received the awaited response. Our 'receiver' will never generate any other response,
+        // meaning we're done with current state. Move the engine to `State::Idle`.
+        self.state = State::Idle;
+
+        let block = req_info.block;
+        match self.process_response(&peer, &req_info, resp) {
+            Err(err) => {
+                // No valid justification received, try next peer in our set.
+                if let Some(peer) = self.try_next_peer() {
+                    self.request_from_peer(peer, req_info);
+                } else {
+                    metric_inc!(
+                        self.metrics,
+                        beefy_on_demand_justification_no_peer_to_request_from
+                    );
+
+                    let num_cache = self.peers_cache.len();
+                    let num_live = self.live_peers.lock().len();
+                    warn!(
+                        target: BEEFY_SYNC_LOG_TARGET,
+                        "🥩 ran out of peers to request justif #{block:?} from num_cache={num_cache} num_live={num_live} err={err:?}",
+                    );
+                }
+                // Report peer based on error type.
+                if let Error::InvalidResponse(peer_report) = err {
+                    ResponseInfo::PeerReport(peer_report)
+                } else {
+                    ResponseInfo::Pending
+                }
+            }
+            Ok(proof) => {
+                metric_inc!(self.metrics, beefy_on_demand_justification_good_proof);
+                debug!(
+                    target: BEEFY_SYNC_LOG_TARGET,
+                    "🥩 received valid on-demand justif #{block:?} from {peer:?}",
+                );
+                let peer_report = PeerReport {
+                    who: peer,
+                    cost_benefit: benefit::VALIDATED_PROOF,
+                };
+                ResponseInfo::ValidProof(proof, peer_report)
+            }
+        }
+    }
+}

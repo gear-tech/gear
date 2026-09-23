@@ -8,6 +8,7 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::{Forcing, StakerStatus};
 use runtime_primitives::AccountPublic;
 use sp_consensus_babe::AuthorityId as BabeId;
+use sp_consensus_beefy::ecdsa_crypto::AuthorityId as BeefyId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{Pair, Public, sr25519};
 use sp_genesis_builder::{DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET, PresetId};
@@ -22,6 +23,7 @@ pub fn testnet_genesis(
         GrandpaId,
         ImOnlineId,
         AuthorityDiscoveryId,
+        BeefyId,
     )>,
     root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
@@ -60,7 +62,13 @@ pub fn testnet_genesis(
                     (
                         x.0.clone(),
                         x.0.clone(),
-                        session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone()),
+                        session_keys(
+                            x.2.clone(),
+                            x.3.clone(),
+                            x.4.clone(),
+                            x.5.clone(),
+                            x.6.clone(),
+                        ),
                     )
                 })
                 .collect::<Vec<_>>(),
@@ -107,6 +115,12 @@ pub fn testnet_genesis(
             epoch_config: BABE_GENESIS_EPOCH_CONFIG,
             ..Default::default()
         },
+        // Development chains exercise the production BEEFY/MMR path from genesis
+        // before mainnet activation.
+        beefy: BeefyConfig {
+            authorities: vec![],
+            genesis_block: Some(1),
+        },
         #[cfg(feature = "dev")]
         sudo: SudoConfig {
             // Assign network admin rights.
@@ -125,12 +139,14 @@ fn session_keys(
     grandpa: GrandpaId,
     im_online: ImOnlineId,
     authority_discovery: AuthorityDiscoveryId,
+    beefy: BeefyId,
 ) -> SessionKeys {
     SessionKeys {
         babe,
         grandpa,
         im_online,
         authority_discovery,
+        beefy,
     }
 }
 
@@ -159,6 +175,7 @@ pub fn authority_keys_from_seed(
     GrandpaId,
     ImOnlineId,
     AuthorityDiscoveryId,
+    BeefyId,
 ) {
     (
         get_account_id_from_seed::<sr25519::Public>(&format!("{s}//stash")),
@@ -167,6 +184,7 @@ pub fn authority_keys_from_seed(
         get_from_seed::<GrandpaId>(s),
         get_from_seed::<ImOnlineId>(s),
         get_from_seed::<AuthorityDiscoveryId>(s),
+        get_from_seed::<BeefyId>(s),
     )
 }
 

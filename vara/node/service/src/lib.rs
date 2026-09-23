@@ -27,6 +27,7 @@ pub use client::*;
 
 pub use sc_client_api::AuxStore;
 use sc_consensus_babe::{self, SlotProportion};
+use sc_consensus_beefy as beefy;
 pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
 
 #[cfg(feature = "vara-native")]
@@ -56,6 +57,13 @@ type FullGrandpaBlockImport<RuntimeApi, ChainSelection = FullSelectChain> =
         FullClient<RuntimeApi>,
         ChainSelection,
     >;
+type FullBeefyBlockImport<RuntimeApi, InnerBlockImport> = beefy::import::BeefyBlockImport<
+    Block,
+    FullBackend,
+    FullClient<RuntimeApi>,
+    InnerBlockImport,
+    sp_consensus_beefy::ecdsa_crypto::AuthorityId,
+>;
 
 /// The transaction pool type definition.
 type TransactionPool<RuntimeApi> = sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi>>;
@@ -140,10 +148,11 @@ pub fn new_partial<RuntimeApi>(
                 sc_consensus_babe::BabeBlockImport<
                     Block,
                     FullClient<RuntimeApi>,
-                    FullGrandpaBlockImport<RuntimeApi>,
+                    FullBeefyBlockImport<RuntimeApi, FullGrandpaBlockImport<RuntimeApi>>,
                 >,
                 sc_consensus_grandpa::LinkHalf<Block, FullClient<RuntimeApi>, FullSelectChain>,
                 sc_consensus_babe::BabeLink<Block>,
+                beefy::BeefyVoterLinks<Block, sp_consensus_beefy::ecdsa_crypto::AuthorityId>,
             ),
             sc_consensus_grandpa::SharedVoterState,
             Option<Telemetry>,
@@ -217,9 +226,17 @@ where
     )?;
     let justification_import = grandpa_block_import.clone();
 
+    let (beefy_block_import, beefy_voter_links, beefy_rpc_links) =
+        beefy::beefy_block_import_and_links(
+            grandpa_block_import,
+            backend.clone(),
+            client.clone(),
+            config.prometheus_registry().cloned(),
+        );
+
     let (block_import, babe_link) = sc_consensus_babe::block_import(
         sc_consensus_babe::configuration(&*client)?,
-        grandpa_block_import,
+        beefy_block_import,
         client.clone(),
     )?;
 
@@ -249,10 +266,10 @@ where
         },
     )?;
 
-    let import_setup = (block_import, grandpa_link, babe_link);
+    let import_setup = (block_import, grandpa_link, babe_link, beefy_voter_links);
 
     let (rpc_extensions_builder, rpc_setup) = {
-        let (_, grandpa_link, _) = &import_setup;
+        let (_, grandpa_link, _, _) = &import_setup;
 
         let justification_stream = grandpa_link.justification_stream();
         let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -271,6 +288,7 @@ where
         let chain_spec = config.chain_spec.cloned_box();
 
         let rpc_backend = backend.clone();
+        let beefy_rpc_links = beefy_rpc_links.clone();
         let rpc_extensions_builder =
             move |subscription_executor: sc_rpc::SubscriptionTaskExecutor| {
                 let gear_subscription_executor = subscription_executor.clone();
@@ -287,8 +305,17 @@ where
                         shared_voter_state: shared_voter_state.clone(),
                         shared_authority_set: shared_authority_set.clone(),
                         justification_stream: justification_stream.clone(),
-                        subscription_executor,
+                        subscription_executor: subscription_executor.clone(),
                         finality_provider: finality_proof_provider.clone(),
+                    },
+                    beefy: crate::rpc::BeefyDeps {
+                        beefy_finality_proof_stream: beefy_rpc_links
+                            .from_voter_justif_stream
+                            .clone(),
+                        beefy_best_block_stream: beefy_rpc_links
+                            .from_voter_best_beefy_stream
+                            .clone(),
+                        subscription_executor,
                     },
                     gear: crate::rpc::GearDeps {
                         allowance_multiplier: rpc_calculations_multiplier,
@@ -298,7 +325,10 @@ where
                     backend: rpc_backend.clone(),
                 };
 
-                crate::rpc::create_full(deps).map_err(Into::into)
+                crate::rpc::create_full::<_, _, _, _, sp_consensus_beefy::ecdsa_crypto::AuthorityId>(
+                    deps,
+                )
+                .map_err(Into::into)
             };
 
         (rpc_extensions_builder, shared_voter_state2)
@@ -347,7 +377,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>, RuntimeA
         &sc_consensus_babe::BabeBlockImport<
             Block,
             FullClient<RuntimeApi>,
-            FullGrandpaBlockImport<RuntimeApi>,
+            FullBeefyBlockImport<RuntimeApi, FullGrandpaBlockImport<RuntimeApi>>,
         >,
         &sc_consensus_babe::BabeLink<Block>,
     ),
@@ -412,6 +442,28 @@ where
 
     net_config.add_notification_protocol(grandpa_protocol_config);
 
+    let beefy_gossip_proto_name =
+        beefy::gossip_protocol_name(genesis_hash, config.chain_spec.fork_id());
+    // `beefy_on_demand_justifications_handler` is given to the beefy gadget task to be run,
+    // while `beefy_req_resp_cfg` is added to `config.network.request_response_protocols`.
+    let (beefy_on_demand_justifications_handler, beefy_req_resp_cfg) =
+        beefy::communication::request_response::BeefyJustifsRequestHandler::new::<_, N>(
+            &genesis_hash,
+            config.chain_spec.fork_id(),
+            client.clone(),
+            config.prometheus_registry().cloned(),
+        );
+
+    let (beefy_notification_config, beefy_notification_service) =
+        beefy::communication::beefy_peers_set_config::<_, N>(
+            beefy_gossip_proto_name.clone(),
+            metrics.clone(),
+            Arc::clone(&peer_store_handle),
+        );
+
+    net_config.add_notification_protocol(beefy_notification_config);
+    net_config.add_request_response_protocol(beefy_req_resp_cfg);
+
     let warp_sync = Arc::new(sc_consensus_grandpa::warp_proof::NetworkProvider::new(
         backend.clone(),
         import_setup.1.shared_authority_set().clone(),
@@ -440,6 +492,7 @@ where
     let enable_grandpa = !config.disable_grandpa;
     let prometheus_registry = config.prometheus_registry().cloned();
     let enable_offchain_worker = config.offchain_worker.enabled;
+    let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 
     let rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
         config,
@@ -477,7 +530,7 @@ where
         }
     }
 
-    let (block_import, grandpa_link, babe_link) = import_setup;
+    let (block_import, grandpa_link, babe_link, beefy_links) = import_setup;
 
     (with_startup_data)(&block_import, &babe_link);
 
@@ -583,6 +636,48 @@ where
     } else {
         None
     };
+
+    // beefy is enabled if its notification service exists
+    let beefy_network_params = beefy::BeefyNetworkParams {
+        network: Arc::new(network.clone()),
+        sync: sync_service.clone(),
+        gossip_protocol_name: beefy_gossip_proto_name,
+        justifications_protocol_name: beefy_on_demand_justifications_handler.protocol_name(),
+        notification_service: beefy_notification_service,
+        _phantom: core::marker::PhantomData::<Block>,
+    };
+    let beefy_params = beefy::BeefyParams {
+        client: client.clone(),
+        backend: backend.clone(),
+        payload_provider: sp_consensus_beefy::mmr::MmrRootProvider::new(client.clone()),
+        runtime: client.clone(),
+        key_store: keystore.clone(),
+        network_params: beefy_network_params,
+        min_block_delta: 8,
+        prometheus_registry: prometheus_registry.clone(),
+        links: beefy_links,
+        on_demand_justifications_handler: beefy_on_demand_justifications_handler,
+        is_authority: role.is_authority(),
+    };
+
+    let beefy_gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _, _>(beefy_params);
+    // BEEFY is part of consensus, if it fails we'll bring the node down with it to make sure it
+    // is noticed.
+    task_manager
+        .spawn_essential_handle()
+        .spawn_blocking("beefy-gadget", None, beefy_gadget);
+    // When offchain indexing is enabled, the MMR gadget should also run.
+    if is_offchain_indexing_enabled {
+        task_manager.spawn_essential_handle().spawn_blocking(
+            "mmr-gadget",
+            None,
+            mmr_gadget::MmrGadget::start(
+                client.clone(),
+                backend.clone(),
+                sp_mmr_primitives::INDEXING_PREFIX.to_vec(),
+            ),
+        );
+    }
 
     let grandpa_config = sc_consensus_grandpa::Config {
         gossip_duration: std::time::Duration::from_millis(1000),

@@ -1,0 +1,193 @@
+// Copyright (C) Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+use std::sync::Arc;
+
+use log::debug;
+
+use sp_api::ProvideRuntimeApi;
+use sp_consensus::Error as ConsensusError;
+use sp_consensus_beefy::{AuthorityIdBound, BeefyApi, BEEFY_ENGINE_ID};
+use sp_runtime::{
+    traits::{Block as BlockT, Header as HeaderT, NumberFor},
+    EncodedJustification,
+};
+
+use sc_client_api::backend::Backend;
+use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult};
+
+use crate::{
+    communication::notification::BeefyVersionedFinalityProofSender,
+    justification::{decode_and_verify_finality_proof, BeefyVersionedFinalityProof},
+    metric_inc,
+    metrics::BlockImportMetrics,
+    LOG_TARGET,
+};
+
+/// A block-import handler for BEEFY.
+///
+/// This scans each imported block for BEEFY justifications and verifies them.
+/// Wraps a `inner: BlockImport` and ultimately defers to it.
+///
+/// When using BEEFY, the block import worker should be using this block import object.
+pub struct BeefyBlockImport<Block: BlockT, Backend, RuntimeApi, I, AuthorityId: AuthorityIdBound> {
+    backend: Arc<Backend>,
+    runtime: Arc<RuntimeApi>,
+    inner: I,
+    justification_sender: BeefyVersionedFinalityProofSender<Block, AuthorityId>,
+    metrics: Option<BlockImportMetrics>,
+}
+
+impl<Block: BlockT, BE, Runtime, I: Clone, AuthorityId: AuthorityIdBound> Clone
+    for BeefyBlockImport<Block, BE, Runtime, I, AuthorityId>
+{
+    fn clone(&self) -> Self {
+        BeefyBlockImport {
+            backend: self.backend.clone(),
+            runtime: self.runtime.clone(),
+            inner: self.inner.clone(),
+            justification_sender: self.justification_sender.clone(),
+            metrics: self.metrics.clone(),
+        }
+    }
+}
+
+impl<Block: BlockT, BE, Runtime, I, AuthorityId: AuthorityIdBound>
+    BeefyBlockImport<Block, BE, Runtime, I, AuthorityId>
+{
+    /// Create a new BeefyBlockImport.
+    pub fn new(
+        backend: Arc<BE>,
+        runtime: Arc<Runtime>,
+        inner: I,
+        justification_sender: BeefyVersionedFinalityProofSender<Block, AuthorityId>,
+        metrics: Option<BlockImportMetrics>,
+    ) -> BeefyBlockImport<Block, BE, Runtime, I, AuthorityId> {
+        BeefyBlockImport {
+            backend,
+            runtime,
+            inner,
+            justification_sender,
+            metrics,
+        }
+    }
+}
+
+impl<Block, BE, Runtime, I, AuthorityId> BeefyBlockImport<Block, BE, Runtime, I, AuthorityId>
+where
+    Block: BlockT,
+    BE: Backend<Block>,
+    Runtime: ProvideRuntimeApi<Block>,
+    Runtime::Api: BeefyApi<Block, AuthorityId> + Send,
+    AuthorityId: AuthorityIdBound,
+{
+    fn decode_and_verify(
+        &self,
+        encoded: &EncodedJustification,
+        number: NumberFor<Block>,
+        hash: <Block as BlockT>::Hash,
+    ) -> Result<BeefyVersionedFinalityProof<Block, AuthorityId>, ConsensusError> {
+        use ConsensusError::ClientImport as ImportError;
+        let beefy_genesis = self
+            .runtime
+            .runtime_api()
+            .beefy_genesis(hash)
+            .map_err(|e| ImportError(e.to_string()))?
+            .ok_or_else(|| ImportError("Unknown BEEFY genesis".to_string()))?;
+        if number < beefy_genesis {
+            return Err(ImportError(
+                "BEEFY genesis is set for future block".to_string(),
+            ));
+        }
+        let validator_set = self
+            .runtime
+            .runtime_api()
+            .validator_set(hash)
+            .map_err(|e| ImportError(e.to_string()))?
+            .ok_or_else(|| ImportError("Unknown validator set".to_string()))?;
+
+        decode_and_verify_finality_proof::<Block, AuthorityId>(&encoded[..], number, &validator_set)
+            .map_err(|(err, _)| err)
+    }
+}
+
+#[async_trait::async_trait]
+impl<Block, BE, Runtime, I, AuthorityId> BlockImport<Block>
+    for BeefyBlockImport<Block, BE, Runtime, I, AuthorityId>
+where
+    Block: BlockT,
+    BE: Backend<Block>,
+    I: BlockImport<Block, Error = ConsensusError> + Send + Sync,
+    Runtime: ProvideRuntimeApi<Block> + Send + Sync,
+    Runtime::Api: BeefyApi<Block, AuthorityId>,
+    AuthorityId: AuthorityIdBound,
+{
+    type Error = ConsensusError;
+
+    async fn import_block(
+        &self,
+        mut block: BlockImportParams<Block>,
+    ) -> Result<ImportResult, Self::Error> {
+        let hash = block.post_hash();
+        let number = *block.header.number();
+
+        let beefy_encoded = block.justifications.as_mut().and_then(|just| {
+            let encoded = just.get(BEEFY_ENGINE_ID).cloned();
+            // Remove BEEFY justification from the list before giving to `inner`; we send it to the
+            // voter (beefy-gadget) and it will append it to the backend after block is finalized.
+            just.remove(BEEFY_ENGINE_ID);
+            encoded
+        });
+
+        // Run inner block import.
+        let inner_import_result = self.inner.import_block(block).await?;
+
+        match self.backend.state_at(hash) {
+            Ok(_) => {}
+            Err(_) => {
+                // The block is imported as part of some chain sync.
+                // The voter doesn't need to process it now.
+                // It will be detected and processed as part of the voter state init.
+                return Ok(inner_import_result);
+            }
+        }
+
+        match (beefy_encoded, &inner_import_result) {
+            (Some(encoded), ImportResult::Imported(_)) => {
+                match self.decode_and_verify(&encoded, number, hash) {
+                    Ok(proof) => {
+                        // The proof is valid and the block is imported and final, we can import.
+                        debug!(
+                            target: LOG_TARGET,
+                            "🥩 import justif {} for block number {:?}.", proof, number
+                        );
+                        // Send the justification to the BEEFY voter for processing.
+                        self.justification_sender
+                            .notify(|| Ok::<_, ()>(proof))
+                            .expect("the closure always returns Ok; qed.");
+                        metric_inc!(self.metrics, beefy_good_justification_imports);
+                    }
+                    Err(err) => {
+                        debug!(
+                            target: LOG_TARGET,
+                            "🥩 error importing BEEFY justification for block {:?}: {:?}",
+                            number,
+                            err,
+                        );
+                        metric_inc!(self.metrics, beefy_bad_justification_imports);
+                    }
+                }
+            }
+            _ => (),
+        }
+
+        Ok(inner_import_result)
+    }
+
+    async fn check_block(
+        &self,
+        block: BlockCheckParams<Block>,
+    ) -> Result<ImportResult, Self::Error> {
+        self.inner.check_block(block).await
+    }
+}

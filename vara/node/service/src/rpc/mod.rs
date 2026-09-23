@@ -7,12 +7,15 @@
 
 use std::sync::Arc;
 
-use jsonrpsee::RpcModule;
+use jsonrpsee::{RpcModule, core::RpcResult, types::ErrorObject};
 use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
 use sc_client_api::{
     AuxStore, Backend, BlockBackend, BlockchainEvents, StorageProvider, backend::StateBackend,
 };
 use sc_consensus_babe::BabeWorkerHandle;
+use sc_consensus_beefy::communication::notification::{
+    BeefyBestBlockStream, BeefyVersionedFinalityProofStream,
+};
 use sc_consensus_grandpa::{
     FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
 };
@@ -23,6 +26,7 @@ use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
+use sp_consensus_beefy::AuthorityIdBound;
 use sp_keystore::KeystorePtr;
 
 mod gear_events;
@@ -50,6 +54,16 @@ pub struct GrandpaDeps<B> {
     pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
+/// Extra dependencies for BEEFY.
+pub struct BeefyDeps<AuthorityId: AuthorityIdBound> {
+    /// Receives notifications about finality proof events from BEEFY.
+    pub beefy_finality_proof_stream: BeefyVersionedFinalityProofStream<Block, AuthorityId>,
+    /// Receives notifications about best block events from BEEFY.
+    pub beefy_best_block_stream: BeefyBestBlockStream<Block>,
+    /// Executor to drive the subscription manager in the BEEFY RPC handler.
+    pub subscription_executor: SubscriptionTaskExecutor,
+}
+
 /// Extra dependencies for GEAR.
 pub struct GearDeps {
     /// gas allowance block limit multiplier.
@@ -61,7 +75,7 @@ pub struct GearDeps {
 }
 
 /// Full client dependencies.
-pub struct FullDeps<C, P, SC, B> {
+pub struct FullDeps<C, P, SC, B, AuthorityId: AuthorityIdBound> {
     /// The client instance to use.
     pub client: Arc<C>,
     /// Transaction pool instance.
@@ -74,14 +88,74 @@ pub struct FullDeps<C, P, SC, B> {
     pub babe: BabeDeps,
     /// GRANDPA specific dependencies.
     pub grandpa: GrandpaDeps<B>,
+    /// BEEFY specific dependencies.
+    pub beefy: BeefyDeps<AuthorityId>,
     /// GEAR specific dependencies.
     pub gear: GearDeps,
     /// The backend used by the node.
     pub backend: Arc<B>,
 }
 
+const RUNTIME_ERROR: i32 = 8000;
+
+struct BoundedMmr<M> {
+    inner: M,
+    max_batch_size: u64,
+}
+
+impl<M> BoundedMmr<M> {
+    fn new(inner: M, max_batch_size: u64) -> Self {
+        Self {
+            inner,
+            max_batch_size,
+        }
+    }
+}
+
+impl<M> mmr_rpc::MmrApiServer<Hash, BlockNumber, Hash> for BoundedMmr<M>
+where
+    M: mmr_rpc::MmrApiServer<Hash, BlockNumber, Hash> + Send + Sync + 'static,
+{
+    fn mmr_root(&self, at: Option<Hash>) -> RpcResult<Hash> {
+        self.inner.mmr_root(at)
+    }
+
+    fn generate_proof(
+        &self,
+        block_numbers: Vec<BlockNumber>,
+        best_known_block_number: Option<BlockNumber>,
+        at: Option<Hash>,
+    ) -> RpcResult<mmr_rpc::LeavesProof<Hash>> {
+        if block_numbers.len() as u64 > self.max_batch_size {
+            return Err(ErrorObject::owned(
+                RUNTIME_ERROR,
+                "Runtime error",
+                Some(format!(
+                    "Batch size must not exceed {}",
+                    self.max_batch_size
+                )),
+            ));
+        }
+
+        self.inner
+            .generate_proof(block_numbers, best_known_block_number, at)
+    }
+
+    fn verify_proof(&self, proof: mmr_rpc::LeavesProof<Hash>) -> RpcResult<bool> {
+        self.inner.verify_proof(proof)
+    }
+
+    fn verify_proof_stateless(
+        &self,
+        mmr_root: Hash,
+        proof: mmr_rpc::LeavesProof<Hash>,
+    ) -> RpcResult<bool> {
+        self.inner.verify_proof_stateless(mmr_root, proof)
+    }
+}
+
 /// Instantiate all Full RPC extensions.
-pub fn create_full<C, P, SC, B>(
+pub fn create_full<C, P, SC, B, AuthorityId: AuthorityIdBound>(
     FullDeps {
         client,
         pool,
@@ -89,9 +163,10 @@ pub fn create_full<C, P, SC, B>(
         chain_spec,
         babe,
         grandpa,
+        beefy,
         gear,
         backend,
-    }: FullDeps<C, P, SC, B>,
+    }: FullDeps<C, P, SC, B, AuthorityId>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
     C: ProvideRuntimeApi<Block>
@@ -111,12 +186,14 @@ where
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
     C::Api: BabeApi<Block>,
     C::Api: BlockBuilder<Block>,
+    C::Api: mmr_rpc::MmrRuntimeApi<Block, <Block as sp_runtime::traits::Block>::Hash, BlockNumber>,
     P: TransactionPool + 'static,
     SC: SelectChain<Block> + 'static,
     B: Backend<Block> + Send + Sync + 'static,
     C: BlockchainEvents<Block>,
     B::State: StateBackend<sp_runtime::traits::HashingFor<Block>>,
 {
+    use mmr_rpc::MmrApiServer;
     use pallet_gear_builtin_rpc::{GearBuiltin, GearBuiltinApiServer};
     use pallet_gear_eth_bridge_rpc::{GearEthBridge, GearEthBridgeApiServer};
     use pallet_gear_rpc::{Gear, GearApiServer};
@@ -124,6 +201,7 @@ where
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
     use runtime_info::{RuntimeInfoApi, RuntimeInfoServer};
     use sc_consensus_babe_rpc::{Babe, BabeApiServer};
+    use sc_consensus_beefy_rpc::{Beefy, BeefyApiServer};
     use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
     use sc_rpc::dev::{Dev, DevApiServer};
     use sc_sync_state_rpc::{SyncState, SyncStateApiServer};
@@ -143,6 +221,11 @@ where
         subscription_executor: grandpa_subscription_executor,
         finality_provider,
     } = grandpa;
+    let BeefyDeps {
+        beefy_finality_proof_stream,
+        beefy_best_block_stream,
+        subscription_executor: beefy_subscription_executor,
+    } = beefy;
 
     let GearDeps {
         allowance_multiplier,
@@ -154,6 +237,18 @@ where
     let events_subscription_executor = gear_subscription_executor.clone();
 
     io.merge(System::new(client.clone(), pool).into_rpc())?;
+    io.merge(
+        BoundedMmr::new(
+            mmr_rpc::Mmr::new(
+                client.clone(),
+                backend
+                    .offchain_storage()
+                    .ok_or("Backend doesn't provide an offchain storage")?,
+            ),
+            max_batch_size,
+        )
+        .into_rpc(),
+    )?;
     io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
     io.merge(
         Babe::new(
@@ -172,6 +267,14 @@ where
             justification_stream,
             finality_provider,
         )
+        .into_rpc(),
+    )?;
+    io.merge(
+        Beefy::<Block, AuthorityId>::new(
+            beefy_finality_proof_stream,
+            beefy_best_block_stream,
+            beefy_subscription_executor,
+        )?
         .into_rpc(),
     )?;
 
@@ -217,4 +320,61 @@ where
     io.merge(GearEthBridge::new(client).into_rpc())?;
 
     Ok(io)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mmr_rpc::MmrApiServer;
+    use sp_core::Bytes;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct CountingMmr(Arc<AtomicUsize>);
+
+    impl MmrApiServer<Hash, BlockNumber, Hash> for CountingMmr {
+        fn mmr_root(&self, _at: Option<Hash>) -> RpcResult<Hash> {
+            Ok(Hash::zero())
+        }
+
+        fn generate_proof(
+            &self,
+            _block_numbers: Vec<BlockNumber>,
+            _best_known_block_number: Option<BlockNumber>,
+            _at: Option<Hash>,
+        ) -> RpcResult<mmr_rpc::LeavesProof<Hash>> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            Ok(mmr_rpc::LeavesProof {
+                block_hash: Hash::zero(),
+                leaves: Bytes(Vec::new()),
+                proof: Bytes(Vec::new()),
+            })
+        }
+
+        fn verify_proof(&self, _proof: mmr_rpc::LeavesProof<Hash>) -> RpcResult<bool> {
+            Ok(true)
+        }
+
+        fn verify_proof_stateless(
+            &self,
+            _mmr_root: Hash,
+            _proof: mmr_rpc::LeavesProof<Hash>,
+        ) -> RpcResult<bool> {
+            Ok(true)
+        }
+    }
+
+    #[test]
+    fn mmr_proof_batch_limit_rejects_before_delegating() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let rpc = BoundedMmr::new(CountingMmr(calls.clone()), 2);
+
+        assert!(rpc.generate_proof(vec![1, 2], None, None).is_ok());
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+
+        let error = rpc
+            .generate_proof(vec![1, 2, 3], None, None)
+            .expect_err("over-limit proof request is rejected");
+        assert_eq!(error.code(), RUNTIME_ERROR);
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+    }
 }

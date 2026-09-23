@@ -5,6 +5,7 @@
 
 use parity_scale_codec::Encode;
 use runtime_primitives::{AccountId, Nonce};
+use sp_core::Pair;
 use sp_keyring::{AccountKeyring, Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::generic::Era;
 use vara_runtime::{
@@ -50,11 +51,18 @@ pub fn to_session_keys(
     ed25519_keyring: &Ed25519Keyring,
     sr25519_keyring: &Sr25519Keyring,
 ) -> SessionKeys {
+    // BEEFY has no dedicated test keyring yet; derive a deterministic ECDSA key
+    // from the same seed as the ed25519 (grandpa) keyring.
+    let beefy = sp_core::ecdsa::Pair::from_string(&ed25519_keyring.to_owned().to_seed(), None)
+        .expect("static seed is valid; qed")
+        .public();
+
     SessionKeys {
         babe: sr25519_keyring.to_owned().public().into(),
         grandpa: ed25519_keyring.to_owned().public().into(),
         im_online: sr25519_keyring.to_owned().public().into(),
         authority_discovery: sr25519_keyring.to_owned().public().into(),
+        beefy: beefy.into(),
     }
 }
 

@@ -237,7 +237,8 @@ ark-serialize = { version = "0.4", default-features = false, features = ["derive
 ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 base64 = { version = "0.22" }
-binary-merkle-tree = { version = "16", default-features = false, features = ["std"] }
+binary-merkle-tree-4f98717620c4cd39 = { package = "binary-merkle-tree", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+binary-merkle-tree-8ee676a8f9a6c413 = { package = "binary-merkle-tree", version = "16", default-features = false, features = ["std"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 bitvec = { version = "1" }
 blake2 = { version = "0.10" }
@@ -359,6 +360,7 @@ parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.4
 pbkdf2 = { version = "0.12", features = ["std"] }
 percent-encoding = { version = "2" }
 pkcs8 = { version = "0.10", default-features = false, features = ["pem", "std"] }
+polkadot-ckb-merkle-mountain-range = { version = "0.7", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
@@ -413,6 +415,7 @@ sp-arithmetic = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = 
 sp-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-block-builder = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-consensus-beefy = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-consensus-slots = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
@@ -426,6 +429,7 @@ sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676
 sp-keyring = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-keystore = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-metadata-ir = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+sp-mmr-primitives = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-npos-elections = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 sp-offchain = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["disable_target_static_assertions"] }
@@ -516,7 +520,8 @@ ark-serialize = { version = "0.4", default-features = false, features = ["derive
 ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 base64 = { version = "0.22" }
-binary-merkle-tree = { version = "16", default-features = false, features = ["std"] }
+binary-merkle-tree-4f98717620c4cd39 = { package = "binary-merkle-tree", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+binary-merkle-tree-8ee676a8f9a6c413 = { package = "binary-merkle-tree", version = "16", default-features = false, features = ["std"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 bitvec = { version = "1" }
 blake2 = { version = "0.10" }
@@ -644,6 +649,7 @@ parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.4
 pbkdf2 = { version = "0.12", features = ["std"] }
 percent-encoding = { version = "2" }
 pkcs8 = { version = "0.10", default-features = false, features = ["pem", "std"] }
+polkadot-ckb-merkle-mountain-range = { version = "0.7", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
@@ -700,6 +706,7 @@ sp-arithmetic = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = 
 sp-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-block-builder = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
+sp-consensus-beefy = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-consensus-slots = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
@@ -714,6 +721,7 @@ sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676
 sp-keyring = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-keystore = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-metadata-ir = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
+sp-mmr-primitives = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-npos-elections = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", default-features = false, features = ["std"] }
 sp-offchain = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" }
 sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c", features = ["disable_target_static_assertions"] }

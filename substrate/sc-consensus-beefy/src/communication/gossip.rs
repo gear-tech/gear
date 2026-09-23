@@ -1,0 +1,978 @@
+// Copyright (C) Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+use std::{collections::BTreeSet, sync::Arc, time::Duration};
+
+use sc_network::{NetworkPeers, ReputationChange};
+use sc_network_gossip::{MessageIntent, ValidationResult, Validator, ValidatorContext};
+use sc_network_types::PeerId;
+use sp_runtime::traits::{Block, Hash, Header, NumberFor};
+
+use codec::{Decode, DecodeAll, Encode};
+use log::{debug, trace};
+use parking_lot::{Mutex, RwLock};
+use wasm_timer::Instant;
+
+use crate::{
+    communication::{benefit, cost, peers::KnownPeers},
+    justification::{
+        proof_block_num_and_set_id, verify_with_validator_set, BeefyVersionedFinalityProof,
+    },
+    keystore::BeefyKeystore,
+    LOG_TARGET,
+};
+use sp_application_crypto::RuntimeAppPublic;
+use sp_consensus_beefy::{AuthorityIdBound, ValidatorSet, ValidatorSetId, VoteMessage};
+
+// Timeout for rebroadcasting messages.
+#[cfg(not(test))]
+const REBROADCAST_AFTER: Duration = Duration::from_secs(60);
+#[cfg(test)]
+const REBROADCAST_AFTER: Duration = Duration::from_secs(5);
+
+#[derive(Debug, PartialEq)]
+pub(super) enum Action<H> {
+    // repropagate under given topic, to the given peers, applying cost/benefit to originator.
+    Keep(H, ReputationChange),
+    // discard, applying cost/benefit to originator.
+    Discard(ReputationChange),
+    // ignore, no cost/benefit applied to originator.
+    DiscardNoReport,
+}
+
+/// An outcome of examining a message.
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum Consider {
+    /// Accept the message.
+    Accept,
+    /// Message is too early. Reject.
+    RejectPast,
+    /// Message is from the future. Reject.
+    RejectFuture,
+    /// Message cannot be evaluated. Reject.
+    CannotEvaluate,
+}
+
+/// BEEFY gossip message type that gets encoded and sent on the network.
+#[derive(Debug, Encode, Decode)]
+pub(crate) enum GossipMessage<B: Block, AuthorityId: AuthorityIdBound> {
+    /// BEEFY message with commitment and single signature.
+    Vote(VoteMessage<NumberFor<B>, AuthorityId, <AuthorityId as RuntimeAppPublic>::Signature>),
+    /// BEEFY justification with commitment and signatures.
+    FinalityProof(BeefyVersionedFinalityProof<B, AuthorityId>),
+}
+
+impl<B: Block, AuthorityId: AuthorityIdBound> GossipMessage<B, AuthorityId> {
+    /// Return inner vote if this message is a Vote.
+    pub fn unwrap_vote(
+        self,
+    ) -> Option<VoteMessage<NumberFor<B>, AuthorityId, <AuthorityId as RuntimeAppPublic>::Signature>>
+    {
+        match self {
+            GossipMessage::Vote(vote) => Some(vote),
+            GossipMessage::FinalityProof(_) => None,
+        }
+    }
+
+    /// Return inner finality proof if this message is a FinalityProof.
+    pub fn unwrap_finality_proof(self) -> Option<BeefyVersionedFinalityProof<B, AuthorityId>> {
+        match self {
+            GossipMessage::Vote(_) => None,
+            GossipMessage::FinalityProof(proof) => Some(proof),
+        }
+    }
+}
+
+/// Gossip engine votes messages topic
+pub(crate) fn votes_topic<B: Block>() -> B::Hash
+where
+    B: Block,
+{
+    <<B::Header as Header>::Hashing as Hash>::hash(b"beefy-votes")
+}
+
+/// Gossip engine justifications messages topic
+pub(crate) fn proofs_topic<B: Block>() -> B::Hash
+where
+    B: Block,
+{
+    <<B::Header as Header>::Hashing as Hash>::hash(b"beefy-justifications")
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct GossipFilterCfg<'a, B: Block, AuthorityId: AuthorityIdBound> {
+    pub start: NumberFor<B>,
+    pub end: NumberFor<B>,
+    pub validator_set: &'a ValidatorSet<AuthorityId>,
+}
+
+#[derive(Clone, Debug)]
+struct FilterInner<B: Block, AuthorityId: AuthorityIdBound> {
+    pub start: NumberFor<B>,
+    pub end: NumberFor<B>,
+    pub validator_set: ValidatorSet<AuthorityId>,
+}
+
+struct Filter<B: Block, AuthorityId: AuthorityIdBound> {
+    // specifies live rounds
+    inner: Option<FilterInner<B, AuthorityId>>,
+    // cache of seen valid justifications in active rounds
+    rounds_with_valid_proofs: BTreeSet<NumberFor<B>>,
+}
+
+impl<B: Block, AuthorityId: AuthorityIdBound> Filter<B, AuthorityId> {
+    pub fn new() -> Self {
+        Self {
+            inner: None,
+            rounds_with_valid_proofs: BTreeSet::new(),
+        }
+    }
+
+    /// Update filter to new `start` and `set_id`.
+    fn update(&mut self, cfg: GossipFilterCfg<B, AuthorityId>) {
+        self.rounds_with_valid_proofs
+            .retain(|&round| round >= cfg.start && round <= cfg.end);
+        // only clone+overwrite big validator_set if set_id changed
+        match self.inner.as_mut() {
+            Some(f) if f.validator_set.id() == cfg.validator_set.id() => {
+                f.start = cfg.start;
+                f.end = cfg.end;
+            }
+            _ => {
+                self.inner = Some(FilterInner {
+                    start: cfg.start,
+                    end: cfg.end,
+                    validator_set: cfg.validator_set.clone(),
+                })
+            }
+        }
+    }
+
+    /// Accept if `max(session_start, best_beefy) <= round <= best_grandpa`,
+    /// and vote `set_id` matches session set id.
+    ///
+    /// Latest concluded round is still considered alive to allow proper gossiping for it.
+    fn consider_vote(&self, round: NumberFor<B>, set_id: ValidatorSetId) -> Consider {
+        self.inner
+			.as_ref()
+			.map(|f|
+				// only from current set and only [filter.start, filter.end]
+				if set_id < f.validator_set.id() || round < f.start {
+					Consider::RejectPast
+				} else if set_id > f.validator_set.id() || round > f.end {
+					Consider::RejectFuture
+				} else {
+					Consider::Accept
+				})
+			.unwrap_or(Consider::CannotEvaluate)
+    }
+
+    /// Return true if `round` is >= than `max(session_start, best_beefy)`,
+    /// and proof `set_id` matches session set id.
+    ///
+    /// Latest concluded round is still considered alive to allow proper gossiping for it.
+    fn consider_finality_proof(&self, round: NumberFor<B>, set_id: ValidatorSetId) -> Consider {
+        self.inner
+			.as_ref()
+			.map(|f|
+				// only from current set and only >= filter.start
+				if round < f.start || set_id < f.validator_set.id() {
+					Consider::RejectPast
+				} else if set_id > f.validator_set.id() {
+					Consider::RejectFuture
+				} else {
+					Consider::Accept
+				}
+			)
+			.unwrap_or(Consider::CannotEvaluate)
+    }
+
+    /// Add new _known_ `round` to the set of seen valid justifications.
+    fn mark_round_as_proven(&mut self, round: NumberFor<B>) {
+        self.rounds_with_valid_proofs.insert(round);
+    }
+
+    /// Check if `round` is already part of seen valid justifications.
+    fn is_already_proven(&self, round: NumberFor<B>) -> bool {
+        self.rounds_with_valid_proofs.contains(&round)
+    }
+
+    fn validator_set(&self) -> Option<&ValidatorSet<AuthorityId>> {
+        self.inner.as_ref().map(|f| &f.validator_set)
+    }
+}
+
+/// BEEFY gossip validator
+///
+/// Validate BEEFY gossip messages and limit the number of live BEEFY voting rounds.
+///
+/// Allows messages for 'rounds >= last concluded' to flow, everything else gets
+/// rejected/expired.
+///
+///All messaging is handled in a single BEEFY global topic.
+pub(crate) struct GossipValidator<B, N, AuthorityId: AuthorityIdBound>
+where
+    B: Block,
+{
+    votes_topic: B::Hash,
+    justifs_topic: B::Hash,
+    gossip_filter: RwLock<Filter<B, AuthorityId>>,
+    next_rebroadcast: Mutex<Instant>,
+    known_peers: Arc<Mutex<KnownPeers<B>>>,
+    network: Arc<N>,
+}
+
+impl<B, N, AuthorityId> GossipValidator<B, N, AuthorityId>
+where
+    B: Block,
+    AuthorityId: AuthorityIdBound,
+{
+    pub(crate) fn new(known_peers: Arc<Mutex<KnownPeers<B>>>, network: Arc<N>) -> Self {
+        Self {
+            votes_topic: votes_topic::<B>(),
+            justifs_topic: proofs_topic::<B>(),
+            gossip_filter: RwLock::new(Filter::new()),
+            next_rebroadcast: Mutex::new(Instant::now() + REBROADCAST_AFTER),
+            known_peers,
+            network,
+        }
+    }
+
+    /// Update gossip validator filter.
+    ///
+    /// Only votes for `set_id` and rounds `start <= round <= end` will be accepted.
+    pub(crate) fn update_filter(&self, filter: GossipFilterCfg<B, AuthorityId>) {
+        debug!(
+            target: LOG_TARGET,
+            "🥩 New gossip filter: start {:?}, end {:?}, validator set id {:?}",
+            filter.start, filter.end, filter.validator_set.id()
+        );
+        self.gossip_filter.write().update(filter);
+    }
+}
+
+impl<B, N, AuthorityId> GossipValidator<B, N, AuthorityId>
+where
+    B: Block,
+    N: NetworkPeers,
+    AuthorityId: AuthorityIdBound,
+{
+    fn report(&self, who: PeerId, cost_benefit: ReputationChange) {
+        self.network.report_peer(who, cost_benefit);
+    }
+
+    fn validate_vote(
+        &self,
+        vote: VoteMessage<NumberFor<B>, AuthorityId, <AuthorityId as RuntimeAppPublic>::Signature>,
+        sender: &PeerId,
+    ) -> Action<B::Hash> {
+        let round = vote.commitment.block_number;
+        let set_id = vote.commitment.validator_set_id;
+        // Verify general usefulness of the message.
+        // We are going to discard old votes right away (without verification).
+        {
+            let filter = self.gossip_filter.read();
+
+            match filter.consider_vote(round, set_id) {
+                Consider::RejectPast => return Action::Discard(cost::OUTDATED_MESSAGE),
+                Consider::RejectFuture => return Action::Discard(cost::FUTURE_MESSAGE),
+                // When we can't evaluate, it's our fault (e.g. filter not initialized yet), we
+                // discard the vote without punishing or rewarding the sending peer.
+                Consider::CannotEvaluate => return Action::DiscardNoReport,
+                Consider::Accept => {}
+            }
+
+            // ensure authority is part of the set.
+            if !filter
+                .validator_set()
+                .map(|set| set.validators().contains(&vote.id))
+                .unwrap_or(false)
+            {
+                debug!(target: LOG_TARGET, "Message from voter not in validator set: {}", vote.id);
+                return Action::Discard(cost::UNKNOWN_VOTER);
+            }
+        }
+
+        if BeefyKeystore::verify(&vote.id, &vote.signature, &vote.commitment.encode()) {
+            self.known_peers.lock().note_vote_for(*sender, round);
+            Action::Keep(self.votes_topic, benefit::VOTE_MESSAGE)
+        } else {
+            debug!(
+                target: LOG_TARGET,
+                "🥩 Bad signature on message: {:?}, from: {:?}", vote, sender
+            );
+            Action::Discard(cost::BAD_SIGNATURE)
+        }
+    }
+
+    fn validate_finality_proof(
+        &self,
+        proof: BeefyVersionedFinalityProof<B, AuthorityId>,
+        sender: &PeerId,
+    ) -> Action<B::Hash> {
+        let (round, set_id) = proof_block_num_and_set_id::<B, AuthorityId>(&proof);
+        let action = {
+            let guard = self.gossip_filter.read();
+
+            // Verify general usefulness of the justification.
+            match guard.consider_finality_proof(round, set_id) {
+                Consider::RejectPast => return Action::Discard(cost::OUTDATED_MESSAGE),
+                Consider::RejectFuture => return Action::Discard(cost::FUTURE_MESSAGE),
+                // When we can't evaluate, it's our fault (e.g. filter not initialized yet), we
+                // discard the proof without punishing or rewarding the sending peer.
+                Consider::CannotEvaluate => return Action::DiscardNoReport,
+                Consider::Accept => {}
+            }
+
+            if guard.is_already_proven(round) {
+                return Action::Discard(benefit::NOT_INTERESTED);
+            }
+
+            // Verify justification signatures.
+            guard
+                .validator_set()
+                .map(|validator_set| {
+                    if let Err((_, signatures_checked)) =
+                        verify_with_validator_set::<B, AuthorityId>(round, validator_set, &proof)
+                    {
+                        debug!(
+                            target: LOG_TARGET,
+                            "🥩 Bad signatures on message: {:?}, from: {:?}", proof, sender
+                        );
+                        let mut cost = cost::INVALID_PROOF;
+                        cost.value +=
+                            cost::PER_SIGNATURE_CHECKED.saturating_mul(signatures_checked as i32);
+                        Action::Discard(cost)
+                    } else {
+                        Action::Keep(self.justifs_topic, benefit::VALIDATED_PROOF)
+                    }
+                })
+                // When we can't evaluate, it's our fault (e.g. filter not initialized yet), we
+                // discard the proof without punishing or rewarding the sending peer.
+                .unwrap_or(Action::DiscardNoReport)
+        };
+        if matches!(action, Action::Keep(_, _)) {
+            self.gossip_filter.write().mark_round_as_proven(round);
+            self.known_peers.lock().note_vote_for(*sender, round);
+        }
+        action
+    }
+}
+
+impl<B, N, AuthorityId> Validator<B> for GossipValidator<B, N, AuthorityId>
+where
+    B: Block,
+    AuthorityId: AuthorityIdBound,
+    N: NetworkPeers + Send + Sync,
+{
+    fn peer_disconnected(&self, _context: &mut dyn ValidatorContext<B>, who: &PeerId) {
+        self.known_peers.lock().remove(who);
+    }
+
+    fn validate(
+        &self,
+        context: &mut dyn ValidatorContext<B>,
+        sender: &PeerId,
+        mut data: &[u8],
+    ) -> ValidationResult<B::Hash> {
+        let raw = data;
+        let action = match GossipMessage::<B, AuthorityId>::decode_all(&mut data) {
+            Ok(GossipMessage::Vote(msg)) => self.validate_vote(msg, sender),
+            Ok(GossipMessage::FinalityProof(proof)) => self.validate_finality_proof(proof, sender),
+            Err(e) => {
+                debug!(target: LOG_TARGET, "Error decoding message: {}", e);
+                let bytes = raw.len().max(1).min(i32::MAX as usize) as i32;
+                let cost = ReputationChange::new(
+                    bytes.saturating_mul(cost::PER_UNDECODABLE_BYTE),
+                    "BEEFY: Bad packet",
+                );
+                Action::Discard(cost)
+            }
+        };
+        match action {
+            Action::Keep(topic, cb) => {
+                self.report(*sender, cb);
+                context.broadcast_message(topic, raw.to_vec(), false);
+                ValidationResult::ProcessAndKeep(topic)
+            }
+            Action::Discard(cb) => {
+                self.report(*sender, cb);
+                ValidationResult::Discard
+            }
+            Action::DiscardNoReport => ValidationResult::Discard,
+        }
+    }
+
+    fn message_expired<'a>(&'a self) -> Box<dyn FnMut(B::Hash, &[u8]) -> bool + 'a> {
+        let filter = self.gossip_filter.read();
+        Box::new(move |_topic, mut data| {
+            match GossipMessage::<B, AuthorityId>::decode_all(&mut data) {
+                Ok(GossipMessage::Vote(msg)) => {
+                    let round = msg.commitment.block_number;
+                    let set_id = msg.commitment.validator_set_id;
+                    let expired = filter.consider_vote(round, set_id) != Consider::Accept;
+                    trace!(target: LOG_TARGET, "🥩 Vote for round #{} expired: {}", round, expired);
+                    expired
+                }
+                Ok(GossipMessage::FinalityProof(proof)) => {
+                    let (round, set_id) = proof_block_num_and_set_id::<B, AuthorityId>(&proof);
+                    let expired = filter.consider_finality_proof(round, set_id) != Consider::Accept;
+                    trace!(
+                        target: LOG_TARGET,
+                        "🥩 Finality proof for round #{} expired: {}",
+                        round,
+                        expired
+                    );
+                    expired
+                }
+                Err(_) => true,
+            }
+        })
+    }
+
+    fn message_allowed<'a>(
+        &'a self,
+    ) -> Box<dyn FnMut(&PeerId, MessageIntent, &B::Hash, &[u8]) -> bool + 'a> {
+        let do_rebroadcast = {
+            let now = Instant::now();
+            let mut next_rebroadcast = self.next_rebroadcast.lock();
+            if now >= *next_rebroadcast {
+                trace!(target: LOG_TARGET, "🥩 Gossip rebroadcast");
+                *next_rebroadcast = now + REBROADCAST_AFTER;
+                true
+            } else {
+                false
+            }
+        };
+
+        let filter = self.gossip_filter.read();
+        Box::new(move |_who, intent, _topic, mut data| {
+            if let MessageIntent::PeriodicRebroadcast = intent {
+                return do_rebroadcast;
+            }
+
+            match GossipMessage::<B, AuthorityId>::decode_all(&mut data) {
+                Ok(GossipMessage::Vote(msg)) => {
+                    let round = msg.commitment.block_number;
+                    let set_id = msg.commitment.validator_set_id;
+                    let allowed = filter.consider_vote(round, set_id) == Consider::Accept;
+                    trace!(target: LOG_TARGET, "🥩 Vote for round #{} allowed: {}", round, allowed);
+                    allowed
+                }
+                Ok(GossipMessage::FinalityProof(proof)) => {
+                    let (round, set_id) = proof_block_num_and_set_id::<B, AuthorityId>(&proof);
+                    let allowed = filter.consider_finality_proof(round, set_id) == Consider::Accept;
+                    trace!(
+                        target: LOG_TARGET,
+                        "🥩 Finality proof for round #{} allowed: {}",
+                        round,
+                        allowed
+                    );
+                    allowed
+                }
+                Err(_) => false,
+            }
+        })
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::{communication::peers::PeerReport, keystore::BeefyKeystore};
+    use sc_network_test::Block;
+    use sp_application_crypto::key_types::BEEFY as BEEFY_KEY_TYPE;
+    use sp_consensus_beefy::{
+        ecdsa_crypto, known_payloads, test_utils::Keyring, Commitment, MmrRootHash, Payload,
+        SignedCommitment, VoteMessage,
+    };
+    use sp_keystore::{testing::MemoryKeystore, Keystore};
+
+    pub(crate) struct TestNetwork {
+        report_sender: futures::channel::mpsc::UnboundedSender<PeerReport>,
+    }
+
+    impl TestNetwork {
+        pub fn new() -> (Self, futures::channel::mpsc::UnboundedReceiver<PeerReport>) {
+            let (tx, rx) = futures::channel::mpsc::unbounded();
+
+            (Self { report_sender: tx }, rx)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl NetworkPeers for TestNetwork {
+        fn set_authorized_peers(&self, _: std::collections::HashSet<PeerId>) {
+            unimplemented!()
+        }
+
+        fn set_authorized_only(&self, _: bool) {
+            unimplemented!()
+        }
+
+        fn add_known_address(&self, _: PeerId, _: sc_network::Multiaddr) {
+            unimplemented!()
+        }
+
+        fn report_peer(&self, peer_id: PeerId, cost_benefit: ReputationChange) {
+            let _ = self.report_sender.unbounded_send(PeerReport {
+                who: peer_id,
+                cost_benefit,
+            });
+        }
+
+        fn peer_reputation(&self, _: &PeerId) -> i32 {
+            unimplemented!()
+        }
+
+        fn disconnect_peer(&self, _: PeerId, _: sc_network::ProtocolName) {
+            unimplemented!()
+        }
+
+        fn accept_unreserved_peers(&self) {
+            unimplemented!()
+        }
+
+        fn deny_unreserved_peers(&self) {
+            unimplemented!()
+        }
+
+        fn add_reserved_peer(
+            &self,
+            _: sc_network::config::MultiaddrWithPeerId,
+        ) -> Result<(), String> {
+            unimplemented!()
+        }
+
+        fn remove_reserved_peer(&self, _: PeerId) {
+            unimplemented!()
+        }
+
+        fn set_reserved_peers(
+            &self,
+            _: sc_network::ProtocolName,
+            _: std::collections::HashSet<sc_network::Multiaddr>,
+        ) -> Result<(), String> {
+            unimplemented!()
+        }
+
+        fn add_peers_to_reserved_set(
+            &self,
+            _: sc_network::ProtocolName,
+            _: std::collections::HashSet<sc_network::Multiaddr>,
+        ) -> Result<(), String> {
+            unimplemented!()
+        }
+
+        fn remove_peers_from_reserved_set(
+            &self,
+            _: sc_network::ProtocolName,
+            _: Vec<PeerId>,
+        ) -> Result<(), String> {
+            unimplemented!()
+        }
+
+        fn sync_num_connected(&self) -> usize {
+            unimplemented!()
+        }
+
+        fn peer_role(&self, _: PeerId, _: Vec<u8>) -> Option<sc_network::ObservedRole> {
+            unimplemented!()
+        }
+
+        async fn reserved_peers(&self) -> Result<Vec<PeerId>, ()> {
+            unimplemented!();
+        }
+    }
+
+    #[derive(Default)]
+    struct TestContext {
+        broadcast: Option<Vec<u8>>,
+    }
+    impl<B: sp_runtime::traits::Block> ValidatorContext<B> for TestContext {
+        fn broadcast_topic(&mut self, _topic: B::Hash, _force: bool) {
+            unimplemented!()
+        }
+
+        fn broadcast_message(&mut self, _topic: B::Hash, message: Vec<u8>, _force: bool) {
+            self.broadcast = Some(message);
+        }
+
+        fn send_message(&mut self, _who: &sc_network_types::PeerId, _message: Vec<u8>) {
+            unimplemented!()
+        }
+
+        fn send_topic(&mut self, _who: &sc_network_types::PeerId, _topic: B::Hash, _force: bool) {
+            unimplemented!()
+        }
+    }
+
+    pub fn sign_commitment<BN: Encode>(
+        who: &Keyring<ecdsa_crypto::AuthorityId>,
+        commitment: &Commitment<BN>,
+    ) -> ecdsa_crypto::Signature {
+        let store = MemoryKeystore::new();
+        store
+            .ecdsa_generate_new(BEEFY_KEY_TYPE, Some(&who.to_seed()))
+            .unwrap();
+        let beefy_keystore: BeefyKeystore<ecdsa_crypto::AuthorityId> = Some(store.into()).into();
+        beefy_keystore
+            .sign(&who.public(), &commitment.encode())
+            .unwrap()
+    }
+
+    fn dummy_vote(
+        block_number: u64,
+    ) -> VoteMessage<u64, ecdsa_crypto::AuthorityId, ecdsa_crypto::Signature> {
+        let payload = Payload::from_single_entry(
+            known_payloads::MMR_ROOT_ID,
+            MmrRootHash::default().encode(),
+        );
+        let commitment = Commitment {
+            payload,
+            block_number,
+            validator_set_id: 0,
+        };
+        let signature = sign_commitment(&Keyring::Alice, &commitment);
+
+        VoteMessage {
+            commitment,
+            id: Keyring::Alice.public(),
+            signature,
+        }
+    }
+
+    pub fn dummy_proof(
+        block_number: u64,
+        validator_set: &ValidatorSet<ecdsa_crypto::AuthorityId>,
+    ) -> BeefyVersionedFinalityProof<Block, ecdsa_crypto::AuthorityId> {
+        let payload = Payload::from_single_entry(
+            known_payloads::MMR_ROOT_ID,
+            MmrRootHash::default().encode(),
+        );
+        let commitment = Commitment {
+            payload,
+            block_number,
+            validator_set_id: validator_set.id(),
+        };
+        let signatures = validator_set
+            .validators()
+            .iter()
+            .map(|validator: &ecdsa_crypto::AuthorityId| {
+                Some(sign_commitment(
+                    &Keyring::<ecdsa_crypto::AuthorityId>::from_public(validator).unwrap(),
+                    &commitment,
+                ))
+            })
+            .collect();
+
+        BeefyVersionedFinalityProof::<Block, ecdsa_crypto::AuthorityId>::V1(SignedCommitment {
+            commitment,
+            signatures,
+        })
+    }
+
+    #[test]
+    fn should_validate_messages() {
+        let keys = vec![Keyring::<ecdsa_crypto::AuthorityId>::Alice.public()];
+        let validator_set =
+            ValidatorSet::<ecdsa_crypto::AuthorityId>::new(keys.clone(), 0).unwrap();
+
+        let (network, mut report_stream) = TestNetwork::new();
+
+        let known_peers = Arc::new(Mutex::new(KnownPeers::new()));
+        let gv = GossipValidator::<Block, _, ecdsa_crypto::AuthorityId>::new(
+            known_peers.clone(),
+            Arc::new(network),
+        );
+        let sender = PeerId::random();
+        let mut context = TestContext::default();
+
+        // reject message, decoding error
+        let res = gv.validate(&mut context, &sender, &[]);
+        assert!(matches!(res, ValidationResult::Discard));
+        assert_eq!(
+            report_stream.try_next().unwrap().unwrap(),
+            PeerReport {
+                who: sender,
+                cost_benefit: ReputationChange::new(
+                    cost::PER_UNDECODABLE_BYTE,
+                    "BEEFY: Bad packet",
+                ),
+            }
+        );
+        let bad_encoding = b"0000000000".as_slice();
+        let expected_cost = ReputationChange::new(
+            (bad_encoding.len() as i32).saturating_mul(cost::PER_UNDECODABLE_BYTE),
+            "BEEFY: Bad packet",
+        );
+        let mut expected_report = PeerReport {
+            who: sender,
+            cost_benefit: expected_cost,
+        };
+        let res = gv.validate(&mut context, &sender, bad_encoding);
+        assert!(matches!(res, ValidationResult::Discard));
+        assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+
+        // verify votes validation
+
+        let vote = dummy_vote(3);
+        let encoded =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::Vote(vote.clone()).encode();
+
+        // filter not initialized
+        let res = gv.validate(&mut context, &sender, &encoded);
+        assert!(matches!(res, ValidationResult::Discard));
+        // nothing reported
+        assert!(report_stream.try_next().is_err());
+        assert!(known_peers.lock().further_than(0).is_empty());
+
+        gv.update_filter(GossipFilterCfg {
+            start: 0,
+            end: 10,
+            validator_set: &validator_set,
+        });
+        // nothing in cache first time
+        let res = gv.validate(&mut context, &sender, &encoded);
+        assert!(matches!(res, ValidationResult::ProcessAndKeep(_)));
+        assert_eq!(context.broadcast.take(), Some(encoded.clone()));
+        expected_report.cost_benefit = benefit::VOTE_MESSAGE;
+        assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+        assert_eq!(known_peers.lock().further_than(0).len(), 1);
+
+        // reject vote, voter not in validator set
+        let mut bad_vote = vote.clone();
+        bad_vote.id = Keyring::Bob.public();
+        let bad_vote = GossipMessage::<Block, ecdsa_crypto::AuthorityId>::Vote(bad_vote).encode();
+        let res = gv.validate(&mut context, &sender, &bad_vote);
+        assert!(matches!(res, ValidationResult::Discard));
+        expected_report.cost_benefit = cost::UNKNOWN_VOTER;
+        assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+
+        // reject if the round is not GRANDPA finalized
+        gv.update_filter(GossipFilterCfg {
+            start: 1,
+            end: 2,
+            validator_set: &validator_set,
+        });
+        let number = vote.commitment.block_number;
+        let set_id = vote.commitment.validator_set_id;
+        assert_eq!(
+            gv.gossip_filter.read().consider_vote(number, set_id),
+            Consider::RejectFuture
+        );
+        let res = gv.validate(&mut context, &sender, &encoded);
+        assert!(matches!(res, ValidationResult::Discard));
+        expected_report.cost_benefit = cost::FUTURE_MESSAGE;
+        assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+
+        // reject if the round is not live anymore
+        gv.update_filter(GossipFilterCfg {
+            start: 7,
+            end: 10,
+            validator_set: &validator_set,
+        });
+        let number = vote.commitment.block_number;
+        let set_id = vote.commitment.validator_set_id;
+        assert_eq!(
+            gv.gossip_filter.read().consider_vote(number, set_id),
+            Consider::RejectPast
+        );
+        let res = gv.validate(&mut context, &sender, &encoded);
+        assert!(matches!(res, ValidationResult::Discard));
+        expected_report.cost_benefit = cost::OUTDATED_MESSAGE;
+        assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+
+        // now verify proofs validation
+
+        // reject old proof
+        let proof = dummy_proof(5, &validator_set);
+        let encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        let res = gv.validate(&mut context, &sender, &encoded_proof);
+        assert!(matches!(res, ValidationResult::Discard));
+        expected_report.cost_benefit = cost::OUTDATED_MESSAGE;
+        assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+
+        // accept next proof with good set_id
+        let proof = dummy_proof(7, &validator_set);
+        let encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        let res = gv.validate(&mut context, &sender, &encoded_proof);
+        assert!(matches!(res, ValidationResult::ProcessAndKeep(_)));
+        expected_report.cost_benefit = benefit::VALIDATED_PROOF;
+        assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+
+        // accept future proof with good set_id
+        let proof = dummy_proof(20, &validator_set);
+        let encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        let res = gv.validate(&mut context, &sender, &encoded_proof);
+        assert!(matches!(res, ValidationResult::ProcessAndKeep(_)));
+        expected_report.cost_benefit = benefit::VALIDATED_PROOF;
+        assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+
+        // reject proof, future set_id
+        let bad_validator_set = ValidatorSet::<ecdsa_crypto::AuthorityId>::new(keys, 1).unwrap();
+        let proof = dummy_proof(20, &bad_validator_set);
+        let encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        let res = gv.validate(&mut context, &sender, &encoded_proof);
+        assert!(matches!(res, ValidationResult::Discard));
+        expected_report.cost_benefit = cost::FUTURE_MESSAGE;
+        assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+
+        // reject proof, bad signatures (Bob instead of Alice)
+        let bad_validator_set =
+            ValidatorSet::<ecdsa_crypto::AuthorityId>::new(vec![Keyring::Bob.public()], 0).unwrap();
+        let proof = dummy_proof(21, &bad_validator_set);
+        let encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        let res = gv.validate(&mut context, &sender, &encoded_proof);
+        assert!(matches!(res, ValidationResult::Discard));
+        expected_report.cost_benefit = cost::INVALID_PROOF;
+        expected_report.cost_benefit.value += cost::PER_SIGNATURE_CHECKED;
+        assert_eq!(report_stream.try_next().unwrap().unwrap(), expected_report);
+        assert!(known_peers.lock().further_than(20).is_empty());
+    }
+
+    #[test]
+    fn messages_allowed_and_expired() {
+        let keys = vec![Keyring::Alice.public()];
+        let validator_set =
+            ValidatorSet::<ecdsa_crypto::AuthorityId>::new(keys.clone(), 0).unwrap();
+        let gv = GossipValidator::<Block, _, ecdsa_crypto::AuthorityId>::new(
+            Arc::new(Mutex::new(KnownPeers::new())),
+            Arc::new(TestNetwork::new().0),
+        );
+        gv.update_filter(GossipFilterCfg {
+            start: 0,
+            end: 10,
+            validator_set: &validator_set,
+        });
+        let sender = sc_network_types::PeerId::random();
+        let topic = Default::default();
+        let intent = MessageIntent::Broadcast;
+
+        // conclude 2
+        gv.update_filter(GossipFilterCfg {
+            start: 2,
+            end: 10,
+            validator_set: &validator_set,
+        });
+        let mut allowed = gv.message_allowed();
+        let mut expired = gv.message_expired();
+
+        // check bad vote format
+        assert!(!allowed(&sender, intent, &topic, &mut [0u8; 16]));
+        assert!(expired(topic, &mut [0u8; 16]));
+
+        // inactive round 1 -> expired
+        let vote = dummy_vote(1);
+        let mut encoded_vote =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::Vote(vote).encode();
+        assert!(!allowed(&sender, intent, &topic, &mut encoded_vote));
+        assert!(expired(topic, &mut encoded_vote));
+        let proof = dummy_proof(1, &validator_set);
+        let mut encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        assert!(!allowed(&sender, intent, &topic, &mut encoded_proof));
+        assert!(expired(topic, &mut encoded_proof));
+
+        // active round 2 -> !expired - concluded but still gossiped
+        let vote = dummy_vote(2);
+        let mut encoded_vote =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::Vote(vote).encode();
+        assert!(allowed(&sender, intent, &topic, &mut encoded_vote));
+        assert!(!expired(topic, &mut encoded_vote));
+        let proof = dummy_proof(2, &validator_set);
+        let mut encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        assert!(allowed(&sender, intent, &topic, &mut encoded_proof));
+        assert!(!expired(topic, &mut encoded_proof));
+        // using wrong set_id -> !allowed, expired
+        let bad_validator_set =
+            ValidatorSet::<ecdsa_crypto::AuthorityId>::new(keys.clone(), 1).unwrap();
+        let proof = dummy_proof(2, &bad_validator_set);
+        let mut encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        assert!(!allowed(&sender, intent, &topic, &mut encoded_proof));
+        assert!(expired(topic, &mut encoded_proof));
+
+        // in progress round 3 -> !expired
+        let vote = dummy_vote(3);
+        let mut encoded_vote =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::Vote(vote).encode();
+        assert!(allowed(&sender, intent, &topic, &mut encoded_vote));
+        assert!(!expired(topic, &mut encoded_vote));
+        let proof = dummy_proof(3, &validator_set);
+        let mut encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        assert!(allowed(&sender, intent, &topic, &mut encoded_proof));
+        assert!(!expired(topic, &mut encoded_proof));
+
+        // unseen round 4 -> !expired
+        let vote = dummy_vote(4);
+        let mut encoded_vote =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::Vote(vote).encode();
+        assert!(allowed(&sender, intent, &topic, &mut encoded_vote));
+        assert!(!expired(topic, &mut encoded_vote));
+        let proof = dummy_proof(4, &validator_set);
+        let mut encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        assert!(allowed(&sender, intent, &topic, &mut encoded_proof));
+        assert!(!expired(topic, &mut encoded_proof));
+
+        // future round 11 -> expired
+        let vote = dummy_vote(11);
+        let mut encoded_vote =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::Vote(vote).encode();
+        assert!(!allowed(&sender, intent, &topic, &mut encoded_vote));
+        assert!(expired(topic, &mut encoded_vote));
+        // future proofs allowed while same set_id -> allowed
+        let proof = dummy_proof(11, &validator_set);
+        let mut encoded_proof =
+            GossipMessage::<Block, ecdsa_crypto::AuthorityId>::FinalityProof(proof).encode();
+        assert!(allowed(&sender, intent, &topic, &mut encoded_proof));
+        assert!(!expired(topic, &mut encoded_proof));
+    }
+
+    #[test]
+    fn messages_rebroadcast() {
+        let keys = vec![Keyring::Alice.public()];
+        let validator_set =
+            ValidatorSet::<ecdsa_crypto::AuthorityId>::new(keys.clone(), 0).unwrap();
+        let gv = GossipValidator::<Block, _, ecdsa_crypto::AuthorityId>::new(
+            Arc::new(Mutex::new(KnownPeers::new())),
+            Arc::new(TestNetwork::new().0),
+        );
+        gv.update_filter(GossipFilterCfg {
+            start: 0,
+            end: 10,
+            validator_set: &validator_set,
+        });
+        let sender = sc_network_types::PeerId::random();
+        let topic = Default::default();
+
+        let vote = dummy_vote(1);
+        let mut encoded_vote = vote.encode();
+
+        // re-broadcasting only allowed at `REBROADCAST_AFTER` intervals
+        let intent = MessageIntent::PeriodicRebroadcast;
+        let mut allowed = gv.message_allowed();
+
+        // rebroadcast not allowed so soon after GossipValidator creation
+        assert!(!allowed(&sender, intent, &topic, &mut encoded_vote));
+
+        // hack the inner deadline to be `now`
+        *gv.next_rebroadcast.lock() = Instant::now();
+
+        // still not allowed on old `allowed` closure result
+        assert!(!allowed(&sender, intent, &topic, &mut encoded_vote));
+
+        // renew closure result
+        let mut allowed = gv.message_allowed();
+        // rebroadcast should be allowed now
+        assert!(allowed(&sender, intent, &topic, &mut encoded_vote));
+    }
+}

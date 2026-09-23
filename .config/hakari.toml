@@ -27,6 +27,9 @@ platforms = [
 
 workspace-hack-line-style = "workspace-dotted"
 
+[traversal-excludes]
+workspace-members = ["sc-consensus-beefy"]
+
 [final-excludes]
 workspace-members = [
     "sc-cli",
@@ -58,6 +61,8 @@ third-party = [
     { name = "pallet-babe", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-bags-list", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-balances", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
+    { name = "pallet-beefy", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
+    { name = "pallet-beefy-mmr", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-bounties", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-child-bounties", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-conviction-voting", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
@@ -65,6 +70,7 @@ third-party = [
     { name = "pallet-grandpa", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-identity", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-im-online", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
+    { name = "pallet-mmr", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-multisig", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-nomination-pools", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-offences", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },

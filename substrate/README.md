@@ -17,9 +17,12 @@ Local Cargo package names intentionally stay compatible with upstream package na
 | `substrate/runtime-executor/wasmtime` | `sc-executor-wasmtime` | `gsc-executor-wasmtime` | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/runtime-executor` | `sc-executor` | not published by Gear | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/cli` | `sc-cli` | not published by Gear | GPL-3.0-or-later WITH Classpath-exception-2.0 |
+| `substrate/sc-consensus-beefy` | `sc-consensus-beefy` | not published by Gear | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/rpc-servers` | `sc-rpc-server` | not published by Gear | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/service` | `sc-service` | not published by Gear | GPL-3.0-or-later WITH Classpath-exception-2.0 |
 | `substrate/substrate-wasm-builder` | `substrate-wasm-builder` | `gsubstrate-wasm-builder` | Apache-2.0 |
+
+`substrate/sc-consensus-beefy` additionally backports [Polkadot SDK #12812](https://github.com/paritytech/polkadot-sdk/pull/12812) so malformed justification requests penalize the peer without terminating the handler.
 
 ## Gear Compatibility Crates
 
