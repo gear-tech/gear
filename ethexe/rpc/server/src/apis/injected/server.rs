@@ -4,7 +4,9 @@
 use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
 
 use super::{
-    InjectedServer, promise_manager::PromiseSubscriptionManager, relay::TransactionsRelayer,
+    InjectedServer,
+    promise_manager::{PromiseSubscriptionManager, RegisterSubscriberResult},
+    relay::TransactionsRelayer,
     spawner,
 };
 use ethexe_common::{
@@ -95,7 +97,6 @@ impl InjectedApi {
         self.relayer.relay(transaction).await
     }
 
-    // TODO: Issue #5386.
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
@@ -104,31 +105,44 @@ impl InjectedApi {
         let tx_hash = transaction.data().to_hash();
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
-            Ok(subscriber) => subscriber,
-            Err(err) => {
-                return Err(errors::bad_request(err).into());
+            RegisterSubscriberResult::Ready(receipt) => {
+                // Not counted in `injected_tx_active_subscriptions`: never enters the pending state.
+                let sink = pending.accept().await?;
+                spawner::send_receipt(&sink, &receipt).await;
+                return Ok(());
             }
+            RegisterSubscriberResult::TooManyWatchers => {
+                return Err(errors::bad_request("too many watchers for this transaction").into());
+            }
+            RegisterSubscriberResult::Pending(subscriber) => subscriber,
         };
 
-        let acceptance = self.relayer.relay(transaction).await.inspect_err(|_err| {
-            self.manager.cancel_registration(tx_hash);
-        })?;
-        let sink = match acceptance {
-            InjectedTransactionAcceptance::Accept => {
-                pending.accept().await.inspect_err(|_err| {
-                    self.manager.cancel_registration(tx_hash);
-                })?
+        // The relayer dedups in-flight relays per tx hash, so concurrent watchers of one
+        // transaction share a single relay and observe the same Accept/Reject outcome.
+        let acceptance = match self.relayer.relay(transaction).await {
+            Ok(acceptance) => acceptance,
+            Err(err) => {
+                drop(pending_subscriber);
+                return Err(err.into());
             }
+        };
+        let sink = match acceptance {
+            InjectedTransactionAcceptance::Accept => match pending.accept().await {
+                Ok(sink) => sink,
+                Err(err) => {
+                    drop(pending_subscriber);
+                    return Err(err.into());
+                }
+            },
             InjectedTransactionAcceptance::Reject { reason } => {
-                self.manager.cancel_registration(tx_hash);
+                drop(pending_subscriber);
                 return Err(reason.into());
             }
         };
 
         self.metrics.injected_tx_active_subscriptions.increment(1);
-        let (manager, metrics) = (self.manager.clone(), self.metrics.clone());
-        spawner::spawn_pending_subscriber(sink, pending_subscriber, move |tx_hash| {
-            manager.cancel_registration(tx_hash);
+        let metrics = self.metrics.clone();
+        spawner::spawn_pending_subscriber(sink, pending_subscriber, move || {
             metrics.injected_tx_active_subscriptions.decrement(1);
         });
         Ok(())

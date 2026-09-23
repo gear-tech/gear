@@ -14,19 +14,22 @@
 //! purged transaction it contains [`PurgedTransaction`](ethexe_common::injected::PurgedTransaction).
 //!
 //! [`promise_manager::PromiseSubscriptionManager`] owns the RPC-side joining logic. It keeps:
-//! - one-shot subscribers keyed by transaction hash;
+//! - one `watch` channel per transaction hash, fanning the receipt out to any number of
+//!   concurrent watchers (subscribers are anonymous receiver clones, no per-subscriber id);
 //! - full promises already computed locally and stored in the database;
 //! - compact promise receipts whose full promise body has not been observed yet.
 //!
 //! ### Subscription Setup
 //!
 //! [`InjectedApi::send_transaction_and_watch`](server::InjectedApi::send_transaction_and_watch)
-//! first registers a subscriber for the transaction hash, then relays the transaction. If relaying
-//! fails or the transaction is rejected before it enters the injected transaction pool, the
-//! registration is cancelled and the subscription request fails. If the transaction is accepted,
-//! [`spawner::spawn_pending_subscriber`] waits for a single
-//! [`SignedTxReceipt`](ethexe_common::injected::SignedTxReceipt) and forwards it to the JSON-RPC
-//! subscription sink.
+//! first checks whether a receipt is already stored for the transaction hash. If so, it accepts
+//! the subscription and delivers the cached result immediately without relaying (the `Ready` path).
+//! Otherwise it registers a new pending subscriber and relays the transaction; the relayer shares
+//! a single in-flight relay per transaction hash, so concurrent watchers (and plain
+//! `injected_sendTransaction` callers) of one transaction produce one relay and observe the same
+//! Accept/Reject outcome. Once accepted, [`spawner::spawn_pending_subscriber`] waits for the
+//! receipt, which is fanned out to every registered watcher; a late watcher whose receipt is
+//! already stored is served immediately from the database.
 //!
 //! **Important:** the pending subscriber is dropped after **20 * Ethereum slot** seconds to avoid
 //! dead subscribers. A later receipt can still be stored in the database and returned by
