@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use crate::{
-    InjectedApi, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer, RpcService,
+    InjectedApi, InjectedTransactionAcceptance, PromiseEnvelope, PromiseSubscriptionFilter,
+    ReplyCodeFilter, RpcConfig, RpcEvent, RpcServer, RpcService,
     test_utils::wasm_with_custom_section,
 };
 use ethexe_common::{
     SignedMessage, ValidatorsVec,
-    db::{CodesStorageRW, OnChainStorageRW},
+    db::{CodesStorageRW, InjectedStorageRW, OnChainStorageRW},
     ecdsa::{PrivateKey, PublicKey},
     gear::MAX_BLOCK_GAS_LIMIT,
     injected::{
@@ -29,6 +30,7 @@ struct MockService {
     rpc: RpcService,
     handle: ServerHandle,
     validator_key: PrivateKey,
+    db: Database,
 }
 
 impl MockService {
@@ -43,11 +45,12 @@ impl MockService {
                 .expect("test validator set must be non-empty"),
         );
 
-        let (handle, rpc) = start_new_server(listen_addr, db).await;
+        let (handle, rpc) = start_new_server(listen_addr, db.clone()).await;
         Self {
             rpc,
             handle,
             validator_key,
+            db,
         }
     }
 
@@ -80,6 +83,8 @@ impl MockService {
                         let RpcEvent::InjectedTransaction {transaction, response_sender} = event.expect("RPC event will be valid");
 
                         response_sender.send(InjectedTransactionAcceptance::Accept).expect("Response sender will be valid");
+                        // Store the transaction so on_computed_promise can enrich it into a PromiseEnvelope.
+                        self.db.set_injected_transaction(transaction.clone());
                         tx_batch.push(transaction);
                     },
                 }
@@ -320,4 +325,165 @@ async fn test_concurrent_multiple_clients() {
 
     let _ = tasks.join_all().await;
     wait_for_closed_subscriptions(injected_api).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_subscribe_promises_receives_computed_promise() {
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8012);
+    let service = MockService::new(listen_addr).await;
+
+    let ws_client = WsClientBuilder::new()
+        .build(format!("ws://{}", listen_addr))
+        .await
+        .expect("WS client will be created");
+
+    let mut sub = ws_client
+        .subscribe_promises(None)
+        .await
+        .expect("subscription must be created");
+
+    // Store the transaction so on_computed_promise enriches it into a PromiseEnvelope.
+    let signed_tx = mock_signed_transaction();
+    let expected_sender = signed_tx.address();
+    let expected_destination = signed_tx.data().destination;
+    let tx_hash = signed_tx.data().to_hash();
+    service.db.set_injected_transaction(signed_tx);
+
+    let promise = Promise::mock(tx_hash);
+    service.rpc.receive_computed_promise(promise.clone());
+
+    let received: PromiseEnvelope =
+        tokio::time::timeout(std::time::Duration::from_secs(1), sub.next())
+            .await
+            .expect("promise should arrive before timeout")
+            .expect("subscription item should exist")
+            .expect("subscription item should decode");
+
+    assert_eq!(received.promise, promise);
+    assert_eq!(received.sender, expected_sender);
+    assert_eq!(received.destination, expected_destination);
+
+    service.handle.stop().expect("RPC server must stop");
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_subscribe_promises_applies_reply_code_filter() {
+    use gear_core::rpc::ReplyInfo;
+
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8013);
+    let service = MockService::new(listen_addr).await;
+
+    let ws_client = WsClientBuilder::new()
+        .build(format!("ws://{}", listen_addr))
+        .await
+        .expect("WS client will be created");
+
+    let mut sub = ws_client
+        .subscribe_promises(Some(
+            PromiseSubscriptionFilter::new().reply_code(ReplyCodeFilter::success()),
+        ))
+        .await
+        .expect("subscription must be created");
+
+    // Non-matching promise: Unsupported reply code — store tx so the filter (not missing-tx) decides.
+    let skipped_tx = mock_signed_transaction();
+    let skipped_tx_hash = skipped_tx.data().to_hash();
+    service.db.set_injected_transaction(skipped_tx);
+    let skipped = Promise {
+        tx_hash: skipped_tx_hash,
+        reply: ReplyInfo {
+            payload: vec![],
+            value: 0,
+            code: ReplyCode::Unsupported,
+        },
+    };
+    service.rpc.receive_computed_promise(skipped);
+
+    // Matching promise: `Promise::mock` yields `Success(Manual)`.
+    let expected_tx = mock_signed_transaction();
+    let expected_tx_hash = expected_tx.data().to_hash();
+    service.db.set_injected_transaction(expected_tx);
+    let expected = Promise::mock(expected_tx_hash);
+    service.rpc.receive_computed_promise(expected.clone());
+
+    let received: PromiseEnvelope =
+        tokio::time::timeout(std::time::Duration::from_secs(1), sub.next())
+            .await
+            .expect("promise should arrive before timeout")
+            .expect("subscription item should exist")
+            .expect("subscription item should decode");
+
+    assert_eq!(received.promise, expected);
+
+    service.handle.stop().expect("RPC server must stop");
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn test_subscribe_promises_applies_sender_and_destination_filter() {
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8014);
+    let service = MockService::new(listen_addr).await;
+
+    let ws_client = WsClientBuilder::new()
+        .build(format!("ws://{}", listen_addr))
+        .await
+        .expect("WS client will be created");
+
+    // Use an explicit destination distinct from the mock default ([0u8;32]) so the
+    // destination filter is actually exercised, not just the sender filter.
+    // With the `ethexe` serde feature, ActorId serializes as an H160 (last 20 bytes),
+    // so constructing via H160 ensures the value survives the filter JSON round-trip.
+    let expected_key = PrivateKey::random();
+    let expected_sender = PublicKey::from(&expected_key).to_address();
+    let expected_destination = gprimitives::ActorId::from(gprimitives::H160::from([1u8; 20]));
+    let expected_tx = SignedMessage::create(
+        expected_key,
+        InjectedTransaction {
+            destination: expected_destination,
+            ..InjectedTransaction::mock(())
+        },
+    )
+    .unwrap();
+    let expected_tx_hash = expected_tx.data().to_hash();
+    service.db.set_injected_transaction(expected_tx);
+
+    // A non-matching transaction: different sender and destination.
+    let other_tx = mock_signed_transaction();
+    let other_tx_hash = other_tx.data().to_hash();
+    service.db.set_injected_transaction(other_tx);
+
+    // Subscribe filtering on sender and destination.
+    // The filter JSON serializes each field as a scalar (not array), exercising
+    // FilterSet<T> custom serde across the full WS round-trip.
+    let mut sub = ws_client
+        .subscribe_promises(Some(
+            PromiseSubscriptionFilter::new()
+                .sender(expected_sender)
+                .destination(expected_destination),
+        ))
+        .await
+        .expect("subscription must be created");
+
+    // Non-matching promise arrives first; the subscription should not yield it.
+    service
+        .rpc
+        .receive_computed_promise(Promise::mock(other_tx_hash));
+    // Matching promise arrives second.
+    let expected = Promise::mock(expected_tx_hash);
+    service.rpc.receive_computed_promise(expected.clone());
+
+    let received: PromiseEnvelope =
+        tokio::time::timeout(std::time::Duration::from_secs(1), sub.next())
+            .await
+            .expect("promise should arrive before timeout")
+            .expect("subscription item should exist")
+            .expect("subscription item should decode");
+
+    assert_eq!(received.promise, expected);
+    assert_eq!(received.sender, expected_sender);
+    assert_eq!(received.destination, expected_destination);
+
+    service.handle.stop().expect("RPC server must stop");
 }

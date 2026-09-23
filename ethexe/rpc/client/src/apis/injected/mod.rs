@@ -1,6 +1,7 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+use crate::types::PromiseSubscriptionFilter;
 use ethexe_common::{
     HashOf,
     injected::{
@@ -28,6 +29,19 @@ pub trait Injected {
     async fn send_transaction_and_watch(
         &self,
         transaction: SignedInjectedTransaction,
+    ) -> jsonrpsee::core::SubscriptionResult;
+
+    /// Subscribes to a stream of all newly computed promises. Promises are
+    /// delivered as they are computed; there is no replay of historical
+    /// promises. An optional filter narrows the stream per subscriber.
+    #[subscription(
+        name = "subscribePromises",
+        unsubscribe = "unsubscribePromises",
+        item = crate::types::PromiseEnvelope
+    )]
+    async fn subscribe_promises(
+        &self,
+        filter: Option<PromiseSubscriptionFilter>,
     ) -> jsonrpsee::core::SubscriptionResult;
 
     #[method(name = "getTransactionReceipt")]
