@@ -32,11 +32,13 @@ alloy = { workspace = true, features = [
     "signers",
     "kzg",
 ] }
+binary-merkle-tree.workspace = true
 futures.workspace = true
 log.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["process"] }
 serde.workspace = true
+sp-runtime.workspace = true
 nonempty.workspace = true
 rand.workspace = true
 gear-workspace-hack.workspace = true

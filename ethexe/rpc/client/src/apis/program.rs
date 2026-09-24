@@ -1,12 +1,14 @@
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::types::{CalculateReplyForHandleResult, FullProgramState, ProgramBestState};
+use crate::types::{
+    CalculateReplyForHandleResult, FullProgramState, OutgoingActions, ProgramBestState, Proof,
+};
 use ethexe_runtime_common::state::{
     DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue, ProgramState,
     UserMailbox, Waitlist,
 };
-use gprimitives::{H160, H256};
+use gprimitives::{H160, H256, MessageId};
 use jsonrpsee::proc_macros::rpc;
 use sp_core::Bytes;
 
@@ -69,4 +71,17 @@ pub trait Program {
         item = ProgramBestState
     )]
     async fn subscribe_best_state(&self, program_id: H160) -> jsonrpsee::core::SubscriptionResult;
+
+    #[method(name = "program_readOutgoingActions")]
+    async fn read_outgoing_actions(
+        &self,
+        hash: H256,
+    ) -> jsonrpsee::core::RpcResult<OutgoingActions>;
+
+    #[method(name = "program_outgoingActionMerkleProof")]
+    async fn read_outgoing_action_merkle_proof(
+        &self,
+        state_hash: H256,
+        message_id: MessageId,
+    ) -> jsonrpsee::core::RpcResult<Proof>;
 }

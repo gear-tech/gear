@@ -7,7 +7,7 @@ mod gear;
 use alloy::sol;
 pub use gear_abi::Gear as GearLib;
 pub use middleware_abi::IMiddleware;
-pub use mirror_abi::IMirror;
+pub use mirror_abi::{Gear as GearMirror, IMirror};
 pub use router_abi::{Gear, IRouter};
 
 pub mod gear_abi {

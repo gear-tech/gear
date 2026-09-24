@@ -3,10 +3,12 @@
 
 //! Shared Vara.eth RPC types.
 
+pub use ethexe_common::{OutgoingAction, OutgoingActions};
+
 use ethexe_common::gear::Message;
 use ethexe_runtime_common::state::{DispatchStash, Mailbox, MessageQueue, Program, Waitlist};
 use gear_core::rpc::ReplyInfo;
-use gprimitives::H256;
+use gprimitives::{H256, U256};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,6 +21,15 @@ pub struct FullProgramState {
     pub mailbox: Option<Mailbox>,
     pub balance: u128,
     pub executable_balance: u128,
+    pub outgoing_actions_counter: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Proof {
+    pub total_leaves: U256,
+    pub leaf_index: U256,
+    pub outgoing_action: OutgoingAction,
+    pub proof: Vec<H256>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

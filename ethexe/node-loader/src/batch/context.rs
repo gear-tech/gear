@@ -11,7 +11,6 @@ pub struct ProgramStats {
     pub mailbox_additions: u64,
     pub claims_requested: u64,
     pub claims_succeeded: u64,
-    pub claims_failed: u64,
     pub state_changes: u64,
     pub executable_topups: u64,
     pub owned_topups: u64,
@@ -39,10 +38,6 @@ impl ProgramStats {
         self.claims_succeeded = self.claims_succeeded.saturating_add(1);
     }
 
-    pub fn increment_claims_failed(&mut self) {
-        self.claims_failed = self.claims_failed.saturating_add(1);
-    }
-
     pub fn increment_state_changes(&mut self) {
         self.state_changes = self.state_changes.saturating_add(1);
     }
@@ -65,7 +60,6 @@ impl ProgramStats {
         self.mailbox_additions = self.mailbox_additions.saturating_add(rhs.mailbox_additions);
         self.claims_requested = self.claims_requested.saturating_add(rhs.claims_requested);
         self.claims_succeeded = self.claims_succeeded.saturating_add(rhs.claims_succeeded);
-        self.claims_failed = self.claims_failed.saturating_add(rhs.claims_failed);
         self.state_changes = self.state_changes.saturating_add(rhs.state_changes);
         self.executable_topups = self.executable_topups.saturating_add(rhs.executable_topups);
         self.owned_topups = self.owned_topups.saturating_add(rhs.owned_topups);

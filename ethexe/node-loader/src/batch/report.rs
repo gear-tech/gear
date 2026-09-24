@@ -128,8 +128,8 @@ impl LoadRunReport {
         );
         let _ = writeln!(
             out,
-            "claims: {} requested, {} succeeded, {} failed",
-            stats.claims_requested, stats.claims_succeeded, stats.claims_failed
+            "claims: {} requested, {} succeeded",
+            stats.claims_requested, stats.claims_succeeded
         );
         let _ = writeln!(
             out,
@@ -296,7 +296,7 @@ mod tests {
         let summary = report.render_pretty();
         assert!(summary.contains("status: completed"));
         assert!(summary.contains("programs: 0 total, 0 active, 0 exited"));
-        assert!(summary.contains("claims: 0 requested, 0 succeeded, 0 failed"));
+        assert!(summary.contains("claims: 0 requested, 0 succeeded"));
     }
 
     #[test]

@@ -97,8 +97,8 @@ jobs:
         run: |
           npm cache clean --force
 
-          # version from ethereum/dependencies/openzeppelin-foundry-upgrades-0.4.1/src/internal/Versions.sol
-          npx @openzeppelin/upgrades-core@^1.37.0
+          # version from ethexe/contracts/dependencies/openzeppelin-foundry-upgrades-0.4.1/src/internal/Versions.sol
+          npx @openzeppelin/upgrades-core@^1.45.0
 
           forge fmt --check
           forge build --sizes

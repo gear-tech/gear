@@ -16,8 +16,7 @@ use ethexe_common::events::{
         ExecutableBalanceTopUpRequestedEvent, MessageCallFailedEvent, MessageEvent,
         MessageQueueingRequestedEvent, OwnedBalanceTopUpRequestedEvent, ReplyCallFailedEvent,
         ReplyEvent, ReplyQueueingRequestedEvent, ReplyTransferFailedEvent, StateChangedEvent,
-        TransferLockedValueToInheritorFailedEvent, ValueClaimFailedEvent, ValueClaimedEvent,
-        ValueClaimingRequestedEvent,
+        TransferLockedValueToInheritorFailedEvent, ValueClaimedEvent, ValueClaimingRequestedEvent,
     },
 };
 use futures::{Stream, StreamExt};
@@ -43,7 +42,6 @@ pub mod signatures {
         VALUE_CLAIMING_REQUESTED: ValueClaimingRequested,
         TRANSFER_LOCKED_VALUE_TO_INHERITOR_FAILED: TransferLockedValueToInheritorFailed,
         REPLY_TRANSFER_FAILED: ReplyTransferFailed,
-        VALUE_CLAIM_FAILED: ValueClaimFailed,
     }
 
     pub const REQUESTS: &[B256] = &[
@@ -98,9 +96,6 @@ pub fn try_extract_event(log: &Log) -> Result<Option<MirrorEvent>> {
         REPLY_TRANSFER_FAILED => MirrorEvent::ReplyTransferFailed(
             decode_log::<IMirror::ReplyTransferFailed>(log)?.into(),
         ),
-        VALUE_CLAIM_FAILED => {
-            MirrorEvent::ValueClaimFailed(decode_log::<IMirror::ValueClaimFailed>(log)?.into())
-        }
         _ => unreachable!("filtered above"),
     };
 
@@ -135,7 +130,6 @@ impl<'a> AllEventsBuilder<'a> {
                 signatures::VALUE_CLAIMING_REQUESTED,
                 signatures::TRANSFER_LOCKED_VALUE_TO_INHERITOR_FAILED,
                 signatures::REPLY_TRANSFER_FAILED,
-                signatures::VALUE_CLAIM_FAILED,
             ]));
         Ok(self
             .query
@@ -526,30 +520,6 @@ impl<'a> ReplyTransferFailedEventBuilder<'a> {
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(ReplyTransferFailedEvent, Log), Error>> + Unpin + use<>>
-    {
-        Ok(self
-            .event
-            .subscribe()
-            .await?
-            .into_stream()
-            .map(|result| result.map(|(event, log)| (event.into(), log))))
-    }
-}
-
-pub struct ValueClaimFailedEventBuilder<'a> {
-    event: Event<&'a RootProvider, IMirror::ValueClaimFailed>,
-}
-
-impl<'a> ValueClaimFailedEventBuilder<'a> {
-    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
-        Self {
-            event: query.0.ValueClaimFailed_filter(),
-        }
-    }
-
-    pub async fn subscribe(
-        self,
-    ) -> Result<impl Stream<Item = Result<(ValueClaimFailedEvent, Log), Error>> + Unpin + use<>>
     {
         Ok(self
             .event
