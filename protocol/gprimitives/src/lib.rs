@@ -105,6 +105,26 @@ pub struct ActorId([u8; 32]);
 macros::impl_primitive!(new zero into_bytes from_h256 into_h256 try_from_slice debug, ActorId);
 
 impl ActorId {
+    /// Constant value of Gear Sails event actor ID.
+    pub const GEAR_SAILS_EVENT: Self = Self::zero();
+
+    /// Constant value of Ethereum Sails event actor ID.
+    pub const ETH_SAILS_EVENT: Self = Self::new([
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff,
+    ]);
+
+    /// Returns the constant value of Gear Sails event actor ID.
+    pub const fn gear_sails_event() -> Self {
+        Self::GEAR_SAILS_EVENT
+    }
+
+    /// Returns the constant value of Ethereum Sails event actor ID.
+    pub const fn eth_sails_event() -> Self {
+        Self::ETH_SAILS_EVENT
+    }
+
     /// Returns the ss58-check address with default ss58 version.
     pub fn to_ss58check(&self) -> Result<Ss58Address, ConversionError> {
         RawSs58Address::from(self.0)

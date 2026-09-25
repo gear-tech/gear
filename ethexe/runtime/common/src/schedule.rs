@@ -8,7 +8,9 @@ use crate::{
         Dispatch, DispatchStash, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
         ProgramState, QueryableStorage, Storage, UserMailbox, Waitlist,
     },
-    transitions::is_event_destination,
+    transitions::{
+        is_eth_sails_event_destination, is_event_destination, is_gear_sails_event_destination,
+    },
 };
 use alloc::collections::{BTreeMap, BTreeSet};
 use anyhow::Context;
@@ -96,19 +98,18 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 });
 
                 if event_destinations && is_event_destination(user_id) {
-                    let value = dispatch.value;
                     let message_type = dispatch.message_type;
 
                     transitions.modify_transition(program_id, |transition| {
                         let message = dispatch.clone().into_message(storage, user_id);
-                        let committable = push_outgoing(transition, message, message_type);
-                        // Only emit the autoclaim when the message is committed on Ethereum.
+                        let committable =
+                            message_type.is_canonical() || is_eth_sails_event_destination(user_id);
                         if committable {
-                            transition.claims.push(ValueClaim {
-                                message_id: stashed_message_id,
-                                destination: user_id,
-                                value,
-                            });
+                            if is_gear_sails_event_destination(user_id) {
+                                transition.events.push(message.payload);
+                            } else if is_eth_sails_event_destination(user_id) {
+                                transition.eth_events.push(message.payload);
+                            }
                         }
                     });
 
@@ -550,17 +551,14 @@ mod tests {
 
     #[test]
     fn send_user_message_to_event_destination_skips_mailbox() {
-        use crate::{
-            InBlockTransitions, TransitionController, TransitionsConfig,
-            transitions::{ETH_SAILS_EVENT, GEAR_SAILS_EVENT},
-        };
+        use crate::{InBlockTransitions, TransitionController, TransitionsConfig};
         use ethexe_common::{ProgramStates, StateHashWithQueueSize};
         use gear_core::{
             ids::prelude::MessageIdExt,
             message::{DispatchKind, ReplyCode},
         };
 
-        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let storage = MemStorage::default();
             let program_id = ActorId::from(7);
             let message_id = MessageId::from(10);
@@ -609,13 +607,13 @@ mod tests {
             }
 
             let transition = transitions.modifications_mut().remove(&program_id).unwrap();
-            assert_eq!(transition.messages.len(), 1);
-            assert_eq!(transition.messages[0].destination, destination);
-            assert_eq!(transition.messages[0].value, 11);
-            assert_eq!(transition.claims.len(), 1);
-            assert_eq!(transition.claims[0].message_id, message_id);
-            assert_eq!(transition.claims[0].destination, destination);
-            assert_eq!(transition.claims[0].value, 11);
+            assert!(transition.messages.is_empty());
+            assert!(transition.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert_eq!(transition.events.len(), 1);
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(transition.eth_events.len(), 1);
+            }
 
             let state_hash = transitions.state_of(&program_id).unwrap().hash;
             let state = storage.program_state(state_hash).unwrap();
@@ -646,13 +644,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn send_user_message_injected_event_dest_value0_not_committed_no_claim() {
-        use crate::{
-            InBlockTransitions, TransitionController, TransitionsConfig,
-            transitions::{ETH_SAILS_EVENT, GEAR_SAILS_EVENT},
-        };
+        use crate::{InBlockTransitions, TransitionController, TransitionsConfig};
         use ethexe_common::{ProgramStates, StateHashWithQueueSize};
 
-        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let storage = MemStorage::default();
             let program_id = ActorId::from(7);
             let message_id = MessageId::from(10);
@@ -702,21 +697,13 @@ mod tests {
             }
 
             let transition = transitions.modifications_mut().remove(&program_id).unwrap();
-            assert_eq!(
-                transition.messages.len(),
-                1,
-                "message must be in messages ({destination:?})"
-            );
-            assert!(
-                !transition
-                    .committed_message_ids
-                    .contains(&transition.messages[0].id),
-                "injected value-0 stashed event message must NOT be committed ({destination:?})"
-            );
-            assert!(
-                transition.claims.is_empty(),
-                "no autoclaim for off-chain injected stashed event message ({destination:?})"
-            );
+            assert!(transition.messages.is_empty());
+            assert!(transition.claims.is_empty(),);
+            if is_gear_sails_event_destination(destination) {
+                assert!(transition.events.is_empty());
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(transition.eth_events.len(), 1);
+            }
         }
     }
 
@@ -727,13 +714,10 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn send_user_message_injected_event_dest_with_value_is_committed_with_claim() {
-        use crate::{
-            InBlockTransitions, TransitionController, TransitionsConfig,
-            transitions::{ETH_SAILS_EVENT, GEAR_SAILS_EVENT},
-        };
+        use crate::{InBlockTransitions, TransitionController, TransitionsConfig};
         use ethexe_common::{ProgramStates, StateHashWithQueueSize};
 
-        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let storage = MemStorage::default();
             let program_id = ActorId::from(7);
             let message_id = MessageId::from(10);
@@ -783,23 +767,13 @@ mod tests {
             }
 
             let transition = transitions.modifications_mut().remove(&program_id).unwrap();
-            assert_eq!(
-                transition.messages.len(),
-                1,
-                "message must be in messages ({destination:?})"
-            );
-            assert!(
-                transition
-                    .committed_message_ids
-                    .contains(&transition.messages[0].id),
-                "injected message with value must be committed in stash path ({destination:?})"
-            );
-            assert_eq!(
-                transition.claims.len(),
-                1,
-                "autoclaim must be pushed for committed injected stashed event message ({destination:?})"
-            );
-            assert_eq!(transition.claims[0].value, 11);
+            assert!(transition.messages.is_empty());
+            assert!(transition.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert!(transition.events.is_empty());
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(transition.eth_events.len(), 1);
+            }
         }
     }
 
