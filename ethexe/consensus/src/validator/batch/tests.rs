@@ -472,6 +472,87 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
     );
 }
 
+/// #5356 end-to-end: a budget sized for the SQUASHED payload only. The
+/// coordinator must still cover all MBs (repeated actors are charged
+/// once), and a default-limit participant must re-derive the identical
+/// batch and accept.
+#[tokio::test]
+async fn squashed_payload_charging_roundtrip() {
+    use alloy::sol_types::SolValue;
+    use ethexe_common::gear::ChainCommitment;
+
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    let actor = ActorId::from([0x77; 32]);
+    let transition = |seed: u8| StateTransition {
+        actor_id: actor,
+        new_state_hash: H256::from([seed; 32]),
+        exited: false,
+        inheritor: ActorId::zero(),
+        value_to_receive: seed as u128,
+        value_to_receive_negative_sign: false,
+        value_claims: vec![],
+        messages: vec![],
+    };
+
+    let mb_hashes = setup_mb_chain(
+        &db,
+        vec![
+            vec![transition(1)],
+            vec![transition(2)],
+            vec![transition(3)],
+        ],
+    );
+    let head = *mb_hashes.last().unwrap();
+
+    // Mirror BatchSizeCounter's charge for the squashed chain commitment.
+    let squashed = ChainCommitment {
+        head,
+        transitions: vec![StateTransition {
+            new_state_hash: H256::from([3; 32]),
+            value_to_receive: 6,
+            ..transition(0)
+        }],
+        last_advanced_eth_block: H256::zero(),
+    };
+    let tight_limit =
+        vec![ethexe_ethereum::abi::Gear::ChainCommitment::from(squashed)].abi_encoded_size() as u64;
+
+    let builder = mock_batch_manager_with_limits(
+        db.clone(),
+        BatchLimits {
+            batch_size_limit: tight_limit,
+            ..BatchLimits::default()
+        },
+    );
+    let batch = builder
+        .create_batch_commitment(block)
+        .await
+        .unwrap()
+        .expect("expected non-empty batch");
+
+    let chain_commitment = batch.chain_commitment.as_ref().expect("chain commitment");
+    assert_eq!(
+        chain_commitment.head, head,
+        "all MBs must fit once charged post-squash"
+    );
+    assert_eq!(chain_commitment.transitions.len(), 1);
+    assert_eq!(chain_commitment.transitions[0].value_to_receive, 6);
+
+    // Participant with default (slack-padded) limits re-derives and accepts.
+    let expected = batch.to_digest();
+    let status = mock_batch_manager(db)
+        .validate_batch_commitment(block, BatchCommitmentValidationRequest::new(&batch))
+        .await
+        .unwrap();
+    match status {
+        ValidationStatus::Accepted(d) => assert_eq!(d, expected),
+        ValidationStatus::Rejected { reason, .. } => panic!("rejected: {reason:?}"),
+    }
+}
+
 #[tokio::test]
 async fn squash_orders_negative_value_transitions_first() {
     // Two actors, two MBs each. Negative value (sender returning value
