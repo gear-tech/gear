@@ -961,7 +961,7 @@ async fn beefy_importing_justifications() {
         let mut import = BlockImportParams::new(BlockOrigin::File, block.header);
         import.justifications = justifications;
         import.body = Some(block.extrinsics);
-        import.finalized = true;
+        import.finalized = false;
         import.fork_choice = Some(ForkChoiceStrategy::LongestChain);
         import
     };
@@ -1030,6 +1030,14 @@ async fn beefy_importing_justifications() {
         // none in backend,
         assert_eq!(backend_justif_for(hashof1), None);
         assert_eq!(backend_justif_for(hashof2), None);
+        assert_eq!(
+            crate::aux_schema::load_file_proof(&*full_client, hashof1).unwrap(),
+            None
+        );
+        assert_eq!(
+            crate::aux_schema::load_file_proof(&*full_client, hashof2).unwrap(),
+            None
+        );
         // and none sent to BEEFY worker.
         poll_fn(move |cx| {
             assert_eq!(justif_recv.poll_next_unpin(cx), Poll::Pending);
@@ -1050,11 +1058,11 @@ async fn beefy_importing_justifications() {
     let proof = crate::justification::tests::new_finality_proof(block_num, &good_set, keys);
     let versioned_proof: VersionedFinalityProof<NumberFor<Block>, Signature> = proof.into();
     let encoded = versioned_proof.encode();
-    let justif = Some(Justifications::from((BEEFY_ENGINE_ID, encoded)));
+    let justif = Some(Justifications::from((BEEFY_ENGINE_ID, encoded.clone())));
     let mut justif_recv = justif_stream.subscribe(100_000);
     assert_eq!(
         block_import
-            .import_block(params(block, justif))
+            .import_block(params(block.clone(), justif))
             .await
             .unwrap(),
         ImportResult::Imported(ImportedAux {
@@ -1067,6 +1075,12 @@ async fn beefy_importing_justifications() {
     {
         // still not in backend (worker is responsible for appending to backend),
         assert_eq!(backend_justif_for(hashof3), None);
+        assert_eq!(
+            crate::aux_schema::load_file_proof(&*full_client, hashof3).unwrap(),
+            Some(encoded)
+        );
+        assert_eq!(full_client.info().finalized_number, 0);
+        assert_eq!(full_client.block(hashof3).unwrap().unwrap().block, block);
         // but sent to BEEFY worker
         // (worker will append it to backend when all previous mandatory justifs are there as well).
         poll_fn(move |cx| {
@@ -1111,6 +1125,10 @@ async fn beefy_importing_justifications() {
     {
         // none in backend,
         assert_eq!(backend_justif_for(hashof4), None);
+        assert_eq!(
+            crate::aux_schema::load_file_proof(&*full_client, hashof4).unwrap(),
+            None
+        );
         // and none sent to BEEFY worker.
         poll_fn(move |cx| {
             assert_eq!(justif_recv.poll_next_unpin(cx), Poll::Pending);

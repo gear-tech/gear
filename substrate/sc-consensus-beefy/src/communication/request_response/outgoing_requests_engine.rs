@@ -274,7 +274,7 @@ impl<B: Block, AuthorityId: AuthorityIdBound> OnDemandJustificationsEngine<B, Au
                 if let Some(peer) = self.try_next_peer() {
                     self.request_from_peer(peer, req_info);
                 } else {
-                    self.state = State::WaitingForPeers(req_info);
+                    // Stay idle so the worker can retry without a newer peer progress hint.
                     metric_inc!(
                         self.metrics,
                         beefy_on_demand_justification_no_peer_to_request_from
@@ -402,19 +402,10 @@ pub(crate) mod tests {
             Poll::Ready(ResponseInfo::PeerReport(_))
         ));
 
-        // Exhaustion retains the target; repeated hints and worker requests do not retry it.
         engine.request(5, active_set.clone());
-        assert!(std::pin::pin!(engine.next()).poll(&mut cx).is_pending());
-        let before_duplicate = wakes.0.load(Ordering::Relaxed);
-        known_peers.lock().note_vote_for(peer, 20);
-        assert_eq!(wakes.0.load(Ordering::Relaxed), before_duplicate);
-        assert!(std::pin::pin!(engine.next()).poll(&mut cx).is_pending());
-        assert!(requests_rx.try_next().is_err());
-
-        known_peers.lock().note_vote_for(peer, 21);
-        assert_eq!(wakes.0.load(Ordering::Relaxed), before_duplicate + 1);
-        assert!(std::pin::pin!(engine.next()).poll(&mut cx).is_pending());
         let (_, request, response) = requests_rx.try_next().unwrap().unwrap();
+        engine.request(5, active_set.clone());
+        assert!(requests_rx.try_next().is_err());
         assert_eq!(request, JustificationRequest::<Block> { begin: 5 }.encode());
         let proof = new_finality_proof(5, &active_set, &keys);
         response.send(Ok((proof.encode(), protocol))).unwrap();
@@ -430,5 +421,55 @@ pub(crate) mod tests {
         known_peers.lock().note_vote_for(peer, 30);
         assert!(std::pin::pin!(engine.next()).poll(&mut cx).is_pending());
         assert!(requests_rx.try_next().is_err());
+    }
+
+    #[test]
+    fn failed_request_retries_without_new_peer_progress() {
+        for error in [
+            Some(RequestFailure::Network(
+                sc_network::request_responses::OutboundFailure::Timeout,
+            )),
+            None,
+        ] {
+            let keys = [Keyring::<ecdsa_crypto::AuthorityId>::Alice];
+            let active_set = ValidatorSet::new(make_beefy_ids(&keys), 7).unwrap();
+            let known_peers = Arc::new(Mutex::new(KnownPeers::<Block>::new()));
+            let peer = PeerId::random();
+            known_peers.lock().note_vote_for(peer, 20);
+            let (requests_tx, mut requests_rx) = mpsc::unbounded();
+            let protocol: ProtocolName = "/beefy/justifs/1".into();
+            let mut engine = OnDemandJustificationsEngine::new(
+                Arc::new(RequestNetwork(requests_tx)),
+                protocol.clone(),
+                known_peers,
+                None,
+            );
+            engine.request(5, active_set.clone());
+            let (_, _, response) = requests_rx.try_next().unwrap().unwrap();
+            if let Some(error) = error {
+                response.send(Err(error)).unwrap();
+            } else {
+                drop(response);
+            }
+            assert!(matches!(
+                futures::executor::block_on(engine.next()),
+                ResponseInfo::Pending
+            ));
+
+            // The worker retries the mandatory target after handling the failed response.
+            engine.request(5, active_set.clone());
+            let (requested_peer, request, response) = requests_rx
+                .try_next()
+                .expect("a failed request must not require a newer peer progress hint")
+                .unwrap();
+            assert_eq!(requested_peer, peer);
+            assert_eq!(request, JustificationRequest::<Block> { begin: 5 }.encode());
+            let proof = new_finality_proof(5, &active_set, &keys);
+            response.send(Ok((proof.encode(), protocol))).unwrap();
+            match futures::executor::block_on(engine.next()) {
+                ResponseInfo::ValidProof(received, _) => assert_eq!(received, proof),
+                _ => panic!("the retried historical proof must verify against the requested set"),
+            }
+        }
     }
 }

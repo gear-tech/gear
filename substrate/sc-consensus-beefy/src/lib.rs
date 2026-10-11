@@ -380,6 +380,9 @@ where
         let state = loop {
             if let Some(true) = blockchain
                 .justifications(header.hash())
+                .and_then(|proofs| {
+                    import::with_file_justification(&*backend, header.hash(), proofs)
+                })
                 .ok()
                 .flatten()
                 .map(|justifs| justifs.get(BEEFY_ENGINE_ID).is_some())
@@ -548,7 +551,7 @@ pub async fn start_beefy_gadget<B, BE, C, N, P, R, S, AuthorityId>(
 ) where
     B: Block,
     BE: Backend<B>,
-    C: Client<B, BE> + BlockBackend<B>,
+    C: Client<B, BE> + BlockBackend<B> + sc_client_api::backend::AuxStore,
     P: PayloadProvider<B> + Clone,
     R: ProvideRuntimeApi<B>,
     R::Api: BeefyApi<B, AuthorityId>,

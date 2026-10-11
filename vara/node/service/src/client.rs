@@ -251,7 +251,13 @@ impl BlockBackend<Block> for Client {
             self,
             client,
             {
-                client.block(id)
+                let mut block = client.block(id)?;
+                if let Some(block) = block.as_mut() {
+                    block.justifications = sc_consensus_beefy::import::with_file_justification(
+                        &**client, id, block.justifications.take(),
+                    )?;
+                }
+                Ok(block)
             }
         }
     }
@@ -274,7 +280,9 @@ impl BlockBackend<Block> for Client {
             self,
             client,
             {
-                client.justifications(id)
+                sc_consensus_beefy::import::with_file_justification(
+                    &**client, id, client.justifications(id)?,
+                )
             }
         }
     }

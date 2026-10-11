@@ -688,10 +688,30 @@ where
 
     /// Handle previously buffered justifications, that now land in the voting interval.
     fn try_pending_justifications(&mut self) -> Result<(), Error> {
-        while !self.pending_justifications.is_empty() {
+        loop {
             let best_before = self.persisted_state.best_beefy();
             let (start, end) = self.voting_oracle().accepted_interval()?;
-            // These are still pending.
+            if !self.voting_oracle().active_rounds()?.mandatory_done()
+                && !self.pending_justifications.contains_key(&start)
+            {
+                let hash = self
+                    .backend
+                    .blockchain()
+                    .expect_block_hash_from_id(&BlockId::Number(start))
+                    .map_err(|err| Error::Backend(err.to_string()))?;
+                if let Some(encoded) = crate::aux_schema::load_file_proof(&*self.backend, hash)
+                    .map_err(|err| Error::Backend(err.to_string()))?
+                {
+                    let proof =
+                        crate::justification::decode_and_verify_finality_proof::<B, AuthorityId>(
+                            &encoded,
+                            start,
+                            self.voting_oracle().active_rounds()?.validator_set(),
+                        )
+                        .map_err(|(err, _)| Error::Backend(err.to_string()))?;
+                    self.pending_justifications.insert(start, proof);
+                }
+            }
             let still_pending = self
                 .pending_justifications
                 .split_off(&end.saturating_add(1u32.into()));
@@ -1231,6 +1251,60 @@ pub(crate) mod tests {
             persisted_state,
             is_authority: true,
         }
+    }
+
+    #[tokio::test]
+    async fn file_proofs_wait_for_grandpa_then_recover_without_peers() {
+        use sc_client_api::BlockBackend;
+        let keys = [Keyring::<ecdsa_crypto::AuthorityId>::Alice];
+        let sets: Vec<_> = (0..3)
+            .map(|id| ValidatorSet::new(make_beefy_ids(&keys), id).unwrap())
+            .collect();
+        let mut net = BeefyTestNet::new(1);
+        let mut worker = create_beefy_worker(net.peer(0), &keys[0], 1, sets[0].clone());
+        net.peer(0).push_blocks(19, false);
+        let client = net.peer(0).client().as_client();
+        let hashes: Vec<_> = (1..=20)
+            .map(|number| client.block_hash(number).unwrap().unwrap())
+            .collect();
+        for (number, set) in [(1u64, &sets[0]), (10, &sets[1]), (20, &sets[2])] {
+            let proof = crate::justification::tests::new_finality_proof(number, set, &keys);
+            crate::aux_schema::write_file_proof(
+                &*client,
+                hashes[number as usize - 1],
+                &proof.encode(),
+            )
+            .unwrap();
+        }
+        worker.key_store = Arc::new(None.into());
+        worker.process_new_state();
+        assert_eq!(worker.persisted_state.best_beefy(), 1);
+        assert_eq!(client.info().finalized_number, 1);
+        assert!(worker.pending_justifications.is_empty());
+
+        client.finalize_block(hashes[19], None).unwrap();
+        worker.persisted_state = PersistedState::checked_new(
+            client.expect_header(hashes[19]).unwrap(),
+            1,
+            VecDeque::from([
+                Rounds::new(10, sets[1].clone()),
+                Rounds::new(20, sets[2].clone()),
+            ]),
+            1,
+            1,
+        )
+        .unwrap();
+        worker.process_new_state();
+        assert_eq!(worker.persisted_state.best_beefy(), 20);
+        for index in [0, 9, 19] {
+            assert!(client
+                .justifications(hashes[index])
+                .unwrap()
+                .unwrap()
+                .get(BEEFY_ENGINE_ID)
+                .is_some());
+        }
+        assert!(worker.pending_justifications.is_empty());
     }
 
     #[tokio::test]

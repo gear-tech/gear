@@ -1003,8 +1003,6 @@ pub(crate) mod tests {
                 (historical_proof.clone(), true),
             ];
             for (proof, valid) in responses {
-                // Test each response independently of a retained exhausted request.
-                engine.cancel_requests_older_than(mandatory_block);
                 engine.request(mandatory_block, historical_set.clone());
                 let (peer, encoded_request, response) = requests_rx
                     .try_next()

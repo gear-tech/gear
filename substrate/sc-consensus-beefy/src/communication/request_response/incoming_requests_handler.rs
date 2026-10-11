@@ -6,7 +6,7 @@
 use codec::DecodeAll;
 use futures::{channel::oneshot, StreamExt};
 use log::{debug, trace};
-use sc_client_api::BlockBackend;
+use sc_client_api::{backend::AuxStore, BlockBackend, HeaderBackend};
 use sc_network::{
     config as netconfig, service::traits::RequestResponseConfig, types::ProtocolName,
     NetworkBackend, ReputationChange,
@@ -132,7 +132,7 @@ pub struct BeefyJustifsRequestHandler<B, Client> {
 impl<B, Client> BeefyJustifsRequestHandler<B, Client>
 where
     B: Block,
-    Client: BlockBackend<B> + Send + Sync,
+    Client: BlockBackend<B> + HeaderBackend<B> + AuxStore + Send + Sync,
 {
     /// Create a new [`BeefyJustifsRequestHandler`].
     pub fn new<Hash: AsRef<[u8]>, Network: NetworkBackend<B, <B as Block>::Hash>>(
@@ -165,12 +165,22 @@ where
     // Sends back justification response if justification found in client backend.
     fn handle_request(&self, request: IncomingRequest<B>) -> Result<(), Error> {
         let mut reputation_changes = vec![];
+        let finalized_number = self.client.info().finalized_number;
         let maybe_encoded_proof = self
             .client
             .block_hash(request.payload.begin)
             .ok()
             .flatten()
-            .and_then(|hash| self.client.justifications(hash).ok().flatten())
+            .and_then(|hash| {
+                let justifications = self.client.justifications(hash).ok().flatten();
+                if request.payload.begin <= finalized_number {
+                    crate::import::with_file_justification(&*self.client, hash, justifications)
+                        .ok()
+                        .flatten()
+                } else {
+                    justifications
+                }
+            })
             .and_then(|justifs| justifs.get(BEEFY_ENGINE_ID).cloned())
             .ok_or_else(|| reputation_changes.push(cost::UNKNOWN_PROOF_REQUEST));
         request
@@ -260,6 +270,44 @@ mod malformed_request_tests {
         .await
         .unwrap();
         rx.await
+    }
+
+    #[tokio::test]
+    async fn file_proof_is_served_only_after_canonical_grandpa_finality() {
+        use sc_client_api::Finalizer;
+        use sc_network_test::TestNetFactory;
+        use sp_consensus_beefy::{ecdsa_crypto, test_utils::Keyring, ValidatorSet};
+
+        let mut net = crate::tests::BeefyTestNet::new(1);
+        let hash = net.peer(0).push_blocks(1, false)[0];
+        let client = net.peer(0).client().as_client();
+        let keys = [Keyring::<ecdsa_crypto::AuthorityId>::Alice];
+        let set = ValidatorSet::new(crate::tests::make_beefy_ids(&keys), 0).unwrap();
+        let proof = crate::justification::tests::new_finality_proof(1, &set, &keys).encode();
+        crate::aux_schema::write_file_proof(&*client, hash, &proof).unwrap();
+        let (_, rx) = async_channel::bounded(JUSTIF_CHANNEL_SIZE);
+        let handler = BeefyJustifsRequestHandler {
+            request_receiver: IncomingRequestReceiver::new(rx),
+            justif_protocol_name: ProtocolName::Static("/beefy/justifications/1"),
+            client: client.clone(),
+            metrics: None,
+            _block: PhantomData,
+        };
+        let request = || {
+            let (tx, rx) = oneshot::channel();
+            handler
+                .handle_request(IncomingRequest::new(
+                    PeerId::random(),
+                    JustificationRequest { begin: 1 },
+                    tx,
+                ))
+                .unwrap();
+            rx
+        };
+        assert_eq!(request().await.unwrap().result, Err(()));
+        assert_eq!(client.info().finalized_number, 0);
+        client.finalize_block(hash, None, true).unwrap();
+        assert_eq!(request().await.unwrap().result, Ok(proof));
     }
 
     #[tokio::test]

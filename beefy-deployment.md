@@ -74,6 +74,8 @@ Back up/protect the **entire existing keystore** and password under established 
 
 Enable `--enable-offchain-indexing true` **before upgrade/first MMR insertion**. Arrange at least two independent proof servers with `--state-pruning archive --blocks-pruning archive`, indexed from the first insertion. Validators need not all become archives. Flags cannot restore pruned state or backfill offchain MMR nodes; late servers need verified replay/recovery. Compare the same finalized hashes and exercise historical proof serving, not just uptime.
 
+For offline block archive recovery, use the [BEEFY proof-retention and interrupted-import procedure](vara/node/README.md#offline-beefy-proof-recovery). A successful block import is not proof that offchain MMR history or live finality has been restored; verify both before returning the archive to service.
+
 ### 3. Governance: enact and inspect the upgrade
 
 Through the existing mainnet governance route, obtain Root execution of `system.setCode` with the approved production WASM; mainnet has no Sudo shortcut. After execution, verify finalized code/checksum, unchanged `vara` identity, spec **20100**, metadata/API versions and successful inner dispatch. Keep BABE/GRANDPA and the legacy bridge operating.

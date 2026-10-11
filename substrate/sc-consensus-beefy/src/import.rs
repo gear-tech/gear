@@ -3,17 +3,18 @@
 
 use std::sync::Arc;
 
+use codec::Encode;
 use log::debug;
 
 use sp_api::ProvideRuntimeApi;
-use sp_consensus::Error as ConsensusError;
+use sp_consensus::{BlockOrigin, Error as ConsensusError};
 use sp_consensus_beefy::{AuthorityIdBound, BeefyApi, BEEFY_ENGINE_ID};
 use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT, NumberFor},
-    EncodedJustification,
+    EncodedJustification, Justifications,
 };
 
-use sc_client_api::backend::Backend;
+use sc_client_api::backend::{AuxStore, Backend};
 use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult};
 
 use crate::{
@@ -23,6 +24,29 @@ use crate::{
     metrics::BlockImportMetrics,
     LOG_TARGET,
 };
+
+/// Include authenticated file-import proofs without asserting GRANDPA finality.
+/// Live consumers must first establish canonical GRANDPA finality for `hash`.
+pub fn with_file_justification(
+    backend: &impl AuxStore,
+    hash: impl Encode,
+    mut justifications: Option<Justifications>,
+) -> sp_blockchain::Result<Option<Justifications>> {
+    if !justifications
+        .as_ref()
+        .is_some_and(|proofs| proofs.get(BEEFY_ENGINE_ID).is_some())
+    {
+        if let Some(proof) = crate::aux_schema::load_file_proof(backend, hash)? {
+            match justifications.as_mut() {
+                Some(proofs) => {
+                    proofs.append((BEEFY_ENGINE_ID, proof));
+                }
+                None => justifications = Some(Justifications::from((BEEFY_ENGINE_ID, proof))),
+            }
+        }
+    }
+    Ok(justifications)
+}
 
 /// A block-import handler for BEEFY.
 ///
@@ -130,7 +154,7 @@ where
     ) -> Result<ImportResult, Self::Error> {
         let hash = block.post_hash();
         let number = *block.header.number();
-
+        let from_file = block.origin == BlockOrigin::File;
         let beefy_encoded = block.justifications.as_mut().and_then(|just| {
             let encoded = just.get(BEEFY_ENGINE_ID).cloned();
             // Remove BEEFY justification from the list before giving to `inner`; we send it to the
@@ -139,24 +163,28 @@ where
             encoded
         });
 
-        // Run inner block import.
         let inner_import_result = self.inner.import_block(block).await?;
-
-        match self.backend.state_at(hash) {
-            Ok(_) => {}
-            Err(_) => {
-                // The block is imported as part of some chain sync.
-                // The voter doesn't need to process it now.
-                // It will be detected and processed as part of the voter state init.
+        let _state = match self.backend.state_at(hash) {
+            Ok(state) => state,
+            Err(err) => {
+                if from_file && beefy_encoded.is_some() {
+                    return Err(ConsensusError::ClientImport(format!(
+                        "Cannot authenticate file BEEFY proof without block state: {err}"
+                    )));
+                }
+                // State-less chain sync leaves proof recovery to voter initialization.
                 return Ok(inner_import_result);
             }
-        }
+        };
 
         match (beefy_encoded, &inner_import_result) {
             (Some(encoded), ImportResult::Imported(_)) => {
                 match self.decode_and_verify(&encoded, number, hash) {
                     Ok(proof) => {
-                        // The proof is valid and the block is imported and final, we can import.
+                        if from_file {
+                            crate::aux_schema::write_file_proof(&*self.backend, hash, &encoded)
+                                .map_err(|err| ConsensusError::ClientImport(err.to_string()))?;
+                        }
                         debug!(
                             target: LOG_TARGET,
                             "🥩 import justif {} for block number {:?}.", proof, number

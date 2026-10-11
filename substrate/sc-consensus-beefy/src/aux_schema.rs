@@ -15,6 +15,25 @@ const VERSION_KEY: &[u8] = b"beefy_auxschema_version";
 const WORKER_STATE_KEY: &[u8] = b"beefy_voter_state";
 
 const CURRENT_VERSION: u32 = 4;
+// File imports have no voter, and their proofs may precede local GRANDPA finality.
+fn file_proof_key(hash: impl Encode) -> Vec<u8> {
+    (b"beefy_file_proof".as_slice(), hash).encode()
+}
+
+pub(crate) fn write_file_proof(
+    backend: &impl AuxStore,
+    hash: impl Encode,
+    proof: &[u8],
+) -> ClientResult<()> {
+    backend.insert_aux(&[(file_proof_key(hash).as_slice(), proof)], &[])
+}
+
+pub(crate) fn load_file_proof(
+    backend: &impl AuxStore,
+    hash: impl Encode,
+) -> ClientResult<Option<Vec<u8>>> {
+    backend.get_aux(&file_proof_key(hash))
+}
 
 pub(crate) fn write_current_version<BE: AuxStore>(backend: &BE) -> Result<(), Error> {
     debug!(target: LOG_TARGET, "🥩 write aux schema version {:?}", CURRENT_VERSION);

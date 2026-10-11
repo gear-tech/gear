@@ -257,3 +257,17 @@ Mainnet uses published `production_vara_runtime_v*.wasm` and its matching produc
 The [published validator baseline](https://wiki.vara.network/docs/vara-network/staking/validate#hardware-requirements) stays **2 vCPUs ~3.4 GHz (Ice Lake or equivalent), 8 GB RAM, Ubuntu 22.04+ / GLIBC 2.35+, at least 80 GB SSD with headroom**; archives need separate sizing. No new BEEFY hardware minimum is introduced. Maintainers qualify baseline-host migration/session/MMR/native-registration/source-1000/full-bridge-256 and 1000-authority rejection costs; validators do not benchmark live machines.
 
 Maintainer [weight qualification](../../beefy-deployment.md#hardware-and-weight-qualification) and the [durable release record](../../beefy-deployment.md#evidence-status-and-handover) define the required evidence. Follow the coordinator's pinned approved manifest, not local benchmark hashes or historical test totals. CI checks alone do not authorize publication or network enactment.
+
+### Offline BEEFY proof recovery
+
+With the source database stopped and a fresh destination database, `export-blocks` / `import-blocks` preserve authenticated BEEFY proofs even when the exported GRANDPA checkpoints end earlier. The import checks signatures against each imported block's runtime state and retains file proofs separately; it does not advance GRANDPA finality or BEEFY voting state. Live proof serving and recovery wait for canonical GRANDPA finality.
+
+```bash
+gear export-blocks --chain vara --base-path /path/to/source blocks.json
+gear import-blocks --chain vara --base-path /path/to/recovery \
+  --state-pruning archive --blocks-pruning archive blocks.json
+```
+
+Use a fresh archive database for `/path/to/recovery`, and keep the original block file until a re-export has verified its BEEFY proofs. Block import and proof archival are separate commits. If an import fails or is interrupted, replay the complete original file into another fresh database: repeating it against the partial database skips already-known blocks and cannot repair missing proofs. Do not replace the old database or remove backups until recovery verification is complete.
+
+The file-proof archive remains in the database's auxiliary storage; block pruning does not remove those copies. Size storage for the imported proof history. Block exports are not full database or keystore backups and do not contain offchain MMR nodes. Keep existing backups and require verified MMR replay/recovery before advertising a restored proof service.
