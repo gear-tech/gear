@@ -14212,6 +14212,12 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
 
         run_to_next_block(None);
 
+        // Burn the same gas budgets with fewer host calls, not minutes of busy looping.
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            schedule.syscall_weights.gr_source =
+                frame_support::weights::Weight::from_parts(BlockGasLimitOf::<Test>::get() / 100, 0);
+        });
+
         let gas_info_result = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(pid),

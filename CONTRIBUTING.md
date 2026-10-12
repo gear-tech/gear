@@ -215,6 +215,8 @@ filter also applies to Unix and Windows test jobs and intersects with their
 explicit test filters. Local nextest runs use the unfiltered `default` profile.
 Benchmark exclusion leaves the existing correctness-test timeout policy unchanged,
 including the longer timeout used by debug CI jobs.
+Gas-budget boundary tests may raise mock syscall costs to exhaust the same gas
+allowance with fewer calls; production weights and timeout limits stay unchanged.
 
 BEEFY consensus, ownership RPC, session activation and MMR proof checks run in
 the ordinary workspace Rust suites. They do not require a separate CI job, npm

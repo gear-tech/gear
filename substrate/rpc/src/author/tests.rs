@@ -8,24 +8,25 @@ use super::*;
 use crate::testing::{test_executor, timeout_secs};
 use assert_matches::assert_matches;
 use codec::{DecodeAll, Encode};
-use jsonrpsee::{MethodsError as RpcError, RpcModule, core::EmptyServerParams as EmptyParams};
+use jsonrpsee::{core::EmptyServerParams as EmptyParams, MethodsError as RpcError, RpcModule};
 use sc_rpc_api::DenyUnsafe;
 use sc_transaction_pool::{BasicPool, FullChainApi};
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::{
-    H256,
     bytes::to_hex,
     crypto::{ByteArray, Pair},
     ed25519,
     testing::{ED25519, SR25519},
+    H256,
 };
 use sp_crypto_hashing::blake2_256;
-use sp_keystore::{Keystore, testing::MemoryKeystore};
-use sp_runtime::{Perbill, traits::OpaqueKeys};
+use sp_keystore::{testing::MemoryKeystore, Keystore};
+use sp_runtime::{traits::OpaqueKeys, Perbill};
 use std::sync::Arc;
 use substrate_test_runtime_client::{
-    self, AccountKeyring, Backend, Client, DefaultTestClientBuilderExt, TestClientBuilderExt,
+    self,
     runtime::{Block, Extrinsic, ExtrinsicBuilder, SessionKeys, Transfer},
+    AccountKeyring, Backend, Client, DefaultTestClientBuilderExt, TestClientBuilderExt,
 };
 
 fn uxt(sender: AccountKeyring, nonce: u64) -> Extrinsic {
@@ -449,24 +450,20 @@ async fn author_rotation_reports_missing_api_and_generation_errors() {
         );
         if version.is_none() {
             let at = setup.client.info().best_hash;
-            assert!(
-                sp_session::generate_initial_session_keys::<Block, _>(
-                    setup.client.clone(),
-                    at,
-                    vec![],
-                    setup.keystore.clone(),
-                )
-                .is_ok()
-            );
-            assert!(
-                sp_session::generate_initial_session_keys::<Block, _>(
-                    setup.client.clone(),
-                    at,
-                    vec!["//Alice".into()],
-                    setup.keystore.clone(),
-                )
-                .is_err()
-            );
+            assert!(sp_session::generate_initial_session_keys::<Block, _>(
+                setup.client.clone(),
+                at,
+                vec![],
+                setup.keystore.clone(),
+            )
+            .is_ok());
+            assert!(sp_session::generate_initial_session_keys::<Block, _>(
+                setup.client.clone(),
+                at,
+                vec!["//Alice".into()],
+                setup.keystore.clone(),
+            )
+            .is_err());
         }
     }
 }
@@ -536,11 +533,10 @@ async fn author_owner_rotation_uses_persistent_custom_keystore_password() {
             .await
             .unwrap();
         verify_native_proof(&generated.keys, generated.proof.as_ref().unwrap(), &owner);
-        assert!(
-            api.call::<_, bool>("author_hasSessionKeys", [generated.keys.clone()])
-                .await
-                .unwrap()
-        );
+        assert!(api
+            .call::<_, bool>("author_hasSessionKeys", [generated.keys.clone()])
+            .await
+            .unwrap());
         (generated, beefy)
     };
     let mut keys = verify_native_proof(&generated.keys, generated.proof.as_ref().unwrap(), &owner);
