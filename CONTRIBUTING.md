@@ -213,6 +213,8 @@ and generated `bench_*` / `test_benchmarks` tests; correctness tests, including
 runtime migrations and syscall integrity checks, remain enabled. This default
 filter also applies to Unix and Windows test jobs and intersects with their
 explicit test filters. Local nextest runs use the unfiltered `default` profile.
+Benchmark exclusion leaves the existing correctness-test timeout policy unchanged,
+including the longer timeout used by debug CI jobs.
 
 Weight calibration remains available through the manually dispatched
 [`Benchmarks`](.github/workflows/benchmarks.yml) workflow and
