@@ -1,11 +1,18 @@
+name: deploy-benchmark
+description: Publish measurement results to the performance charts repository.
+
 inputs:
   name:
+    description: Name of the measurement series.
     required: true
   file:
+    description: Path to the JSON measurement results.
     required: true
   ssh-deploy-key:
+    description: SSH deploy key for the performance charts repository.
     required: true
   github-token:
+    description: GitHub token used to store benchmark results.
     required: true
 
 runs:

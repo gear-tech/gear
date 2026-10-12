@@ -22,8 +22,6 @@ on:
         type: boolean
         default: false
 
-run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
-
 env:
   TERM: xterm-256color
   RUST_BACKTRACE: short
@@ -70,7 +68,7 @@ jobs:
             profiles=$(echo "$profiles" | jq -c '. += [{name: "release", flags: "--release"}]')
           fi
           echo "Profiles: ${profiles}"
-          echo "value=${profiles}" >> $GITHUB_OUTPUT
+          echo "value=${profiles}" >> "$GITHUB_OUTPUT"
       - id: targets
         run: |
           targets=$(jq -c -n '[
@@ -138,13 +136,13 @@ jobs:
           fi
 
           echo "Targets: ${targets}"
-          echo "targets=${targets}" >> $GITHUB_OUTPUT
+          echo "targets=${targets}" >> "$GITHUB_OUTPUT"
 
           echo "ethexe targets: ${ethexe_targets}"
-          echo "ethexe-targets=${ethexe_targets}" >> $GITHUB_OUTPUT
+          echo "ethexe-targets=${ethexe_targets}" >> "$GITHUB_OUTPUT"
 
           echo "*NIX targets: ${unix_targets}"
-          echo "unix-targets=${unix_targets}" >> $GITHUB_OUTPUT
+          echo "unix-targets=${unix_targets}" >> "$GITHUB_OUTPUT"
 
   gear-cli:
     needs: [dynamic-matrix, beefy-smoke-checks]
@@ -409,13 +407,7 @@ jobs:
           path: gear-cli-and-runtime-release
 
       - name: "Test: Workspace"
-        run: |
-          # Temporary solution since GitHub Actions runners are quite slow for our tests
-          if [ -z "${{ matrix.profiles.flags }}" ]; then
-            sed -i 's/slow-timeout = { period = "1m"/slow-timeout = { period = "2m"/' .config/nextest.toml
-          fi
-
-          cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
+        run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEAR_NODE_WRAPPER_LOG: info
@@ -457,58 +449,6 @@ jobs:
       - name: "Test: crates-io packages publishing"
         run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
-  # unoptimized benchmark tests take a few hours to run,
-  # so we only run in release
-  benchmarks:
-    runs-on: ubuntu-24.04
-    needs: workspace
-    name: benchmarks
-    steps:
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v7
-
-      - name: "Install: Setup linker"
-        uses: ./.github/actions/setup-linker
-
-      - name: "Install: Rust toolchain"
-        uses: ./.github/actions/install-rust
-
-      - name: "Install: Compilation environment"
-        uses: ./.github/actions/setup-compilation-env
-        with:
-          target: x86_64-unknown-linux-gnu
-
-      - name: "Disable workspace-hack"
-        uses: ./.github/actions/disable-workspace-hack
-
-      - name: "Build: gear-cli with enabled benchmarks"
-        run: cargo build -p gear-cli -F runtime-benchmarks,runtime-benchmarks-checkers --release --locked
-
-      - name: "Test: Benchmarks in WASM"
-        # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
-        run: >-
-          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
-          --chain=dev --steps=5 --repeat=0 --heap-pages=16384
-          --pallet="*" --extrinsic="*"
-
-      - name: "Test: Extra `read_big_state` benchmark"
-        run: >-
-          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=16384
-          --pallet=pallet_gear --extrinsic="read_big_state" --extra
-
-      - name: "Test: Extra `signal_stack_limit_exceeded_works` benchmark"
-        run: >-
-          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=16384
-          --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --extra
-
-      - name: "Test: Extra `check_all` benchmark"
-        run: >-
-          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=16384
-          --pallet=pallet_gear --extrinsic="check_all" --extra
-
   try-runtime:
     needs: [dynamic-matrix, gear-cli]
     runs-on: ubuntu-24.04
@@ -543,20 +483,12 @@ jobs:
       - name: "Build: Vara mainnet runtime"
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
-      - name: "Test: Create finalized Vara Mainnet snapshot"
+      - name: "Test: Download pinned Vara Mainnet snapshot"
         run: |
-          # Require the real predecessor and pin every scrape request to one finalized block.
-          block=$(curl --fail --silent --show-error https://rpc.vara.network \
-            -H 'Content-Type: application/json' \
-            --data '{"jsonrpc":"2.0","id":1,"method":"chain_getFinalizedHead","params":[]}' \
-            | jq -er '.result | select(type == "string")')
-          request=$(jq -cn --arg block "$block" \
-            '{jsonrpc:"2.0",id:1,method:"state_getRuntimeVersion",params:[$block]}')
-          curl --fail --silent --show-error https://rpc.vara.network \
-            -H 'Content-Type: application/json' --data "$request" \
-            | jq -e '.result | .specName == "vara" and .specVersion == 11000'
-          echo "Creating exact-predecessor mainnet snapshot at $block"
-          ./try-runtime create-snapshot vara_ci.snap --uri wss://rpc.vara.network --at "$block"
+          # Mainnet vara/11000, block 36389444:
+          # 0xc939bb95522cfa201167cfc3b87d4a36084a38a5e155fc7cbf46106b73e859e5
+          curl --fail --show-error --location https://archive.vara.network/runtime.snap -o vara_ci.snap
+          echo "edd8cafd44a9afc141acdd207bfecb2da0e09e28381c0d62aae8c2d6e05f8e36  vara_ci.snap" | sha256sum --check --strict
 
       - name: "Test: on-runtime-upgrade"
         # Vara has no multi-block migrator; keep the real predecessor for pre/post checks.
@@ -596,9 +528,9 @@ jobs:
       - name: "MOUNT: Logs path"
         run: |
           FUZZER_LOGS_PATH=/mnt/fuzzer_logs
-          sudo mkdir -p $FUZZER_LOGS_PATH
-          sudo ln -s $FUZZER_LOGS_PATH/artifacts $PWD/vara/tools/runtime-fuzzer/fuzz/artifacts
-          sudo ln -s $FUZZER_LOGS_PATH/proptest-regressions $PWD/vara/tools/runtime-fuzzer/proptest-regressions
+          sudo mkdir -p "$FUZZER_LOGS_PATH"
+          sudo ln -s "$FUZZER_LOGS_PATH/artifacts" "$PWD/vara/tools/runtime-fuzzer/fuzz/artifacts"
+          sudo ln -s "$FUZZER_LOGS_PATH/proptest-regressions" "$PWD/vara/tools/runtime-fuzzer/proptest-regressions"
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -607,13 +539,13 @@ jobs:
         uses: ./.github/actions/disable-workspace-hack
 
       - name: "Install: cargo-nextest"
-        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C "${CARGO_HOME:-~/.cargo}/bin"
 
       - name: "Install: cargo-fuzz"
         run: cargo install cargo-fuzz
 
       - name: "Build fuzzer"
-        run: ./scripts/gear.sh build fuzz --locked ${{ matrix.profiles.flags }}
+        run: ./scripts/gear.sh build fuzz --locked
 
       - name: "Run: runtime-fuzzer crate tests"
         run: ./scripts/gear.sh test fuzzer-tests
@@ -678,7 +610,7 @@ jobs:
           mkdir artifact
 
           # examples
-          (cd examples-artifact && tar czvf ../artifact/examples.tar.gz *.wasm)
+          (cd examples-artifact && tar czvf ../artifact/examples.tar.gz ./*.wasm)
 
           # runtime
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/

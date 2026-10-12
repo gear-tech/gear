@@ -1,3 +1,6 @@
+name: setup-linker
+description: Configure the platform linker for Rust builds.
+
 runs:
   using: composite
   steps:

@@ -1,4 +1,5 @@
 name: setup-compilation-env
+description: Install build dependencies and configure the requested Rust target.
 
 inputs:
   target:
@@ -40,19 +41,23 @@ runs:
         command: |
           set -e
 
-          # Binaryen may be outdated in Ubuntu 24.04, newer versions should have it from the apt package
+          # Pin the version used by CI; Ubuntu 24.04 packages are outdated.
+          binaryen_version=133
           binaryen_arch=$(uname -m)
           if [[ "$binaryen_arch" == "x86_64" ]]; then
             binaryen_prefix="x86_64-linux"
+            binaryen_sha256=2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489
           elif [[ "$binaryen_arch" == "aarch64" ]]; then
             binaryen_prefix="aarch64-linux"
+            binaryen_sha256=89c07ea56faf38d0fbecf36ca8ec0721756716185f265b568e133d427f299bf8
           else
             echo "Unsupported architecture: $binaryen_arch"
             exit 1
           fi
 
-          curl -o wasm-opt-linux.tar.gz -L `curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | jq -r ".assets[] | select(.name | contains(\"${binaryen_prefix}\")) | .browser_download_url" | grep -v sha256`
-          tar xzf wasm-opt-linux.tar.gz && sudo mv binaryen-version_*/bin/* /usr/local/bin/
+          curl -fL -o wasm-opt-linux.tar.gz "https://github.com/WebAssembly/binaryen/releases/download/version_${binaryen_version}/binaryen-version_${binaryen_version}-${binaryen_prefix}.tar.gz"
+          echo "$binaryen_sha256  wasm-opt-linux.tar.gz" | sha256sum --check
+          tar xzf wasm-opt-linux.tar.gz && sudo mv binaryen-version_${binaryen_version}/bin/* /usr/local/bin/
           wasm-opt --version
 
     - name: "Install: LLVM on Linux"
@@ -136,21 +141,6 @@ runs:
 
           sudo apt update
           sudo apt install -y innoextract
-
-          # Binaryen may be outdated in Ubuntu 24.04, newer versions should have it from the apt package
-          binaryen_arch=$(uname -m)
-          if [[ "$binaryen_arch" == "x86_64" ]]; then
-            binaryen_prefix="x86_64-linux"
-          elif [[ "$binaryen_arch" == "aarch64" ]]; then
-            binaryen_prefix="aarch64-linux"
-          else
-            echo "Unsupported architecture: $binaryen_arch"
-            exit 1
-          fi
-
-          curl -o wasm-opt-linux.tar.gz -L `curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | jq -r ".assets[] | select(.name | contains(\"${binaryen_prefix}\")) | .browser_download_url" | grep -v sha256`
-          tar xzf wasm-opt-linux.tar.gz && sudo mv binaryen-version_*/bin/* /usr/local/bin/
-          wasm-opt --version
 
           wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl-lts.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
           innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe

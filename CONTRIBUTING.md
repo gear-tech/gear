@@ -205,6 +205,26 @@ CI labels are **reactive** and may be modified automatically by CI:
 - No more than two CI labels SHOULD be used per PR
 - If more coverage is required, `ci: full` SHOULD be used
 
+### 8.4 Tests and benchmark calibration
+
+Ordinary CI compiles and lints all features, including `runtime-benchmarks`, but
+does not execute benchmarks. The nextest `ci` profile excludes benchmark targets
+and generated `bench_*` / `test_benchmarks` tests; correctness tests, including
+runtime migrations and syscall integrity checks, remain enabled. This default
+filter also applies to Unix and Windows test jobs and intersects with their
+explicit test filters. Local nextest runs use the unfiltered `default` profile.
+
+Weight calibration remains available through the manually dispatched
+[`Benchmarks`](.github/workflows/benchmarks.yml) workflow and
+`scripts/benchmarking/run_all_benchmarks.sh` on reference hardware. The
+[`Test measurements`](.github/workflows/test-measurements.yaml) workflow is also
+manual-only. To explicitly run generated benchmark tests with CI settings, use:
+
+```sh
+cargo nextest run --profile ci --ignore-default-filter --release --all-features \
+  -E 'test(/(^|::)(bench_[^:]+|test_benchmarks)$/)'
+```
+
 ---
 
 ## 9. Merge Strategy

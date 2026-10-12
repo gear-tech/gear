@@ -1,8 +1,6 @@
 name: Test measurements
 
 on:
-  schedule:
-    - cron: "10 21 * * *"
   workflow_dispatch:
 
 env:
@@ -21,7 +19,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+        run: echo "/tmp/cargo/bin" >> "$GITHUB_PATH"
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
@@ -38,7 +36,7 @@ jobs:
           mkdir -p ./target/analysis/tests/
           mkdir -p ./target/analysis/output/
           cargo build --release --package regression-analysis
-          for i in `seq 1 $COUNT`; do echo $i; cargo nextest run --package pallet-* --release -j1 > ./target/analysis/output/$i 2>&1 || { exit_code=$?; if [ x$exit_code != x0 ]; then cat ./target/analysis/output/$i; fi; exit $exit_code; }; mv ./target/nextest/ci/junit.xml ./target/analysis/tests/$i; done
+          for i in $(seq 1 "$COUNT"); do echo "$i"; cargo nextest run --package "pallet-*" --release -j1 > "./target/analysis/output/$i" 2>&1 || { exit_code=$?; if [ "$exit_code" -ne 0 ]; then cat "./target/analysis/output/$i"; fi; exit "$exit_code"; }; mv ./target/nextest/ci/junit.xml "./target/analysis/tests/$i"; done
           ./target/release/regression-analysis collect-data --data-folder-path ./target/analysis/tests/ --output-path ./target/pallet-tests.json
 
       - name: "Generate report: Gear workspace tests"

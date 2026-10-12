@@ -46,6 +46,8 @@ Mainnet uses normal three-second slots, two-hour sessions and six-session/twelve
 
 Pin finalized state. Inventory all `Session.NextKeys` owners, `Session.Validators`, `Session.QueuedKeys`, four-key ownership, historical roots/exposures and bridge state. Check exact spec **11000**, matching network name and four-key encoding. Reuse an existing compatible full snapshot with its original block/hash/root; rerun the changed runtime against it. Archive inputs and new logs/proof-retention evidence durably; ephemeral paths are not release archives.
 
+Migration CI downloads the retained mainnet snapshot from `https://archive.vara.network/runtime.snap` and verifies the SHA-256 pinned in `.github/workflows/build.yml`; it does not scrape live state on every run. If the hosted file changes, CI must fail checksum verification. Qualify the replacement with the full migration checks before updating the pin, and retain its finalized block/header root and predecessor identity with the release evidence.
+
 **Authenticate active ownership before enactment.** The current four-key `HistoricalSessions` root and validator count must match the reconstructed active authority lists and active-era exposures. A delayed GRANDPA change can invalidate positional reconstruction even after `PendingChange` and `Stalled` disappear; predecessor key-only rotations can also leave a stale commitment. Either mismatch rejects preflight and halts migration before writes. Do not infer owners from mutable `NextKeys`, edit the snapshot or bypass this check.
 
 Recheck this condition immediately before approved upgrade execution and coordinate against concurrent key registrations or forced GRANDPA transitions. If it fails, postpone enactment until a finalized state authenticates the active snapshot, then qualify that state. A retained snapshot that passes remains reusable, but does not certify later live state. Include the additional current four-key trie construction in migration capacity/weight qualification.
@@ -197,6 +199,8 @@ Maintainers use a reproducible dedicated host safe for that baseline, recording 
 | Session/history/MMR | Exposure pages, retention/pruning, immutable activated snapshots, handover and queue/leaf work. Direct V0 trie hashing avoids a single large ABI staging buffer without changing commitments. Measure full transition block; session rotation already charges maximum block weight, not two reservations. |
 
 ### Benchmark calibration
+
+Automatic CI compiles benchmark-enabled code but does not run benchmark workloads. The `ci` nextest profile excludes generated benchmark tests while retaining migration and consensus correctness tests. Weight generation and calibration remain explicit manual work on the qualified host; a green CI run is not evidence of validator-baseline performance.
 
 Keep machine-specific timings, test totals, unpublished artifact hashes and raw logs in development evidence, not this operator procedure. Before enactment, promote the required records to the reviewed durable archive and link them from the release record. Local measurements on faster hardware do not qualify the published validator baseline.
 
