@@ -105,7 +105,6 @@ gear-workspace-hack.workspace = true
 [build-dependencies]
 
 [features]
-fast-runtime = ["vara-native", "vara-runtime/fast-runtime"]
 vara-native = [
 	"vara-runtime",
 	"sp-authority-discovery"

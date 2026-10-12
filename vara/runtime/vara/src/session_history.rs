@@ -189,8 +189,85 @@ mod tests {
         BuildStorage, RuntimeOrigin, System,
         genesis_config_presets::{authority_keys_from_seed, local_testnet_genesis},
     };
-    use frame_support::traits::OnInitialize;
+    use frame_support::traits::{OnFinalize, OnInitialize};
     use sp_runtime::RuntimeAppPublic;
+
+    fn ownership_api(method: &str, context: u64, key: &[u8]) -> Option<Vec<u8>> {
+        let input = [context.encode(), key.to_vec()].concat();
+        let output = crate::api::dispatch(method, &input).unwrap();
+        Option::<Vec<u8>>::decode_all(&mut output.as_slice()).unwrap()
+    }
+
+    fn assert_authorities(
+        active: &[(AccountId, SessionKeys)],
+        queued: &[(AccountId, SessionKeys)],
+    ) {
+        use crate::{Babe, Grandpa};
+
+        assert_eq!(
+            Session::validators(),
+            active
+                .iter()
+                .map(|(owner, _)| owner.clone())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(pallet_session::QueuedKeys::<Runtime>::get(), queued);
+        assert_eq!(
+            Babe::authorities()
+                .iter()
+                .map(|(key, _)| key.clone())
+                .collect::<Vec<_>>(),
+            active
+                .iter()
+                .map(|(_, keys)| keys.babe.clone())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            Grandpa::grandpa_authorities()
+                .iter()
+                .map(|(key, _)| key.clone())
+                .collect::<Vec<_>>(),
+            active
+                .iter()
+                .map(|(_, keys)| keys.grandpa.clone())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            pallet_im_online::Keys::<Runtime>::get().to_vec(),
+            active
+                .iter()
+                .map(|(_, keys)| keys.im_online.clone())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            crate::AuthorityDiscovery::current_authorities().to_vec(),
+            active
+                .iter()
+                .map(|(_, keys)| keys.authority_discovery.clone())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            crate::AuthorityDiscovery::next_authorities().to_vec(),
+            queued
+                .iter()
+                .map(|(_, keys)| keys.authority_discovery.clone())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            pallet_beefy::Authorities::<Runtime>::get().to_vec(),
+            active
+                .iter()
+                .map(|(_, keys)| keys.beefy.clone())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            pallet_beefy::NextAuthorities::<Runtime>::get().to_vec(),
+            queued
+                .iter()
+                .map(|(_, keys)| keys.beefy.clone())
+                .collect::<Vec<_>>()
+        );
+    }
 
     fn proofs(keys: &SessionKeys) -> Vec<(KeyTypeId, Vec<u8>, sp_session::MembershipProof)> {
         SessionKeys::key_ids()
@@ -198,6 +275,27 @@ mod tests {
             .map(|kind| {
                 let raw = keys.get_raw(*kind).to_vec();
                 let proof = SessionKeyOwnerProof::prove((*kind, &raw)).unwrap();
+                let api = match *kind {
+                    sp_consensus_babe::KEY_TYPE => Some((
+                        "BabeApi_generate_key_ownership_proof",
+                        u64::from(crate::Babe::current_slot()),
+                    )),
+                    sp_consensus_grandpa::KEY_TYPE => Some((
+                        "GrandpaApi_generate_key_ownership_proof",
+                        crate::Grandpa::current_set_id(),
+                    )),
+                    sp_consensus_beefy::KEY_TYPE => Some((
+                        "BeefyApi_generate_key_ownership_proof",
+                        crate::Beefy::validator_set().unwrap().id(),
+                    )),
+                    _ => None,
+                };
+                if let Some((method, context)) = api {
+                    assert_eq!(ownership_api(method, context, &raw), Some(proof.encode()));
+                    if *kind != sp_consensus_babe::KEY_TYPE {
+                        assert!(ownership_api(method, context + 1, &raw).is_none());
+                    }
+                }
                 (*kind, raw, proof)
             })
             .collect()
@@ -232,6 +330,10 @@ mod tests {
                 let controller = pallet_staking::Bonded::<Runtime>::get(&owner).unwrap();
                 let old = pallet_session::NextKeys::<Runtime>::get(&owner).unwrap();
                 let original = proofs(&old);
+                let initial = pallet_session::QueuedKeys::<Runtime>::get();
+                let mut rotated = initial.clone();
+                let initial_set_id = crate::Beefy::validator_set().unwrap().id();
+                assert_authorities(&initial, &initial);
                 let old_root = Historical::historical_root(Session::current_index()).unwrap();
                 let mut replacement =
                     SessionKeys::generate(&controller.encode(), Some(b"//Alice".to_vec())).keys;
@@ -246,6 +348,11 @@ mod tests {
                     )
                     .keys;
                 }
+                rotated
+                    .iter_mut()
+                    .find(|(account, _)| account == &owner)
+                    .unwrap()
+                    .1 = replacement.clone();
                 let proof = replacement
                     .create_ownership_proof(&controller.encode())
                     .unwrap()
@@ -268,6 +375,8 @@ mod tests {
                 assert_owner(&original, &owner);
                 crate::Babe::on_initialize(System::block_number());
                 Session::rotate_session();
+                crate::Grandpa::on_finalize(System::block_number());
+                assert_authorities(&initial, &rotated);
                 assert_eq!(proofs(&old)[0].2.session, 1);
                 assert_owner(&original, &owner);
                 assert!(
@@ -277,6 +386,36 @@ mod tests {
                 System::set_block_number(2);
                 crate::Babe::on_initialize(System::block_number());
                 Session::rotate_session();
+                crate::Grandpa::on_finalize(System::block_number());
+                assert_authorities(&rotated, &rotated);
+                let rotated_set_id = crate::Beefy::validator_set().unwrap().id();
+                assert!(rotated_set_id > initial_set_id);
+                assert!(
+                    ownership_api(
+                        "BeefyApi_generate_key_ownership_proof",
+                        rotated_set_id,
+                        old.beefy.as_ref()
+                    )
+                    .is_none()
+                );
+                if !beefy_only {
+                    assert!(
+                        ownership_api(
+                            "BabeApi_generate_key_ownership_proof",
+                            u64::from(crate::Babe::current_slot()),
+                            old.babe.as_ref()
+                        )
+                        .is_none()
+                    );
+                    assert!(
+                        ownership_api(
+                            "GrandpaApi_generate_key_ownership_proof",
+                            crate::Grandpa::current_set_id(),
+                            old.grandpa.as_ref()
+                        )
+                        .is_none()
+                    );
+                }
                 let activated = proofs(&replacement);
                 assert_owner(&activated, &owner);
                 assert_owner(&original, &owner);
@@ -292,10 +431,40 @@ mod tests {
                 System::set_block_number(3);
                 crate::Babe::on_initialize(System::block_number());
                 Session::rotate_session();
+                crate::Grandpa::on_finalize(System::block_number());
+                let remaining: Vec<_> = rotated
+                    .iter()
+                    .filter(|(account, _)| account != &owner)
+                    .cloned()
+                    .collect();
+                assert_authorities(&rotated, &remaining);
                 assert_owner(&proofs(&replacement), &owner);
                 System::set_block_number(4);
                 crate::Babe::on_initialize(System::block_number());
                 Session::rotate_session();
+                crate::Grandpa::on_finalize(System::block_number());
+                assert_authorities(&remaining, &remaining);
+                let purged_set_id = crate::Beefy::validator_set().unwrap().id();
+                assert!(purged_set_id > rotated_set_id);
+                for (method, context, key) in [
+                    (
+                        "BabeApi_generate_key_ownership_proof",
+                        u64::from(crate::Babe::current_slot()),
+                        replacement.babe.as_ref(),
+                    ),
+                    (
+                        "GrandpaApi_generate_key_ownership_proof",
+                        crate::Grandpa::current_set_id(),
+                        replacement.grandpa.as_ref(),
+                    ),
+                    (
+                        "BeefyApi_generate_key_ownership_proof",
+                        purged_set_id,
+                        replacement.beefy.as_ref(),
+                    ),
+                ] {
+                    assert!(ownership_api(method, context, key).is_none());
+                }
                 assert!(
                     SessionKeyOwnerProof::prove((sp_consensus_beefy::KEY_TYPE, &replacement.beefy))
                         .is_none()

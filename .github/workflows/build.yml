@@ -34,25 +34,6 @@ env:
   DOCKER_BUILD_SUMMARY: false
 
 jobs:
-  beefy-smoke-checks:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v7
-
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22.19.0
-          cache: npm
-          cache-dependency-path: scripts/package-lock.json
-
-      - name: "Install: Pinned CI smoke dependencies"
-        run: npm ci --prefix scripts --ignore-scripts --no-audit --no-fund
-
-      - name: "Test: Local-only smoke guard"
-        run: npm test --prefix scripts
-
   dynamic-matrix:
     runs-on: ubuntu-24.04
     outputs:
@@ -145,7 +126,7 @@ jobs:
           echo "unix-targets=${unix_targets}" >> "$GITHUB_OUTPUT"
 
   gear-cli:
-    needs: [dynamic-matrix, beefy-smoke-checks]
+    needs: dynamic-matrix
     strategy:
       fail-fast: false
       matrix:
@@ -184,98 +165,6 @@ jobs:
         with:
           name: gear-cli-and-runtime-release-${{ matrix.targets.target }}
           path: artifact
-
-      - name: "Install: Node.js for disposable BEEFY smoke"
-        if: matrix.targets.name == 'linux-x86_64'
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22.19.0
-          cache: npm
-          cache-dependency-path: scripts/package-lock.json
-
-      - name: "Install: Pinned smoke dependencies"
-        if: matrix.targets.name == 'linux-x86_64'
-        run: npm ci --prefix scripts --ignore-scripts --no-audit --no-fund
-
-      - name: "Build: Isolated fast-runtime BEEFY smoke node"
-        if: matrix.targets.name == 'linux-x86_64'
-        env:
-          CARGO_TARGET_DIR: target/beefy-smoke
-          WASM_BUILD_TYPE: release
-        run: cargo build -p gear-cli --release --locked --features fast-runtime
-
-      - name: "Test: Native BEEFY activation, protected restart, rotation and purge"
-        if: matrix.targets.name == 'linux-x86_64'
-        timeout-minutes: 15
-        run: |
-          set -euo pipefail
-          umask 077
-          base=$(mktemp -d "$RUNNER_TEMP/beefy-smoke.XXXXXX")
-          alice_pid='' bootstrap_bob_pid='' bob_pid=''
-          cleanup() {
-            for pid in "$alice_pid" "$bootstrap_bob_pid" "$bob_pid"; do
-              if [[ -n "$pid" ]]; then kill "$pid" 2>/dev/null || true; fi
-            done
-            wait || true
-            rm -rf -- "$base"
-          }
-          trap cleanup EXIT
-          trap 'exit 130' INT
-          trap 'exit 143' TERM
-          mkdir -p "$base/logs" "$base/keystore-bob" beefy-smoke-logs
-          openssl rand -hex 32 > "$base/bob-password"
-          chmod 600 "$base/bob-password"
-          node=target/beefy-smoke/${CARGO_BUILD_TARGET}/release/gear
-          common=(--chain local --validator --unsafe-force-node-key-generation --force-authoring
-            --enable-offchain-indexing true --rpc-methods unsafe
-            --state-pruning archive --blocks-pruning archive
-            --no-mdns --no-telemetry --no-prometheus)
-          "$node" "${common[@]}" --alice --base-path "$base/alice" --rpc-port 9944 \
-            --listen-addr /ip4/127.0.0.1/tcp/30333 > "$base/logs/alice.log" 2>&1 &
-          alice_pid=$!
-          wait_rpc() {
-            timeout 120 bash -s "$1" <<'RPC'
-          until curl --fail --silent --max-time 2 -H 'Content-Type: application/json' \
-            --data '{"jsonrpc":"2.0","id":1,"method":"system_localPeerId","params":[]}' "$1" \
-            | jq -er '.result | select(type == "string")'; do sleep 1; done
-          RPC
-          }
-          alice_peer=$(wait_rpc http://127.0.0.1:9944)
-          "$node" "${common[@]}" --bob --base-path "$base/bootstrap-bob" --rpc-port 9946 \
-            --listen-addr /ip4/127.0.0.1/tcp/30335 \
-            --bootnodes "/ip4/127.0.0.1/tcp/30333/p2p/$alice_peer" \
-            > "$base/logs/bootstrap-bob.log" 2>&1 &
-          bootstrap_bob_pid=$!
-          wait_rpc http://127.0.0.1:9946
-          protected_bob=(--name Bob --base-path "$base/bob" --rpc-port 9945
-            --listen-addr /ip4/127.0.0.1/tcp/30334
-            --bootnodes "/ip4/127.0.0.1/tcp/30333/p2p/$alice_peer"
-            --keystore-path "$base/keystore-bob" --password-filename "$base/bob-password")
-          "$node" "${common[@]}" "${protected_bob[@]}" > "$base/logs/bob.log" 2>&1 &
-          bob_pid=$!
-          wait_rpc http://127.0.0.1:9945
-          # Upload only the driver's public evidence, never raw node logs or private files.
-          node scripts/beefy-activation-smoke.mjs ws://127.0.0.1:9944 ws://127.0.0.1:9945 \
-            | tee beefy-smoke-logs/proof.json
-          kill "$bootstrap_bob_pid" "$bob_pid"
-          wait "$bootstrap_bob_pid" || true
-          wait "$bob_pid" || true
-          bootstrap_bob_pid='' bob_pid=''
-          "$node" "${common[@]}" "${protected_bob[@]}" > "$base/logs/bob-after-restart.log" 2>&1 &
-          bob_pid=$!
-          wait_rpc http://127.0.0.1:9945
-          node scripts/beefy-activation-smoke.mjs ws://127.0.0.1:9944 ws://127.0.0.1:9945 --after-restart \
-            | tee beefy-smoke-logs/proof-after-restart.json
-
-      - name: "ACTIONS: Upload BEEFY smoke evidence"
-        if: ${{ !cancelled() && matrix.targets.name == 'linux-x86_64' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: beefy-activation-smoke
-          path: |
-            beefy-smoke-logs/proof.json
-            beefy-smoke-logs/proof-after-restart.json
-          if-no-files-found: error
 
   ethexe-cli:
     needs: dynamic-matrix

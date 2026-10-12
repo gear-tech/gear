@@ -18,7 +18,7 @@ The selected rollout is mainnet only. The retained mainnet snapshot qualifies th
 
 Production-profile artifacts are a [release-workflow](.github/workflows/release.yml) responsibility, not a validator build task. The workflow checks out its `tag_name` input: create the approved tag on the final merged commit before dispatching it. Prefer a draft with `make_latest=false`, verify the artifacts/checksums, then publish deliberately. Publication is not runtime enactment. `2_01_00` means on-chain spec **20100**; verify actual published filenames.
 
-Use the published `gear` node with **`--chain vara`**, `production_vara_runtime_v2_01_00.wasm` and `production_vara_runtime_v2_01_00_metadata.scale`, checked against `SHA256SUMS`. The runtime must exclude `dev`, `fast-runtime`, `try-runtime` and `runtime-benchmarks`. Do not upload `testnet_vara_runtime_v*.wasm` or a try-runtime companion.
+Use the published `gear` node with **`--chain vara`**, `production_vara_runtime_v2_01_00.wasm` and `production_vara_runtime_v2_01_00_metadata.scale`, checked against `SHA256SUMS`. The runtime must exclude `dev`, `try-runtime` and `runtime-benchmarks`. Do not upload `testnet_vara_runtime_v*.wasm` or a try-runtime companion.
 
 Inspect the approved release tag through the release API; this lists artifacts,
 not an approval to use a different or latest release. Verify downloaded node, WASM

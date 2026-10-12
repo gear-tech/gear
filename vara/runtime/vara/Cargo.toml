@@ -141,8 +141,6 @@ parity-scale-codec.workspace = true
 
 [features]
 default = ["std"]
-# Opt-in disposable-chain rehearsal only; never deploy this Wasm on a live chain.
-fast-runtime = ["dev"]
 std = [
     "binary-merkle-tree/std",
     "parity-scale-codec/std",

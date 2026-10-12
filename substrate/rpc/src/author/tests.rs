@@ -8,25 +8,24 @@ use super::*;
 use crate::testing::{test_executor, timeout_secs};
 use assert_matches::assert_matches;
 use codec::{DecodeAll, Encode};
-use jsonrpsee::{core::EmptyServerParams as EmptyParams, MethodsError as RpcError, RpcModule};
+use jsonrpsee::{MethodsError as RpcError, RpcModule, core::EmptyServerParams as EmptyParams};
 use sc_rpc_api::DenyUnsafe;
 use sc_transaction_pool::{BasicPool, FullChainApi};
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::{
+    H256,
     bytes::to_hex,
     crypto::{ByteArray, Pair},
     ed25519,
     testing::{ED25519, SR25519},
-    H256,
 };
 use sp_crypto_hashing::blake2_256;
-use sp_keystore::{testing::MemoryKeystore, Keystore};
-use sp_runtime::{traits::OpaqueKeys, Perbill};
+use sp_keystore::{Keystore, testing::MemoryKeystore};
+use sp_runtime::{Perbill, traits::OpaqueKeys};
 use std::sync::Arc;
 use substrate_test_runtime_client::{
-    self,
+    self, AccountKeyring, Backend, Client, DefaultTestClientBuilderExt, TestClientBuilderExt,
     runtime::{Block, Extrinsic, ExtrinsicBuilder, SessionKeys, Transfer},
-    AccountKeyring, Backend, Client, DefaultTestClientBuilderExt, TestClientBuilderExt,
 };
 
 fn uxt(sender: AccountKeyring, nonce: u64) -> Extrinsic {
@@ -450,20 +449,24 @@ async fn author_rotation_reports_missing_api_and_generation_errors() {
         );
         if version.is_none() {
             let at = setup.client.info().best_hash;
-            assert!(sp_session::generate_initial_session_keys::<Block, _>(
-                setup.client.clone(),
-                at,
-                vec![],
-                setup.keystore.clone(),
-            )
-            .is_ok());
-            assert!(sp_session::generate_initial_session_keys::<Block, _>(
-                setup.client.clone(),
-                at,
-                vec!["//Alice".into()],
-                setup.keystore.clone(),
-            )
-            .is_err());
+            assert!(
+                sp_session::generate_initial_session_keys::<Block, _>(
+                    setup.client.clone(),
+                    at,
+                    vec![],
+                    setup.keystore.clone(),
+                )
+                .is_ok()
+            );
+            assert!(
+                sp_session::generate_initial_session_keys::<Block, _>(
+                    setup.client.clone(),
+                    at,
+                    vec!["//Alice".into()],
+                    setup.keystore.clone(),
+                )
+                .is_err()
+            );
         }
     }
 }
@@ -519,22 +522,26 @@ async fn author_owner_rotation_uses_persistent_custom_keystore_password() {
     let custom_path = directory.path().join("custom-validator-keystore");
     let owner = vec![7; 32];
     let setup = TestSetup::default();
-    let generated: GeneratedSessionKeys = {
+    let (generated, beefy) = {
         let store = Arc::new(
             sc_keystore::LocalKeystore::open(&custom_path, Some("test-password".to_owned().into()))
                 .unwrap(),
         );
+        let beefy = store
+            .ecdsa_generate_new(sp_core::crypto::KeyTypeId(*b"beef"), None)
+            .unwrap();
         let api = setup.to_rpc_with_keystore(store);
         let generated: GeneratedSessionKeys = api
             .call("author_rotateKeysWithOwner", [Bytes::from(owner.clone())])
             .await
             .unwrap();
         verify_native_proof(&generated.keys, generated.proof.as_ref().unwrap(), &owner);
-        assert!(api
-            .call::<_, bool>("author_hasSessionKeys", [generated.keys.clone()])
-            .await
-            .unwrap());
-        generated
+        assert!(
+            api.call::<_, bool>("author_hasSessionKeys", [generated.keys.clone()])
+                .await
+                .unwrap()
+        );
+        (generated, beefy)
     };
     let mut keys = verify_native_proof(&generated.keys, generated.proof.as_ref().unwrap(), &owner);
     let message = [b"POP_".as_slice(), &owner].concat();
@@ -542,6 +549,13 @@ async fn author_owner_rotation_uses_persistent_custom_keystore_password() {
         let store: KeystorePtr = Arc::new(
             sc_keystore::LocalKeystore::open(&custom_path, password.map(|p| p.to_owned().into()))
                 .unwrap(),
+        );
+        let commitment_hash =
+            sp_core::hashing::keccak_256(b"fresh commitment after protected reopen");
+        let beefy_signature = store.ecdsa_sign_prehashed(
+            sp_core::crypto::KeyTypeId(*b"beef"),
+            &beefy,
+            &commitment_hash,
         );
         let signatures = (
             store.ed25519_sign(ED25519, keys.ed25519.as_ref(), &message),
@@ -552,10 +566,16 @@ async fn author_owner_rotation_uses_persistent_custom_keystore_password() {
             assert!(signatures.0.unwrap().is_some());
             assert!(signatures.1.unwrap().is_some());
             assert!(signatures.2.unwrap().is_some());
+            assert!(sp_core::ecdsa::Pair::verify_prehashed(
+                &beefy_signature.unwrap().unwrap(),
+                &commitment_hash,
+                &beefy
+            ));
         } else {
             assert!(signatures.0.is_err());
             assert!(signatures.1.is_err());
             assert!(signatures.2.is_err());
+            assert!(beefy_signature.is_err());
         }
         let mut externalities = sp_io::TestExternalities::default();
         externalities.register_extension(KeystoreExt::from(store));

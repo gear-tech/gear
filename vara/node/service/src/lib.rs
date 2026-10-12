@@ -164,13 +164,6 @@ where
     RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi>> + Send + Sync + 'static,
     RuntimeApi::RuntimeApi: RuntimeApiCollection + Clone,
 {
-    #[cfg(feature = "fast-runtime")]
-    if !matches!(config.chain_spec.id(), "vara_dev" | "vara_local_testnet") {
-        return Err(ServiceError::Other(
-            "fast-runtime nodes may only run disposable vara_dev/vara_local_testnet chains".into(),
-        ));
-    }
-
     let telemetry = config
         .telemetry_endpoints
         .clone()

@@ -1052,15 +1052,19 @@ fn read_mmr_leaf(ext: &mut sp_io::TestExternalities, key: Vec<u8>) -> crate::mmr
 fn bridge_finalization_at_n_is_committed_at_n_plus_one() {
     use frame_support::traits::{OnFinalize, OnInitialize, OneSessionHandler};
     use sp_consensus_beefy::mmr::BeefyDataProvider;
+    use sp_core::offchain::{OffchainDbExt, testing::TestOffchainExt};
+    use sp_runtime::traits::Hash;
 
     let alice = bridge_test_authority(AccountKeyring::Alice, "Alice");
     let mut ext = ExtBuilder::default()
         .initial_authorities(vec![alice.clone()])
         .stash(STASH)
         .build();
+    let parent_hash = sp_core::H256::repeat_byte(0x55);
 
-    let (first_key, first_extra, key, expected_extra) = ext.execute_with(|| {
+    let (first_key, first_extra, key, expected_extra, committed_root) = ext.execute_with(|| {
         frame_system::BlockHash::<Runtime>::insert(0, sp_core::H256::repeat_byte(0x99));
+        System::initialize(&1, &System::block_hash(0), &Default::default());
         let uninitialized_extra = bridge_leaf::VaraBridgeProvider::extra_data();
         let alice = session_validator(&alice);
         <GearEthBridge as OneSessionHandler<AccountId>>::on_new_session(
@@ -1088,10 +1092,29 @@ fn bridge_finalization_at_n_is_committed_at_n_plus_one() {
             vec![1, 2, 3],
         ));
         GearEthBridge::on_finalize(1);
+        assert_ok!(GearEthBridge::pause(RuntimeOrigin::root()));
+        assert_ok!(GearEthBridge::bind_destination(
+            RuntimeOrigin::root(),
+            sp_core::H256::repeat_byte(2),
+            sp_core::H160::repeat_byte(3),
+        ));
         assert_ok!(Timestamp::set(RuntimeOrigin::none(), SLOT_DURATION));
         Timestamp::on_finalize(1);
-        let expected_extra = bridge_leaf::VaraBridgeProvider::extra_data();
-        initialize_block(2);
+        let (queue_id, queue_root) = GearEthBridge::bridge_snapshot().unwrap();
+        let expected_extra = Keccak256::hash(
+            &(
+                2u8,
+                *b"vara",
+                GearEthBridge::bridge_domain(),
+                SLOT_DURATION,
+                1u8,
+                queue_id,
+                queue_root,
+            )
+                .encode(),
+        )
+        .0;
+        System::initialize(&2, &parent_hash, &Default::default());
         Mmr::on_initialize(2);
         let key = (
             <Runtime as pallet_mmr::Config>::INDEXING_PREFIX,
@@ -1099,7 +1122,13 @@ fn bridge_finalization_at_n_is_committed_at_n_plus_one() {
             System::parent_hash(),
         )
             .encode();
-        (first_key, first_extra, key, expected_extra)
+        let committed_root = Mmr::mmr_root();
+        assert!(System::digest().logs.iter().any(|log| log
+            == &sp_runtime::DigestItem::Consensus(
+                sp_consensus_beefy::BEEFY_ENGINE_ID,
+                sp_consensus_beefy::ConsensusLog::<BeefyId>::MmrRoot(committed_root).encode(),
+            )));
+        (first_key, first_extra, key, expected_extra, committed_root)
     });
 
     let first_leaf = read_mmr_leaf(&mut ext, first_key);
@@ -1109,8 +1138,32 @@ fn bridge_finalization_at_n_is_committed_at_n_plus_one() {
     assert_eq!(first_leaf.encode()[0], 0);
     let leaf = read_mmr_leaf(&mut ext, key);
     assert_eq!(leaf.leaf_extra, expected_extra);
-    assert_eq!(leaf.parent_number_and_hash.0, 1);
+    assert_eq!(leaf.parent_number_and_hash, (1, parent_hash));
     assert_ne!(leaf.leaf_extra, first_leaf.leaf_extra);
+
+    ext.execute_with(|| {
+        System::initialize(&3, &sp_core::H256::repeat_byte(0x77), &Default::default());
+        Mmr::on_initialize(3);
+        assert_ne!(Mmr::mmr_root(), committed_root);
+    });
+    ext.persist_offchain_overlay();
+    let (offchain, _) = TestOffchainExt::with_offchain_db(ext.offchain_db());
+    ext.register_extension(OffchainDbExt::new(offchain));
+    ext.execute_with(|| {
+        let output = crate::api::dispatch("MmrApi_generate_proof", &(vec![2u32], Some(2u32)).encode()).unwrap();
+        type ProofResult = Result<(Vec<mmr::EncodableOpaqueLeaf>, sp_mmr_primitives::LeafProof<sp_core::H256>), sp_mmr_primitives::Error>;
+        let (leaves, proof) = <ProofResult as parity_scale_codec::DecodeAll>::decode_all(&mut output.as_slice()).unwrap().unwrap();
+        assert_eq!(leaves, vec![mmr::EncodableOpaqueLeaf::from_leaf(&leaf)]);
+        for root in [committed_root, Mmr::mmr_root()] {
+            let output = crate::api::dispatch("MmrApi_verify_proof_stateless", &(root, &leaves, &proof).encode()).unwrap();
+            let result = <Result<(), sp_mmr_primitives::Error> as parity_scale_codec::DecodeAll>::decode_all(&mut output.as_slice()).unwrap();
+            assert_eq!(result.is_ok(), root == committed_root);
+        }
+        let mut corrupted = leaf;
+        corrupted.leaf_extra[0] ^= 1;
+        let output = crate::api::dispatch("MmrApi_verify_proof_stateless", &(committed_root, vec![mmr::EncodableOpaqueLeaf::from_leaf(&corrupted)], proof).encode()).unwrap();
+        assert!(<Result<(), sp_mmr_primitives::Error> as parity_scale_codec::DecodeAll>::decode_all(&mut output.as_slice()).unwrap().is_err());
+    });
 }
 
 #[test]

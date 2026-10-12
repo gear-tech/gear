@@ -216,6 +216,12 @@ explicit test filters. Local nextest runs use the unfiltered `default` profile.
 Benchmark exclusion leaves the existing correctness-test timeout policy unchanged,
 including the longer timeout used by debug CI jobs.
 
+BEEFY consensus, ownership RPC, session activation and MMR proof checks run in
+the ordinary workspace Rust suites. They do not require a separate CI job, npm
+harness or shortened-session node build. The existing try-runtime job checks
+the mainnet snapshot migration; release qualification still requires the
+normal-timing, existing-state rehearsal in [the operator runbook](beefy-deployment.md).
+
 Weight calibration remains available through the manually dispatched
 [`Benchmarks`](.github/workflows/benchmarks.yml) workflow and
 `scripts/benchmarking/run_all_benchmarks.sh` on reference hardware. The
