@@ -1,0 +1,117 @@
+// This file is part of Substrate.
+
+// Copyright (C) Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+//! Implementation of the [`DevApiServer`] trait providing debug utilities for Substrate based
+//! blockchains.
+
+#[cfg(test)]
+mod tests;
+
+use jsonrpsee::Extensions;
+use sc_client_api::{BlockBackend, HeaderBackend};
+use sc_rpc_api::{check_if_safe, dev::error::Error};
+use sp_api::{ApiExt, Core, ProvideRuntimeApi};
+use sp_core::Encode;
+use sp_runtime::{
+    generic::DigestItem,
+    traits::{Block as BlockT, Header},
+};
+use std::{
+    marker::{PhantomData, Send, Sync},
+    sync::Arc,
+};
+
+pub use sc_rpc_api::dev::{BlockStats, DevApiServer};
+
+type HasherOf<Block> = <<Block as BlockT>::Header as Header>::Hashing;
+
+/// The Dev API. All methods are unsafe.
+pub struct Dev<Block: BlockT, Client> {
+    client: Arc<Client>,
+    _phantom: PhantomData<Block>,
+}
+
+impl<Block: BlockT, Client> Dev<Block, Client> {
+    /// Create a new Dev API.
+    pub fn new(client: Arc<Client>) -> Self {
+        Self {
+            client,
+            _phantom: PhantomData::default(),
+        }
+    }
+}
+
+impl<Block, Client> DevApiServer<Block::Hash> for Dev<Block, Client>
+where
+    Block: BlockT + 'static,
+    Client: BlockBackend<Block>
+        + HeaderBackend<Block>
+        + ProvideRuntimeApi<Block>
+        + Send
+        + Sync
+        + 'static,
+    Client::Api: Core<Block>,
+{
+    fn block_stats(
+        &self,
+        ext: &Extensions,
+        hash: Block::Hash,
+    ) -> Result<Option<BlockStats>, Error> {
+        check_if_safe(ext)?;
+
+        let block = {
+            let block = self
+                .client
+                .block(hash)
+                .map_err(|e| Error::BlockQueryError(Box::new(e)))?;
+            if let Some(block) = block {
+                let (mut header, body) = block.block.deconstruct();
+                // Remove the `Seal` to ensure we have the number of digests as expected by the
+                // runtime.
+                header
+                    .digest_mut()
+                    .logs
+                    .retain(|item| !matches!(item, DigestItem::Seal(_, _)));
+                Block::new(header, body)
+            } else {
+                return Ok(None);
+            }
+        };
+        let parent_header = {
+            let parent_hash = *block.header().parent_hash();
+            let parent_header = self
+                .client
+                .header(parent_hash)
+                .map_err(|e| Error::BlockQueryError(Box::new(e)))?;
+            if let Some(header) = parent_header {
+                header
+            } else {
+                return Ok(None);
+            }
+        };
+        let block_len = block.encoded_size() as u64;
+        let num_extrinsics = block.extrinsics().len() as u64;
+        let pre_root = *parent_header.state_root();
+        let mut runtime_api = self.client.runtime_api();
+        runtime_api.record_proof();
+        runtime_api
+            .execute_block(parent_header.hash(), block)
+            .map_err(|_| Error::BlockExecutionFailed)?;
+        let witness = runtime_api
+            .extract_proof()
+            .expect("We enabled proof recording. A proof must be available; qed");
+        let witness_len = witness.encoded_size() as u64;
+        let witness_compact_len = witness
+            .into_compact_proof::<HasherOf<Block>>(pre_root)
+            .map_err(|_| Error::WitnessCompactionFailed)?
+            .encoded_size() as u64;
+        Ok(Some(BlockStats {
+            witness_len,
+            witness_compact_len,
+            block_len,
+            num_extrinsics,
+        }))
+    }
+}

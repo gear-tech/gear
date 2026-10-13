@@ -21,8 +21,8 @@ ethexe-node-wrapper.workspace = true
 ethexe-rpc-client.workspace = true
 ethexe-runtime-common.workspace = true
 futures.workspace = true
-gear-workspace-hack.workspace = true
 gprimitives.workspace = true
 gsigner.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
 parity-scale-codec.workspace = true
+gear-workspace-hack.workspace = true

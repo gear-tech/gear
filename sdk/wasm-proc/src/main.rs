@@ -11,11 +11,15 @@ use std::{collections::HashSet, fs, path::PathBuf};
 use tracing_subscriber::EnvFilter;
 use wasmparser::{Parser as WasmParser, Payload, TypeRef};
 
-const RT_ALLOWED_IMPORTS: [&str; 78] = [
+const RT_ALLOWED_IMPORTS: [&str; 83] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
     // From `Crypto` (substrate/primitives/io/src/lib.rs)
+    "ext_crypto_ecdsa_generate_version_1",
+    "ext_crypto_ecdsa_sign_version_1",
+    "ext_crypto_ecdsa_verify_version_2",
+    "ext_crypto_ecdsa_verify_prehashed_version_1",
     "ext_crypto_ed25519_generate_version_1",
     "ext_crypto_ed25519_verify_version_1",
     "ext_crypto_ed25519_public_keys_version_1",
@@ -93,6 +97,7 @@ const RT_ALLOWED_IMPORTS: [&str; 78] = [
     "ext_storage_start_transaction_version_1",
     // From `Trie` (substrate/primitives/io/src/lib.rs)
     "ext_trie_blake2_256_ordered_root_version_2",
+    "ext_trie_blake2_256_root_version_2",
     // From `sp-crypto-ec-utils`
     "ext_host_calls_bls12_381_final_exponentiation_version_1",
     "ext_host_calls_bls12_381_msm_g1_version_1",

@@ -32,9 +32,9 @@ sp-allocator = { workspace = true, features = ["std"] }
 tokio = { workspace = true, features = ["full"] }
 crossbeam = { workspace = true, features = ["crossbeam-channel"] }
 itertools = { workspace = true, features = ["use_std"] }
-gear-workspace-hack.workspace = true
 anyhow.workspace = true
 derive_more.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

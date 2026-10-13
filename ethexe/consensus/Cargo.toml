@@ -29,8 +29,8 @@ derive_more.workspace = true
 hashbrown.workspace = true
 metrics.workspace = true
 metrics-derive.workspace = true
-gear-workspace-hack.workspace = true
 alloy.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 ethexe-common = { workspace = true, features = ["mock"] }

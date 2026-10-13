@@ -1,0 +1,57 @@
+// This file is part of Substrate.
+
+// Copyright (C) Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+//! State RPC errors.
+
+use jsonrpsee::types::error::{ErrorObject, ErrorObjectOwned};
+
+/// State RPC Result type.
+pub type Result<T> = std::result::Result<T, Error>;
+
+/// State RPC errors.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// Client error.
+    #[error("Client error: {}", .0)]
+    Client(#[from] Box<dyn std::error::Error + Send + Sync>),
+    /// Provided block range couldn't be resolved to a list of blocks.
+    #[error("Cannot resolve a block range ['{:?}' ... '{:?}]. {}", .from, .to, .details)]
+    InvalidBlockRange {
+        /// Beginning of the block range.
+        from: String,
+        /// End of the block range.
+        to: String,
+        /// Details of the error message.
+        details: String,
+    },
+    /// Provided count exceeds maximum value.
+    #[error("count exceeds maximum value. value: {}, max: {}", .value, .max)]
+    InvalidCount {
+        /// Provided value
+        value: u32,
+        /// Maximum allowed value
+        max: u32,
+    },
+    /// Call to an unsafe RPC was denied.
+    #[error(transparent)]
+    UnsafeRpcCalled(#[from] crate::policy::UnsafeRpcError),
+}
+
+/// Base code for all state errors.
+const BASE_ERROR: i32 = crate::error::base::STATE;
+
+impl From<Error> for ErrorObjectOwned {
+    fn from(e: Error) -> ErrorObjectOwned {
+        match e {
+            Error::InvalidBlockRange { .. } => {
+                ErrorObject::owned(BASE_ERROR + 1, e.to_string(), None::<()>)
+            }
+            Error::InvalidCount { .. } => {
+                ErrorObject::owned(BASE_ERROR + 2, e.to_string(), None::<()>)
+            }
+            e => ErrorObject::owned(BASE_ERROR + 3, e.to_string(), None::<()>),
+        }
+    }
+}

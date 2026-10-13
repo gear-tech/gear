@@ -46,13 +46,14 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_consensus_beefy::{ecdsa_crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use sp_core::{ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId, ed25519};
 use sp_runtime::{
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
         AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
-        DispatchInfoOf, Dispatchable, IdentityLookup, NumberFor, One, SignedExtension,
+        DispatchInfoOf, Dispatchable, IdentityLookup, Keccak256, NumberFor, One, SignedExtension,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 };
@@ -81,7 +82,7 @@ pub use frame_support::{
     parameter_types,
     traits::{
         ConstU16, ConstU32, ConstU128, Contains, Currency, EitherOf, EitherOfDiverse,
-        EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
+        EqualPrivilegeOnly, Everything, FindAuthor, Get, InstanceFilter, KeyOwnerProofSystem,
         LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, SortedMembers,
         StorageInfo, VariantCountOf, WithdrawReasons,
         fungible::HoldConsideration,
@@ -133,7 +134,12 @@ mod bag_thresholds;
 pub mod governance;
 use governance::{GeneralAdmin, StakingAdmin, Treasurer, TreasurySpender, pallet_custom_origins};
 
+mod beefy_activation;
+#[cfg(feature = "runtime-benchmarks")]
+mod beefy_benchmarks;
+mod bridge_leaf;
 mod migrations;
+mod session_history;
 
 // By this we assert if runtime compiled with "dev" feature.
 #[cfg_attr(
@@ -158,7 +164,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
 
-    spec_version: 2_00_00,
+    spec_version: 2_01_00,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -174,7 +180,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara-testnet"),
     impl_name: create_runtime_str!("vara-testnet"),
 
-    spec_version: 2_00_00,
+    spec_version: 2_01_00,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -285,8 +291,12 @@ impl pallet_babe::Config for Runtime {
     type MaxNominators = MaxNominators;
 
     type KeyOwnerProof = sp_session::MembershipProof;
-    type EquivocationReportSystem =
-        pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
+    type EquivocationReportSystem = pallet_babe::EquivocationReportSystem<
+        Self,
+        Offences,
+        session_history::SessionKeyOwnerProof,
+        ReportLongevity,
+    >;
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -297,8 +307,12 @@ impl pallet_grandpa::Config for Runtime {
     type MaxNominators = MaxNominators;
     type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
     type KeyOwnerProof = sp_session::MembershipProof;
-    type EquivocationReportSystem =
-        pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
+    type EquivocationReportSystem = pallet_grandpa::EquivocationReportSystem<
+        Self,
+        Offences,
+        session_history::SessionKeyOwnerProof,
+        ReportLongevity,
+    >;
 }
 
 impl pallet_authorship::Config for Runtime {
@@ -399,12 +413,16 @@ impl pallet_transaction_payment::Config for Runtime {
 }
 
 // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
+//
+// Adding BEEFY changes the stored NextKeys/QueuedKeys encoding from four keys to five.
+// Run migrations::MigrateSessionKeys in the same upgrade or existing keys cannot decode.
 impl_opaque_keys! {
     pub struct SessionKeys {
         pub babe: Babe,
         pub grandpa: Grandpa,
         pub im_online: ImOnline,
         pub authority_discovery: AuthorityDiscovery,
+        pub beefy: Beefy,
     }
 }
 
@@ -468,7 +486,22 @@ pub type VaraSessionHandler = (
     grandpa_keys_handler::GrandpaAndGearEthBridge,
     ImOnline,
     AuthorityDiscovery,
+    Beefy,
 );
+
+pub struct VaraSessionWeight;
+impl pallet_session::WeightInfo for VaraSessionWeight {
+    fn set_keys() -> Weight {
+        // Conservative five-proof allowance; reference-hardware calibration is required.
+        <pallet_session::weights::SubstrateWeight<Runtime> as pallet_session::WeightInfo>::set_keys(
+        )
+        .saturating_add(Weight::from_parts(2_500_000_000, 0))
+    }
+
+    fn purge_keys() -> Weight {
+        <pallet_session::weights::SubstrateWeight<Runtime> as pallet_session::WeightInfo>::purge_keys()
+    }
+}
 
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -477,15 +510,69 @@ impl pallet_session::Config for Runtime {
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
     // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
-    type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
+    type SessionManager = session_history::SessionManager;
     type SessionHandler = VaraSessionHandler;
     type Keys = SessionKeys;
-    type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = VaraSessionWeight;
 }
 
 impl pallet_session_historical::Config for Runtime {
     type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
     type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
+}
+
+parameter_types! {
+    pub BeefyMmrLeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
+}
+
+pub struct VaraMmrWeight;
+
+impl pallet_mmr::WeightInfo for VaraMmrWeight {
+    fn on_initialize(peaks: u32) -> Weight {
+        <() as pallet_mmr::WeightInfo>::on_initialize(peaks)
+            .saturating_add(<Runtime as frame_system::Config>::DbWeight::get().reads_writes(7, 1))
+    }
+}
+
+impl pallet_mmr::Config for Runtime {
+    const INDEXING_PREFIX: &'static [u8] = sp_mmr_primitives::INDEXING_PREFIX;
+    type Hashing = Keccak256;
+    // BEEFY-specific leaf (authority sets + `LeafExtra`), not the plain
+    // parent-number-and-hash leaf, so that `MmrLeaf` (`pallet_beefy_mmr`) drives what's
+    // committed into the tree.
+    type LeafData = MmrLeaf;
+    type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
+    type BlockHashProvider = pallet_mmr::DefaultBlockHashProvider<Runtime>;
+    type WeightInfo = VaraMmrWeight;
+    #[cfg(feature = "runtime-benchmarks")]
+    type BenchmarkHelper = ();
+}
+
+impl pallet_beefy::Config for Runtime {
+    type NewGenesisOrigin = beefy_activation::ActivationOrigin;
+    type NewGenesisValidationWeight = beefy_activation::ActivationWeight;
+    type BeefyId = BeefyId;
+    type MaxAuthorities = MaxAuthorities;
+    type MaxNominators = MaxNominators;
+    type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
+    type OnNewValidatorSet = MmrLeaf;
+    type AncestryHelper = MmrLeaf;
+    type WeightInfo = ();
+    type KeyOwnerProof = sp_session::MembershipProof;
+    type EquivocationReportSystem = pallet_beefy::EquivocationReportSystem<
+        Self,
+        Offences,
+        session_history::SessionKeyOwnerProof,
+        ReportLongevity,
+    >;
+}
+
+impl pallet_beefy_mmr::Config for Runtime {
+    type LeafVersion = BeefyMmrLeafVersion;
+    type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
+    type LeafExtra = [u8; 32];
+    type BeefyDataProvider = bridge_leaf::VaraBridgeProvider;
+    type WeightInfo = ();
 }
 
 // Filter that matches `pallet_staking::Pallet<T>::bond()` call
@@ -1197,7 +1284,38 @@ impl SortedMembers<AccountId> for GearEthBridgeAdminAccounts {
     }
 }
 
+fn bridge_readiness_weight() -> Weight {
+    // MaxEncodedLen covers both authority vectors; decode_len does not shrink their proofs.
+    Weight::from_parts(500_000_000, 7 * 1024 * 1024)
+        .saturating_add(<Runtime as frame_system::Config>::DbWeight::get().reads(16))
+}
+
+pub struct VaraEthBridgeWeight;
+impl pallet_gear_eth_bridge::WeightInfo for VaraEthBridgeWeight {
+    fn pause() -> Weight {
+        <pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime> as pallet_gear_eth_bridge::WeightInfo>::pause()
+    }
+
+    fn unpause() -> Weight {
+        <pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime> as pallet_gear_eth_bridge::WeightInfo>::unpause()
+            .saturating_add(bridge_readiness_weight())
+            // Separate 256-member reserve; the source 1000-member reserve exceeds Normal limits.
+            .saturating_add(Weight::from_parts(100_000_000_000, 131_072))
+    }
+
+    fn set_fee() -> Weight {
+        <pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime> as pallet_gear_eth_bridge::WeightInfo>::set_fee()
+    }
+
+    fn send_eth_message() -> Weight {
+        <pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime> as pallet_gear_eth_bridge::WeightInfo>::send_eth_message()
+            .saturating_add(bridge_readiness_weight())
+    }
+}
+
 impl pallet_gear_eth_bridge::Config for Runtime {
+    type BridgeReadiness = bridge_leaf::BridgeReadiness;
+    type MessageReadiness = bridge_leaf::MessageReadiness;
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
     type BuiltinAddress = GearEthBridgeBuiltinAddress;
@@ -1206,7 +1324,7 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type QueueCapacity = ConstU32<2048>;
     type BridgeAdmin = GearEthBridgeAdminAccount;
     type BridgePauser = GearEthBridgePauserAccount;
-    type WeightInfo = pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = VaraEthBridgeWeight;
 }
 
 parameter_types! {
@@ -1386,6 +1504,19 @@ mod runtime {
     #[runtime::pallet_index(7)]
     pub type Session = pallet_session;
 
+    // MMR leaf construction must come after Session in declaration order, so that the
+    // bridge snapshot leaf-extra provider reads the queue root written at the *previous*
+    // block, before `GearEthBridge::on_initialize` clears it for the new session
+    // (see `bridge_leaf.rs` and `bridge/src/lib.rs:524-530`).
+    #[runtime::pallet_index(32)]
+    pub type Beefy = pallet_beefy;
+
+    #[runtime::pallet_index(33)]
+    pub type Mmr = pallet_mmr;
+
+    #[runtime::pallet_index(34)]
+    pub type MmrLeaf = pallet_beefy_mmr;
+
     #[runtime::pallet_index(14)]
     pub type Treasury = pallet_treasury;
 
@@ -1547,6 +1678,19 @@ mod runtime {
     #[runtime::pallet_index(7)]
     pub type Session = pallet_session;
 
+    // MMR leaf construction must come after Session in declaration order, so that the
+    // bridge snapshot leaf-extra provider reads the queue root written at the *previous*
+    // block, before `GearEthBridge::on_initialize` clears it for the new session
+    // (see `bridge_leaf.rs` and `bridge/src/lib.rs:524-530`).
+    #[runtime::pallet_index(32)]
+    pub type Beefy = pallet_beefy;
+
+    #[runtime::pallet_index(33)]
+    pub type Mmr = pallet_mmr;
+
+    #[runtime::pallet_index(34)]
+    pub type MmrLeaf = pallet_beefy_mmr;
+
     #[runtime::pallet_index(14)]
     pub type Treasury = pallet_treasury;
 
@@ -1697,6 +1841,9 @@ mod benches {
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
+        [pallet_mmr, Mmr]
+        [pallet_beefy_mmr, MmrLeaf]
+        [beefy_benchmarks, beefy_benchmarks::Pallet::<Runtime>]
         // Gear pallets
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
@@ -1705,7 +1852,35 @@ mod benches {
     );
 }
 
+/// MMR helper types, mirroring the `mmr` module conventionally defined by runtimes that
+/// wire up `pallet_mmr` (see the pinned SDK's `substrate/bin/node/runtime` and
+/// `polkadot/runtime/rococo` for the pattern this follows).
+mod mmr {
+    pub use pallet_mmr::primitives::*;
+
+    pub type Leaf = <<crate::Runtime as pallet_mmr::Config>::LeafData as
+        pallet_mmr::primitives::LeafDataProvider>::LeafData;
+    pub type Hashing = <crate::Runtime as pallet_mmr::Config>::Hashing;
+    pub type Hash = <Hashing as sp_runtime::traits::Hash>::Output;
+}
+
 impl_runtime_apis_plus_common! {
+    impl fg_primitives::GrandpaApi<Block> for Runtime {
+        fn grandpa_authorities() -> GrandpaAuthorityList { Grandpa::grandpa_authorities() }
+        fn current_set_id() -> fg_primitives::SetId { Grandpa::current_set_id() }
+        fn submit_report_equivocation_unsigned_extrinsic(
+            equivocation_proof: fg_primitives::EquivocationProof<<Block as BlockT>::Hash, NumberFor<Block>>,
+            key_owner_proof: fg_primitives::OpaqueKeyOwnershipProof,
+        ) -> Option<()> {
+            Grandpa::submit_unsigned_equivocation_report(equivocation_proof, key_owner_proof.decode()?)
+        }
+        fn generate_key_ownership_proof(set_id: fg_primitives::SetId, authority_id: GrandpaId)
+            -> Option<fg_primitives::OpaqueKeyOwnershipProof> {
+            if set_id != Grandpa::current_set_id() { return None; }
+            session_history::SessionKeyOwnerProof::prove((fg_primitives::KEY_TYPE, authority_id))
+                .map(|proof| fg_primitives::OpaqueKeyOwnershipProof::new(proof.encode()))
+        }
+    }
     impl sp_consensus_babe::BabeApi<Block> for Runtime {
         fn configuration() -> sp_consensus_babe::BabeConfiguration {
             // The choice of `c` parameter (where `1 - c` represents the
@@ -1740,7 +1915,7 @@ impl_runtime_apis_plus_common! {
             _slot: sp_consensus_babe::Slot,
             authority_id: sp_consensus_babe::AuthorityId,
         ) -> Option<sp_consensus_babe::OpaqueKeyOwnershipProof> {
-            Historical::prove((sp_consensus_babe::KEY_TYPE, authority_id))
+            session_history::SessionKeyOwnerProof::prove((sp_consensus_babe::KEY_TYPE, authority_id))
                 .map(|p| p.encode())
                 .map(sp_consensus_babe::OpaqueKeyOwnershipProof::new)
         }
@@ -1757,6 +1932,140 @@ impl_runtime_apis_plus_common! {
             )
         }
 
+    }
+
+    #[api_version(5)]
+    impl sp_consensus_beefy::BeefyApi<Block, BeefyId> for Runtime {
+        fn beefy_genesis() -> Option<BlockNumber> {
+            pallet_beefy::GenesisBlock::<Runtime>::get()
+        }
+
+        fn validator_set() -> Option<sp_consensus_beefy::ValidatorSet<BeefyId>> {
+            Beefy::validator_set()
+        }
+
+        fn submit_report_double_voting_unsigned_extrinsic(
+            equivocation_proof: sp_consensus_beefy::DoubleVotingProof<
+                BlockNumber,
+                BeefyId,
+                sp_consensus_beefy::ecdsa_crypto::Signature,
+            >,
+            key_owner_proof: sp_consensus_beefy::OpaqueKeyOwnershipProof,
+        ) -> Option<()> {
+            let key_owner_proof = key_owner_proof.decode()?;
+
+            Beefy::submit_unsigned_double_voting_report(equivocation_proof, key_owner_proof)
+        }
+
+        fn submit_report_fork_voting_unsigned_extrinsic(
+            equivocation_proof: sp_consensus_beefy::ForkVotingProof<
+                <Block as BlockT>::Header,
+                BeefyId,
+                sp_runtime::OpaqueValue,
+            >,
+            key_owner_proof: sp_consensus_beefy::OpaqueKeyOwnershipProof,
+        ) -> Option<()> {
+            Beefy::submit_unsigned_fork_voting_report(
+                equivocation_proof.try_into()?,
+                key_owner_proof.decode()?,
+            )
+        }
+
+        fn submit_report_future_block_voting_unsigned_extrinsic(
+            equivocation_proof: sp_consensus_beefy::FutureBlockVotingProof<BlockNumber, BeefyId>,
+            key_owner_proof: sp_consensus_beefy::OpaqueKeyOwnershipProof,
+        ) -> Option<()> {
+            Beefy::submit_unsigned_future_block_voting_report(
+                equivocation_proof,
+                key_owner_proof.decode()?,
+            )
+        }
+
+        fn generate_key_ownership_proof(
+            set_id: sp_consensus_beefy::ValidatorSetId,
+            authority_id: BeefyId,
+        ) -> Option<sp_consensus_beefy::OpaqueKeyOwnershipProof> {
+            if set_id != Beefy::validator_set()?.id() { return None; }
+            session_history::SessionKeyOwnerProof::prove((sp_consensus_beefy::KEY_TYPE, authority_id))
+                .map(|p| p.encode())
+                .map(sp_consensus_beefy::OpaqueKeyOwnershipProof::new)
+        }
+
+        fn generate_ancestry_proof(
+            prev_block_number: BlockNumber,
+            best_known_block_number: Option<BlockNumber>,
+        ) -> Option<sp_runtime::OpaqueValue> {
+            use sp_consensus_beefy::AncestryHelper;
+
+            MmrLeaf::generate_proof(prev_block_number, best_known_block_number)
+                .map(|p| p.encode())
+                .map(sp_runtime::OpaqueValue::new)
+        }
+    }
+
+    impl sp_mmr_primitives::MmrApi<Block, mmr::Hash, BlockNumber> for Runtime {
+        fn mmr_root() -> Result<mmr::Hash, sp_mmr_primitives::Error> {
+            Ok(pallet_mmr::RootHash::<Runtime>::get())
+        }
+
+        fn mmr_leaf_count() -> Result<mmr::LeafIndex, sp_mmr_primitives::Error> {
+            Ok(pallet_mmr::NumberOfLeaves::<Runtime>::get())
+        }
+
+        fn generate_proof(
+            block_numbers: Vec<BlockNumber>,
+            best_known_block_number: Option<BlockNumber>,
+        ) -> Result<
+            (Vec<mmr::EncodableOpaqueLeaf>, sp_mmr_primitives::LeafProof<mmr::Hash>),
+            sp_mmr_primitives::Error,
+        > {
+            Mmr::generate_proof(block_numbers, best_known_block_number).map(|(leaves, proof)| {
+                (
+                    leaves
+                        .into_iter()
+                        .map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf))
+                        .collect(),
+                    proof,
+                )
+            })
+        }
+
+        fn verify_proof(
+            leaves: Vec<mmr::EncodableOpaqueLeaf>,
+            proof: sp_mmr_primitives::LeafProof<mmr::Hash>,
+        ) -> Result<(), sp_mmr_primitives::Error> {
+            let leaves = leaves
+                .into_iter()
+                .map(|leaf| {
+                    leaf.into_opaque_leaf()
+                        .try_decode()
+                        .ok_or(sp_mmr_primitives::Error::Verify)
+                })
+                .collect::<Result<Vec<mmr::Leaf>, sp_mmr_primitives::Error>>()?;
+            Mmr::verify_leaves(leaves, proof)
+        }
+
+        fn verify_proof_stateless(
+            root: mmr::Hash,
+            leaves: Vec<mmr::EncodableOpaqueLeaf>,
+            proof: sp_mmr_primitives::LeafProof<mmr::Hash>,
+        ) -> Result<(), sp_mmr_primitives::Error> {
+            let nodes = leaves
+                .into_iter()
+                .map(|leaf| sp_mmr_primitives::DataOrHash::Data(leaf.into_opaque_leaf()))
+                .collect();
+            pallet_mmr::verify_leaves_proof::<mmr::Hashing, _>(root, nodes, proof)
+        }
+    }
+
+    impl pallet_beefy_mmr::BeefyMmrApi<Block, mmr::Hash> for Runtime {
+        fn authority_set_proof() -> sp_consensus_beefy::mmr::BeefyAuthoritySet<mmr::Hash> {
+            MmrLeaf::authority_set_proof()
+        }
+
+        fn next_authority_set_proof() -> sp_consensus_beefy::mmr::BeefyNextAuthoritySet<mmr::Hash> {
+            MmrLeaf::next_authority_set_proof()
+        }
     }
 
     impl sp_authority_discovery::AuthorityDiscoveryApi<Block> for Runtime {

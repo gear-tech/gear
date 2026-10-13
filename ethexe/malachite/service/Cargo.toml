@@ -30,7 +30,6 @@ ethexe-db = { workspace = true, default-features = false }
 ethexe-runtime-common = { workspace = true, features = ["std"] }
 gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 gprimitives = { workspace = true, features = ["std"] }
-
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]

@@ -57,8 +57,6 @@ malachitebft-core-types.workspace = true
 malachitebft-engine.workspace = true
 malachitebft-network.workspace = true
 malachitebft-sync.workspace = true
-
-# workspace hack
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]

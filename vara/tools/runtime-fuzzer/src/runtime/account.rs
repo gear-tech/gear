@@ -16,6 +16,7 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use runtime_primitives::{AccountId, AccountPublic, Balance};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
+use sp_consensus_beefy::ecdsa_crypto::AuthorityId as BeefyId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{Pair, Public as TPublic, sr25519::Public};
 use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
@@ -36,6 +37,7 @@ pub fn authority_keys_from_seed(
     GrandpaId,
     ImOnlineId,
     AuthorityDiscoveryId,
+    BeefyId,
 ) {
     (
         get_acc_id_from_seed::<Public>(s),
@@ -43,6 +45,7 @@ pub fn authority_keys_from_seed(
         get_pub_key_from_seed::<GrandpaId>(s),
         get_pub_key_from_seed::<ImOnlineId>(s),
         get_pub_key_from_seed::<AuthorityDiscoveryId>(s),
+        get_pub_key_from_seed::<BeefyId>(s),
     )
 }
 

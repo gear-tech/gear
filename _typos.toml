@@ -14,6 +14,8 @@ extend-ignore-identifiers-re = [
   "i(32|64)\\w+",
   # `sp-state-machine` crate
   "OverlayedChanges",
+  # Pinned `sp-runtime` public trait name
+  "^Applyable$",
   # generic backend type parameter
   "^BA$",
 ]

@@ -1,4 +1,5 @@
 name: install-rust
+description: Install the repository Rust toolchain and select the stable default.
 
 runs:
   using: composite

@@ -60,7 +60,7 @@ pub mod pallet {
     use gprimitives::{H160, H256, U256};
     use sp_runtime::{
         BoundToRuntimeAppPublic,
-        traits::{Keccak256, Zero},
+        traits::{Hash, Keccak256, Zero},
     };
     use sp_std::vec::Vec;
 
@@ -92,6 +92,12 @@ pub mod pallet {
 
         /// Privileged origin for administrative operations.
         type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
+        /// Whether the lane is ready to be enabled, including full bound-source checks.
+        type BridgeReadiness: Get<bool>;
+
+        /// Whether the lane can admit a message under its current source state.
+        type MessageReadiness: Get<bool>;
 
         /// The AccountId of the bridge admin.
         #[pallet::constant]
@@ -156,6 +162,18 @@ pub mod pallet {
         ///
         /// Related to bridge clearing on initialization of the second block in a new era.
         QueueReset,
+
+        /// Immutable source/destination lane was bound by governance.
+        DestinationBound {
+            /// Vara block-zero hash, preventing cross-network replay.
+            source_genesis: H256,
+            /// Ethereum chain ID encoded as a big-endian 256-bit value.
+            chain_id: H256,
+            /// Only destination permitted to consume this lane's commitments.
+            queue: H160,
+            /// Keccak commitment to the source genesis and destination.
+            domain: H256,
+        },
     }
 
     /// Pallet Gear Eth Bridge's error.
@@ -183,6 +201,12 @@ pub mod pallet {
         /// The error happens when attempted to reset overflowed queue, but
         /// queue isn't overflowed or incorrect finality proof provided.
         InvalidQueueReset,
+
+        /// A lane is already bound, is not paused, or an identity is zero.
+        InvalidDestinationBinding,
+
+        /// The lane or its source consensus state is not ready.
+        BridgeNotReady,
     }
 
     /// Lifecycle storage.
@@ -271,6 +295,32 @@ pub mod pallet {
     #[pallet::storage]
     pub type TransportFee<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
+    /// Destination-bound BEEFY lane digest, fixed once while the bridge is paused.
+    #[pallet::storage]
+    #[pallet::getter(fn bridge_domain)]
+    pub type BridgeDomain<T> = StorageValue<_, H256, ValueQuery>;
+
+    /// Actual source genesis, destination chain ID (big endian), and original queue.
+    #[pallet::storage]
+    pub type DestinationBinding<T> = StorageValue<_, (H256, H256, H160), OptionQuery>;
+
+    #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
+    pub struct GenesisConfig<T: Config> {
+        /// Initial domain; an unbound legacy lane must use zero.
+        pub bridge_domain: H256,
+        /// Runtime configuration marker.
+        #[serde(skip)]
+        pub _config: core::marker::PhantomData<T>,
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            BridgeDomain::<T>::put(self.bridge_domain);
+        }
+    }
+
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]
     #[pallet::storage_version(ETH_BRIDGE_STORAGE_VERSION)]
@@ -324,6 +374,9 @@ pub mod pallet {
                 Initialized::<T>::get(),
                 Error::<T>::BridgeIsNotYetInitialized
             );
+
+            // Readiness applies even to Root and idempotent unpause calls.
+            ensure!(T::BridgeReadiness::get(), Error::<T>::BridgeNotReady);
 
             // Checking if pallet is paused.
             if Paused::<T>::get() {
@@ -403,14 +456,66 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             ensure_signed(origin)?;
 
+            // The proof must cover the root after the most recent append.
+            ensure!(!QueueChanged::<T>::get(), Error::<T>::InvalidQueueReset);
+
             Self::reset_overflowed_queue_impl(encoded_finality_proof)?;
 
             Ok(Pays::No.into())
         }
+
+        /// Bind the original destination once while paused, independently of BEEFY activation.
+        #[pallet::call_index(5)]
+        #[pallet::weight(T::DbWeight::get().reads_writes(4, 2).saturating_add(Weight::from_parts(10_000_000, 4_096)))]
+        pub fn bind_destination(
+            origin: OriginFor<T>,
+            chain_id: H256,
+            queue: H160,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            ensure!(Paused::<T>::get(), Error::<T>::InvalidDestinationBinding);
+            ensure!(
+                !DestinationBinding::<T>::exists() && BridgeDomain::<T>::get().is_zero(),
+                Error::<T>::InvalidDestinationBinding
+            );
+            let genesis = frame_system::Pallet::<T>::block_hash(BlockNumberFor::<T>::zero());
+            let genesis_bytes: &[u8] = genesis.as_ref();
+            ensure!(
+                genesis_bytes.len() == 32 && !chain_id.is_zero() && !queue.is_zero(),
+                Error::<T>::InvalidDestinationBinding
+            );
+            let source_genesis = H256::from_slice(genesis_bytes);
+            ensure!(
+                !source_genesis.is_zero(),
+                Error::<T>::InvalidDestinationBinding
+            );
+            let domain = Self::destination_domain(source_genesis, chain_id, queue);
+            ensure!(!domain.is_zero(), Error::<T>::InvalidDestinationBinding);
+            DestinationBinding::<T>::put((source_genesis, chain_id, queue));
+            BridgeDomain::<T>::put(domain);
+            Self::deposit_event(Event::DestinationBound {
+                source_genesis,
+                chain_id,
+                queue,
+                domain,
+            });
+            Ok(())
+        }
     }
 
     impl<T: Config> Pallet<T> {
-        /// Returns pallet prefix, storage prefix and resulting prefix hash for `AuthoritySetHash` storage.
+        /// Version-2 lane derivation uses the actual genesis identity, not an operator-provided source domain.
+        pub fn destination_domain(source_genesis: H256, chain_id: H256, queue: H160) -> H256 {
+            const PREFIX: &[u8] = b"vara/gear-eth-bridge-domain/v2";
+            let mut preimage = [0u8; PREFIX.len() + 84];
+            preimage[..PREFIX.len()].copy_from_slice(PREFIX);
+            preimage[PREFIX.len()..PREFIX.len() + 32].copy_from_slice(source_genesis.as_bytes());
+            preimage[PREFIX.len() + 32..PREFIX.len() + 64].copy_from_slice(chain_id.as_bytes());
+            preimage[PREFIX.len() + 64..].copy_from_slice(queue.as_bytes());
+            Keccak256::hash(&preimage).0.into()
+        }
+
+        /// Returns pallet prefix
         pub fn authority_set_hash_storage_info() -> (&'static str, &'static str, [u8; 32]) {
             type Storage<T> = _GeneratedPrefixForStorageAuthoritySetHash<T>;
 
@@ -419,6 +524,19 @@ pub mod pallet {
                 Storage::<T>::STORAGE_PREFIX,
                 Storage::<T>::prefix_hash(),
             )
+        }
+
+        /// Returns the current bridge queue snapshot `(queue_id, merkle_root)`, or `None` if
+        /// the bridge has not been initialized yet.
+        ///
+        /// Narrow public accessor for consumers (e.g. the BEEFY MMR leaf provider) that only
+        /// need the snapshot, not the pallet's full (`pub(crate)`) storage surface.
+        pub fn bridge_snapshot() -> Option<(u64, H256)> {
+            if !Initialized::<T>::get() {
+                return None;
+            }
+
+            QueueMerkleRoot::<T>::get().map(|root| (QueueId::<T>::get(), root))
         }
 
         /// Returns pallet prefix, storage prefix and resulting prefix hash for `QueueMerkleRoot` storage.
@@ -507,7 +625,14 @@ pub mod pallet {
                 return;
             }
 
-            if !Initialized::<T>::get() {
+            let grandpa_set_hash = Self::calculate_authority_set_hash(validators);
+            let initialized = Initialized::<T>::get();
+            // Other session keys can change without rotating the GRANDPA bridge queue.
+            if initialized && AuthoritySetHash::<T>::get() == Some(grandpa_set_hash) {
+                return;
+            }
+
+            if !initialized {
                 // Setting pallet status initialized.
                 Initialized::<T>::put(true);
 
@@ -530,7 +655,8 @@ pub mod pallet {
                 ClearTimer::<T>::put(2);
             }
 
-            Self::update_authority_set_hash(validators);
+            AuthoritySetHash::<T>::put(grandpa_set_hash);
+            Self::deposit_event(Event::<T>::AuthoritySetHashChanged(grandpa_set_hash));
         }
     }
 }

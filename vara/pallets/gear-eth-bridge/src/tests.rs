@@ -699,6 +699,97 @@ fn bridge_incorrect_value_applied_err() {
 }
 
 #[test]
+fn bridge_pending_cleanup_rejects_messages_and_refunds_builtin_value() {
+    for (bound, source) in [false, true].into_iter().flat_map(|bound| {
+        [
+            SIGNER,
+            MockBridgeAdminAccount::get(),
+            MockBridgePauserAccount::get(),
+        ]
+        .into_iter()
+        .map(move |source| (bound, source))
+    }) {
+        new_test_ext().execute_with(|| {
+            run_to_block(WHEN_INITIALIZED);
+            if bound {
+                bind_mock_destination();
+            }
+            assert_ok!(Balances::force_set_balance(
+                RuntimeOrigin::root(),
+                source,
+                ENDOWMENT,
+            ));
+            assert_ok!(GearEthBridge::set_fee(
+                RuntimeOrigin::root(),
+                MockTransportFee::get(),
+            ));
+            assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+            run_to_block(ERA_BLOCKS * 2 + 1);
+            assert_eq!(crate::ClearTimer::<Test>::get(), Some(1));
+            MockMessageReadiness::set(false);
+
+            let nonce = MessageNonce::get();
+            let queue_id = QueueId::<Test>::get();
+            assert_noop!(
+                GearEthBridge::send_eth_message(
+                    RuntimeOrigin::signed(source),
+                    H160::repeat_byte(1),
+                    vec![1],
+                ),
+                Error::BridgeCleanupRequired
+            );
+
+            let source_balance = balance_of(&source);
+            let builtin_balance = balance_of(&MockBridgeBuiltinAddress::get());
+            let mut gas_meter = GasSpentMeter::start();
+            let request = Request::SendEthMessage {
+                destination: H160::repeat_byte(1),
+                payload: vec![1],
+            };
+            let (_, _, code) = run_block_with_builtin_call(
+                source,
+                request.clone(),
+                None,
+                MockTransportFee::get() + 42,
+            );
+            assert_eq!(
+                code,
+                ReplyCode::Error(ErrorReplyReason::Execution(
+                    SimpleExecutionError::UserspacePanic,
+                ))
+            );
+            assert_eq!(balance_of(&source), source_balance - gas_meter.spent());
+            assert_eq!(
+                balance_of(&MockBridgeBuiltinAddress::get()),
+                builtin_balance
+            );
+            assert_eq!(MessageNonce::get(), nonce);
+            assert!(!System::events().iter().any(|record| matches!(
+                record.event,
+                RuntimeEvent::GearEthBridge(Event::MessageQueued { .. })
+            )));
+            assert_eq!(QueueId::<Test>::get(), queue_id + 1);
+
+            MockMessageReadiness::set(true);
+            let (reply, _, code) =
+                run_block_with_builtin_call(source, request, None, MockTransportFee::get());
+            assert_eq!(code, ReplyCode::Success(SuccessReplyReason::Manual));
+            let Response::EthMessageQueued {
+                nonce: accepted_nonce,
+                hash,
+                queue_id: accepted_queue,
+                ..
+            } = Response::decode(&mut reply.as_slice()).unwrap();
+            assert_eq!(accepted_nonce, nonce);
+            assert_eq!(accepted_queue, queue_id + 1);
+            let proof = GearEthBridge::merkle_proof(hash).expect("accepted message has a proof");
+            assert_eq!(proof.root, hash);
+            assert_eq!(proof.leaf, hash);
+        });
+    }
+}
+
+#[test]
 fn bridge_value_returned() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -777,6 +868,15 @@ mod utils {
     use crate::builtin;
     use gear_core::message::{UserMessage, Value};
     use gprimitives::MessageId;
+
+    pub(crate) fn bind_mock_destination() {
+        frame_system::BlockHash::<Test>::insert(0, H256::repeat_byte(9));
+        assert_ok!(GearEthBridge::bind_destination(
+            RuntimeOrigin::root(),
+            H256::repeat_byte(1),
+            H160::repeat_byte(3),
+        ));
+    }
 
     #[track_caller]
     pub(crate) fn run_block_and_assert_bridge_error(error: Error) {
@@ -958,25 +1058,15 @@ fn rotate_keys() {
         do_events_assertion(1, 7, [SessionEvent::NewSession { session_index: 1 }.into()]);
 
         let validators = era_validators(1, false);
-        // emulate the situation if a validator rotates its keys (i.e. calls "author_rotateKeys" on
-        // its node and then sends extrinsic pallet_session::setKeys).
-        //
-        // "author_rotateKeys" implementation calls "runtime_api.generate_session_keys" -
-        // https://github.com/gear-tech/polkadot-sdk/blob/e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e/substrate/client/rpc/src/author/mod.rs#L120
-        // Is is an implementation of sp_session::SessionKeys for a runtime and calls
-        // "SessionKeys::generate" - https://github.com/gear-tech/gear/blob/e6efd13ecc390e0e3a71e9160c4069b391b03c8f/runtime/common/src/apis.rs#L92
-        //
-        // To the sum "SessionKeys::generate" expands to the following -
-        // https://github.com/gear-tech/polkadot-sdk/blob/e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e/substrate/primitives/runtime/src/traits.rs#L2039
-        let session_keys_new = SessionKeys {
-            grandpa: <<Grandpa as sp_runtime::BoundToRuntimeAppPublic>::Public as sp_runtime::RuntimeAppPublic>::generate_pair(Some(b"//new_validator_keys".into())),
-        };
+        // Native owner-aware rotation generates the bundle and its possession proof together.
+        let generated = SessionKeys::generate(&validators[0].encode(), None);
+        let session_keys_new = generated.keys;
 
         // validator changes its keys
         assert_ok!(Session::set_keys(
             RuntimeOrigin::signed(validators[0]),
             session_keys_new.clone(),
-            vec![],
+            generated.proof.encode(),
         ));
 
         // session doesn't end
@@ -1084,31 +1174,23 @@ fn rotate_keys() {
         do_events_assertion(
             6,
             37,
-            [GrandpaEvent::NewAuthorities {
-                authority_set,
-            }
-            .into()],
+            [GrandpaEvent::NewAuthorities { authority_set }.into()],
         );
 
         run_to_block(ERA_BLOCKS + 2);
-        do_events_assertion(
-            6,
-            38,
-            [Event::QueueReset.into()],
-        );
+        do_events_assertion(6, 38, [Event::QueueReset.into()]);
 
         System::reset_events();
 
         let validators = era_validators(6, false);
-        let session_keys_new = SessionKeys {
-            grandpa: <<Grandpa as sp_runtime::BoundToRuntimeAppPublic>::Public as sp_runtime::RuntimeAppPublic>::generate_pair(Some(b"//new_validator_keys2".into())),
-        };
+        let generated = SessionKeys::generate(&validators[1].encode(), None);
+        let session_keys_new = generated.keys;
 
         // validator changes its keys
         assert_ok!(Session::set_keys(
             RuntimeOrigin::signed(validators[1]),
             session_keys_new.clone(),
-            vec![],
+            generated.proof.encode(),
         ));
 
         // session doesn't end
@@ -1135,7 +1217,11 @@ fn rotate_keys() {
 
         // the second validator changed its keys
         let authority_set = era_validators_authority_set(6);
-        let authority_set = vec![authority_set[0].clone(), (session_keys_new.grandpa, 1), authority_set[2].clone()];
+        let authority_set = vec![
+            authority_set[0].clone(),
+            (session_keys_new.grandpa, 1),
+            authority_set[2].clone(),
+        ];
         let authority_set_ids_concat = authority_set
             .clone()
             .into_iter()
@@ -1156,18 +1242,362 @@ fn rotate_keys() {
         do_events_assertion(
             8,
             49,
-            [GrandpaEvent::NewAuthorities {
-                authority_set,
-            }
-            .into()],
+            [GrandpaEvent::NewAuthorities { authority_set }.into()],
         );
 
         // the queue should be cleared on the next block
         run_to_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS + 2);
-        do_events_assertion(
-            8,
-            50,
-            [Event::QueueReset.into()],
-        );
+        do_events_assertion(8, 50, [Event::QueueReset.into()]);
     })
+}
+
+#[test]
+fn bridge_legacy_genesis_has_no_destination_domain() {
+    new_test_ext().execute_with(|| {
+        assert_eq!(GearEthBridge::bridge_domain(), H256::zero());
+        assert!(!crate::DestinationBinding::<Test>::exists());
+    });
+}
+
+#[test]
+fn bridge_unpause_readiness_cannot_be_bypassed() {
+    new_test_ext().execute_with(|| {
+        MockBridgeReadiness::set(false);
+        assert_noop!(
+            GearEthBridge::unpause(RuntimeOrigin::root()),
+            Error::BridgeIsNotYetInitialized
+        );
+        run_to_block(WHEN_INITIALIZED);
+        bind_mock_destination();
+        for paused in [true, false] {
+            Paused::put(paused);
+            for origin in [
+                RuntimeOrigin::root(),
+                RuntimeOrigin::signed(MockBridgeAdminAccount::get()),
+                RuntimeOrigin::signed(MockBridgePauserAccount::get()),
+            ] {
+                assert_noop!(
+                    GearEthBridge::unpause(origin.clone()),
+                    Error::BridgeNotReady
+                );
+                assert_eq!(Paused::get(), paused);
+                MockBridgeReadiness::set(true);
+                assert_ok!(GearEthBridge::unpause(origin));
+                assert!(!Paused::get());
+                Paused::put(paused);
+                MockBridgeReadiness::set(false);
+            }
+        }
+    });
+}
+
+#[test]
+fn bridge_binding_is_paused_immutable_preparation() {
+    for ready in [false, true] {
+        new_test_ext().execute_with(|| {
+            run_to_block(WHEN_INITIALIZED);
+            assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(SIGNER),
+                H160::repeat_byte(1),
+                vec![1],
+            ));
+            let snapshot = || {
+                (
+                    Queue::get(),
+                    MessageNonce::get(),
+                    QueueId::<Test>::get(),
+                    QueueMerkleRoot::get(),
+                    QueueChanged::get(),
+                    Initialized::get(),
+                    Session::validators(),
+                    Session::queued_keys(),
+                )
+            };
+            let state = snapshot();
+            let genesis = H256::repeat_byte(9);
+            frame_system::BlockHash::<Test>::insert(0, genesis);
+            let chain_id = H256::repeat_byte(1);
+            let queue = H160::repeat_byte(3);
+            assert_noop!(
+                GearEthBridge::bind_destination(RuntimeOrigin::root(), chain_id, queue),
+                Error::InvalidDestinationBinding
+            );
+            assert_ok!(GearEthBridge::pause(RuntimeOrigin::root()));
+            MockBridgeReadiness::set(ready);
+            MockMessageReadiness::set(ready);
+            assert_noop!(
+                GearEthBridge::bind_destination(RuntimeOrigin::signed(SIGNER), chain_id, queue),
+                BadOrigin
+            );
+            for (bad_chain, bad_queue) in [(H256::zero(), queue), (chain_id, H160::zero())] {
+                assert_noop!(
+                    GearEthBridge::bind_destination(RuntimeOrigin::root(), bad_chain, bad_queue),
+                    Error::InvalidDestinationBinding
+                );
+            }
+            frame_system::BlockHash::<Test>::remove(0);
+            assert_noop!(
+                GearEthBridge::bind_destination(RuntimeOrigin::root(), chain_id, queue),
+                Error::InvalidDestinationBinding
+            );
+            frame_system::BlockHash::<Test>::insert(0, genesis);
+            crate::BridgeDomain::<Test>::put(H256::repeat_byte(7));
+            assert_noop!(
+                GearEthBridge::bind_destination(RuntimeOrigin::root(), chain_id, queue),
+                Error::InvalidDestinationBinding
+            );
+            crate::BridgeDomain::<Test>::kill();
+            assert_ok!(GearEthBridge::bind_destination(
+                RuntimeOrigin::root(),
+                chain_id,
+                queue
+            ));
+            let domain = GearEthBridge::destination_domain(genesis, chain_id, queue);
+            assert_eq!(
+                crate::DestinationBinding::<Test>::get(),
+                Some((genesis, chain_id, queue))
+            );
+            assert_eq!(GearEthBridge::bridge_domain(), domain);
+            assert!(Paused::get());
+            assert_eq!(state, snapshot());
+            System::assert_last_event(
+                Event::DestinationBound {
+                    source_genesis: genesis,
+                    chain_id,
+                    queue,
+                    domain,
+                }
+                .into(),
+            );
+            assert_noop!(
+                GearEthBridge::bind_destination(RuntimeOrigin::root(), chain_id, queue),
+                Error::InvalidDestinationBinding
+            );
+        });
+    }
+}
+
+#[test]
+fn bridge_bound_admission_rejects_all_sources_without_retaining_fees() {
+    for (ready, paused) in [(false, false), (false, true), (true, true)] {
+        for source in [
+            SIGNER,
+            MockBridgeAdminAccount::get(),
+            MockBridgePauserAccount::get(),
+        ] {
+            new_test_ext().execute_with(|| {
+                run_to_block(WHEN_INITIALIZED);
+                bind_mock_destination();
+                assert_ok!(Balances::force_set_balance(
+                    RuntimeOrigin::root(),
+                    source,
+                    ENDOWMENT
+                ));
+                assert_ok!(GearEthBridge::set_fee(
+                    RuntimeOrigin::root(),
+                    MockTransportFee::get()
+                ));
+                MockMessageReadiness::set(ready);
+                Paused::put(paused);
+                let error = if ready {
+                    Error::BridgeIsPaused
+                } else {
+                    Error::BridgeNotReady
+                };
+                let snapshot = || {
+                    (
+                        Queue::get(),
+                        MessageNonce::get(),
+                        QueueId::<Test>::get(),
+                        QueueChanged::get(),
+                        QueueMerkleRoot::get(),
+                        QueueOverflowedSince::<Test>::get(),
+                    )
+                };
+                let state = snapshot();
+                let source_balance = balance_of(&source);
+                let builtin_balance = balance_of(&MockBridgeBuiltinAddress::get());
+                assert_noop!(
+                    GearEthBridge::send_eth_message(
+                        RuntimeOrigin::signed(source),
+                        H160::repeat_byte(1),
+                        vec![1]
+                    ),
+                    error.clone()
+                );
+                assert_eq!(balance_of(&source), source_balance);
+                assert_eq!(
+                    balance_of(&MockBridgeBuiltinAddress::get()),
+                    builtin_balance
+                );
+                let mut gas_meter = GasSpentMeter::start();
+                let (reply, _, code) = run_block_with_builtin_call(
+                    source,
+                    Request::SendEthMessage {
+                        destination: H160::repeat_byte(1),
+                        payload: vec![1],
+                    },
+                    None,
+                    MockTransportFee::get() + 42,
+                );
+                assert_eq!(
+                    String::from_utf8_lossy(&reply),
+                    crate::builtin::error_to_str(&error)
+                );
+                assert_eq!(
+                    code,
+                    ReplyCode::Error(ErrorReplyReason::Execution(
+                        SimpleExecutionError::UserspacePanic
+                    ))
+                );
+                assert_eq!(balance_of(&source), source_balance - gas_meter.spent());
+                assert_eq!(
+                    balance_of(&MockBridgeBuiltinAddress::get()),
+                    builtin_balance
+                );
+                assert_eq!(state, snapshot());
+            });
+        }
+    }
+}
+
+#[test]
+fn bridge_ready_bound_admission_and_legacy_governance_exception_work() {
+    for bound in [false, true] {
+        for source in [
+            SIGNER,
+            MockBridgeAdminAccount::get(),
+            MockBridgePauserAccount::get(),
+        ] {
+            new_test_ext().execute_with(|| {
+                run_to_block(WHEN_INITIALIZED);
+                if bound {
+                    bind_mock_destination();
+                }
+                assert_ok!(Balances::force_set_balance(
+                    RuntimeOrigin::root(),
+                    source,
+                    ENDOWMENT
+                ));
+                assert_ok!(GearEthBridge::set_fee(
+                    RuntimeOrigin::root(),
+                    MockTransportFee::get()
+                ));
+                // Legacy governance can enqueue while paused; bound governance cannot.
+                if bound || source == SIGNER {
+                    assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+                }
+                let source_balance = balance_of(&source);
+                assert_ok!(GearEthBridge::send_eth_message(
+                    RuntimeOrigin::signed(source),
+                    H160::repeat_byte(1),
+                    vec![1]
+                ));
+                let fee = if source == SIGNER {
+                    MockTransportFee::get()
+                } else {
+                    0
+                };
+                assert_eq!(balance_of(&source), source_balance - fee);
+                let (reply, refund, code) = run_block_with_builtin_call(
+                    source,
+                    Request::SendEthMessage {
+                        destination: H160::repeat_byte(1),
+                        payload: vec![1],
+                    },
+                    None,
+                    MockTransportFee::get() + 42,
+                );
+                assert_eq!(code, ReplyCode::Success(SuccessReplyReason::Manual));
+                assert_eq!(refund, MockTransportFee::get() + 42 - fee);
+                let Response::EthMessageQueued { nonce, hash, .. } =
+                    Response::decode(&mut reply.as_slice()).unwrap();
+                assert_eq!(nonce, 1.into());
+                assert_eq!(MessageNonce::get(), 2.into());
+                assert_eq!(Queue::get().len(), 2);
+                assert!(GearEthBridge::merkle_proof(hash).is_some());
+            });
+        }
+    }
+}
+
+#[test]
+fn bridge_bound_queue_capacity_still_exempts_governance() {
+    new_test_ext().execute_with(|| {
+        run_to_block(WHEN_INITIALIZED);
+        bind_mock_destination();
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+        let capacity: u32 = <Test as Config>::QueueCapacity::get();
+        Queue::put(vec![H256::repeat_byte(7); capacity as usize]);
+        for source in [
+            MockBridgeAdminAccount::get(),
+            MockBridgePauserAccount::get(),
+        ] {
+            assert_ok!(Balances::force_set_balance(
+                RuntimeOrigin::root(),
+                source,
+                ENDOWMENT
+            ));
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(source),
+                H160::repeat_byte(1),
+                vec![1]
+            ));
+            let (_, _, code) = run_block_with_builtin_call(
+                source,
+                Request::SendEthMessage {
+                    destination: H160::repeat_byte(1),
+                    payload: vec![1],
+                },
+                None,
+                0,
+            );
+            assert_eq!(code, ReplyCode::Success(SuccessReplyReason::Manual));
+        }
+        assert_eq!(Queue::get().len(), capacity as usize + 4);
+        assert_ok!(GearEthBridge::set_fee(
+            RuntimeOrigin::root(),
+            MockTransportFee::get()
+        ));
+        assert_noop!(
+            GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(SIGNER),
+                H160::repeat_byte(1),
+                vec![1]
+            ),
+            Error::BridgeCleanupRequired
+        );
+        let queue = Queue::get();
+        let nonce = MessageNonce::get();
+        let source_balance = balance_of(&SIGNER);
+        let builtin_balance = balance_of(&MockBridgeBuiltinAddress::get());
+        let mut gas_meter = GasSpentMeter::start();
+        let (reply, _, code) = run_block_with_builtin_call(
+            SIGNER,
+            Request::SendEthMessage {
+                destination: H160::repeat_byte(1),
+                payload: vec![1],
+            },
+            None,
+            MockTransportFee::get(),
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&reply),
+            "Send message: bridge queue needs cleanup"
+        );
+        assert_eq!(
+            code,
+            ReplyCode::Error(ErrorReplyReason::Execution(
+                SimpleExecutionError::UserspacePanic
+            ))
+        );
+        assert_eq!(balance_of(&SIGNER), source_balance - gas_meter.spent());
+        assert_eq!(
+            balance_of(&MockBridgeBuiltinAddress::get()),
+            builtin_balance
+        );
+        assert_eq!(Queue::get(), queue);
+        assert_eq!(MessageNonce::get(), nonce);
+    });
 }

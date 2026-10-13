@@ -16,9 +16,9 @@ anyhow.workspace = true
 cargo-http-registry.workspace = true
 cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
-gear-workspace-hack.workspace = true
 reqwest = { workspace = true, features = ["json", "default-tls"] }
 serde = { workspace = true, features = ["derive"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["fs", "macros", "process", "rt-multi-thread", "time"] }
 toml_edit.workspace = true
+gear-workspace-hack.workspace = true

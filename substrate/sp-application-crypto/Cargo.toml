@@ -1,0 +1,88 @@
+[package]
+name = "sp-application-crypto"
+version = "38.0.0"
+authors.workspace = true
+edition = "2021"
+description = "Provides facilities for generating application specific crypto wrapper types."
+license = "Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/sp-application-crypto"
+readme = "README.md"
+
+# Preserve the lint contract from pinned Polkadot SDK 298f676.
+[lints.rust]
+suspicious_double_ref_op = { level = "allow", priority = 2 }
+# `substrate_runtime` is a common `cfg` condition name used in the repo.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(substrate_runtime)'] }
+
+[lints.clippy]
+all = { level = "allow", priority = 0 }
+bind_instead_of_map = { level = "allow", priority = 2 }              # stylistic
+borrowed-box = { level = "allow", priority = 2 }                     # Reasonable to fix this one
+complexity = { level = "warn", priority = 1 }
+correctness = { level = "warn", priority = 1 }
+default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
+derivable_impls = { level = "allow", priority = 2 }                  # false positives
+eq_op = { level = "allow", priority = 2 }                            # In tests we test equality.
+erasing_op = { level = "allow", priority = 2 }                       # E.g. 0 * DOLLARS
+extra-unused-type-parameters = { level = "allow", priority = 2 }     # stylistic
+identity-op = { level = "allow", priority = 2 }                      # One case where we do 0 +
+if-same-then-else = { level = "allow", priority = 2 }
+needless-lifetimes = { level = "allow", priority = 2 }               # generated code
+needless_option_as_deref = { level = "allow", priority = 2 }         # false positives
+nonminimal-bool = { level = "allow", priority = 2 }                  # maybe
+option-map-unit-fn = { level = "allow", priority = 2 }               # stylistic
+stable_sort_primitive = { level = "allow", priority = 2 }            # prefer stable sort
+too-many-arguments = { level = "allow", priority = 2 }               # (Turning this on would lead to)
+type_complexity = { level = "allow", priority = 2 }                  # raison d'etre
+unit_arg = { level = "allow", priority = 2 }                         # stylistic
+unnecessary_cast = { level = "allow", priority = 2 }                 # Types may change
+useless_conversion = { level = "allow", priority = 2 }               # Types may change
+while_immutable_condition = { level = "allow", priority = 2 }        # false positives
+zero-prefixed-literal = { level = "allow", priority = 2 }            # 00_1000_000
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+
+[dependencies]
+sp-core.workspace = true
+codec = { features = ["derive"], workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+serde = { optional = true, features = ["alloc", "derive"], workspace = true }
+sp-io.workspace = true
+k256 = { version = "0.13.4", default-features = false, features = ["ecdsa"] }
+
+[dev-dependencies]
+sp-keystore = { workspace = true, default-features = true }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"full_crypto",
+	"scale-info/std",
+	"serde/std",
+	"sp-core/std",
+	"sp-io/std",
+]
+
+# Serde support without relying on std features.
+serde = ["dep:serde", "scale-info/serde", "sp-core/serde"]
+
+# This feature enables all crypto primitives for `no_std` builds like microcontrollers
+# or Intel SGX.
+# For the regular wasm runtime builds this should not be used.
+full_crypto = [
+	"sp-core/full_crypto",
+	"sp-io/disable_oom",
+	# Don't add `panic_handler` and `alloc_error_handler` since they are expected to be provided
+	# by the user anyway.
+	"sp-io/disable_panic_handler",
+]
+
+# This feature adds BLS crypto primitives.
+# It should not be used in production since the implementation and interface may still
+# be subject to significant changes.
+bls-experimental = ["sp-core/bls-experimental", "sp-io/bls-experimental"]

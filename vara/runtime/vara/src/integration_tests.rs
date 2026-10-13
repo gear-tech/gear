@@ -16,7 +16,7 @@ use sp_consensus_babe::{
     BABE_ENGINE_ID, Slot,
     digests::{PreDigest, SecondaryPlainPreDigest},
 };
-use sp_core::{Pair, ed25519, sr25519};
+use sp_core::{Pair, ecdsa, ed25519, sr25519};
 use sp_keyring::AccountKeyring;
 use sp_runtime::{BuildStorage, Digest, DigestItem};
 
@@ -81,7 +81,15 @@ pub type ValidatorAccountId = (
     ed25519::Public,
     sr25519::Public,
     sr25519::Public,
+    ecdsa::Public,
 );
+
+/// Deterministic ECDSA (BEEFY) public key for a `//<seed>` test account.
+fn beefy_key(seed: &str) -> ecdsa::Public {
+    ecdsa::Pair::from_string(&format!("//{seed}"), None)
+        .expect("static seed is valid; qed")
+        .public()
+}
 
 // (who, vesting_start_block, vesting_duration, unfrozen_balance)
 type VestingInfo = (AccountId, BlockNumber, BlockNumber, Balance);
@@ -154,16 +162,8 @@ impl ExtBuilder {
                 .initial_authorities
                 .iter()
                 .map(|x| {
-                    (
-                        x.0.clone(),
-                        x.0.clone(),
-                        SessionKeys {
-                            babe: x.2.into(),
-                            grandpa: x.3.into(),
-                            im_online: x.4.into(),
-                            authority_discovery: x.5.into(),
-                        },
-                    )
+                    let (owner, keys) = session_validator(x);
+                    (owner.clone(), owner, keys)
                 })
                 .collect(),
             ..Default::default()
@@ -287,6 +287,7 @@ fn tokens_locking_works() {
                     .public(),
                 alice.public(),
                 alice.public(),
+                beefy_key("Alice"),
             ),
             (
                 bob.into(),
@@ -295,6 +296,7 @@ fn tokens_locking_works() {
                 ed25519::Pair::from_string("//Bob", None).unwrap().public(),
                 bob.public(),
                 bob.public(),
+                beefy_key("Bob"),
             ),
         ])
         .stash(STASH)
@@ -389,6 +391,7 @@ fn treasury_surplus_is_not_burned() {
                     .public(),
                 alice.public(),
                 alice.public(),
+                beefy_key("Alice"),
             ),
             (
                 bob.into(),
@@ -397,6 +400,7 @@ fn treasury_surplus_is_not_burned() {
                 ed25519::Pair::from_string("//Bob", None).unwrap().public(),
                 bob.public(),
                 bob.public(),
+                beefy_key("Bob"),
             ),
         ])
         .stash(STASH)
@@ -471,6 +475,7 @@ fn dust_ends_up_in_offset_pool() {
                     .public(),
                 alice.public(),
                 alice.public(),
+                beefy_key("Alice"),
             ),
             (
                 bob.into(),
@@ -479,6 +484,7 @@ fn dust_ends_up_in_offset_pool() {
                 ed25519::Pair::from_string("//Bob", None).unwrap().public(),
                 bob.public(),
                 bob.public(),
+                beefy_key("Bob"),
             ),
         ])
         .stash(STASH)
@@ -546,6 +552,7 @@ fn dusting_prevented_by_lock() {
                     .public(),
                 alice.public(),
                 alice.public(),
+                beefy_key("Alice"),
             ),
             (
                 bob.into(),
@@ -554,6 +561,7 @@ fn dusting_prevented_by_lock() {
                 ed25519::Pair::from_string("//Bob", None).unwrap().public(),
                 bob.public(),
                 bob.public(),
+                beefy_key("Bob"),
             ),
         ])
         .stash(STASH)
@@ -651,6 +659,7 @@ fn fungible_api_works() {
                     .public(),
                 alice.public(),
                 alice.public(),
+                beefy_key("Alice"),
             ),
             (
                 bob.into(),
@@ -659,6 +668,7 @@ fn fungible_api_works() {
                 ed25519::Pair::from_string("//Bob", None).unwrap().public(),
                 bob.public(),
                 bob.public(),
+                beefy_key("Bob"),
             ),
         ])
         .stash(STASH)
@@ -956,6 +966,7 @@ fn test_fees_and_tip_split() {
                 .public(),
             alice.public(),
             alice.public(),
+            beefy_key("Alice"),
         )])
         .stash(STASH)
         .endowment(ENDOWMENT)
@@ -987,6 +998,754 @@ fn test_fees_and_tip_split() {
             assert_eq!(
                 Balances::free_balance(Treasury::account_id()),
                 EXISTENTIAL_DEPOSIT + FEE
+            );
+        });
+}
+
+fn bridge_test_authority(account: AccountKeyring, seed: &str) -> ValidatorAccountId {
+    let account_id = account.to_account_id();
+    (
+        account_id.clone(),
+        account_id,
+        account.public(),
+        ed25519::Pair::from_string(&format!("//{seed}"), None)
+            .expect("static seed is valid")
+            .public(),
+        account.public(),
+        account.public(),
+        beefy_key(seed),
+    )
+}
+
+fn session_validator(authority: &ValidatorAccountId) -> (AccountId, SessionKeys) {
+    (
+        authority.0.clone(),
+        SessionKeys {
+            babe: authority.2.into(),
+            grandpa: authority.3.into(),
+            im_online: authority.4.into(),
+            authority_discovery: authority.5.into(),
+            beefy: authority.6.into(),
+        },
+    )
+}
+
+fn read_mmr_leaf(ext: &mut sp_io::TestExternalities, key: Vec<u8>) -> crate::mmr::Leaf {
+    type Node = pallet_mmr::primitives::DataOrHash<Keccak256, crate::mmr::Leaf>;
+
+    ext.persist_offchain_overlay();
+    match Node::decode(
+        &mut ext
+            .offchain_db()
+            .get(&key)
+            .expect("MMR leaf was written")
+            .as_slice(),
+    )
+    .expect("MMR node decodes")
+    {
+        Node::Data(leaf) => leaf,
+        Node::Hash(_) => panic!("MMR leaf position must contain leaf data"),
+    }
+}
+
+#[test]
+fn bridge_finalization_at_n_is_committed_at_n_plus_one() {
+    use frame_support::traits::{OnFinalize, OnInitialize, OneSessionHandler};
+    use sp_consensus_beefy::mmr::BeefyDataProvider;
+    use sp_core::offchain::{OffchainDbExt, testing::TestOffchainExt};
+    use sp_runtime::traits::Hash;
+
+    let alice = bridge_test_authority(AccountKeyring::Alice, "Alice");
+    let mut ext = ExtBuilder::default()
+        .initial_authorities(vec![alice.clone()])
+        .stash(STASH)
+        .build();
+    let parent_hash = sp_core::H256::repeat_byte(0x55);
+
+    let (first_key, first_extra, key, expected_extra, committed_root) = ext.execute_with(|| {
+        frame_system::BlockHash::<Runtime>::insert(0, sp_core::H256::repeat_byte(0x99));
+        System::initialize(&1, &System::block_hash(0), &Default::default());
+        let uninitialized_extra = bridge_leaf::VaraBridgeProvider::extra_data();
+        let alice = session_validator(&alice);
+        <GearEthBridge as OneSessionHandler<AccountId>>::on_new_session(
+            true,
+            [(&alice.0, alice.1.grandpa.clone())].into_iter(),
+            [(&alice.0, alice.1.grandpa.clone())].into_iter(),
+        );
+        let first_extra = bridge_leaf::VaraBridgeProvider::extra_data();
+        assert_ne!(first_extra, uninitialized_extra);
+        assert_eq!(
+            GearEthBridge::bridge_snapshot(),
+            Some((0, sp_core::H256::zero()))
+        );
+        Mmr::on_initialize(1);
+        let first_key = (
+            <Runtime as pallet_mmr::Config>::INDEXING_PREFIX,
+            0_u64,
+            System::parent_hash(),
+        )
+            .encode();
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+        assert_ok!(GearEthBridge::send_eth_message(
+            RuntimeOrigin::signed(alice.0),
+            sp_core::H160::repeat_byte(1),
+            vec![1, 2, 3],
+        ));
+        GearEthBridge::on_finalize(1);
+        assert_ok!(GearEthBridge::pause(RuntimeOrigin::root()));
+        assert_ok!(GearEthBridge::bind_destination(
+            RuntimeOrigin::root(),
+            sp_core::H256::repeat_byte(2),
+            sp_core::H160::repeat_byte(3),
+        ));
+        assert_ok!(Timestamp::set(RuntimeOrigin::none(), SLOT_DURATION));
+        Timestamp::on_finalize(1);
+        let (queue_id, queue_root) = GearEthBridge::bridge_snapshot().unwrap();
+        let expected_extra = Keccak256::hash(
+            &(
+                2u8,
+                *b"vara",
+                GearEthBridge::bridge_domain(),
+                SLOT_DURATION,
+                1u8,
+                queue_id,
+                queue_root,
+            )
+                .encode(),
+        )
+        .0;
+        System::initialize(&2, &parent_hash, &Default::default());
+        Mmr::on_initialize(2);
+        let key = (
+            <Runtime as pallet_mmr::Config>::INDEXING_PREFIX,
+            1_u64,
+            System::parent_hash(),
+        )
+            .encode();
+        let committed_root = Mmr::mmr_root();
+        assert!(System::digest().logs.iter().any(|log| log
+            == &sp_runtime::DigestItem::Consensus(
+                sp_consensus_beefy::BEEFY_ENGINE_ID,
+                sp_consensus_beefy::ConsensusLog::<BeefyId>::MmrRoot(committed_root).encode(),
+            )));
+        (first_key, first_extra, key, expected_extra, committed_root)
+    });
+
+    let first_leaf = read_mmr_leaf(&mut ext, first_key);
+    assert_eq!(first_leaf.parent_number_and_hash.0, 0);
+    assert_eq!(first_leaf.leaf_extra, first_extra);
+    assert_eq!(first_leaf.encode().len(), 113);
+    assert_eq!(first_leaf.encode()[0], 0);
+    let leaf = read_mmr_leaf(&mut ext, key);
+    assert_eq!(leaf.leaf_extra, expected_extra);
+    assert_eq!(leaf.parent_number_and_hash, (1, parent_hash));
+    assert_ne!(leaf.leaf_extra, first_leaf.leaf_extra);
+
+    ext.execute_with(|| {
+        System::initialize(&3, &sp_core::H256::repeat_byte(0x77), &Default::default());
+        Mmr::on_initialize(3);
+        assert_ne!(Mmr::mmr_root(), committed_root);
+    });
+    ext.persist_offchain_overlay();
+    let (offchain, _) = TestOffchainExt::with_offchain_db(ext.offchain_db());
+    ext.register_extension(OffchainDbExt::new(offchain));
+    ext.execute_with(|| {
+        let output = crate::api::dispatch("MmrApi_generate_proof", &(vec![2u32], Some(2u32)).encode()).unwrap();
+        type ProofResult = Result<(Vec<mmr::EncodableOpaqueLeaf>, sp_mmr_primitives::LeafProof<sp_core::H256>), sp_mmr_primitives::Error>;
+        let (leaves, proof) = <ProofResult as parity_scale_codec::DecodeAll>::decode_all(&mut output.as_slice()).unwrap().unwrap();
+        assert_eq!(leaves, vec![mmr::EncodableOpaqueLeaf::from_leaf(&leaf)]);
+        for root in [committed_root, Mmr::mmr_root()] {
+            let output = crate::api::dispatch("MmrApi_verify_proof_stateless", &(root, &leaves, &proof).encode()).unwrap();
+            let result = <Result<(), sp_mmr_primitives::Error> as parity_scale_codec::DecodeAll>::decode_all(&mut output.as_slice()).unwrap();
+            assert_eq!(result.is_ok(), root == committed_root);
+        }
+        let mut corrupted = leaf;
+        corrupted.leaf_extra[0] ^= 1;
+        let output = crate::api::dispatch("MmrApi_verify_proof_stateless", &(committed_root, vec![mmr::EncodableOpaqueLeaf::from_leaf(&corrupted)], proof).encode()).unwrap();
+        assert!(<Result<(), sp_mmr_primitives::Error> as parity_scale_codec::DecodeAll>::decode_all(&mut output.as_slice()).unwrap().is_err());
+    });
+}
+
+#[test]
+fn session_boundary_leaf_uses_new_authorities_and_preclear_bridge_root() {
+    use frame_support::traits::{OnFinalize, OnInitialize, OneSessionHandler};
+    use pallet_session::SessionHandler;
+    use sp_consensus_beefy::mmr::BeefyDataProvider;
+    use sp_runtime::traits::Hash;
+
+    let alice = bridge_test_authority(AccountKeyring::Alice, "Alice");
+    let bob = bridge_test_authority(AccountKeyring::Bob, "Bob");
+    let charlie = bridge_test_authority(AccountKeyring::Charlie, "Charlie");
+    let mut ext = ExtBuilder::default()
+        .initial_authorities(vec![alice.clone()])
+        .stash(STASH)
+        .build();
+
+    let genesis = sp_core::H256::repeat_byte(0x99);
+    let timestamp1 = SLOT_DURATION;
+    let timestamp2 = 2 * SLOT_DURATION;
+    let (key, expected_extra, expected_authorities_root, old_id, first_root, hash) = ext
+        .execute_with(|| {
+            frame_system::BlockHash::<Runtime>::insert(0, genesis);
+            let alice = session_validator(&alice);
+            let bob = session_validator(&bob);
+            let charlie = session_validator(&charlie);
+            let beefy_address =
+                <pallet_beefy_mmr::BeefyEcdsaToEthereum as sp_runtime::traits::Convert<
+                    _,
+                    Vec<u8>,
+                >>::convert(charlie.1.beefy.clone());
+            let expected_authorities_root =
+                <<Runtime as pallet_mmr::Config>::Hashing as sp_runtime::traits::Hash>::hash(
+                    &beefy_address,
+                );
+
+            <GearEthBridge as OneSessionHandler<AccountId>>::on_new_session(
+                true,
+                [(&alice.0, alice.1.grandpa.clone())].into_iter(),
+                [(&alice.0, alice.1.grandpa.clone())].into_iter(),
+            );
+            assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(alice.0.clone()),
+                sp_core::H160::repeat_byte(2),
+                vec![4, 5, 6],
+            ));
+            let first_root = last_bridge_message().1;
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(alice.0.clone()),
+                sp_core::H160::repeat_byte(3),
+                vec![7, 8, 9],
+            ));
+            let (_, hash) = last_bridge_message();
+            GearEthBridge::on_finalize(1);
+            assert_ok!(Timestamp::set(RuntimeOrigin::none(), timestamp1));
+            Timestamp::on_finalize(1);
+            Babe::on_finalize(1);
+            let (old_id, root) = GearEthBridge::bridge_snapshot().unwrap();
+            assert_ne!(root, sp_core::H256::zero());
+            let expected_extra = bridge_leaf::VaraBridgeProvider::extra_data();
+            assert_eq!(
+                expected_extra,
+                Keccak256::hash(
+                    &[
+                        &[2][..],
+                        b"vara",
+                        GearEthBridge::bridge_domain().as_bytes(),
+                        &timestamp1.to_le_bytes(),
+                        &[1],
+                        &old_id.to_le_bytes(),
+                        root.as_bytes(),
+                    ]
+                    .concat()
+                )
+                .0
+            );
+
+            initialize_block(2);
+            // The manual session transition needs BABE's current-block pre-digest first.
+            let _ = <Babe as pallet_session::ShouldEndSession<BlockNumber>>::should_end_session(2);
+            <VaraSessionHandler as SessionHandler<AccountId>>::on_new_session(
+                true,
+                std::slice::from_ref(&bob),
+                &[charlie],
+            );
+            <AllPalletsWithSystem as OnInitialize<BlockNumberFor<Runtime>>>::on_initialize(2);
+            let key = (
+                <Runtime as pallet_mmr::Config>::INDEXING_PREFIX,
+                0_u64,
+                System::parent_hash(),
+            )
+                .encode();
+            assert_eq!(Timestamp::get(), timestamp1);
+            (
+                key,
+                expected_extra,
+                expected_authorities_root,
+                old_id,
+                first_root,
+                hash,
+            )
+        });
+
+    let leaf = read_mmr_leaf(&mut ext, key.clone());
+    assert_eq!(leaf.leaf_extra, expected_extra);
+    assert_eq!(leaf.beefy_next_authority_set.id, 2);
+    assert_eq!(leaf.beefy_next_authority_set.len, 1);
+    assert_eq!(
+        leaf.beefy_next_authority_set.keyset_commitment,
+        expected_authorities_root
+    );
+    assert_eq!(leaf.parent_number_and_hash.0, 1);
+    assert_eq!(leaf.encode().len(), 113);
+    assert_eq!(leaf.encode()[0], 0);
+
+    let first_key = key;
+    let (key, final_extra) = ext.execute_with(|| {
+        assert_eq!(System::block_hash(0), genesis);
+        assert_ok!(Timestamp::set(RuntimeOrigin::none(), timestamp2));
+        assert_ne!(
+            bridge_leaf::VaraBridgeProvider::extra_data(),
+            leaf.leaf_extra
+        );
+        assert_noop!(
+            GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(alice.0.clone()),
+                sp_core::H160::repeat_byte(3),
+                vec![7, 8, 9],
+            ),
+            pallet_gear_eth_bridge::Error::<Runtime>::BridgeCleanupRequired
+        );
+        GearEthBridge::on_finalize(2);
+        let proof = GearEthBridge::merkle_proof(hash).expect("final message has a proof");
+        assert_eq!(proof.leaf, hash);
+        assert_eq!(proof.leaf_index, 1);
+        assert_eq!(proof.number_of_leaves, 2);
+        assert_eq!(proof.proof, vec![first_root]);
+        assert_eq!(
+            proof.root,
+            Keccak256::hash(&[first_root.as_bytes(), hash.as_bytes()].concat())
+        );
+        assert_eq!(GearEthBridge::bridge_snapshot(), Some((old_id, proof.root)));
+        let extra = bridge_leaf::VaraBridgeProvider::extra_data();
+        Timestamp::on_finalize(2);
+        Babe::on_finalize(2);
+        initialize_block(3);
+        <AllPalletsWithSystem as OnInitialize<BlockNumberFor<Runtime>>>::on_initialize(3);
+        let key = (
+            <Runtime as pallet_mmr::Config>::INDEXING_PREFIX,
+            1_u64,
+            System::parent_hash(),
+        )
+            .encode();
+        assert_eq!(Timestamp::get(), timestamp2);
+        assert_eq!(
+            GearEthBridge::bridge_snapshot(),
+            Some((old_id + 1, sp_core::H256::zero()))
+        );
+        assert!(GearEthBridge::merkle_proof(hash).is_none());
+        (key, extra)
+    });
+    assert_eq!(read_mmr_leaf(&mut ext, first_key).encode(), leaf.encode());
+    let final_leaf = read_mmr_leaf(&mut ext, key);
+    assert_eq!(final_leaf.parent_number_and_hash.0, 2);
+    assert_eq!(final_leaf.encode().len(), 113);
+    assert_eq!(final_leaf.encode()[0], 0);
+    assert_eq!(final_leaf.leaf_extra, final_extra);
+    assert_ne!(final_leaf.leaf_extra, leaf.leaf_extra);
+    assert_eq!(
+        final_leaf.beefy_next_authority_set,
+        leaf.beefy_next_authority_set
+    );
+}
+
+#[test]
+fn inactive_beefy_still_allows_unsigned_mmr_root_digests() {
+    use frame_support::traits::OnInitialize;
+    use sp_consensus_beefy::{BEEFY_ENGINE_ID, ConsensusLog};
+
+    let alice = bridge_test_authority(AccountKeyring::Alice, "Alice");
+    ExtBuilder::default()
+        .initial_authorities(vec![alice])
+        .stash(STASH)
+        .build()
+        .execute_with(|| {
+            assert!(pallet_beefy::GenesisBlock::<Runtime>::get().is_none());
+
+            initialize_block(2);
+            Mmr::on_initialize(2);
+
+            assert!(System::digest().logs.iter().any(|digest| {
+                matches!(
+                    digest,
+                    DigestItem::Consensus(engine, data)
+                        if *engine == BEEFY_ENGINE_ID
+                            && matches!(
+                                ConsensusLog::<BeefyId>::decode(&mut data.as_slice()),
+                                Ok(ConsensusLog::MmrRoot(_))
+                            )
+                )
+            }));
+            assert!(!System::digest().logs.iter().any(
+                |digest| matches!(digest, DigestItem::Seal(engine, _) if *engine == BEEFY_ENGINE_ID)
+            ));
+        });
+}
+
+#[test]
+fn beefy_only_session_changes_preserve_the_original_bridge_queue() {
+    use frame_support::traits::OneSessionHandler;
+    use pallet_session::SessionHandler;
+
+    let alice = bridge_test_authority(AccountKeyring::Alice, "Alice");
+    ExtBuilder::default()
+        .initial_authorities(vec![alice.clone()])
+        .stash(STASH)
+        .build()
+        .execute_with(|| {
+            let alice = session_validator(&alice);
+            <grandpa_keys_handler::GrandpaAndGearEthBridge as OneSessionHandler<AccountId>>::on_new_session(
+                true,
+                [(&alice.0, alice.1.grandpa.clone())].into_iter(),
+                [(&alice.0, alice.1.grandpa.clone())].into_iter(),
+            );
+            assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(alice.0.clone()),
+                sp_core::H160::repeat_byte(4),
+                vec![10, 11, 12],
+            ));
+            GearEthBridge::on_finalize(1);
+            Grandpa::on_finalize(1);
+            let original_grandpa_set_id = Grandpa::current_set_id();
+            let original_grandpa_authorities = Grandpa::grandpa_authorities();
+            let original = GearEthBridge::bridge_snapshot().expect("bridge initialized");
+            assert_ne!(original.1, sp_core::H256::zero());
+            let mut rotated = alice;
+            rotated.1.beefy = beefy_key("Bob").into();
+
+            initialize_block(2);
+            let _ = <Babe as pallet_session::ShouldEndSession<BlockNumber>>::should_end_session(2);
+            <VaraSessionHandler as SessionHandler<AccountId>>::on_new_session(
+                true,
+                std::slice::from_ref(&rotated),
+                std::slice::from_ref(&rotated),
+            );
+            Grandpa::on_finalize(2);
+            assert_eq!(Grandpa::current_set_id(), original_grandpa_set_id + 1);
+            assert_eq!(Grandpa::grandpa_authorities(), original_grandpa_authorities);
+            GearEthBridge::on_initialize(2);
+            GearEthBridge::on_initialize(3);
+            assert_eq!(GearEthBridge::bridge_snapshot(), Some(original));
+            assert_eq!(Beefy::validator_set().unwrap().validators(), &vec![rotated.1.beefy]);
+
+            initialize_block(4);
+            Mmr::on_initialize(4);
+            let mmr_root = pallet_mmr::RootHash::<Runtime>::get();
+            let leaves = pallet_mmr::NumberOfLeaves::<Runtime>::get();
+            assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), None);
+            assert_noop!(
+                Beefy::set_new_genesis(RuntimeOrigin::signed(rotated.0), 1),
+                sp_runtime::DispatchError::BadOrigin,
+            );
+
+            // A raw domain write alone must not admit unsigned or unactivated keys.
+            assert_noop!(
+                Utility::batch_all(
+                    RuntimeOrigin::root(),
+                    vec![RuntimeCall::Beefy(pallet_beefy::Call::set_new_genesis { delay_in_blocks: 1 })],
+                ).map_err(|error| error.error),
+                sp_runtime::DispatchError::BadOrigin,
+            );
+            assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), None);
+            assert_eq!(GearEthBridge::bridge_snapshot(), Some(original));
+            assert_eq!(pallet_mmr::RootHash::<Runtime>::get(), mmr_root);
+            assert_eq!(pallet_mmr::NumberOfLeaves::<Runtime>::get(), leaves);
+        });
+}
+
+fn last_bridge_message() -> (pallet_gear_eth_bridge::EthMessage, sp_core::H256) {
+    System::events()
+        .into_iter()
+        .rev()
+        .find_map(|record| match record.event {
+            RuntimeEvent::GearEthBridge(pallet_gear_eth_bridge::Event::MessageQueued {
+                message,
+                hash,
+            }) => Some((message, hash)),
+            _ => None,
+        })
+        .expect("message was queued")
+}
+
+#[test]
+fn scheduled_governance_send_at_session_clear_is_rejected_without_losing_nonce() {
+    use frame_support::traits::{
+        OneSessionHandler, StorePreimage,
+        schedule::{DispatchTime, v3::Anon},
+    };
+    use pallet_session::SessionHandler;
+    use sp_runtime::traits::Hash;
+
+    let alice = bridge_test_authority(AccountKeyring::Alice, "Alice");
+    let bob = bridge_test_authority(AccountKeyring::Bob, "Bob");
+    ExtBuilder::default()
+        .initial_authorities(vec![alice.clone()])
+        .stash(STASH)
+        .build()
+        .execute_with(|| {
+            let alice = session_validator(&alice);
+            let bob = session_validator(&bob);
+            <GearEthBridge as OneSessionHandler<AccountId>>::on_new_session(
+                true,
+                [(&alice.0, alice.1.grandpa.clone())].into_iter(),
+                [(&alice.0, alice.1.grandpa.clone())].into_iter(),
+            );
+            let governance = [
+                GearEthBridgeAdminAccount::get(),
+                GearEthBridgePauserAccount::get(),
+            ];
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(governance[0].clone()),
+                sp_core::H160::repeat_byte(1),
+                vec![1],
+            ));
+            assert_eq!(last_bridge_message().0.nonce(), sp_core::U256::zero());
+            GearEthBridge::on_finalize(1);
+            let original = GearEthBridge::bridge_snapshot().unwrap();
+            assert_ne!(original.1, sp_core::H256::zero());
+            assert_ok!(Timestamp::set(RuntimeOrigin::none(), SLOT_DURATION));
+            Timestamp::on_finalize(1);
+            Babe::on_finalize(1);
+
+            let tasks = governance
+                .iter()
+                .map(|account| {
+                    <Scheduler as Anon<BlockNumber, RuntimeCall, OriginCaller>>::schedule(
+                        DispatchTime::At(3),
+                        None,
+                        0,
+                        frame_system::RawOrigin::Signed(account.clone()).into(),
+                        Preimage::bound(RuntimeCall::GearEthBridge(
+                            pallet_gear_eth_bridge::Call::send_eth_message {
+                                destination: sp_core::H160::repeat_byte(2),
+                                payload: vec![2],
+                            },
+                        ))
+                        .unwrap(),
+                    )
+                    .unwrap()
+                })
+                .collect::<Vec<_>>();
+            initialize_block(2);
+            let _ = <Babe as pallet_session::ShouldEndSession<BlockNumber>>::should_end_session(2);
+            <VaraSessionHandler as SessionHandler<AccountId>>::on_new_session(
+                true,
+                std::slice::from_ref(&bob),
+                std::slice::from_ref(&bob),
+            );
+            <AllPalletsWithSystem as OnInitialize<BlockNumberFor<Runtime>>>::on_initialize(2);
+            assert_eq!(GearEthBridge::bridge_snapshot(), Some(original));
+            GearEthBridge::on_finalize(2);
+            assert_ok!(Timestamp::set(RuntimeOrigin::none(), 2 * SLOT_DURATION));
+            Timestamp::on_finalize(2);
+            Babe::on_finalize(2);
+
+            initialize_block(3);
+            System::reset_events();
+            // Runtime ordering runs Scheduler before the bridge's delayed clear.
+            <AllPalletsWithSystem as OnInitialize<BlockNumberFor<Runtime>>>::on_initialize(3);
+            let dispatches = System::events()
+                .into_iter()
+                .filter_map(|record| match record.event {
+                    RuntimeEvent::Scheduler(pallet_scheduler::Event::Dispatched {
+                        task,
+                        result,
+                        ..
+                    }) => Some((task, result)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                dispatches,
+                tasks
+                    .into_iter()
+                    .map(|task| (
+                        task,
+                        Err(pallet_gear_eth_bridge::Error::<Runtime>::BridgeCleanupRequired.into()),
+                    ))
+                    .collect::<Vec<_>>()
+            );
+            assert!(!System::events().iter().any(|record| matches!(
+                record.event,
+                RuntimeEvent::GearEthBridge(pallet_gear_eth_bridge::Event::MessageQueued { .. })
+            )));
+            assert_eq!(
+                GearEthBridge::bridge_snapshot(),
+                Some((original.0 + 1, sp_core::H256::zero()))
+            );
+
+            let hashes = governance
+                .into_iter()
+                .enumerate()
+                .map(|(index, account)| {
+                    assert_ok!(GearEthBridge::send_eth_message(
+                        RuntimeOrigin::signed(account),
+                        sp_core::H160::repeat_byte(3),
+                        vec![3],
+                    ));
+                    let (message, hash) = last_bridge_message();
+                    assert_eq!(message.nonce(), sp_core::U256::from(index + 1));
+                    hash
+                })
+                .collect::<Vec<_>>();
+            GearEthBridge::on_finalize(3);
+            let root = Keccak256::hash(&[hashes[0].as_bytes(), hashes[1].as_bytes()].concat());
+            assert_eq!(
+                GearEthBridge::bridge_snapshot(),
+                Some((original.0 + 1, root))
+            );
+            for (index, hash) in hashes.iter().enumerate() {
+                let proof = GearEthBridge::merkle_proof(*hash).unwrap();
+                assert_eq!(proof.leaf, *hash);
+                assert_eq!(proof.leaf_index, index as u64);
+                assert_eq!(proof.number_of_leaves, 2);
+                assert_eq!(proof.proof, vec![hashes[1 - index]]);
+                assert_eq!(proof.root, root);
+            }
+        });
+}
+
+#[test]
+fn governance_append_requires_newer_real_grandpa_proof_before_overflow_reset() {
+    use frame_support::traits::OneSessionHandler;
+    use sp_runtime::traits::Header as _;
+
+    fn finality_proof(header: &Header) -> Vec<u8> {
+        let pair = ed25519::Pair::from_string("//Alice", None).unwrap();
+        let round = 1;
+        let precommit = sp_consensus_grandpa::Precommit::<Header> {
+            target_hash: header.hash(),
+            target_number: *header.number(),
+        };
+        let payload = sp_consensus_grandpa::localized_payload(
+            round,
+            Grandpa::current_set_id(),
+            &sp_consensus_grandpa::Message::<Header>::Precommit(precommit.clone()),
+        );
+        // SCALE's signed-precommit tuple avoids adding a finality-grandpa dependency.
+        let signed = (
+            precommit,
+            pair.sign(&payload),
+            GrandpaId::from(pair.public()),
+        )
+            .encode();
+        let justification = sp_consensus_grandpa::GrandpaJustification::<Header> {
+            round,
+            commit: sp_consensus_grandpa::Commit::<Header> {
+                target_hash: header.hash(),
+                target_number: *header.number(),
+                precommits: vec![Decode::decode(&mut signed.as_slice()).unwrap()],
+            },
+            votes_ancestries: vec![],
+        };
+        // FinalityProof's public wire format: block, encoded justification, unknown headers.
+        (header.hash(), justification.encode(), Vec::<Header>::new()).encode()
+    }
+
+    let alice = bridge_test_authority(AccountKeyring::Alice, "Alice");
+    ExtBuilder::default()
+        .initial_authorities(vec![alice.clone()])
+        .stash(STASH)
+        .build()
+        .execute_with(|| {
+            let alice = session_validator(&alice);
+            <GearEthBridge as OneSessionHandler<AccountId>>::on_new_session(
+                true,
+                [(&alice.0, alice.1.grandpa.clone())].into_iter(),
+                [(&alice.0, alice.1.grandpa.clone())].into_iter(),
+            );
+            assert_eq!(
+                Grandpa::grandpa_authorities(),
+                vec![(alice.1.grandpa.clone(), 1)]
+            );
+            assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+            let admin = GearEthBridgeAdminAccount::get();
+            let capacity = <Runtime as pallet_gear_eth_bridge::Config>::QueueCapacity::get();
+            for _ in 0..capacity {
+                assert_ok!(GearEthBridge::send_eth_message(
+                    RuntimeOrigin::signed(admin.clone()),
+                    sp_core::H160::repeat_byte(4),
+                    vec![4],
+                ));
+            }
+            GearEthBridge::on_finalize(1);
+            let original = GearEthBridge::bridge_snapshot().unwrap();
+            assert_ok!(Timestamp::set(RuntimeOrigin::none(), SLOT_DURATION));
+            Timestamp::on_finalize(1);
+            Babe::on_finalize(1);
+            let older_proof = finality_proof(&System::finalize());
+            assert_eq!(
+                GearEthBridge::verify_finality_proof(older_proof.clone()),
+                Some(1)
+            );
+
+            initialize_block(2);
+            Babe::on_initialize(2);
+            assert_noop!(
+                GearEthBridge::send_eth_message(
+                    RuntimeOrigin::signed(alice.0.clone()),
+                    sp_core::H160::repeat_byte(5),
+                    vec![5],
+                ),
+                pallet_gear_eth_bridge::Error::<Runtime>::BridgeCleanupRequired
+            );
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(admin.clone()),
+                sp_core::H160::repeat_byte(6),
+                vec![6],
+            ));
+            let (accepted, hash) = last_bridge_message();
+            assert_eq!(accepted.nonce(), sp_core::U256::from(capacity));
+            assert_noop!(
+                GearEthBridge::reset_overflowed_queue(
+                    RuntimeOrigin::signed(alice.0.clone()),
+                    older_proof.clone(),
+                ),
+                pallet_gear_eth_bridge::Error::<Runtime>::InvalidQueueReset
+            );
+            assert_eq!(GearEthBridge::bridge_snapshot(), Some(original));
+            assert_eq!(
+                GearEthBridge::merkle_proof(hash).unwrap().number_of_leaves,
+                u64::from(capacity) + 1
+            );
+
+            GearEthBridge::on_finalize(2);
+            let accepted_proof = GearEthBridge::merkle_proof(hash).unwrap();
+            assert_eq!(
+                GearEthBridge::bridge_snapshot(),
+                Some((original.0, accepted_proof.root))
+            );
+            assert_ne!(accepted_proof.root, original.1);
+            assert_ok!(Timestamp::set(RuntimeOrigin::none(), 2 * SLOT_DURATION));
+            Timestamp::on_finalize(2);
+            Babe::on_finalize(2);
+            let newer_proof = finality_proof(&System::finalize());
+            assert_eq!(
+                GearEthBridge::verify_finality_proof(older_proof.clone()),
+                Some(1)
+            );
+            assert_eq!(
+                GearEthBridge::verify_finality_proof(newer_proof.clone()),
+                Some(2)
+            );
+
+            initialize_block(3);
+            assert_noop!(
+                GearEthBridge::reset_overflowed_queue(
+                    RuntimeOrigin::signed(alice.0.clone()),
+                    older_proof,
+                ),
+                pallet_gear_eth_bridge::Error::<Runtime>::InvalidQueueReset
+            );
+            assert_eq!(GearEthBridge::merkle_proof(hash), Some(accepted_proof));
+            assert_ok!(GearEthBridge::reset_overflowed_queue(
+                RuntimeOrigin::signed(alice.0),
+                newer_proof,
+            ));
+            assert_eq!(
+                GearEthBridge::bridge_snapshot(),
+                Some((original.0 + 1, sp_core::H256::zero()))
+            );
+            assert!(GearEthBridge::merkle_proof(hash).is_none());
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(admin),
+                sp_core::H160::repeat_byte(7),
+                vec![7],
+            ));
+            assert_eq!(
+                last_bridge_message().0.nonce(),
+                sp_core::U256::from(capacity + 1)
             );
         });
 }

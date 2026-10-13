@@ -6,8 +6,8 @@ license.workspace = true
 edition.workspace = true
 
 [dependencies]
-gear-workspace-hack.workspace = true
 gstd.workspace = true
+gear-workspace-hack.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

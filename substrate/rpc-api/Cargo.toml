@@ -1,0 +1,67 @@
+[package]
+name = "sc-rpc-api"
+version = "0.44.0"
+authors.workspace = true
+edition = "2021"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+homepage.workspace = true
+repository.workspace = true
+description = "Substrate RPC interfaces."
+readme = "README.md"
+
+# Preserve the lint contract from pinned Polkadot SDK 298f676.
+[lints.rust]
+suspicious_double_ref_op = { level = "allow", priority = 2 }
+# `substrate_runtime` is a common `cfg` condition name used in the repo.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(substrate_runtime)'] }
+
+[lints.clippy]
+all = { level = "allow", priority = 0 }
+bind_instead_of_map = { level = "allow", priority = 2 }              # stylistic
+borrowed-box = { level = "allow", priority = 2 }                     # Reasonable to fix this one
+complexity = { level = "warn", priority = 1 }
+correctness = { level = "warn", priority = 1 }
+default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
+derivable_impls = { level = "allow", priority = 2 }                  # false positives
+eq_op = { level = "allow", priority = 2 }                            # In tests we test equality.
+erasing_op = { level = "allow", priority = 2 }                       # E.g. 0 * DOLLARS
+extra-unused-type-parameters = { level = "allow", priority = 2 }     # stylistic
+identity-op = { level = "allow", priority = 2 }                      # One case where we do 0 +
+if-same-then-else = { level = "allow", priority = 2 }
+needless-lifetimes = { level = "allow", priority = 2 }               # generated code
+needless_option_as_deref = { level = "allow", priority = 2 }         # false positives
+nonminimal-bool = { level = "allow", priority = 2 }                  # maybe
+option-map-unit-fn = { level = "allow", priority = 2 }               # stylistic
+stable_sort_primitive = { level = "allow", priority = 2 }            # prefer stable sort
+too-many-arguments = { level = "allow", priority = 2 }               # (Turning this on would lead to)
+type_complexity = { level = "allow", priority = 2 }                  # raison d'etre
+unit_arg = { level = "allow", priority = 2 }                         # stylistic
+unnecessary_cast = { level = "allow", priority = 2 }                 # Types may change
+useless_conversion = { level = "allow", priority = 2 }               # Types may change
+while_immutable_condition = { level = "allow", priority = 2 }        # false positives
+zero-prefixed-literal = { level = "allow", priority = 2 }            # 00_1000_000
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { workspace = true, default-features = true }
+scale-info = { features = ["derive"], workspace = true }
+serde = { features = ["derive"], workspace = true, default-features = true }
+serde_json = { workspace = true, default-features = true }
+thiserror = { workspace = true }
+sc-chain-spec.workspace = true
+sc-chain-spec.default-features = true
+sc-mixnet.workspace = true
+sc-mixnet.default-features = true
+sc-transaction-pool-api.workspace = true
+sc-transaction-pool-api.default-features = true
+sp-core.workspace = true
+sp-core.default-features = true
+sp-rpc.workspace = true
+sp-rpc.default-features = true
+sp-runtime.workspace = true
+sp-runtime.default-features = true
+sp-version.workspace = true
+sp-version.default-features = true
+jsonrpsee = { features = ["client-core", "macros", "server-core"], workspace = true }

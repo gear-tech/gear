@@ -1,0 +1,60 @@
+[package]
+name = "pallet-beefy"
+version = "39.0.0"
+authors.workspace = true
+edition = "2021"
+license = "Apache-2.0"
+repository.workspace = true
+description = "BEEFY FRAME pallet"
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+codec = { features = ["derive"], workspace = true }
+log = { workspace = true }
+scale-info = { features = ["derive", "serde"], workspace = true }
+frame-support.workspace = true
+frame-system.workspace = true
+pallet-authorship.workspace = true
+pallet-session.workspace = true
+sp-consensus-beefy = { features = ["serde"], workspace = true }
+sp-runtime = { features = ["serde"], workspace = true }
+sp-session.workspace = true
+sp-staking = { features = ["serde"], workspace = true }
+
+[dev-dependencies]
+frame-election-provider-support = { default-features = true, workspace = true }
+pallet-balances = { default-features = true, workspace = true }
+pallet-offences = { default-features = true, workspace = true }
+pallet-staking = { default-features = true, workspace = true }
+pallet-staking-reward-curve = { default-features = true, workspace = true }
+pallet-timestamp = { default-features = true, workspace = true }
+sp-core = { default-features = true, workspace = true }
+sp-io = { default-features = true, workspace = true }
+sp-staking = { default-features = true, workspace = true }
+sp-state-machine = { workspace = true, default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"frame-support/std",
+	"frame-system/std",
+	"log/std",
+	"pallet-authorship/std",
+	"pallet-session/std",
+	"scale-info/std",
+	"sp-consensus-beefy/std",
+	"sp-runtime/std",
+	"sp-session/std",
+	"sp-staking/std",
+]
+try-runtime = [
+	"frame-support/try-runtime",
+	"frame-system/try-runtime",
+	"pallet-authorship/try-runtime",
+	"pallet-session/try-runtime",
+	"sp-runtime/try-runtime",
+]

@@ -15,6 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 workspace = true
 
 [dependencies]
+binary-merkle-tree.workspace = true
 const-str.workspace = true
 log.workspace = true
 parity-scale-codec.workspace = true
@@ -35,6 +36,8 @@ pallet-authorship.workspace = true
 pallet-babe.workspace = true
 pallet-bags-list.workspace = true
 pallet-balances.workspace = true
+pallet-beefy.workspace = true
+pallet-beefy-mmr.workspace = true
 pallet-bounties.workspace = true
 pallet-child-bounties.workspace = true
 pallet-conviction-voting.workspace = true
@@ -44,6 +47,7 @@ pallet-identity.workspace = true
 pallet-im-online.workspace = true
 pallet-nomination-pools.workspace = true
 pallet-nomination-pools-runtime-api.workspace = true
+pallet-mmr.workspace = true
 pallet-multisig.workspace = true
 pallet-offences.workspace = true
 pallet-preimage.workspace = true
@@ -68,11 +72,14 @@ sp-api.workspace = true
 sp-authority-discovery.workspace = true
 sp-block-builder.workspace = true
 sp-consensus-babe.workspace = true
+sp-consensus-beefy.workspace = true
 sp-consensus-grandpa.workspace = true
 sp-core.workspace = true
 sp-externalities = { workspace = true, optional = true }
 sp-genesis-builder.workspace = true
 sp-inherents.workspace = true
+sp-io.workspace = true
+sp-mmr-primitives.workspace = true
 sp-offchain.workspace = true
 sp-runtime.workspace = true
 sp-session.workspace = true
@@ -81,6 +88,7 @@ sp-state-machine = { workspace = true, optional = true }
 sp-std.workspace = true
 sp-storage.workspace = true
 sp-transaction-pool.workspace = true
+sp-trie.workspace = true
 sp-version.workspace = true
 
 # Used for the node template's RPCs
@@ -115,8 +123,8 @@ gbuiltin-proxy.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
-sp-io.workspace = true
 sp-keyring.workspace = true
+sp-keystore = { workspace = true, features = ["std"] }
 tracing-subscriber.workspace = true
 wat.workspace = true
 gear-core.workspace = true
@@ -134,6 +142,7 @@ parity-scale-codec.workspace = true
 [features]
 default = ["std"]
 std = [
+    "binary-merkle-tree/std",
     "parity-scale-codec/std",
     "common/std",
     "frame-try-runtime?/std",
@@ -151,6 +160,8 @@ std = [
     "pallet-babe/std",
     "pallet-bags-list/std",
     "pallet-balances/std",
+    "pallet-beefy/std",
+    "pallet-beefy-mmr/std",
     "pallet-bounties/std",
     "pallet-child-bounties/std",
     "pallet-conviction-voting/std",
@@ -174,6 +185,7 @@ std = [
     "pallet-im-online/std",
     "pallet-nomination-pools/std",
     "pallet-nomination-pools-runtime-api/std",
+    "pallet-mmr/std",
     "pallet-multisig/std",
     "pallet-offences/std",
     "pallet-preimage/std",
@@ -202,10 +214,13 @@ std = [
     "sp-authority-discovery/std",
     "sp-block-builder/std",
     "sp-consensus-babe/std",
+    "sp-consensus-beefy/std",
     "sp-consensus-grandpa/std",
     "sp-core/std",
+    "sp-io/std",
     "sp-externalities",
     "sp-inherents/std",
+    "sp-mmr-primitives/std",
     "sp-offchain/std",
     "sp-runtime/std",
     "sp-session/std",
@@ -214,6 +229,7 @@ std = [
     "sp-std/std",
     "sp-storage/std",
     "sp-transaction-pool/std",
+    "sp-trie/std",
     "sp-version/std",
     "substrate-wasm-builder",
 ]
@@ -224,6 +240,8 @@ runtime-benchmarks = [
     "frame-system-benchmarking/runtime-benchmarks",
     "frame-election-provider-support/runtime-benchmarks",
     "pallet-balances/runtime-benchmarks",
+    "pallet-mmr/runtime-benchmarks",
+    "pallet-beefy-mmr/runtime-benchmarks",
     "pallet-timestamp/runtime-benchmarks",
     "pallet-utility/runtime-benchmarks",
     "pallet-gear/runtime-benchmarks",
@@ -260,6 +278,8 @@ try-runtime = [
     "pallet-babe/try-runtime",
     "pallet-bags-list/try-runtime",
     "pallet-balances/try-runtime",
+    "pallet-beefy/try-runtime",
+    "pallet-beefy-mmr/try-runtime",
     "pallet-bounties/try-runtime",
     "pallet-child-bounties/try-runtime",
     "pallet-conviction-voting/try-runtime",
@@ -269,6 +289,7 @@ try-runtime = [
     "pallet-identity/try-runtime",
     "pallet-im-online/try-runtime",
     "pallet-nomination-pools/try-runtime",
+    "pallet-mmr/try-runtime",
     "pallet-multisig/try-runtime",
     "pallet-offences/try-runtime",
     "pallet-preimage/try-runtime",

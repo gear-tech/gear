@@ -1,0 +1,66 @@
+[package]
+name = "sp-session"
+version = "36.0.0"
+authors.workspace = true
+edition = "2021"
+license = "Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+description = "Primitives for sessions"
+readme = "README.md"
+
+# Preserve the lint contract from pinned Polkadot SDK 298f676.
+[lints.rust]
+suspicious_double_ref_op = { level = "allow", priority = 2 }
+# `substrate_runtime` is a common `cfg` condition name used in the repo.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(substrate_runtime)'] }
+
+[lints.clippy]
+all = { level = "allow", priority = 0 }
+bind_instead_of_map = { level = "allow", priority = 2 }              # stylistic
+borrowed-box = { level = "allow", priority = 2 }                     # Reasonable to fix this one
+complexity = { level = "warn", priority = 1 }
+correctness = { level = "warn", priority = 1 }
+default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
+derivable_impls = { level = "allow", priority = 2 }                  # false positives
+eq_op = { level = "allow", priority = 2 }                            # In tests we test equality.
+erasing_op = { level = "allow", priority = 2 }                       # E.g. 0 * DOLLARS
+extra-unused-type-parameters = { level = "allow", priority = 2 }     # stylistic
+identity-op = { level = "allow", priority = 2 }                      # One case where we do 0 +
+if-same-then-else = { level = "allow", priority = 2 }
+needless-lifetimes = { level = "allow", priority = 2 }               # generated code
+needless_option_as_deref = { level = "allow", priority = 2 }         # false positives
+nonminimal-bool = { level = "allow", priority = 2 }                  # maybe
+option-map-unit-fn = { level = "allow", priority = 2 }               # stylistic
+stable_sort_primitive = { level = "allow", priority = 2 }            # prefer stable sort
+too-many-arguments = { level = "allow", priority = 2 }               # (Turning this on would lead to)
+type_complexity = { level = "allow", priority = 2 }                  # raison d'etre
+unit_arg = { level = "allow", priority = 2 }                         # stylistic
+unnecessary_cast = { level = "allow", priority = 2 }                 # Types may change
+useless_conversion = { level = "allow", priority = 2 }               # Types may change
+while_immutable_condition = { level = "allow", priority = 2 }        # false positives
+zero-prefixed-literal = { level = "allow", priority = 2 }            # 00_1000_000
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { features = ["derive"], workspace = true }
+scale-info = { features = ["derive"], workspace = true }
+sp-api.workspace = true
+sp-core.workspace = true
+sp-runtime.workspace = true
+sp-staking.workspace = true
+sp-keystore = { optional = true, workspace = true }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"scale-info/std",
+	"sp-api/std",
+	"sp-core/std",
+	"sp-keystore/std",
+	"sp-runtime/std",
+	"sp-staking/std",
+]

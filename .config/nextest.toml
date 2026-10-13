@@ -34,6 +34,8 @@ store-success-output = false
 store-failure-output = true
 
 [profile.ci]
+# Compile benchmark code in CI, but run calibration only on explicit request.
+default-filter = 'not (kind(bench) or test(/(^|::)(bench_[^:]+|test_benchmarks)$/))'
 fail-fast = false
 archive.include = [
   { path = "wasm32-gear", relative-to = "target", on-missing = "warn" },

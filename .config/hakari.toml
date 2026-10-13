@@ -27,8 +27,13 @@ platforms = [
 
 workspace-hack-line-style = "workspace-dotted"
 
+[traversal-excludes]
+workspace-members = ["sc-consensus-beefy"]
+
 [final-excludes]
 workspace-members = [
+    "pallet-beefy",
+    "pallet-session",
     "sc-cli",
     "sc-executor",
     "sc-executor-common",
@@ -36,6 +41,11 @@ workspace-members = [
     "sc-executor-wasmtime",
     "sc-mixnet",
     "sc-service",
+    "sc-rpc",
+    "sc-rpc-api",
+    "sp-application-crypto",
+    "sp-runtime",
+    "sp-session",
     "sp-allocator",
     "sp-runtime-interface-proc-macro",
     "sp-wasm-interface",
@@ -58,6 +68,7 @@ third-party = [
     { name = "pallet-babe", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-bags-list", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-balances", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
+    { name = "pallet-beefy-mmr", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-bounties", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-child-bounties", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-conviction-voting", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
@@ -65,6 +76,7 @@ third-party = [
     { name = "pallet-grandpa", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-identity", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-im-online", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
+    { name = "pallet-mmr", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-multisig", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-nomination-pools", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-offences", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
@@ -73,7 +85,6 @@ third-party = [
     { name = "pallet-ranked-collective", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-referenda", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-scheduler", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
-    { name = "pallet-session", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-staking", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-sudo", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-timestamp", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
@@ -83,6 +94,5 @@ third-party = [
     { name = "pallet-vesting", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "pallet-whitelist", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "sc-client-db", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
-    { name = "sp-runtime", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
     { name = "sp-staking", git = "https://github.com/paritytech/polkadot-sdk.git", rev = "298f676c91d64f15f38ea7fd78f125c5889ab09c" },
 ]

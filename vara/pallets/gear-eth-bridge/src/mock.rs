@@ -296,6 +296,10 @@ parameter_types! {
 
     pub MockBridgeAdminAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_admin");
     pub MockBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
+
+    // Policy controls only: these mocks do not measure runtime source readiness.
+    pub static MockBridgeReadiness: bool = true;
+    pub static MockMessageReadiness: bool = true;
 }
 
 pub struct MockBridgeAdminAccounts;
@@ -306,6 +310,8 @@ impl SortedMembers<AccountId> for MockBridgeAdminAccounts {
 }
 
 impl pallet_gear_eth_bridge::Config for Test {
+    type BridgeReadiness = MockBridgeReadiness;
+    type MessageReadiness = MockMessageReadiness;
     type AdminOrigin = EnsureSignedBy<MockBridgeAdminAccounts, AccountId>;
     type PalletId = GearEthBridgePalletId;
     type BuiltinAddress = MockBridgeBuiltinAddress;
@@ -339,6 +345,9 @@ impl ExtBuilder {
         let mut storage = system::GenesisConfig::<Test>::default()
             .build_storage()
             .unwrap();
+        crate::GenesisConfig::<Test>::default()
+            .assimilate_storage(&mut storage)
+            .unwrap();
 
         pallet_balances::GenesisConfig::<Test> {
             balances: self
@@ -369,6 +378,8 @@ impl ExtBuilder {
         let mut ext: sp_io::TestExternalities = storage.into();
 
         ext.execute_with(|| {
+            MockBridgeReadiness::set(true);
+            MockMessageReadiness::set(true);
             on_initialize(1);
         });
         ext

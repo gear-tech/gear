@@ -1,3 +1,6 @@
+name: setup-linker
+description: Configure the platform linker for Rust builds.
+
 runs:
   using: composite
   steps:
@@ -9,8 +12,13 @@ runs:
         max_attempts: 5
         retry_wait_seconds: 10
         command: |
-          sudo apt update
-          sudo apt install -y mold
+          set -e
+          # The hosted Azure HTTP mirror can stall; use the official HTTPS archive.
+          if [[ "$(dpkg --print-architecture)" == amd64 && -f /etc/apt/apt-mirrors.txt ]]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          sudo apt-get update
+          sudo apt-get install -y mold
 
     - name: "Setup linker on Linux"
       if: ${{ runner.os == 'Linux' }}

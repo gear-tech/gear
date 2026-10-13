@@ -57,6 +57,8 @@ pub trait RuntimeApiCollection:
     + sp_api::ApiExt<Block>
     + sp_consensus_babe::BabeApi<Block>
     + sp_consensus_grandpa::GrandpaApi<Block>
+    + sp_consensus_beefy::BeefyApi<Block, sp_consensus_beefy::ecdsa_crypto::AuthorityId>
+    + sp_mmr_primitives::MmrApi<Block, Hash, BlockNumber>
     + sp_block_builder::BlockBuilder<Block>
     + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>
     + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
@@ -76,6 +78,8 @@ impl<Api> RuntimeApiCollection for Api where
         + sp_api::ApiExt<Block>
         + sp_consensus_babe::BabeApi<Block>
         + sp_consensus_grandpa::GrandpaApi<Block>
+        + sp_consensus_beefy::BeefyApi<Block, sp_consensus_beefy::ecdsa_crypto::AuthorityId>
+        + sp_mmr_primitives::MmrApi<Block, Hash, BlockNumber>
         + sp_block_builder::BlockBuilder<Block>
         + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>
         + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
@@ -247,7 +251,13 @@ impl BlockBackend<Block> for Client {
             self,
             client,
             {
-                client.block(id)
+                let mut block = client.block(id)?;
+                if let Some(block) = block.as_mut() {
+                    block.justifications = sc_consensus_beefy::import::with_file_justification(
+                        &**client, id, block.justifications.take(),
+                    )?;
+                }
+                Ok(block)
             }
         }
     }
@@ -270,7 +280,9 @@ impl BlockBackend<Block> for Client {
             self,
             client,
             {
-                client.justifications(id)
+                sc_consensus_beefy::import::with_file_justification(
+                    &**client, id, client.justifications(id)?,
+                )
             }
         }
     }

@@ -1,0 +1,89 @@
+// This file is part of Substrate.
+
+// Copyright (C) Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+//! Substrate block-author/full-node API.
+
+pub mod error;
+pub mod hash;
+
+use error::Error;
+use jsonrpsee::proc_macros::rpc;
+use sc_transaction_pool_api::TransactionStatus;
+use sp_core::Bytes;
+
+/// Output of [`AuthorApiServer::rotate_keys_with_owner`].
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct GeneratedSessionKeys {
+    /// The public session keys for registering them on chain.
+    pub keys: Bytes,
+
+    /// The `proof` for verifying ownership of the generated session keys.
+    ///
+    /// This will be `None` iff the chain doesn't support generating the `proof`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub proof: Option<Bytes>,
+}
+
+/// Substrate authoring RPC API
+#[rpc(client, server)]
+pub trait AuthorApi<Hash, BlockHash> {
+    /// Submit hex-encoded extrinsic for inclusion in block.
+    #[method(name = "author_submitExtrinsic")]
+    async fn submit_extrinsic(&self, extrinsic: Bytes) -> Result<Hash, Error>;
+
+    /// Insert a key into the keystore.
+    #[method(name = "author_insertKey", with_extensions)]
+    fn insert_key(&self, key_type: String, suri: String, public: Bytes) -> Result<(), Error>;
+
+    /// Generate new session keys and returns the corresponding public keys.
+    #[method(name = "author_rotateKeys", with_extensions)]
+    fn rotate_keys(&self) -> Result<Bytes, Error>;
+
+    /// Generate new session keys and returns the corresponding public keys.
+    ///
+    /// The `owner` should be something that can be used on chain for verifying the ownership of the
+    /// generated keys using the returned `proof`. For example, `owner` could be set to the account
+    /// id of the account registering the returned public session keys. The actual data to pass for
+    /// `owner` depends on the runtime logic verifying the `proof`.
+    #[method(name = "author_rotateKeysWithOwner", with_extensions)]
+    fn rotate_keys_with_owner(&self, owner: Bytes) -> Result<GeneratedSessionKeys, Error>;
+
+    /// Checks if the keystore has private keys for the given session public keys.
+    ///
+    /// `session_keys` is the SCALE encoded session keys object from the runtime.
+    ///
+    /// Returns `true` iff all private keys could be found.
+    #[method(name = "author_hasSessionKeys", with_extensions)]
+    fn has_session_keys(&self, session_keys: Bytes) -> Result<bool, Error>;
+
+    /// Checks if the keystore has private keys for the given public key and key type.
+    ///
+    /// Returns `true` if a private key could be found.
+    #[method(name = "author_hasKey", with_extensions)]
+    fn has_key(&self, public_key: Bytes, key_type: String) -> Result<bool, Error>;
+
+    /// Returns all pending extrinsics, potentially grouped by sender.
+    #[method(name = "author_pendingExtrinsics")]
+    fn pending_extrinsics(&self) -> Result<Vec<Bytes>, Error>;
+
+    /// Remove given extrinsic from the pool and temporarily ban it to prevent reimporting.
+    #[method(name = "author_removeExtrinsic", with_extensions)]
+    fn remove_extrinsic(
+        &self,
+        bytes_or_hash: Vec<hash::ExtrinsicOrHash<Hash>>,
+    ) -> Result<Vec<Hash>, Error>;
+
+    /// Submit an extrinsic to watch.
+    ///
+    /// See [`TransactionStatus`] for details on
+    /// transaction life cycle.
+    #[subscription(
+		name = "author_submitAndWatchExtrinsic" => "author_extrinsicUpdate",
+		unsubscribe = "author_unwatchExtrinsic",
+		item = TransactionStatus<Hash, BlockHash>,
+	)]
+    fn watch_extrinsic(&self, bytes: Bytes);
+}

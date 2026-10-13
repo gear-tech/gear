@@ -23,7 +23,6 @@ futures.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "sync"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-gear-workspace-hack.workspace = true
 alloy = { workspace = true, features = ["signer-mnemonic"] }
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-ethereum.workspace = true
@@ -38,6 +37,7 @@ rand = { workspace = true }
 gsigner.workspace = true
 demo-syscalls-ethexe = { workspace = true, features = ["ethexe"] }
 url.workspace = true
+gear-workspace-hack.workspace = true
 
 
 [dev-dependencies]
