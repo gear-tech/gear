@@ -62,8 +62,8 @@ jobs:
 
       - name: "Environment: Export versions"
         run: |
-          echo "VARA_PROD_SPEC=$(cat vara/runtime/vara/src/lib.rs | grep "spec_version: " | head -n 1 | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
-          echo "VARA_DEV_SPEC=$(cat vara/runtime/vara/src/lib.rs | grep "spec_version: " | tail -n 1 | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
+          echo "VARA_PROD_SPEC=$(cat vara/runtime/vara/src/lib.rs | grep "spec_version: " | head -n 1 | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> "$GITHUB_ENV"
+          echo "VARA_DEV_SPEC=$(cat vara/runtime/vara/src/lib.rs | grep "spec_version: " | tail -n 1 | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> "$GITHUB_ENV"
 
       - name: "Environment: Make `artifact` directory"
         run: mkdir -p artifact
@@ -140,7 +140,7 @@ jobs:
               ref: 'master',
               inputs: {
                 release_version: '${{ github.event.inputs.tag_name }}',
-                latest: '${{ github.event.inputs.make_latest }}'
+                latest: '${{ github.event.inputs.draft != 'true' && github.event.inputs.make_latest == 'true' }}'
               }
             });
 
@@ -160,7 +160,7 @@ jobs:
               ref: 'master',
               inputs: {
                 release_version: '${{ github.event.inputs.tag_name }}',
-                latest: '${{ github.event.inputs.make_latest }}'
+                latest: '${{ github.event.inputs.draft != 'true' && github.event.inputs.make_latest == 'true' }}'
               }
             });
 

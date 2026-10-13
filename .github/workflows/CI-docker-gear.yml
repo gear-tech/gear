@@ -42,10 +42,18 @@ jobs:
       - name: Download and verify release binary
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          PUBLISH_LATEST: ${{ inputs.latest }}
         run: |
           tag=()
           if [[ "$RELEASE_VERSION" != "latest" ]]; then
             tag=("$RELEASE_VERSION")
+          fi
+          if [[ "$PUBLISH_LATEST" == "true" ]]; then
+            is_draft=$(gh release view "${tag[@]}" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')
+            if [[ "$is_draft" != "false" ]]; then
+              echo "::error::Only published releases can promote Docker latest; use latest=false for drafts."
+              exit 1
+            fi
           fi
           gh release download "${tag[@]}" --repo "$GITHUB_REPOSITORY" \
             --pattern gear --pattern SHA256SUMS --dir artifact
