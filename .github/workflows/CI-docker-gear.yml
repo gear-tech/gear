@@ -41,7 +41,7 @@ jobs:
       
       - name: Download and verify release binary
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           tag=()
           if [[ "$RELEASE_VERSION" != "latest" ]]; then
