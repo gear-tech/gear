@@ -20,6 +20,14 @@ Production-profile artifacts are a [release-workflow](.github/workflows/release.
 
 Use the published `gear` node with **`--chain vara`**, `production_vara_runtime_v2_01_00.wasm` and `production_vara_runtime_v2_01_00_metadata.scale`, checked against `SHA256SUMS`. The runtime must exclude `dev`, `try-runtime` and `runtime-benchmarks`. Do not upload `testnet_vara_runtime_v*.wasm` or a try-runtime companion.
 
+**Linux binary compatibility:** v2.1.0 is built on Ubuntu 24.04 and requires GLIBC 2.39. Before stopping the old service, run the downloaded executable with `--version` on each validator host. Debian 12 / Ubuntu 22.04 hosts cannot run this prebuilt binary directly; qualify a compatible host or the release container first.
+
+### Recovering release packaging without rebuilding the runtime
+
+The Docker workflow authenticates to GitHub to download `gear` and `SHA256SUMS`, verifies the binary, and copies it into an Ubuntu 24.04 image. It supports draft assets without putting a GitHub token in the image. The main Release workflow disables downstream `latest` promotion for drafts; direct Docker dispatches reject promotion of a draft. Run `.github/workflows/CI-docker-gear.yml` with the approved release tag and `latest=false` to repair packaging; use the reviewed workflow branch as `--ref` until the fix is merged. Do not rerun the main Release build, move the release tag, or promote `latest` to repair a container job.
+
+Multiplatform packages are produced separately in `gear-tech/builds` and published to its download service. For a failed full run, rerun its failed jobs in the same run so publication retains successful outputs. Use a separate targeted dispatch only when the other required packages are already published; it does not import another run's artifacts. Follow that repository's recovery instructions. Missing Telegram notification secrets skip optional notifications, not download, checksum, build, push or scan failures. Publish the GitHub draft and promote distribution aliases only after their separate checks and approval.
+
 Inspect the approved release tag through the release API; this lists artifacts,
 not an approval to use a different or latest release. Verify downloaded node, WASM
 and metadata files against the approved mainnet checksum manifest. API asset digests,
@@ -185,7 +193,7 @@ Destination claimed native quorum and selected-signature verification are distin
 
 ## Hardware and weight qualification
 
-The [published validator baseline](https://wiki.vara.network/docs/vara-network/staking/validate#hardware-requirements) remains **2 vCPUs around 3.4 GHz (Intel Ice Lake or equivalent), 8 GB RAM, Ubuntu 22.04+ / GLIBC 2.35+, at least 80 GB SSD with growth headroom**. Archives need separate sizing. No new hardware minimum is introduced.
+The [published validator resource baseline](https://wiki.vara.network/docs/vara-network/staking/validate#hardware-requirements) remains **2 vCPUs around 3.4 GHz (Intel Ice Lake or equivalent), 8 GB RAM and at least 80 GB SSD with growth headroom**. Archives need separate sizing. The prebuilt v2.1.0 Linux binaries require **GLIBC 2.39**, as provided by Ubuntu 24.04; the older Ubuntu 22.04 / GLIBC 2.35 wiki baseline does not establish binary compatibility. Verify the approved executable on the actual host before replacing the running node, or use the compatible release container. CPU, memory and storage qualification requirements are unchanged.
 
 Maintainers use a reproducible dedicated host safe for that baseline, recording CPU/frequency/virtualization, RAM/disk/OS, compiler/executor, commit/features, input ranges and repetitions. Ref-time picoseconds and proof bytes are separate; three-second slots have one-second block ref-time budget. Reservations/test exits are not measured baseline execution. Do not tune live-validator CPUs for benchmarks.
 
