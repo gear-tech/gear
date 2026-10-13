@@ -1,18 +1,10 @@
-FROM debian:12-slim
-
-ARG RELEASE_VERSION=latest
+FROM ubuntu:24.04
 
 RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y curl && \
+    apt-get install -y --no-install-recommends ca-certificates libstdc++6 && \
     rm -rf /var/lib/apt/lists/*
 
-RUN if [ "$RELEASE_VERSION" = "latest" ]; then \
-        curl -L https://github.com/gear-tech/gear/releases/latest/download/gear -o /usr/local/bin/gear && \
-        chmod +x /usr/local/bin/gear ; \
-    else \
-        curl -L https://github.com/gear-tech/gear/releases/download/$RELEASE_VERSION/gear -o /usr/local/bin/gear && \
-        chmod +x /usr/local/bin/gear ; \
-    fi
+COPY --chmod=0755 gear /usr/local/bin/gear
 
 RUN gear --version
 

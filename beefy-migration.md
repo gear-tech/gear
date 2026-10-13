@@ -1,4 +1,4 @@
-# Mainnet migration to native BEEFY
+# v2.1.0 mainnet rollout: coordinator runbook
 
 This is the mainnet coordinator checklist and handover contract for native BEEFY/MMR replacing the **Gear-to-Ethereum consensus/root proof path**. It does not replace Ethereum-to-Gear checkpoint/light-client programs, Ethereum event verification, token accounting, governance or application relayers. Retain those components until their own verified cutover. This document is not transaction or asset-movement authorization. Detailed commands are in the [mainnet operator runbook](beefy-deployment.md#mainnet-operator-runbook).
 
@@ -6,28 +6,91 @@ This is the mainnet coordinator checklist and handover contract for native BEEFY
 
 ## Mainnet coordinator checklist
 
-You own the rollout ledger, validator communication and the go/no-go decision at each boundary. Keep one durable mainnet release record; collect public evidence only, never validator session secrets, seeds or passwords.
+You own the rollout ledger, validator communications and each go/no-go decision. Work in order; a checkbox means its evidence has been reviewed, not merely that a command ran. Keep one [durable release record](#evidence-status-and-handover-package); collect public evidence only, never validator session secrets, seeds or passwords. No unchecked gate is implicitly approved.
 
-| Stage | Your action | Required acknowledgement before proceeding |
+- [ ] **1. Pin the release, without retagging or rebuilding successful jobs.** v2.1.0 is pinned to `8b7dab2f89546f5ef872d9a39447a45c1d7ddc36`. Record review/final-head CI and release-job receipts against that immutable commit. Keep the release a **draft** with `make_latest=false` during preparation. Artifact/job success is not mainnet qualification. Do not move the tag, publish the draft or rebuild the successful main release as part of this preparation; any later publication requires its own authorization.
+- [ ] **2. Verify artifacts and qualify enactment.** Use the [release artifact/checksum commands](beefy-deployment.md#release-ownership-and-remaining-gates). Select `production_vara_runtime_v2_01_00.wasm` and `production_vara_runtime_v2_01_00_metadata.scale`, never testnet or try-runtime WASM. Record node/metadata/WASM/SHA256SUMS identities. Require [Gate 1](#gate-1-qualify-the-mainnet-release-and-supported-state) supported-state rehearsal, exact-deployable-WASM normal-timing staging, baseline-host capacity/weights and current predecessor/owner/exposure inventory. Do not infer qualification from CI or draft assets.
+- [ ] **3. Prepare operators and archives.** Inventory actual active/queued validators and electable standby operators; assign restart windows, acknowledgement channel, incident contacts and governance owners. Keep legacy bridge delivery running. Arrange at least two independent archives with state/block retention and offchain indexing before first MMR insertion **A** at upgrade. Use the [installation and proof-retention procedure](beefy-deployment.md#2-validators-and-archives-install-before-runtime-upgrade); uptime and archive flags alone do not prove historical MMR availability.
+- [ ] **4. Send notice 1; install nodes BEFORE runtime enactment.** Verify the node checksum and execute the downloaded new `gear --version` on the actual host/container **before replacing the working service binary**. The released Linux binary requires **glibc 2.39** (Ubuntu 24.04 or a compatible host/container); do not blindly replace a working Debian 12/Ubuntu 22.04 service. Resolve compatibility first, without rebuilding the release. Coordinate rolling restarts, retain `--chain vara`, service/database/network identity/complete keystore/password, and preserve BABE/GRANDPA quorum. Require every duty-serving operator’s [pre-upgrade acknowledgement](vara/node/README.md#acknowledgements-to-the-coordinator). Do not rotate yet. Old nodes cannot execute the new SessionKeys ABI; the new node’s API v1 fallback only supports the predecessor before upgrade.
+- [ ] **5. Recheck predecessor; enact production WASM.** Immediately before approved Root `system.setCode`, recheck authenticated four-key active ownership/order/exposures and current capacity as in [predecessor qualification](beefy-deployment.md#1-coordinator-qualify-the-supported-predecessor). Require separate mainnet governance approval; mainnet has no Sudo shortcut. Follow [upgrade inspection and finalized RPC queries](beefy-deployment.md#3-governance-enact-and-inspect-the-upgrade). Record successful finalized inner dispatch, code/metadata/checksums, unchanged `vara` genesis/identity, **11000 → 20100**, SessionKeys API **2** (`0xab3c0572291feb8b`), preserved consensus/bridge state and advancing BABE/GRANDPA finality. BEEFY remains inactive.
+- [ ] **6. Send notice 2; register real native proofs.** After finalized API v2, resolve each effective signed owner from bonding and proxy/multisig context, not the outer fee payer. Operators run local `author_rotateKeysWithOwner` with that owner’s raw AccountId32 and submit ordinary `session.setKeys(keys, proof)` using the [existing generation/registration commands](beefy-deployment.md#4-validators-native-generation-and-ordinary-registration). Require 161-byte keys, nonempty 321-byte native proof, finalized successful inner dispatch and exact `Session.NextKeys(stash)` equality. Rotation replaces **all five keys**; retain all old keystore entries through duties and offence-proof/recovery retention.
+- [ ] **7. Observe readiness, not a timer.** Reconcile reports at common finalized state using [actual source readiness](beefy-deployment.md#5-coordinator-verify-actual-source-readiness). Check actual ordered active/queued bundles, unique non-placeholder keys/validators, BEEFY lists, set/session mapping, current/next MMR IDs/lengths/roots and initialized history. Each actual committee must be **1..1000**. Require electable standby readiness too; an unready candidate coordinates chilling before selection, never prematurely stopping an active signer. Sessions are **two hours**, eras six sessions; observe actual queued/active propagation and an era transition, not a fixed two-session/four-hour sleep. Registration or `author_hasSessionKeys=true` alone is not readiness.
+- [ ] **8. Schedule source BEEFY; send notice 3 with actual G.** Only after independent source approval, governance obtains Root execution of `beefy.setNewGenesis(d)` with **d > 0** and checked arithmetic. Use the [source scheduling procedure](beefy-deployment.md#6-governance-schedule-source-beefy-independently). Record execution block **E**, finalized successful inner dispatch and `Beefy.GenesisBlock`: **G = E + d**, not proposal/submission block plus delay. The argument-aware origin rechecks readiness at execution; record rejection instead of assuming success. No Ethereum destination/binding approval is required.
+- [ ] **9. Verify native operation from independent archives.** After G, compare the same finalized checkpoints on at least two independent nodes/archives. Require cryptographically valid advancing commitments with native quorum **N − floor((N−1)/3)** (unanimous for N ≤ 3), real authority handovers and served/verified historical MMR proofs from A onward. Record hashes, set/session IDs, commitments and proof results/endpoints, not process uptime or one signature. Preserve evidence before pruning; use the [proof recovery procedure](vara/node/README.md#offline-beefy-proof-recovery) for archive loss.
+- [ ] **10. Hand off source; keep bridge cutover separate.** Record source sign-off and monitoring/recovery owners. Gates [3](#gate-3-preserve-legacy-delivery-custody-and-replay-state), [4](#gate-4-bind-authenticate-and-explicitly-enable-the-destination) and [5](#gate-5-durable-operations-and-measured-acceptance) require separate destination, custody/replay, pause/drain, binding, post-binding bootstrap, accepted-root, explicit unpause and canary approvals. Source activation does not authorize bridge traffic or asset movement, and does not pause/reset the legacy bridge.
+
+### Go/no-go and recovery forward
+
+| Boundary | GO only when | NO-GO / recovery |
 | --- | --- | --- |
-| Finalize the PR | Resolve review findings; include every native SDK patch, lockfile and documentation change in the reviewed commit. Exclude unrelated local work. Require review and CI on that exact head, not an older approved revision. | Final head SHA, resolved findings and green required checks. |
-| Merge and release | Merge through the repository policy; tag the approved merged commit. Run the existing Release workflow for that tag, initially as a draft with `make_latest=false`. Verify the mainnet WASM, metadata, node and `SHA256SUMS`, then publish and distribute the release record. | Published immutable tag/commit and verified artifact identities. Do not publish from an uncommitted working tree. |
-| Prepare mainnet | Retain the mainnet snapshot evidence, complete baseline-capacity and exact-artifact qualification, record live predecessor/validator inventories, and schedule a coordinated upgrade window. Keep legacy bridge delivery running. | All active/queued operators and electable standby operators accounted for; proof archives ready from the first MMR insertion; no unresolved capacity or finality issue. |
-| Roll out nodes | Send the published node and [validator checklist](vara/node/README.md#beefy-upgrade-and-later-activation). Coordinate rolling restarts while preserving BABE/GRANDPA quorum. | Every required operator reports the pre-upgrade acknowledgement below; old node versions are not left serving post-upgrade duties. |
-| Enact runtime | Arrange approved mainnet Root execution of `system.setCode` using the production WASM. Record execution/finalization and inspect migrated state using the runbook. | Finalized `vara/20100`, expected code/metadata, SessionKeys API v2, preserved old consensus/bridge state and ongoing BABE/GRANDPA finality. |
-| Register and propagate keys | Tell validators to generate native owner-bound bundles locally and submit ordinary `session.setKeys`. Reconcile receipts at common finalized state; observe actual active/queued propagation and standby readiness. | Public registration acknowledgements, exact active/queued readiness across normal sessions/era and retained old keys; no placeholder signer remains in either source committee. |
-| Activate source BEEFY | Submit separately approved Root `beefy.setNewGenesis(delayInBlocks > 0)`. Record G from the execution block, then monitor native quorum, real handovers and archive proofs. | Successful finalized inner dispatch and advancing verified BEEFY commitments/MMR proofs from independent nodes. No Ethereum binding is required. |
-| Cut over the bridge later | Follow Gates 3–5 only after destination review and approval. Coordinate pause/drain/reconciliation, immutable binding, post-binding bootstrap, accepted roots and explicit unpause/canary. | Separate custody/replay/destination sign-off. Source activation alone is not permission to move bridge traffic or assets. |
-
-Before enactment, stop the rollout on a missing operator acknowledgement, incompatible node, wrong artifact or lost BABE/GRANDPA finality. After enactment, recover forward with compatible binaries; do not downgrade the runtime, restore stale live databases, wipe keys or reset queues/MMR. If source readiness fails, leave BEEFY unscheduled; if destination readiness fails, leave destination traffic disabled. A future BEEFY restart is a coordinated operation, not a repair button.
+| Before runtime enactment | Release identity, supported current predecessor, exact-artifact/capacity qualification, compatible duty-serving nodes, custody/indexing/archive readiness and approvals are evidenced. | Hold enactment on any missing acknowledgement, incompatible host/node, wrong artifact, ownership mismatch or lost BABE/GRANDPA finality. Preserve the working service; fix installation/qualification and recheck current finalized state. |
+| After enactment, before source scheduling | API v2 receipts, actual active/queued readiness, electable standby handling and independent source approval are evidenced. | Recover forward with compatible nodes and intact databases/keystores. Keep BEEFY unscheduled until readiness is restored. Do not downgrade runtime, restore stale live state, wipe old keys, insert empty proofs or edit storage. |
+| After scheduling/activation | Successful finalized scheduling, actual G and independent verified quorum/handovers/MMR availability are evidenced. | Preserve finality and evidence; isolate signing, selection, configuration or archive failure and restore that path. Do not repeatedly schedule genesis as a repair button. Later restart requires coordinated approval and proof/destination reconciliation. |
+| Bridge cutover / ongoing bound traffic | Separate Gates 3–5 approvals, replay/custody reconciliation and live destination trust/progress are evidenced. | Leave destination traffic disabled if not ready. If already enabled and unsafe, explicitly pause affected paths under approved authority, stop affected writers and reconcile state. Never reset queue/nonce/MMR/client time or deploy an unrestricted fresh queue as rollback. |
 
 ### Messages to validators
 
-Send three explicit notices, with the pinned mainnet manifest and your acknowledgement channel:
+Copy these notices, replacing every bracketed field from the release record. Send notices 2 and 3 only after the stated finalized evidence exists; do not present a proposal or estimated height as enactment.
 
-1. **Install now; do not rotate yet.** Give the approved node checksum, restart window and requirement to preserve the existing service/database/keystore/password. Collect installed version/hash, stash/effective owner, mainnet genesis/finalized height, indexing and custody confirmation.
-2. **Runtime upgrade is finalized; register now.** Give the finalized enactment block/code identity and API v2 confirmation. Ask for local `author_rotateKeysWithOwner`, ordinary signed registration and the public receipt/bundle; never ask validators to send private keys.
-3. **Source activation is scheduled.** Give the finalized scheduling receipt and actual G, monitoring contacts and retention requirement. Collect live duty/hand-over observations. Validators must not independently schedule genesis, bind a destination or purge keys to make a checklist green.
+**Notice 1 — install node; no rotation**
+
+~~~text
+Vara mainnet v2.1.0 — install in your assigned window; DO NOT rotate keys yet.
+Release: v2.1.0 / 8b7dab2f89546f5ef872d9a39447a45c1d7ddc36
+Approved manifest/download: [URL]; node/platform SHA-256: [checksum]
+Restart window: [UTC window]; acknowledgement channel/contact: [channel/contact]
+Verify checksum and run the downloaded gear --version before replacing the working
+service binary. Linux requires glibc 2.39: use Ubuntu 24.04 or a compatible host/
+container; report incompatibility before stopping/replacing the working service.
+Restart the same service with --chain vara, database/network identity, complete
+keystore and password configuration. Protect backups; retain every old key. Keep
+authoring RPC local/access controlled and offchain indexing enabled before upgrade.
+Do not purge/resync, run duplicate signers or register five-key bundles yet.
+Reply with stash/effective signer, installed version/hash, mainnet genesis and
+finalized block/hash, advancing BABE/GRANDPA duties and custody/indexing confirmation.
+Designated archives also report retention, first-insertion coverage and endpoints.
+Never send seeds, private keys, keystore files or passwords.
+Procedure: vara/node/README.md#before-the-runtime-upgrade
+~~~
+
+**Notice 2 — finalized API v2; generate and register**
+
+~~~text
+Vara mainnet runtime upgrade is FINALIZED — register native keys now.
+Enactment execution/finalized block/hash: [record]; production code SHA-256: [hash]
+Manifest/metadata: [URL/hash]; observed vara spec 20100; SessionKeys API
+0xab3c0572291feb8b = 2 at finalized hash [hash].
+Resolve the effective signed account from Staking.Bonded and proxy/multisig context
+(controller/represented account where applicable, NOT the outer fee payer). On
+your released local node use author_rotateKeysWithOwner with its raw 32-byte
+AccountId32 hex. Require 161-byte keys and nonempty 321-byte native proof; this
+rotates ALL FIVE keys. Submit ordinary session.setKeys(keys, proof) from that
+effective account with liquid fee funds, never an empty-proof wizard.
+Reply with owner/stash, public keys/proof, finalized successful inner-dispatch
+receipt and exact Session.NextKeys(stash) match to [channel/contact]. Continue
+existing duties and retain old private entries through handover and retention.
+Report observed queued/active session IDs and finalized hashes as they change;
+two-hour sessions are not a fixed sleep-based readiness guarantee.
+Electable standby operators must be ready or coordinate chilling before selection;
+do not stop an active signer prematurely. Never send secrets.
+Procedure: beefy-deployment.md#4-validators-native-generation-and-ordinary-registration
+~~~
+
+**Notice 3 — governance scheduled actual G**
+
+~~~text
+Vara source BEEFY activation is scheduled by FINALIZED successful Root dispatch.
+Scheduling extrinsic/inner receipt and finalized block/hash: [record]
+Execution block E: [E]; delay d > 0: [d]; verified Beefy.GenesisBlock G = E + d: [G]
+This is the execution-derived target, not a proposal height or wall-clock estimate.
+Continue BABE/GRANDPA and native BEEFY duties; retain old keys and proof history.
+Report signing/commitment progress, set/session IDs, real handovers and finalized
+hashes to [monitoring channel/contact]; incident contact: [contact]. Independent
+archives [endpoints] compare native quorum commitments and historical MMR proofs.
+Do not independently schedule/restart BEEFY, bind a destination or purge keys.
+Source activation does not authorize Ethereum bridge cutover or asset movement.
+Procedure: beefy-deployment.md#6-governance-schedule-source-beefy-independently
+~~~
 
 The full [validator acknowledgement format](vara/node/README.md#acknowledgements-to-the-coordinator) is the handover contract. A transaction hash, process uptime or `author_hasSessionKeys=true` alone is not completion.
 
@@ -110,13 +173,17 @@ The [validator baseline and weight-qualification contract](beefy-deployment.md#h
 
 Keep current qualification results in the [durable release record](beefy-deployment.md#evidence-status-and-handover), not as historical success counts in this procedure. Compatible predecessor snapshots remain reusable; rerun a changed migration against the retained supported mainnet state. Baseline-host capacity gates mainnet enactment; independent destination approvals gate the later bridge cutover. An older PR approval or local artifact hash does not approve a newer revision.
 
-A completed handover contains:
+A completed handover contains the fields below. Keep each phase **pending** until evidence is attached and its accountable approver signs off; use **not applicable** with a reason for deferred bridge work. This procedure asserts no live mainnet enactment, source activation, destination deployment or completed qualification.
 
-- Reviewed immutable Gear/Bridge pins, mainnet artifacts/checksums/metadata/manifest and separate upgrade, activation and cutover approvals.
-- Supported-state migration/ownership retention, baseline capacity/weight evidence and normal-timing native registration/session/restart qualification.
-- Finalized upgrade/activation/binding/unpause dispatch receipts; deployed code/ownership/bindings; signed post-binding bootstrap and subsequent accepted roots/times/handover proofs.
-- Legacy drain/processed-nonce/custody/application reconciliation and matured canary/token delivery/replay evidence in both directions.
-- Durable relay configuration/recovery/monitoring, accountable fee-payer ownership, proof archives and explicit sign-off for retiring only the replaced Gear-to-Ethereum path.
+| Release-record fields | Required contents |
+| --- | --- |
+| Release identity / job ledger | v2.1.0 immutable commit; reviewed Gear/paired Bridge pins where applicable; review/final-head CI links; workflow name, run URL/ID, attempt, inputs and conclusion for each required release job; artifact/platform filenames, SHA-256/SHA256SUMS and download URLs; draft/publication status and approval owner. Preserve successful run receipts; publication is separate. |
+| Mainnet manifest | Actual source genesis/chain spec; node version and host/container compatibility; production WASM/metadata identities; predecessor/runtime spec, transaction/API versions; feature/timing configuration; archive endpoints and incident owners. |
+| Qualification | Retained snapshot checksum, finalized block/hash/header root and predecessor identity; same-revision try-runtime companion checksum; migration/decoding/try-state/idempotence/weight and historical ownership-retention evidence; current owner/exposure inventory; baseline-host measured capacity/weight margins; exact-artifact normal-timing registration/restart/session/era evidence and approver. |
+| Operator readiness | Stash/effective raw AccountId32; installed node/version/hash and custody/indexing acknowledgement; public keys/proof and registration extrinsic/finalized inner receipt; exact NextKeys equality; observed active/queued session IDs/hashes and native BEEFY key; standby readiness/chilling disposition; old-key retention confirmation. Never attach secrets. |
+| Upgrade / source activation | Separate approvals; runtime execution/finalized block/hash, code/metadata/API observations and preserved-state comparison; scheduling extrinsic/inner receipt, execution E, d > 0, computed/stored G; first MMR insertion A; independent checkpoint/commitment/quorum/proof results, set/session IDs and handovers; source sign-off and monitoring/recovery owners. |
+| Later bridge cutover | Separate destination/custody/replay approvals; reviewed deployment bytecode/ownership/configuration; binding/domain and finalized binding/unpause receipts; signed post-binding bootstrap, later accepted roots/times and handovers; legacy drain/processed-nonce/custody/application reconciliation; matured canary/token delivery/replay evidence in both directions. |
+| Durable operations / retirement | Relay configuration, accepted cursors/transactions, fee-payer nonce ownership, restart/reorg/outage recovery evidence, proof archives and freshness monitoring; explicit sign-off for retiring only the replaced Gear-to-Ethereum path while retaining reverse-direction services. |
 
 Abort on wrong identity/binding/bytecode, source disagreement, invalid sets/signatures, missing archives/handovers, expired trust or unreconciled messages/assets. Preserve evidence and stop affected writers. After user execution, recovery is state reconciliation: old binaries, stale databases, reset client time, wiped MMR or queues are not rollback.
 

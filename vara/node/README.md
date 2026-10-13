@@ -198,7 +198,7 @@ For the mainnet rollout follow the [coordinator checklist](../../beefy-migration
 
 #### Before the runtime upgrade
 
-- [ ] Obtain the coordinator's pinned mainnet release tag/manifest; verify the published node checksum and version. Keep **`--chain vara`** explicitly: starting `gear` without a chain selects testnet.
+- [ ] Obtain the coordinator's pinned mainnet release tag/manifest; verify the published node checksum. Before stopping the old service, execute the downloaded node with `--version` on this host: the prebuilt v2.1.0 Linux binary requires **GLIBC 2.39 / Ubuntu 24.04 or a compatible release container**, not Debian 12 / Ubuntu 22.04. Keep **`--chain vara`** explicitly: starting `gear` without a chain selects testnet.
 - [ ] Back up/protect the existing service configuration, database/base path, network identity, complete keystore and password configuration. Never send seeds, private keys, keystore files or passwords to the coordinator.
 - [ ] In your assigned window, stop the old process, install the approved binary and restart the same service/configuration. Never purge/resync or run two signers with the same keys. Keep unsafe authoring RPC loopback-only/access controlled, validator mode and consensus networking enabled.
 - [ ] Verify mainnet identity, peer connectivity, advancing finalized blocks and current validator duties after restart. Send the pre-upgrade acknowledgement; do not rotate keys until the coordinator confirms finalized API v2.

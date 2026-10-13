@@ -17,8 +17,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+  TELEGRAM_CONFIGURED: ${{ secrets.TELEGRAM_DEVOPS_CHAT != '' && secrets.TELEGRAM_DEVOPS_TOKEN != '' }}
 
 jobs:
   build:
@@ -26,7 +31,7 @@ jobs:
     steps:
       - name: Validate Release Version
         run: |
-          if [[ ! "${{ env.RELEASE_VERSION }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && [[ "${{ env.RELEASE_VERSION }}" != "latest" ]]; then
+          if [[ ! "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && [[ "$RELEASE_VERSION" != "latest" ]]; then
             echo "Release version format is incorrect. It should be 'latest' or 'v*.*.*'."
             exit 1
           fi
@@ -34,6 +39,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       
+      - name: Download and verify release binary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=()
+          if [[ "$RELEASE_VERSION" != "latest" ]]; then
+            tag=("$RELEASE_VERSION")
+          fi
+          gh release download "${tag[@]}" --repo "$GITHUB_REPOSITORY" \
+            --pattern gear --pattern SHA256SUMS --dir artifact
+          (cd artifact && sha256sum --check --ignore-missing SHA256SUMS)
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       
@@ -56,18 +73,18 @@ jobs:
       - name: Prepare Docker Tags
         run: |
           if [[ "${{ github.event.inputs.latest }}" == "true" ]]; then
-            echo "DOCKER_TAGS=ghcr.io/gear-tech/node:${{ env.RELEASE_VERSION }},ghcr.io/gear-tech/node:latest" >> $GITHUB_ENV
+            echo "DOCKER_TAGS=ghcr.io/gear-tech/node:$RELEASE_VERSION,ghcr.io/gear-tech/node:latest" >> "$GITHUB_ENV"
           else
-            echo "DOCKER_TAGS=ghcr.io/gear-tech/node:${{ env.RELEASE_VERSION }}" >> $GITHUB_ENV
+            echo "DOCKER_TAGS=ghcr.io/gear-tech/node:$RELEASE_VERSION" >> "$GITHUB_ENV"
           fi
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
+          context: ./artifact
           file: ./vara/docker/Dockerfile-release
           push: true
           tags: ${{ env.DOCKER_TAGS }}
-          build-args: RELEASE_VERSION=${{ env.RELEASE_VERSION }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
 
@@ -85,6 +102,7 @@ jobs:
           hide-progress: true
 
       - name: Notify Trivy scan result in Telegram
+        if: env.TELEGRAM_CONFIGURED == 'true'
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
@@ -97,7 +115,7 @@ jobs:
           document: trivy-results.txt
 
       - name: Notify build failure in Telegram
-        if: failure()
+        if: failure() && env.TELEGRAM_CONFIGURED == 'true'
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
