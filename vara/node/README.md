@@ -196,7 +196,7 @@ To run a Vara network validator, start the node with `--validator` and complete 
 
 For the mainnet rollout follow the [coordinator checklist](../../beefy-migration.md#mainnet-coordinator-checklist) and [mainnet operator runbook](../../beefy-deployment.md#mainnet-operator-runbook). **Node installation, runtime upgrade, source BEEFY activation and Ethereum bridge cutover are four separate actions.** Your job is to install the published node, preserve custody, register native keys after the upgrade, and report actual duty readiness. You do not build runtime WASM, run maintainer benchmarks or execute governance actions.
 
-**Unreleased quorum patch:** the quorum rules below require the patched runtime, not the published v2.1.0 WASM. The v2.1.0 version/artifact identifiers in this runbook remain the release baseline. Before enactment, the release PR must update the approved artifacts, spec version and supported migration target together and qualify that exact WASM. Installing v2.1.0 nodes alone does not change the on-chain activation rule.
+**v2.1.1 release candidate (spec 20101):** the quorum rules below require the new runtime, not the published v2.1.0 WASM. Pin the final merged release commit and qualify its exact production WASM before enactment. Existing v2.1.0 nodes support the required host functions and SessionKeys API; operators already on that release do not need another binary replacement solely for this runtime patch. Installing a node alone does not change on-chain activation rules.
 
 #### Before the runtime upgrade
 
@@ -211,9 +211,9 @@ Enable `--enable-offchain-indexing true` before first MMR insertion at runtime u
 
 #### Upgrade and native ownership
 
-The exact migration is **11000 → 20100**, preserving `vara` / `vara-testnet` identity, four public-key fields, ordered active/queued sets and key ownership. It adds deterministic `0x02 || Keccak256(stash.raw32)` placeholder BEEFY keys, preserves bridge pause state/queue/nonce/owners/history, and leaves BEEFY inactive. Historical roots remain available under the migration's legacy-root retention policy. No bridge pause, binding or reset happens automatically.
+The exact migration is **11000 → 20101**, preserving `vara` / `vara-testnet` identity, four public-key fields, ordered active/queued sets and key ownership. It adds deterministic `0x02 || Keccak256(stash.raw32)` placeholder BEEFY keys, preserves bridge pause state/queue/nonce/owners/history, and leaves BEEFY inactive. Historical roots remain available under the migration's legacy-root retention policy. No bridge pause, binding or reset happens automatically.
 
-After finalized enactment, check code/checksum, metadata and `state_getRuntimeVersion(finalizedHash)` for spec 20100 and SessionKeys API **2**, ID **`0xab3c0572291feb8b`** (pinned SDK Blake2b-64 hash of `SessionKeys`). Use the runbook's curl examples and approved metadata-aware queries to read `Staking.Bonded(stash)` and resolve the effective signed owner: controller where applicable or represented proxy/multisig account, not the outer fee payer.
+After finalized enactment, check code/checksum, metadata and `state_getRuntimeVersion(finalizedHash)` for spec 20101 and SessionKeys API **2**, ID **`0xab3c0572291feb8b`** (pinned SDK Blake2b-64 hash of `SessionKeys`). Use the runbook's curl examples and approved metadata-aware queries to read `Staking.Bonded(stash)` and resolve the effective signed owner: controller where applicable or represented proxy/multisig account, not the outer fee payer.
 
 Generate on the released local node using the runbook's [native-generation example](../../beefy-deployment.md#4-validators-native-generation-and-ordinary-registration).
 Set `OWNER` to the actual effective signer's **raw 32-byte AccountId32 hex**, not SS58 text or a length-prefixed SCALE Vec.
@@ -233,7 +233,7 @@ Report public evidence at each phase, not secrets:
 | Phase | Send |
 | --- | --- |
 | Before runtime enactment | Stash and effective signing account; approved release tag/node version/binary SHA-256; mainnet genesis and observed finalized block/hash; confirmation that the same service/database/keystore/password is in use, backups are protected and offchain indexing is enabled. Designated archives also confirm state/block retention and proof-service endpoints. |
-| After native registration | Finalized `vara/20100` block/hash; API v2 confirmation; effective owner as raw AccountId32; public `keys` and `proof`; registration extrinsic hash, finalized block and successful inner dispatch; exact `NextKeys(stash)` match. |
+| After native registration | Finalized `vara/20101` block/hash; API v2 confirmation; effective owner as raw AccountId32; public `keys` and `proof`; registration extrinsic hash, finalized block and successful inner dispatch; exact `NextKeys(stash)` match. |
 | After propagation/activation | Observed queued and active session IDs with finalized block/hash; continued BABE/GRANDPA duties; BEEFY public key and evidence of native signing/commitment progress when active; confirmation that old keys remain retained. Let the coordinator reconcile all reports at common finalized state. |
 
 If an acknowledgement cannot be supplied, report the specific error immediately and do not improvise a purge, empty proof, raw storage edit or genesis reset. Coordinate future signing capacity with the coordinator; missing BEEFY registration does not authorize stopping an active BABE/GRANDPA signer.

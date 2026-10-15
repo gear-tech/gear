@@ -2,11 +2,13 @@
 
 ## Mainnet operator runbook
 
-This runbook is for the **mainnet 11000 → 20100** four-key migration, preserving runtime identity `vara` and the existing chain. **Installing the node, upgrading the runtime, activating source BEEFY, and cutting over the Ethereum bridge are four separate actions.** Source activation requires neither a destination binding nor bridge approval. Publishing a release performs none of these actions. Start with the [coordinator checklist](beefy-migration.md#mainnet-coordinator-checklist); validators follow the [node checklist](vara/node/README.md#beefy-upgrade-and-later-activation).
+This runbook is for the **mainnet 11000 → 20101** four-key migration, preserving runtime identity `vara` and the existing chain. **Installing the node, upgrading the runtime, activating source BEEFY, and cutting over the Ethereum bridge are four separate actions.** Source activation requires neither a destination binding nor bridge approval. Publishing a release performs none of these actions. Start with the [coordinator checklist](beefy-migration.md#mainnet-coordinator-checklist); validators follow the [node checklist](vara/node/README.md#beefy-upgrade-and-later-activation).
 
 The selected rollout is mainnet only. The retained mainnet snapshot qualifies the shared migration, with separate `dev` feature tests/build checks; a public-testnet deployment is not a prerequisite. Never substitute testnet keys, genesis hashes, runtime artifacts, bindings or checkpoints. An unsupported mainnet predecessor is a stop, not permission to edit storage. This document does not authorize transactions.
 
-**Unreleased quorum patch:** the quorum rules below require the patched runtime, not the published v2.1.0 WASM. The v2.1.0 version/artifact identifiers in this runbook remain the release baseline. Before enactment, the release PR must update the approved artifacts, spec version and supported migration target together and qualify that exact WASM. Installing v2.1.0 nodes alone does not change the on-chain activation rule.
+This four-key procedure targets predecessor spec 11000. On a network already running spec 20100, the session-key migration remains a no-op: preserve its five-key registrations and BEEFY state, and qualify that network’s existing state separately rather than applying the four-key checklist.
+
+**v2.1.1 release candidate (spec 20101):** the quorum rules below require the new runtime, not the published v2.1.0 WASM. Pin the final merged release commit and qualify its exact production WASM before enactment. Existing v2.1.0 nodes support the required host functions and SessionKeys API; operators already on that release do not need another binary replacement solely for this runtime patch. Installing a node alone does not change on-chain activation rules.
 
 ### Release ownership and remaining gates
 
@@ -18,9 +20,9 @@ The selected rollout is mainnet only. The retained mainnet snapshot qualifies th
 | Governance | Separately approved network runtime upgrade and source activation; successful finalized inner dispatch, not merely an included wrapper. Bridge pause/binding/unpause have separate approvals. |
 | Bridge operators / reviewers | Reviewed v2-compatible destination/relay, deployed configuration/bootstrap verification, legacy drain/replay/custody reconciliation and authorized recovery before opening traffic. |
 
-Production-profile artifacts are a [release-workflow](.github/workflows/release.yml) responsibility, not a validator build task. The workflow checks out its `tag_name` input: create the approved tag on the final merged commit before dispatching it. Prefer a draft with `make_latest=false`, verify the artifacts/checksums, then publish deliberately. Publication is not runtime enactment. `2_01_00` means on-chain spec **20100**; verify actual published filenames.
+Production-profile artifacts are a [release-workflow](.github/workflows/release.yml) responsibility, not a validator build task. The workflow checks out its `tag_name` input: create the approved tag on the final merged commit before dispatching it. Prefer a draft with `make_latest=false`, verify the artifacts/checksums, then publish deliberately. Publication is not runtime enactment. `2_01_01` means on-chain spec **20101**; verify actual published filenames.
 
-Use the published `gear` node with **`--chain vara`**, `production_vara_runtime_v2_01_00.wasm` and `production_vara_runtime_v2_01_00_metadata.scale`, checked against `SHA256SUMS`. The runtime must exclude `dev`, `try-runtime` and `runtime-benchmarks`. Do not upload `testnet_vara_runtime_v*.wasm` or a try-runtime companion.
+Use the published `gear` node with **`--chain vara`**, `production_vara_runtime_v2_01_01.wasm` and `production_vara_runtime_v2_01_01_metadata.scale`, checked against `SHA256SUMS`. The runtime must exclude `dev`, `try-runtime` and `runtime-benchmarks`. Do not upload `testnet_vara_runtime_v*.wasm` or a try-runtime companion.
 
 **Linux binary compatibility:** v2.1.0 is built on Ubuntu 24.04 and requires GLIBC 2.39. Before stopping the old service, run the downloaded executable with `--version` on each validator host. Debian 12 / Ubuntu 22.04 hosts cannot run this prebuilt binary directly; qualify a compatible host or the release container first.
 
@@ -90,7 +92,7 @@ For offline block archive recovery, use the [BEEFY proof-retention and interrupt
 
 ### 3. Governance: enact and inspect the upgrade
 
-Through the existing mainnet governance route, obtain Root execution of `system.setCode` with the approved production WASM; mainnet has no Sudo shortcut. After execution, verify finalized code/checksum, unchanged `vara` identity, spec **20100**, metadata/API versions and successful inner dispatch. Keep BABE/GRANDPA and the legacy bridge operating.
+Through the existing mainnet governance route, obtain Root execution of `system.setCode` with the approved production WASM; mainnet has no Sudo shortcut. After execution, verify finalized code/checksum, unchanged `vara` identity, spec **20101**, metadata/API versions and successful inner dispatch. Keep BABE/GRANDPA and the legacy bridge operating.
 
 Migration preserves four public-key fields, validator/queued ordering and key ownership; appends deterministic placeholder `0x02 || Keccak256(stash.raw32)`; preserves **bridge pause state, queue, nonce, owners and history**; and does not automatically pause, bind, clear or reset the bridge. Older historical roots stay unchanged; original current/queued roots remain usable for issued ownership proofs while their sessions are retained, alongside rebuilt five-key roots. Missing inactive BEEFY bookkeeping is initialized without replacing existing records or activating BEEFY. First-upgrade `Beefy.GenesisBlock` remains absent. Placeholders are not operational signers.
 
@@ -108,13 +110,13 @@ FINALIZED_HASH="$(curl --fail --silent --show-error -H 'Content-Type: applicatio
 curl --fail --silent --show-error -H 'Content-Type: application/json' \
   --data "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"state_getRuntimeVersion\",\"params\":[\"$FINALIZED_HASH\"]}" \
   "$SOURCE_HTTP" | jq -e --arg spec "$SPEC_NAME" \
-  '.result | select(.specName == $spec and .specVersion == 20100) | select(any(.apis[]; .[0] == "0xab3c0572291feb8b" and .[1] == 2))'
+  '.result | select(.specName == $spec and .specVersion == 20101) | select(any(.apis[]; .[0] == "0xab3c0572291feb8b" and .[1] == 2))'
 curl --fail --silent --show-error -H 'Content-Type: application/json' \
   --data "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"state_getMetadata\",\"params\":[\"$FINALIZED_HASH\"]}" \
   "$SOURCE_HTTP" | jq -er '.result | select(type == "string" and length > 2)'
 ~~~
 
-The SessionKeys API ID **`0xab3c0572291feb8b`** is derived by the pinned SDK runtime-API macro: eight-byte Blake2b hash of `SessionKeys`. Require advertised API **2**, not merely spec 20100. Decode metadata in the approved query/signing tool. Also query `chain_getBlockHash` with `[0]` and compare actual genesis to the manifest.
+The SessionKeys API ID **`0xab3c0572291feb8b`** is derived by the pinned SDK runtime-API macro: eight-byte Blake2b hash of `SessionKeys`. Require advertised API **2**, not merely spec 20101. Decode metadata in the approved query/signing tool. Also query `chain_getBlockHash` with `[0]` and compare actual genesis to the manifest.
 
 ### 4. Validators: native generation and ordinary registration
 
