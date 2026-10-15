@@ -6,6 +6,8 @@ This runbook is for the **mainnet 11000 → 20100** four-key migration, preservi
 
 The selected rollout is mainnet only. The retained mainnet snapshot qualifies the shared migration, with separate `dev` feature tests/build checks; a public-testnet deployment is not a prerequisite. Never substitute testnet keys, genesis hashes, runtime artifacts, bindings or checkpoints. An unsupported mainnet predecessor is a stop, not permission to edit storage. This document does not authorize transactions.
 
+**Unreleased quorum patch:** the quorum rules below require the patched runtime, not the published v2.1.0 WASM. The v2.1.0 version/artifact identifiers in this runbook remain the release baseline. Before enactment, the release PR must update the approved artifacts, spec version and supported migration target together and qualify that exact WASM. Installing v2.1.0 nodes alone does not change the on-chain activation rule.
+
 ### Release ownership and remaining gates
 
 | Owner | Required evidence |
@@ -153,15 +155,15 @@ A hash is not successful finalized registration. Retain finalized receipt and pu
 
 ### 5. Coordinator: verify actual source readiness
 
-At one finalized hash compare ordered `Historical.ActiveSessionKeys` / `Session.QueuedKeys` to `Beefy.Authorities` / `Beefy.NextAuthorities`. Require nonempty unique validators and valid non-placeholder unique BEEFY keys, correct `Beefy.SetIdSession`, exact current/next MMR authority IDs/lengths/Merkle commitments and initialized nonzero MMR history.
+At one finalized hash compare ordered `Historical.ActiveSessionKeys` / `Session.QueuedKeys` to `Beefy.Authorities` / `Beefy.NextAuthorities`. Preserve the complete validator sets and their order. Require nonempty unique validators and unique BEEFY keys, correct `Beefy.SetIdSession`, exact current/next MMR authority IDs/lengths/Merkle commitments and initialized nonzero MMR history. Each set independently needs **N − floor((N−1)/3)** valid, non-placeholder registered keys, using its own full length N. Only the exact migration placeholder belonging to that slot may remain invalid; any other malformed key fails readiness.
 
-Source activation allows **1..1000 actual active and queued authorities**, independently of binding, desired `Staking.ValidatorCount` or dormant registrations. Active, queued and **electable standby** operators prepare native keys. An unready electable operator chills through existing staking before selection. There is no readiness election filter, forced chilling or guarantee of future private-key availability. Dormant non-electable owners need not return/purge. No pending-owner counter or custom proof registry gates activation.
+Source activation allows **1..1000 actual active and queued authorities**, independently of binding, desired `Staking.ValidatorCount` or dormant registrations. Unregistered validators retain their slots and remain in the quorum denominator; no smaller committee is selected. Encourage active, queued and electable standby operators to register, but unanimous registration is not an activation prerequisite. There is no readiness election filter, forced chilling, pending-owner counter or guarantee of future private-key availability. Track the next elected sets and coordinate existing staking operations if their signing quorum would be lost; never stop an active BABE/GRANDPA signer as a shortcut.
 
 Observe actual propagation through normal sessions and an era transition, not a fixed sleep. Registration commonly reaches the session after next, subject to selection/inclusion timing. Preserve archive/handover evidence before pruning. Ordinary purge is neither unbonding nor private-key deletion; coordinate retirement without using it as an activation-counter shortcut.
 
 ### 6. Governance: schedule source BEEFY independently
 
-After source readiness/approval, call **`beefy.setNewGenesis(delayInBlocks)`** through approved Root governance, with positive checked future target. **G = execution block + delay**, not proposal block + delay. It is Operational with a separate source **1000-authority reservation**; include real governance-wrapper admission. The argument-aware origin enforces readiness even through Root/bypass dispatch.
+After source readiness/approval, call **`beefy.setNewGenesis(1)`** through approved Root governance for initial activation or while a previous target is still pending. **G = execution block + 1**, not proposal block + delay. Restricting the initial delay to one block prevents the checked active/queued sets from being bypassed by a distant activation target. Once an existing start has been reached, an explicitly approved restart may use another positive, non-overflowing delay; readiness is rechecked. The call is Operational with the existing source **1000-authority reservation**; include real governance-wrapper admission. The argument-aware origin enforces these rules even through Root/bypass dispatch.
 
 No destination binding/cutover is required. Activation/restart changes BEEFY start, not public-chain genesis, MMR, bridge pause/queue/nonce or custody. Verify successful finalized dispatch and `Beefy.GenesisBlock`; after G require advancing cryptographically valid native quorum commitments, handovers and historical MMR proofs across independent nodes. First MMR insertion **A** (upgrade) need not equal BEEFY start **G**.
 
@@ -187,9 +189,9 @@ BEEFY-only rotations preserve the queue; actual GRANDPA changes retain delayed r
 
 ## Quorum and destination sampling
 
-Native quorum is **N − floor((N−1)/3)**; **N ≤ 3 requires unanimity**. A process or one signature is not quorum evidence.
+Native quorum is **N − floor((N−1)/3)** over the **full** validator set, including placeholder slots; **N ≤ 3 requires unanimity**. At N=59, 40 registered keys are the minimum, 39 fail, and 42 leave room for two unavailable registered signers. At N=60, the minimum is 41. Registration is not proof of online signing: require advancing verified commitments and operational margin. Later elections or outages can stall BEEFY without changing BABE/GRANDPA membership; monitor both active and queued full sets.
 
-Destination claimed native quorum and selected-signature verification are distinct. Existing paired policy uses a **floor(N/3)+1 selection cap and fixed 86/86 floors**, yielding 20 selected at N=59, 51 at 150 and 86 at 256. Confirm Fiat-Shamir/interactive constants in the reviewed artifact; do not use a blanket one-third quorum formula. Interactive RANDAO delay/window remain 128/24 destination blocks.
+Destination claimed native quorum and selected-signature verification are distinct. Existing paired policy uses a **floor(N/3)+1 selection cap and fixed 86/86 floors**, yielding 20 selected at N=59, 51 at 150 and 86 at 256. Confirm Fiat-Shamir/interactive constants in the reviewed artifact; do not use a blanket one-third quorum formula. Interactive RANDAO delay/window remain 128/24 destination blocks. The paired relayer must preserve every authority position: the SDK commits an invalid curve point as an **empty byte-string leaf**, not a zero address and not a removed slot. Curve-valid placeholders commit their ordinary 20-byte address but remain unregistered. Empty leaves cannot be presented as signing accounts. This requires the corresponding relayer patch, not a new destination ABI, MMR version or sampling policy.
 
 ## Hardware and weight qualification
 

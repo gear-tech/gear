@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 //! Converts the supported four-key predecessor into the five-key runtime without
-//! activating BEEFY. Placeholders retain the legacy derivation and must be replaced
-//! before governance activation. Release try-runtime must reject an unsupported
+//! activating BEEFY. Placeholders retain the legacy derivation; a full-set native
+//! quorum must replace them before activation. Release try-runtime rejects an unsupported
 //! predecessor: a production validation panic halts execution, not a safe upgrade.
 //!
 //! Rebuilds the current and queued historical commitments with five keys. Their
