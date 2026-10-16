@@ -8,6 +8,7 @@ use ethexe_common::{
         SignedTxReceipt,
     },
 };
+use ethexe_rpc_common::PromiseSubscriptionFilter;
 use jsonrpsee::proc_macros::rpc;
 
 #[rpc(server, namespace = "injected")]
@@ -28,6 +29,19 @@ pub trait Injected {
     async fn send_transaction_and_watch(
         &self,
         transaction: SignedInjectedTransaction,
+    ) -> jsonrpsee::core::SubscriptionResult;
+
+    /// Subscribes to a stream of all newly computed promises. Promises are
+    /// delivered as they are computed; there is no replay of historical
+    /// promises. An optional filter narrows the stream per subscriber.
+    #[subscription(
+        name = "subscribePromises",
+        unsubscribe = "unsubscribePromises",
+        item = crate::PromiseEnvelope
+    )]
+    async fn subscribe_promises(
+        &self,
+        filter: Option<PromiseSubscriptionFilter>,
     ) -> jsonrpsee::core::SubscriptionResult;
 
     #[method(name = "getTransactionReceipt")]

@@ -16,6 +16,7 @@ use tower::Layer;
 pub const TRACKED_METHODS: &[&str] = &[
     "injected_sendTransaction",
     "injected_sendTransactionAndWatch",
+    "injected_subscribePromises",
     "program_calculateReplyForHandle",
 ];
 

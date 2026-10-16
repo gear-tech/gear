@@ -3,6 +3,11 @@
 
 //! Shared Vara.eth RPC types.
 
+mod filter;
+pub use filter::{
+    FilterSet, PromiseEnvelope, PromiseSubscriptionFilter, ReplyCodeFilter, ValueOrArray,
+};
+
 use ethexe_common::gear::Message;
 use ethexe_runtime_common::state::{DispatchStash, Mailbox, MessageQueue, Program, Waitlist};
 use gear_core::rpc::ReplyInfo;
