@@ -34,7 +34,8 @@ use {crate::Historical, parity_scale_codec::Encode};
 use {sp_runtime::TryRuntimeError, sp_std::collections::btree_map::BTreeMap};
 
 const PREDECESSOR_SPEC_VERSION: u32 = 11_000;
-const MIGRATION_SPEC_VERSION: u32 = 2_01_00;
+const FIRST_FIVE_KEY_SPEC_VERSION: u32 = 2_01_00;
+const MIGRATION_SPEC_VERSION: u32 = 2_01_01;
 type HistoricalUpdate = (u32, HistoricalRoot, HistoricalRoot);
 
 impl_opaque_keys! {
@@ -407,7 +408,7 @@ fn should_migrate(reads: &mut u64) -> Result<bool, &'static str> {
         last.spec_name == crate::VERSION.spec_name,
         "unsupported predecessor spec_name"
     );
-    if last.spec_version.0 >= MIGRATION_SPEC_VERSION {
+    if last.spec_version.0 >= FIRST_FIVE_KEY_SPEC_VERSION {
         return Ok(false);
     }
     ensure!(
@@ -1165,7 +1166,11 @@ mod tests {
             }
             pallet_session::QueuedKeys::<Runtime>::put(queued);
             pallet_beefy::GenesisBlock::<Runtime>::put(Some(123));
-            for version in [MIGRATION_SPEC_VERSION, MIGRATION_SPEC_VERSION + 1] {
+            for version in [
+                FIRST_FIVE_KEY_SPEC_VERSION,
+                MIGRATION_SPEC_VERSION,
+                MIGRATION_SPEC_VERSION + 1,
+            ] {
                 set_last_runtime_upgrade(version);
                 let before = sp_io::storage::root(StateVersion::V1);
                 #[cfg(feature = "try-runtime")]
