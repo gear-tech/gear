@@ -37,3 +37,4 @@ ethexe-common = { workspace = true, features = ["mock"] }
 ethexe-db = { workspace = true, features = ["mock"] }
 tokio.workspace = true
 gear-core.workspace = true
+proptest.workspace = true
