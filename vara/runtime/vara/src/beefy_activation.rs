@@ -4,43 +4,48 @@
 //! Consensus key suitability and fail-closed activation, including Root dispatch.
 use crate::{AccountId, BeefyId, BlockNumber, Runtime, RuntimeOrigin, SessionKeys, System};
 use frame_support::{
-    crypto::ecdsa::ECDSAExt,
     traits::{EnsureOriginWithArg, Get},
     weights::Weight,
 };
-
-use sp_core::ecdsa;
+use parity_scale_codec::DecodeAll;
+use sp_runtime::traits::Convert;
 use sp_std::collections::btree_set::BTreeSet;
 
-fn operational_key(validator: &AccountId, key: &BeefyId) -> bool {
-    key != &crate::migrations::placeholder_beefy_key(validator)
-        && ecdsa::Public::from(key.clone()).to_eth_address().is_ok()
-}
-
-fn valid_set(keys: &[(AccountId, SessionKeys)], authorities: &[BeefyId]) -> bool {
+/// Validate the full committee and return its SDK-compatible commitment.
+fn valid_set(keys: &[(AccountId, SessionKeys)], authorities: &[BeefyId]) -> Option<sp_core::H256> {
     if keys.is_empty() || keys.len() != authorities.len() {
-        return false;
+        return None;
     }
     let mut unique_keys = BTreeSet::new();
     let mut unique_validators = BTreeSet::new();
-    keys.iter()
+    if !keys
+        .iter()
         .zip(authorities)
         .all(|((validator, keys), authority)| {
             &keys.beefy == authority
-                && operational_key(validator, authority)
                 && unique_validators.insert(validator)
                 && unique_keys.insert(authority)
         })
-}
-
-fn keyset_commitment(authorities: &[BeefyId]) -> sp_core::H256 {
-    binary_merkle_tree::merkle_root::<<Runtime as pallet_mmr::Config>::Hashing, _>(
-        authorities.iter().map(|key| {
-            ecdsa::Public::from(key.clone())
-                .to_eth_address()
-                .expect("readiness validates every ECDSA key before computing its commitment")
+    {
+        return None;
+    }
+    let mut registered = 0;
+    let mut valid = true;
+    let commitment = binary_merkle_tree::merkle_root::<<Runtime as pallet_mmr::Config>::Hashing, _>(
+        keys.iter().zip(authorities).map(|((validator, _), key)| {
+            // Convert each slot once, including empty leaves for off-curve placeholders.
+            let leaf = <Runtime as pallet_beefy_mmr::Config>::BeefyAuthorityToMerkleLeaf::convert(
+                key.clone(),
+            );
+            if key != &crate::migrations::placeholder_beefy_key(validator) {
+                valid &= !leaf.is_empty();
+                registered += usize::from(!leaf.is_empty());
+            }
+            leaf
         }),
-    )
+    );
+    // The denominator includes every validator, not just registered BEEFY keys.
+    (valid && registered >= keys.len() - (keys.len() - 1) / 3).then_some(commitment)
 }
 
 /// Validate actual consensus committees, independently of destination and election policy.
@@ -75,19 +80,17 @@ pub(crate) fn ready(max_authorities: u32) -> bool {
     ) else {
         return false;
     };
-    valid_set(&active, &current)
-        && valid_set(&queued, &next)
-        && leaves > 0
+    leaves > 0
         && !root.is_zero()
         && pallet_beefy::SetIdSession::<Runtime>::get(set_id) == Some(session_index)
         && current_leaf.id == set_id
         && current_leaf.len as usize == current.len()
         && !current_leaf.keyset_commitment.is_zero()
-        && current_leaf.keyset_commitment == keyset_commitment(&current)
+        && valid_set(&active, &current) == Some(current_leaf.keyset_commitment)
         && set_id.checked_add(1) == Some(next_leaf.id)
         && next_leaf.len as usize == next.len()
         && !next_leaf.keyset_commitment.is_zero()
-        && next_leaf.keyset_commitment == keyset_commitment(&next)
+        && valid_set(&queued, &next) == Some(next_leaf.keyset_commitment)
 }
 
 /// Initial activation and restarts enforce the same bounded consensus readiness.
@@ -95,9 +98,19 @@ pub struct ActivationOrigin;
 impl EnsureOriginWithArg<RuntimeOrigin, BlockNumber> for ActivationOrigin {
     type Success = ();
     fn try_origin(origin: RuntimeOrigin, delay: &BlockNumber) -> Result<(), RuntimeOrigin> {
+        let now = System::block_number();
+        let valid_delay =
+            match sp_io::storage::get(&pallet_beefy::GenesisBlock::<Runtime>::hashed_key()) {
+                None => *delay == 1,
+                Some(bytes) => match Option::<BlockNumber>::decode_all(&mut bytes.as_ref()) {
+                    Ok(Some(start)) if start <= now => *delay > 0,
+                    Ok(_) => *delay == 1,
+                    Err(_) => false,
+                },
+            };
         if frame_system::ensure_root(origin.clone()).is_ok()
-            && *delay > 0
-            && System::block_number().checked_add(*delay).is_some()
+            && valid_delay
+            && now.checked_add(*delay).is_some()
             && ready(crate::MaxActiveValidators::get())
         {
             Ok(())
@@ -131,10 +144,11 @@ mod tests {
     use crate::{Beefy, GearEthBridge, Mmr, RuntimeCall, Session, Utility, genesis_config_presets};
     use frame_support::{
         assert_noop, assert_ok,
+        crypto::ecdsa::ECDSAExt,
         traits::{Hooks, UnfilteredDispatchable},
     };
     use parity_scale_codec::Encode;
-    use sp_core::{H160, H256, Pair, U256, ed25519, sr25519};
+    use sp_core::{H160, H256, Pair, U256, ecdsa, ed25519, sr25519};
     use sp_runtime::{
         BuildStorage, DispatchError,
         traits::{Hash, Keccak256, OpaqueKeys},
@@ -214,6 +228,351 @@ mod tests {
             descriptor.len = next.len() as u32;
             descriptor.keyset_commitment = keyset_commitment(&next);
         });
+    }
+
+    fn keyset_commitment(authorities: &[BeefyId]) -> H256 {
+        binary_merkle_tree::merkle_root::<<Runtime as pallet_mmr::Config>::Hashing, _>(
+            authorities
+                .iter()
+                .cloned()
+                .map(<Runtime as pallet_beefy_mmr::Config>::BeefyAuthorityToMerkleLeaf::convert),
+        )
+    }
+
+    fn committee(count: u32, registered: u32) -> Vec<(AccountId, SessionKeys)> {
+        let template = crate::session_history::ActiveSessionKeys::get()[0]
+            .1
+            .clone();
+        (0..count)
+            .map(|index| {
+                let seed = sp_core::hashing::blake2_256(&index.to_le_bytes());
+                let owner = AccountId::new(seed);
+                let mut keys = template.clone();
+                keys.beefy = if index < registered {
+                    ecdsa::Pair::from_seed(&seed).public().into()
+                } else {
+                    crate::migrations::placeholder_beefy_key(&owner)
+                };
+                (owner, keys)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn full_59_slot_quorum_counts_only_real_keys_and_keeps_every_leaf() {
+        ext().execute_with(|| {
+            prepare();
+            for registered in [39, 40, 42] {
+                let keys = committee(59, registered);
+                install_committees(&keys, &keys);
+                let authorities = pallet_beefy::Authorities::<Runtime>::get();
+                let leaves: Vec<_> = authorities
+                    .iter()
+                    .cloned()
+                    .map(<Runtime as pallet_beefy_mmr::Config>::BeefyAuthorityToMerkleLeaf::convert)
+                    .collect();
+                let placeholders = &leaves[registered as usize..];
+                assert!(placeholders.iter().any(Vec::is_empty));
+                assert!(placeholders.iter().any(|leaf| leaf.len() == 20));
+                let descriptor = pallet_beefy_mmr::BeefyAuthorities::<Runtime>::get();
+                assert_eq!(authorities.len(), 59);
+                assert_eq!(pallet_beefy::NextAuthorities::<Runtime>::get().len(), 59);
+                assert_eq!(descriptor.len, 59);
+                assert_eq!(
+                    descriptor.keyset_commitment,
+                    keyset_commitment(&authorities)
+                );
+                assert_ne!(
+                    descriptor.keyset_commitment,
+                    keyset_commitment(&authorities[..registered as usize])
+                );
+                let zero_filled = binary_merkle_tree::merkle_root::<
+                    <Runtime as pallet_mmr::Config>::Hashing,
+                    _,
+                >(leaves.iter().map(|leaf| {
+                    if leaf.is_empty() {
+                        &[0u8; 20][..]
+                    } else {
+                        leaf.as_slice()
+                    }
+                }));
+                assert_ne!(descriptor.keyset_commitment, zero_filled);
+                assert_eq!(ready(crate::MaxActiveValidators::get()), registered >= 40);
+                if registered >= 40 {
+                    assert_ok!(Beefy::set_new_genesis(RuntimeOrigin::root(), 1));
+                } else {
+                    assert_noop!(
+                        Beefy::set_new_genesis(RuntimeOrigin::root(), 1),
+                        DispatchError::BadOrigin
+                    );
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn active_and_queued_sets_require_their_own_full_denominator_quorum() {
+        ext().execute_with(|| {
+            prepare();
+            let ready_59 = committee(59, 40);
+            let short_59 = committee(59, 39);
+            for (active, queued) in [(&ready_59, &short_59), (&short_59, &ready_59)] {
+                install_committees(active, queued);
+                assert!(!ready(crate::MaxActiveValidators::get()));
+                assert_noop!(
+                    Beefy::set_new_genesis(RuntimeOrigin::root(), 1),
+                    DispatchError::BadOrigin
+                );
+            }
+            for registered in [40, 41] {
+                let queued = committee(60, registered);
+                install_committees(&ready_59, &queued);
+                assert_eq!(
+                    pallet_beefy_mmr::BeefyNextAuthorities::<Runtime>::get().len,
+                    60
+                );
+                assert_eq!(ready(crate::MaxActiveValidators::get()), registered == 41);
+            }
+        });
+    }
+
+    #[test]
+    fn malformed_nonplaceholders_and_duplicates_fail_even_above_quorum() {
+        ext().execute_with(|| {
+            prepare();
+            let keys = committee(59, 42);
+            let foreign = (100u32..200)
+                .map(|index| {
+                    let owner = AccountId::new(sp_core::hashing::blake2_256(&index.to_le_bytes()));
+                    crate::migrations::placeholder_beefy_key(&owner)
+                })
+                .find(|key| ecdsa::Public::from(key.clone()).to_eth_address().is_err())
+                .unwrap();
+            for corruption in 0..4 {
+                let mut bad = keys.clone();
+                match corruption {
+                    0 => bad[0].1.beefy = ecdsa::Public::from_raw([0; 33]).into(),
+                    1 => bad[0].1.beefy = foreign.clone(),
+                    2 => bad[1].0 = bad[0].0.clone(),
+                    _ => bad[1].1.beefy = bad[0].1.beefy.clone(),
+                }
+                for (active, queued) in [(&bad, &keys), (&keys, &bad)] {
+                    install_committees(active, queued);
+                    assert!(!ready(crate::MaxActiveValidators::get()));
+                    assert_noop!(
+                        Beefy::set_new_genesis(RuntimeOrigin::root(), 1),
+                        DispatchError::BadOrigin
+                    );
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn initial_pending_and_malformed_genesis_storage_enforce_next_block_activation() {
+        ext().execute_with(|| {
+            prepare();
+            let key = pallet_beefy::GenesisBlock::<Runtime>::hashed_key();
+            for state in [None, Some(None), Some(Some(11u32))] {
+                match state {
+                    None => sp_io::storage::clear(&key),
+                    Some(state) => pallet_beefy::GenesisBlock::<Runtime>::put(state),
+                }
+                for delay in [0, 2, u32::MAX] {
+                    assert_noop!(
+                        Beefy::set_new_genesis(RuntimeOrigin::root(), delay),
+                        DispatchError::BadOrigin
+                    );
+                }
+                assert_ok!(Beefy::set_new_genesis(RuntimeOrigin::root(), 1));
+                assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), Some(11));
+            }
+            for bytes in [
+                vec![],
+                vec![0xff],
+                vec![1],
+                vec![0, 0],
+                [Some(10u32).encode(), vec![0]].concat(),
+            ] {
+                sp_io::storage::set(&key, &bytes);
+                for delay in [1, 2] {
+                    assert_noop!(
+                        Beefy::set_new_genesis(RuntimeOrigin::root(), delay),
+                        DispatchError::BadOrigin
+                    );
+                }
+            }
+            for start in [9u32, 10] {
+                pallet_beefy::GenesisBlock::<Runtime>::put(Some(start));
+                for delay in [0, u32::MAX] {
+                    assert_noop!(
+                        Beefy::set_new_genesis(RuntimeOrigin::root(), delay),
+                        DispatchError::BadOrigin
+                    );
+                }
+                assert_ok!(Beefy::set_new_genesis(RuntimeOrigin::root(), 3));
+                assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), Some(13));
+                pallet_beefy::GenesisBlock::<Runtime>::put(Some(start));
+                assert_ok!(Utility::batch_all(
+                    RuntimeOrigin::root(),
+                    vec![RuntimeCall::Beefy(pallet_beefy::Call::set_new_genesis {
+                        delay_in_blocks: 2
+                    })]
+                ));
+                assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), Some(12));
+            }
+        });
+    }
+
+    #[test]
+    fn quorum_registration_activates_only_after_the_full_session_queue_rotates() {
+        use crate::session_history::{ActiveSessionKeys, SessionKeyOwnerProof};
+        use frame_support::traits::KeyOwnerProofSystem;
+
+        for registered in [39usize, 40] {
+            let authorities: Vec<_> = (0..59)
+                .map(|index| {
+                    let mut authority =
+                        genesis_config_presets::authority_keys_from_seed(&format!("Quorum{index}"));
+                    if index >= registered {
+                        authority.6 = crate::migrations::placeholder_beefy_key(&authority.0);
+                    }
+                    authority
+                })
+                .collect();
+            let owner = authorities[registered].0.clone();
+            let controller = authorities[registered].1.clone();
+            let genesis = genesis_config_presets::testnet_genesis(
+                authorities,
+                controller.clone(),
+                vec![controller.clone()],
+                false,
+            );
+            let mut ext: sp_io::TestExternalities = genesis.build_storage().unwrap().into();
+            ext.register_extension(sp_keystore::KeystoreExt::new(
+                sp_keystore::testing::MemoryKeystore::new(),
+            ));
+            ext.execute_with(|| {
+                let controller = pallet_staking::Bonded::<Runtime>::get(&owner).unwrap();
+                frame_system::BlockHash::<Runtime>::insert(0, H256::repeat_byte(9));
+                System::set_block_number(1);
+                pallet_session::CurrentIndex::<Runtime>::put(Session::current_index());
+                Mmr::on_initialize(1);
+                let initial = ActiveSessionKeys::get();
+                let old_set_id = pallet_beefy::ValidatorSetId::<Runtime>::get();
+                let placeholder = initial
+                    .iter()
+                    .find(|(account, _)| account == &owner)
+                    .unwrap()
+                    .1
+                    .beefy
+                    .clone();
+                let ownership =
+                    SessionKeyOwnerProof::prove((sp_consensus_beefy::KEY_TYPE, &placeholder))
+                        .unwrap();
+                assert_eq!(ownership.validator_count, 59);
+                assert_eq!(ready(crate::MaxActiveValidators::get()), registered == 40);
+                let (keys, proof) = native_keys(&format!("Quorum{registered}"), &controller);
+                assert_ok!(Session::set_keys(
+                    RuntimeOrigin::signed(controller),
+                    keys.clone(),
+                    proof
+                ));
+                assert_eq!(ActiveSessionKeys::get(), initial);
+                assert_eq!(ready(crate::MaxActiveValidators::get()), registered == 40);
+                let mut checked_queue = None;
+
+                for block in [1, 2] {
+                    System::set_block_number(block);
+                    crate::Babe::on_initialize(block);
+                    Session::rotate_session();
+                    crate::Grandpa::on_finalize(block);
+                    Mmr::on_initialize(block);
+                    let active = ActiveSessionKeys::get();
+                    let queued = pallet_session::QueuedKeys::<Runtime>::get();
+                    assert_eq!(active.len(), 59);
+                    assert_eq!(queued.len(), 59);
+                    assert_eq!(
+                        Session::validators(),
+                        initial
+                            .iter()
+                            .map(|(account, _)| account.clone())
+                            .collect::<Vec<_>>()
+                    );
+                    assert_eq!(
+                        pallet_beefy::Authorities::<Runtime>::get().to_vec(),
+                        active
+                            .iter()
+                            .map(|(_, keys)| keys.beefy.clone())
+                            .collect::<Vec<_>>()
+                    );
+                    assert_eq!(
+                        pallet_beefy::NextAuthorities::<Runtime>::get().to_vec(),
+                        queued
+                            .iter()
+                            .map(|(_, keys)| keys.beefy.clone())
+                            .collect::<Vec<_>>()
+                    );
+                    let current = pallet_beefy_mmr::BeefyAuthorities::<Runtime>::get();
+                    let next = pallet_beefy_mmr::BeefyNextAuthorities::<Runtime>::get();
+                    let id = pallet_beefy::ValidatorSetId::<Runtime>::get();
+                    assert_eq!(id, old_set_id + u64::from(block));
+                    assert_eq!(current.id, id);
+                    assert_eq!(next.id, id + 1);
+                    assert_eq!((current.len, next.len), (59, 59));
+                    assert_eq!(
+                        pallet_beefy::SetIdSession::<Runtime>::get(id),
+                        Some(Session::current_index())
+                    );
+                    assert_eq!(
+                        ready(crate::MaxActiveValidators::get()),
+                        registered == 40 || block == 2
+                    );
+                    if block == 1 {
+                        assert_eq!(active, initial);
+                        if registered == 39 {
+                            assert_noop!(
+                                Beefy::set_new_genesis(RuntimeOrigin::root(), 1),
+                                DispatchError::BadOrigin
+                            );
+                        } else {
+                            assert_ne!(active, queued);
+                            assert_ok!(Beefy::set_new_genesis(RuntimeOrigin::root(), 1));
+                            assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), Some(2));
+                            checked_queue = Some(queued.clone());
+                        }
+                    } else {
+                        assert_eq!(
+                            active
+                                .iter()
+                                .find(|(account, _)| account == &owner)
+                                .unwrap()
+                                .1,
+                            keys
+                        );
+                        if registered == 39 {
+                            assert_noop!(
+                                Beefy::set_new_genesis(RuntimeOrigin::root(), 2),
+                                DispatchError::BadOrigin
+                            );
+                            assert_ok!(Beefy::set_new_genesis(RuntimeOrigin::root(), 1));
+                        } else {
+                            assert_eq!(active, checked_queue.as_ref().unwrap().as_slice());
+                            assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), Some(block));
+                        }
+                    }
+                    assert_eq!(
+                        SessionKeyOwnerProof::check_proof(
+                            (sp_consensus_beefy::KEY_TYPE, &placeholder),
+                            ownership.clone()
+                        )
+                        .unwrap()
+                        .0,
+                        owner
+                    );
+                }
+            });
+        }
     }
 
     #[test]
@@ -368,13 +727,17 @@ mod tests {
             );
             assert_ok!(call.clone().dispatch_bypass_filter(RuntimeOrigin::root()));
             assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), Some(11));
-            assert_ok!(Utility::batch_all(
-                RuntimeOrigin::root(),
-                vec![RuntimeCall::Beefy(pallet_beefy::Call::set_new_genesis {
-                    delay_in_blocks: 2
-                }),]
-            ));
-            assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), Some(12));
+            assert_noop!(
+                Utility::batch_all(
+                    RuntimeOrigin::root(),
+                    vec![RuntimeCall::Beefy(pallet_beefy::Call::set_new_genesis {
+                        delay_in_blocks: 2
+                    })]
+                )
+                .map_err(|error| error.error),
+                DispatchError::BadOrigin
+            );
+            assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), Some(11));
             System::set_block_number(12);
             assert_ok!(Beefy::set_new_genesis(RuntimeOrigin::root(), 3));
             assert_eq!(pallet_beefy::GenesisBlock::<Runtime>::get(), Some(15));
@@ -404,7 +767,10 @@ mod tests {
             pallet_gear_eth_bridge::BridgeDomain::<Runtime>::put(H256::repeat_byte(1));
             pallet_staking::ValidatorCount::<Runtime>::put(257);
             assert!(ready(crate::MaxActiveValidators::get()));
-            assert_ok!(Beefy::set_new_genesis(RuntimeOrigin::root(), 2));
+            assert_noop!(
+                Beefy::set_new_genesis(RuntimeOrigin::root(), 2),
+                DispatchError::BadOrigin
+            );
         });
     }
 
@@ -580,19 +946,9 @@ mod tests {
         ext().execute_with(|| {
             prepare();
             assert_eq!(crate::MaxActiveValidators::get(), 1000);
-            let template = crate::session_history::ActiveSessionKeys::get()[0]
-                .1
-                .clone();
-            // Synthetic consensus state uses real distinct curve keys and exact commitments;
-            // native five-key ownership admission is exercised by the registration tests above.
-            let keys: Vec<_> = (0u32..1001)
-                .map(|index| {
-                    let seed = sp_core::hashing::blake2_256(&index.to_le_bytes());
-                    let mut keys = template.clone();
-                    keys.beefy = ecdsa::Pair::from_seed(&seed).public().into();
-                    (AccountId::new(seed), keys)
-                })
-                .collect();
+            // Synthetic consensus state uses distinct curve keys; native five-key admission
+            // is exercised separately, including the session-boundary integration test.
+            let keys = committee(1001, 1001);
             for count in [257, 1000] {
                 install_committees(&keys[..count], &keys[..count]);
                 assert!(ready(crate::MaxActiveValidators::get()));
@@ -629,7 +985,11 @@ mod tests {
             let mut bad = active.clone();
             bad[0].0 = owner;
             bad[0].1.beefy = crate::migrations::placeholder_beefy_key(&bad[0].0);
-            assert!(!operational_key(&bad[0].0, &bad[0].1.beefy));
+            assert!(
+                ecdsa::Public::from(bad[0].1.beefy.clone())
+                    .to_eth_address()
+                    .is_ok()
+            );
             install_committees(&bad, &queued);
             assert!(!ready(crate::MaxActiveValidators::get()));
             install_committees(&active, &bad);
@@ -637,24 +997,9 @@ mod tests {
 
             bad = active.clone();
             bad[0].1.beefy = ecdsa::Public::from_raw([0; 33]).into();
-            crate::session_history::ActiveSessionKeys::put(&bad);
-            let authorities: frame_support::BoundedVec<_, crate::MaxAuthorities> = bad
-                .iter()
-                .map(|(_, keys)| keys.beefy.clone())
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
-            pallet_beefy::Authorities::<Runtime>::put(authorities);
+            install_committees(&bad, &queued);
             assert!(!ready(crate::MaxActiveValidators::get()));
-            install_committees(&active, &queued);
-            pallet_session::QueuedKeys::<Runtime>::put(&bad);
-            let authorities: frame_support::BoundedVec<_, crate::MaxAuthorities> = bad
-                .iter()
-                .map(|(_, keys)| keys.beefy.clone())
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
-            pallet_beefy::NextAuthorities::<Runtime>::put(authorities);
+            install_committees(&active, &bad);
             assert!(!ready(crate::MaxActiveValidators::get()));
 
             for duplicate_identity in [false, true] {
