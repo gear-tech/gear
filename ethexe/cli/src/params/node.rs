@@ -12,6 +12,7 @@ use ethexe_common::{
     consensus::{DEFAULT_BATCH_SIZE_LIMIT, MAX_BATCH_SIZE_LIMIT},
     gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
 };
+use ethexe_malachite::MalachiteServiceConfig;
 use ethexe_processor::DEFAULT_CHUNK_SIZE;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
@@ -95,7 +96,7 @@ pub struct NodeParams {
     #[serde(rename = "canonical-quarantine")]
     pub canonical_quarantine: Option<u8>,
 
-    /// See `MalachiteServiceConfig::post_quarantine_delay`. Default 1.
+    /// See `MalachiteServiceConfig::post_quarantine_delay`. Default 1, max 1000.
     #[arg(long)]
     #[serde(rename = "post-quarantine-delay")]
     pub post_quarantine_delay: Option<u32>,
@@ -165,6 +166,7 @@ impl NodeParams {
     ///
     /// Besides simple field mapping this also:
     /// - validates that validator and validator-session are configured together
+    /// - rejects a post-quarantine delay above its maximum
     /// - resolves the effective database and key directories
     /// - clamps gas and batch limits to protocol maxima
     /// - fills in defaults for the execution and sync knobs
@@ -172,6 +174,15 @@ impl NodeParams {
         ensure!(
             self.validator.is_some() == self.validator_session.is_some(),
             "`validator` and `validator-session` must be both set or both unset"
+        );
+
+        let post_quarantine_delay = self
+            .post_quarantine_delay
+            .unwrap_or(MalachiteServiceConfig::DEFAULT_POST_QUARANTINE_DELAY);
+        ensure!(
+            post_quarantine_delay <= MalachiteServiceConfig::MAX_POST_QUARANTINE_DELAY,
+            "`post-quarantine-delay` must be at most {}, got {post_quarantine_delay}",
+            MalachiteServiceConfig::MAX_POST_QUARANTINE_DELAY
         );
 
         Ok(NodeConfig {
@@ -198,9 +209,7 @@ impl NodeParams {
                 .unwrap_or(DEFAULT_BATCH_SIZE_LIMIT)
                 .min(MAX_BATCH_SIZE_LIMIT),
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
-            post_quarantine_delay: self
-                .post_quarantine_delay
-                .unwrap_or(ethexe_malachite::MalachiteServiceConfig::DEFAULT_POST_QUARANTINE_DELAY),
+            post_quarantine_delay,
             dev: self.dev,
             pre_funded_accounts: self
                 .pre_funded_accounts
@@ -320,5 +329,41 @@ impl MergeParams for NodeParams {
 
             db_cleanup: self.db_cleanup || with.db_cleanup,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn params_with_post_quarantine_delay(post_quarantine_delay: u32) -> NodeParams {
+        NodeParams {
+            tmp: true,
+            post_quarantine_delay: Some(post_quarantine_delay),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn post_quarantine_delay_above_max_is_rejected() {
+        let max = MalachiteServiceConfig::MAX_POST_QUARANTINE_DELAY;
+        let err = params_with_post_quarantine_delay(max + 1)
+            .into_config()
+            .expect_err("out-of-range `post-quarantine-delay` must be rejected");
+
+        assert!(
+            err.to_string().contains("post-quarantine-delay"),
+            "error must name the offending option, got: {err}"
+        );
+    }
+
+    #[test]
+    fn post_quarantine_delay_at_max_is_accepted() {
+        let max = MalachiteServiceConfig::MAX_POST_QUARANTINE_DELAY;
+        let config = params_with_post_quarantine_delay(max)
+            .into_config()
+            .expect("`post-quarantine-delay` at the maximum must be accepted");
+
+        assert_eq!(config.post_quarantine_delay, max);
     }
 }
