@@ -7,7 +7,10 @@ use crate::{
         ActiveProgram, Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
         Program, ProgramState, Storage,
     },
-    transitions::{NonFinalTransition, is_event_destination},
+    transitions::{
+        NonFinalTransition, is_eth_sails_event_destination, is_event_destination,
+        is_gear_sails_event_destination,
+    },
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -205,19 +208,15 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
 
-                        let committable = push_outgoing(
-                            transition,
-                            Message::from_stored(stored, false),
-                            message_type,
-                        );
-                        // Only emit the autoclaim when the message is committed on Ethereum;
-                        // an off-chain injected event message has no on-chain Message to claim.
+                        let committable = message_type.is_canonical()
+                            || is_eth_sails_event_destination(destination);
                         if committable {
-                            transition.claims.push(ethexe_common::gear::ValueClaim {
-                                message_id,
-                                destination,
-                                value,
-                            });
+                            let payload = stored.payload_bytes().to_vec();
+                            if is_gear_sails_event_destination(destination) {
+                                transition.events.push(payload);
+                            } else if is_eth_sails_event_destination(destination) {
+                                transition.eth_events.push(payload);
+                            }
                         }
                     });
 
@@ -928,6 +927,8 @@ impl Limiter {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::{InBlockTransitions, TransitionsConfig, state::MemStorage};
     use ethexe_common::{ProgramStates, StateHashWithQueueSize};
     use gear_core::{
         ids::prelude::MessageIdExt,
@@ -935,14 +936,6 @@ mod tests {
             DispatchKind, Message as CoreMessage, MessageDetails, ReplyCode, ReplyDetails,
             StoredMessage,
         },
-    };
-
-    use super::*;
-
-    use crate::{
-        InBlockTransitions, TransitionsConfig,
-        state::MemStorage,
-        transitions::{ETH_SAILS_EVENT, GEAR_SAILS_EVENT, NonFinalTransition},
     };
 
     fn init_setup(
@@ -988,6 +981,25 @@ mod tests {
                 ActorId::from(7),
                 destination,
                 Default::default(),
+                None,
+                value,
+                None,
+            ),
+        )
+    }
+
+    fn dispatch_to_with_payload(
+        destination: ActorId,
+        value: u128,
+        payload: Vec<u8>,
+    ) -> CoreDispatch {
+        CoreDispatch::new(
+            DispatchKind::Handle,
+            CoreMessage::new(
+                MessageId::from(10),
+                ActorId::from(7),
+                destination,
+                payload.try_into().unwrap(),
                 None,
                 value,
                 None,
@@ -1048,14 +1060,13 @@ mod tests {
         let state = storage.program_state(state_hash).unwrap();
 
         if event_destinations_autoreply {
-            assert_eq!(transition.messages.len(), 1);
-            assert_eq!(transition.messages[0].id, MessageId::from(10));
-            assert_eq!(transition.messages[0].destination, destination);
-            assert_eq!(transition.messages[0].value, 11);
-            assert_eq!(transition.claims.len(), 1);
-            assert_eq!(transition.claims[0].message_id, MessageId::from(10));
-            assert_eq!(transition.claims[0].destination, destination);
-            assert_eq!(transition.claims[0].value, 11);
+            assert!(transition.messages.is_empty());
+            assert!(transition.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert_eq!(transition.events.len(), 1);
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(transition.eth_events.len(), 1);
+            }
         } else {
             assert_eq!(transition.messages.len(), 1);
             assert!(transition.claims.is_empty());
@@ -1066,7 +1077,7 @@ mod tests {
 
     #[test]
     fn event_destination_messages_skip_mailbox_and_expire_immediately() {
-        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let (storage, state) = handle_user_dispatch(destination, true);
 
             assert!(state.mailbox_hash.is_empty());
@@ -1093,7 +1104,7 @@ mod tests {
 
     #[test]
     fn event_destination_messages_keep_legacy_mailbox_when_disabled() {
-        let (_storage, state) = handle_user_dispatch(GEAR_SAILS_EVENT, false);
+        let (_storage, state) = handle_user_dispatch(ActorId::GEAR_SAILS_EVENT, false);
 
         assert!(!state.mailbox_hash.is_empty());
         assert!(state.canonical_queue.is_empty());
@@ -1105,7 +1116,7 @@ mod tests {
         use gear_core::tasks::TaskHandler;
 
         const DELAY: u32 = 5;
-        let destination = ETH_SAILS_EVENT;
+        let destination = ActorId::ETH_SAILS_EVENT;
         let storage = MemStorage::default();
         let source = ActorId::from(7);
         let message_id = MessageId::from(10);
@@ -1150,7 +1161,7 @@ mod tests {
 
             handler.send_dispatch(
                 MessageId::from(9),
-                dispatch_to(destination, 11),
+                dispatch_to_with_payload(destination, 11, vec![1, 2, 3]),
                 DELAY,
                 None,
             );
@@ -1178,14 +1189,10 @@ mod tests {
         }
 
         let transition = transitions.modifications_mut().get(&source).unwrap();
-        assert_eq!(transition.messages.len(), 1);
-        assert_eq!(transition.messages[0].id, message_id);
-        assert_eq!(transition.messages[0].destination, destination);
-        assert_eq!(transition.messages[0].value, 11);
-        assert_eq!(transition.claims.len(), 1);
-        assert_eq!(transition.claims[0].message_id, message_id);
-        assert_eq!(transition.claims[0].destination, destination);
-        assert_eq!(transition.claims[0].value, 11);
+        assert_eq!(transition.messages.len(), 0);
+        assert_eq!(transition.claims.len(), 0);
+        assert_eq!(transition.eth_events.len(), 1);
+        assert_eq!(transition.eth_events[0], vec![1, 2, 3]);
 
         let state_hash = transitions.state_of(&source).unwrap().hash;
         let state = storage.program_state(state_hash).unwrap();
@@ -1559,21 +1566,15 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn injected_event_dest_value0_not_committed_no_claim() {
-        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let t = send_handle_to_user_transition(destination, 0, MessageType::Injected, true);
-            assert_eq!(
-                t.messages.len(),
-                1,
-                "message must be present for {destination:?}"
-            );
-            assert!(
-                !t.committed_message_ids.contains(&t.messages[0].id),
-                "injected value-0 event message must NOT be in committed_message_ids ({destination:?})"
-            );
-            assert!(
-                t.claims.is_empty(),
-                "no autoclaim must be produced for off-chain injected event message ({destination:?})"
-            );
+            assert!(t.messages.is_empty());
+            assert!(t.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert!(t.events.is_empty());
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(t.eth_events.len(), 1);
+            }
         }
     }
 
@@ -1583,23 +1584,15 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn injected_event_dest_with_value_is_committed_with_claim() {
-        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let t = send_handle_to_user_transition(destination, 100, MessageType::Injected, true);
-            assert_eq!(
-                t.messages.len(),
-                1,
-                "message must be present for {destination:?}"
-            );
-            assert!(
-                t.committed_message_ids.contains(&t.messages[0].id),
-                "injected message with value must be in committed_message_ids ({destination:?})"
-            );
-            assert_eq!(
-                t.claims.len(),
-                1,
-                "autoclaim must be pushed for committed injected event message ({destination:?})"
-            );
-            assert_eq!(t.claims[0].value, 100);
+            assert!(t.messages.is_empty());
+            assert!(t.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert!(t.events.is_empty());
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(t.eth_events.len(), 1);
+            }
         }
     }
 
@@ -1622,22 +1615,15 @@ mod tests {
     // -----------------------------------------------------------------------
     #[test]
     fn canonical_event_dest_is_committed_with_claim() {
-        for destination in [GEAR_SAILS_EVENT, ETH_SAILS_EVENT] {
+        for destination in [ActorId::GEAR_SAILS_EVENT, ActorId::ETH_SAILS_EVENT] {
             let t = send_handle_to_user_transition(destination, 100, MessageType::Canonical, true);
-            assert_eq!(
-                t.messages.len(),
-                1,
-                "message must be present for {destination:?}"
-            );
-            assert!(
-                t.committed_message_ids.contains(&t.messages[0].id),
-                "canonical event message must be in committed_message_ids ({destination:?})"
-            );
-            assert_eq!(
-                t.claims.len(),
-                1,
-                "autoclaim must be pushed for canonical event message ({destination:?})"
-            );
+            assert!(t.messages.is_empty());
+            assert!(t.claims.is_empty());
+            if is_gear_sails_event_destination(destination) {
+                assert_eq!(t.events.len(), 1);
+            } else if is_eth_sails_event_destination(destination) {
+                assert_eq!(t.eth_events.len(), 1);
+            }
         }
     }
 }
