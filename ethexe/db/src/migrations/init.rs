@@ -143,6 +143,12 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     );
 
     let timelines: Timelines = storage_view.timelines.into();
+    ensure!(
+        timelines.election <= timelines.era,
+        "election duration {} exceeds era duration {}",
+        timelines.election,
+        timelines.era
+    );
 
     let db_config = ethexe_common::db::DBConfig {
         version: LATEST_VERSION,
