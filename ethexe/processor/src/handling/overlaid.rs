@@ -186,7 +186,11 @@ impl RunContext for OverlaidRunContext {
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
-        run::states(&self.inner.transitions, processing_queue_type)
+        run::states(
+            &self.inner.db,
+            &self.inner.transitions,
+            processing_queue_type,
+        )
     }
 
     fn handle_chunk_data(
