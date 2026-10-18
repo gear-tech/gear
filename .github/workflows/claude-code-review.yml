@@ -38,7 +38,7 @@ jobs:
         run: git fetch origin ${{ github.event.pull_request.base.sha }} --depth=1
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -186,7 +186,7 @@ jobs:
             > /tmp/prev-review.md 2>/dev/null || echo "No previous review found." > /tmp/prev-review.md
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
