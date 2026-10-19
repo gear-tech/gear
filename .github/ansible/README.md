@@ -1,5 +1,11 @@
 # Gear Node deployment scripts
 
+## ChainHead operation lifecycle
+
+The locally patched `sc-rpc-spec-v2` keeps response-delivery and storage-pagination waits off the Tokio blocking pool. Only finite storage reads and runtime execution use blocking workers. Removing a follow subscription—through unfollow, connection closure, or server-side cleanup—cancels and wakes its outstanding operations, including operations cancelled before they start waiting. Queued or running storage work retains its block pin until that work finishes.
+
+This correction is active by default after rebuilding and restarting the node; it requires no new command-line arguments or limit configuration. `chainHead_v1_storage` returns `started` before its background operation finishes, so cleanup follows the operation and subscription lifetime rather than the request lifetime.
+
 ## Testnet (Staging)
 
 ### Generate custom chain spec
