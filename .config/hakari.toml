@@ -43,6 +43,7 @@ workspace-members = [
     "sc-service",
     "sc-rpc",
     "sc-rpc-api",
+    "sc-rpc-spec-v2",
     "sp-application-crypto",
     "sp-runtime",
     "sp-session",

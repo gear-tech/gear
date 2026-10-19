@@ -3,19 +3,6 @@
 // Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
 use futures::channel::oneshot;
 use parking_lot::Mutex;
 use sc_client_api::Backend;
@@ -1247,7 +1234,7 @@ mod tests {
 
         subs.unpin_blocks(&id_second, vec![hash]).unwrap();
         // Block unregistered from the memory.
-        assert!(subs.global_blocks.get(&hash).is_none());
+        assert!(!subs.global_blocks.contains_key(&hash));
     }
 
     #[test]
@@ -1279,13 +1266,13 @@ mod tests {
 
         subs.remove_subscription(&id_1);
 
-        assert!(subs.global_blocks.get(&hash_1).is_none());
+        assert!(!subs.global_blocks.contains_key(&hash_1));
         assert_eq!(*subs.global_blocks.get(&hash_2).unwrap(), 1);
-        assert!(subs.global_blocks.get(&hash_3).is_none());
+        assert!(!subs.global_blocks.contains_key(&hash_3));
 
         subs.remove_subscription(&id_2);
 
-        assert!(subs.global_blocks.get(&hash_2).is_none());
+        assert!(!subs.global_blocks.contains_key(&hash_2));
         assert_eq!(subs.global_blocks.len(), 0);
     }
 
@@ -1328,9 +1315,9 @@ mod tests {
         let err = subs.lock_block(&id_2, hash_1, 1).unwrap_err();
         assert_eq!(err, SubscriptionManagementError::SubscriptionAbsent);
 
-        assert!(subs.global_blocks.get(&hash_1).is_none());
-        assert!(subs.global_blocks.get(&hash_2).is_none());
-        assert!(subs.global_blocks.get(&hash_3).is_none());
+        assert!(!subs.global_blocks.contains_key(&hash_1));
+        assert!(!subs.global_blocks.contains_key(&hash_2));
+        assert!(!subs.global_blocks.contains_key(&hash_3));
         assert_eq!(subs.global_blocks.len(), 0);
     }
 
@@ -1373,8 +1360,8 @@ mod tests {
         let _block_guard = subs.lock_block(&id_2, hash_1, 1).unwrap();
 
         assert_eq!(*subs.global_blocks.get(&hash_1).unwrap(), 1);
-        assert!(subs.global_blocks.get(&hash_2).is_none());
-        assert!(subs.global_blocks.get(&hash_3).is_none());
+        assert!(!subs.global_blocks.contains_key(&hash_2));
+        assert!(!subs.global_blocks.contains_key(&hash_3));
         assert_eq!(subs.global_blocks.len(), 1);
 
         // Force second subscription to get terminated.
@@ -1382,9 +1369,9 @@ mod tests {
         let err = subs.pin_block(&id_2, hash_3).unwrap_err();
         assert_eq!(err, SubscriptionManagementError::ExceededLimits);
 
-        assert!(subs.global_blocks.get(&hash_1).is_none());
-        assert!(subs.global_blocks.get(&hash_2).is_none());
-        assert!(subs.global_blocks.get(&hash_3).is_none());
+        assert!(!subs.global_blocks.contains_key(&hash_1));
+        assert!(!subs.global_blocks.contains_key(&hash_2));
+        assert!(!subs.global_blocks.contains_key(&hash_3));
         assert_eq!(subs.global_blocks.len(), 0);
     }
 

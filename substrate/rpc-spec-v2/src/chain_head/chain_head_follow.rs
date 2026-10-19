@@ -3,19 +3,6 @@
 // Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
 //! Implementation of the `chainHead_follow` method.
 
 use crate::chain_head::{
@@ -220,7 +207,7 @@ where
     ///
     /// This edge-case can happen for parachains where the relay chain syncs slower to
     /// the head of the chain than the parachain node that is synced already.
-    fn distace_within_reason(
+    fn distance_within_reason(
         &self,
         block: Block::Hash,
         finalized: Block::Hash,
@@ -256,7 +243,7 @@ where
         // Ensure all leaves are within a reasonable distance from the finalized block,
         // before traversing the tree.
         for leaf in &leaves {
-            self.distace_within_reason(*leaf, finalized)?;
+            self.distance_within_reason(*leaf, finalized)?;
         }
 
         for leaf in leaves {
