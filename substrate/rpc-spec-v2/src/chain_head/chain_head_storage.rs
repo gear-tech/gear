@@ -8,12 +8,12 @@
 use std::{collections::VecDeque, marker::PhantomData, sync::Arc};
 
 use sc_client_api::{Backend, ChildInfo, StorageKey, StorageProvider};
-use sc_utils::mpsc::TracingUnboundedSender;
 use sp_runtime::traits::Block as BlockT;
+use tokio::sync::mpsc::Sender;
 
 use crate::{
     chain_head::{
-        chain_head::spawn_blocking,
+        chain_head::{spawn_blocking, MAX_RESPONSE_BYTES},
         event::{OperationError, OperationId, OperationStorageItems},
         subscription::BlockGuard,
         FollowEvent,
@@ -73,6 +73,7 @@ where
 
         let Ok(Some((mut storage, mut block_guard, mut child_key, result))) =
             spawn_blocking(&executor, move || {
+                self.client.limit_response_size(MAX_RESPONSE_BYTES);
                 let mut storage_results = Vec::with_capacity(items.len());
                 for item in items {
                     if block_guard.operation().was_stopped() {
@@ -129,17 +130,23 @@ where
         let storage_results = match result {
             Ok(results) => results,
             Err(error) => {
-                send_error::<Block>(&sender, operation.operation_id(), error);
+                send_error::<Block>(&sender, operation.operation_id(), error).await;
                 return;
             }
         };
         if !storage_results.is_empty() {
-            let _ = sender.unbounded_send(FollowEvent::<Block::Hash>::OperationStorageItems(
-                OperationStorageItems {
-                    operation_id: operation.operation_id(),
-                    items: storage_results,
-                },
-            ));
+            if sender
+                .send(FollowEvent::<Block::Hash>::OperationStorageItems(
+                    OperationStorageItems {
+                        operation_id: operation.operation_id(),
+                        items: storage_results,
+                    },
+                ))
+                .await
+                .is_err()
+            {
+                return;
+            }
         }
 
         while let Some(query) = storage.iter_operations.pop_front() {
@@ -152,6 +159,7 @@ where
                     if block_guard.operation().was_stopped() {
                         return None;
                     }
+                    storage.client.limit_response_size(MAX_RESPONSE_BYTES);
                     let result = storage.client.query_iter_pagination(
                         query,
                         hash,
@@ -175,29 +183,41 @@ where
             let (events, maybe_next_query) = match result {
                 QueryIterResult::Ok(result) => result,
                 QueryIterResult::Err(error) => {
-                    send_error::<Block>(&sender, operation.operation_id(), error);
+                    send_error::<Block>(&sender, operation.operation_id(), error).await;
                     return;
                 }
             };
 
             if !events.is_empty() {
-                let _ = sender.unbounded_send(FollowEvent::<Block::Hash>::OperationStorageItems(
-                    OperationStorageItems {
-                        operation_id: operation.operation_id(),
-                        items: events,
-                    },
-                ));
+                if sender
+                    .send(FollowEvent::<Block::Hash>::OperationStorageItems(
+                        OperationStorageItems {
+                            operation_id: operation.operation_id(),
+                            items: events,
+                        },
+                    ))
+                    .await
+                    .is_err()
+                {
+                    return;
+                }
             }
 
             if let Some(next_query) = maybe_next_query {
                 if operation.was_stopped() {
                     return;
                 }
-                let _ = sender.unbounded_send(
-                    FollowEvent::<Block::Hash>::OperationWaitingForContinue(OperationId {
-                        operation_id: operation.operation_id(),
-                    }),
-                );
+                if sender
+                    .send(FollowEvent::<Block::Hash>::OperationWaitingForContinue(
+                        OperationId {
+                            operation_id: operation.operation_id(),
+                        },
+                    ))
+                    .await
+                    .is_err()
+                {
+                    return;
+                }
 
                 // Waiting for the client must never occupy a blocking worker.
                 operation.wait_for_continue().await;
@@ -214,22 +234,30 @@ where
         if operation.was_stopped() {
             return;
         }
-        let _ = sender.unbounded_send(FollowEvent::<Block::Hash>::OperationStorageDone(
-            OperationId {
-                operation_id: operation.operation_id(),
-            },
-        ));
+        let _ = sender
+            .send(FollowEvent::<Block::Hash>::OperationStorageDone(
+                OperationId {
+                    operation_id: operation.operation_id(),
+                },
+            ))
+            .await;
     }
 }
 
 /// Build and send the opaque error back to the `chainHead_follow` method.
-fn send_error<Block: BlockT>(
-    sender: &TracingUnboundedSender<FollowEvent<Block::Hash>>,
+async fn send_error<Block: BlockT>(
+    sender: &Sender<FollowEvent<Block::Hash>>,
     operation_id: String,
-    error: String,
+    mut error: String,
 ) {
-    let _ = sender.unbounded_send(FollowEvent::<Block::Hash>::OperationError(OperationError {
-        operation_id,
-        error,
-    }));
+    if error.len() > MAX_RESPONSE_BYTES {
+        error.truncate(error.floor_char_boundary(MAX_RESPONSE_BYTES));
+        error.shrink_to_fit();
+    }
+    let _ = sender
+        .send(FollowEvent::<Block::Hash>::OperationError(OperationError {
+            operation_id,
+            error,
+        }))
+        .await;
 }

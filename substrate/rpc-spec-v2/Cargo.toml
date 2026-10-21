@@ -64,8 +64,6 @@ sp-version.workspace = true
 sp-version.default-features = true
 sc-client-api.workspace = true
 sc-client-api.default-features = true
-sc-utils.workspace = true
-sc-utils.default-features = true
 sc-rpc.workspace = true
 sc-rpc.default-features = true
 codec = { workspace = true, default-features = true }
@@ -83,6 +81,8 @@ rand = { workspace = true, default-features = true }
 schnellru = { workspace = true }
 
 [dev-dependencies]
+sc-utils.workspace = true
+sc-utils.default-features = true
 jsonrpsee = { workspace = true, features = ["server", "ws-client"] }
 serde_json = { workspace = true, default-features = true }
 tokio = { features = ["macros"], workspace = true, default-features = true }

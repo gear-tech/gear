@@ -16,6 +16,7 @@ use crate::chain_head::{
 use futures::{
     channel::oneshot,
     stream::{self, Stream, StreamExt},
+    FutureExt,
 };
 use futures_util::future::Either;
 use log::debug;
@@ -612,7 +613,7 @@ where
         tokio::pin!(connection_closed);
         let mut stop_event = futures_util::future::select(rx_stop, connection_closed);
 
-        while let Either::Left((Some(event), next_stop_event)) =
+        while let Either::Left((Some(event), mut next_stop_event)) =
             futures_util::future::select(stream_item, stop_event).await
         {
             let events = match event {
@@ -635,20 +636,35 @@ where
                         self.sub_id,
                         err
                     );
-                    _ = sink.send(&FollowEvent::<String>::Stop).await;
+                    let _ = sink.send(&FollowEvent::<String>::Stop).now_or_never();
                     return Err(err);
                 }
             };
 
             for event in events {
-                if let Err(err) = sink.send(&event).await {
+                let result = match futures_util::future::select(
+                    next_stop_event,
+                    Box::pin(sink.send(&event)),
+                )
+                .await
+                {
+                    Either::Left(_) => {
+                        let _ = sink.send(&FollowEvent::<String>::Stop).now_or_never();
+                        return Ok(());
+                    }
+                    Either::Right((result, stop)) => {
+                        next_stop_event = stop;
+                        result
+                    }
+                };
+                if let Err(err) = result {
                     // Failed to submit event.
                     debug!(
                         target: LOG_TARGET,
                         "[follow][id={:?}] Failed to send event {:?}", self.sub_id, err
                     );
 
-                    let _ = sink.send(&FollowEvent::<String>::Stop).await;
+                    let _ = sink.send(&FollowEvent::<String>::Stop).now_or_never();
                     // No need to propagate this error further, the client disconnected.
                     return Ok(());
                 }
@@ -662,7 +678,7 @@ where
         // - the substrate streams have closed
         // - the `Stop` receiver was triggered internally (cannot hold the pinned block guarantee)
         // - the client disconnected.
-        let _ = sink.send(&FollowEvent::<String>::Stop).await;
+        let _ = sink.send(&FollowEvent::<String>::Stop).now_or_never();
         Ok(())
     }
 
@@ -683,9 +699,9 @@ where
             .finality_notification_stream()
             .map(|notification| NotificationType::Finalized(notification));
 
-        let stream_responses = sub_data
-            .response_receiver
-            .map(|response| NotificationType::MethodResponse(response));
+        let stream_responses =
+            tokio_stream::wrappers::ReceiverStream::new(sub_data.response_receiver)
+                .map(|response| NotificationType::MethodResponse(response));
 
         let startup_point = StartupPoint::from(self.client.info());
         let initial_events = match self.generate_init_events(&startup_point) {

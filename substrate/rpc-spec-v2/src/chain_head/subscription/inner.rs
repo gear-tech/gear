@@ -6,18 +6,18 @@
 use futures::channel::oneshot;
 use parking_lot::Mutex;
 use sc_client_api::Backend;
-use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver, TracingUnboundedSender};
 use sp_runtime::traits::Block as BlockT;
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
     sync::{atomic::AtomicBool, Arc},
     time::{Duration, Instant},
 };
+use tokio::sync::mpsc;
 
 use crate::chain_head::{subscription::SubscriptionManagementError, FollowEvent};
 
-/// The queue size after which the `sc_utils::mpsc::tracing_unbounded` would produce warnings.
-const QUEUE_SIZE_WARNING: usize = 512;
+// Four capped payloads retain at most 32 MiB, excluding channel/JSON overhead.
+const RESPONSE_QUEUE_CAPACITY: usize = 4;
 
 /// The state machine of a block of a single subscription ID.
 ///
@@ -381,7 +381,7 @@ struct SubscriptionState<Block: BlockT> {
     /// The sender of message responses to the `chainHead_follow` events.
     ///
     /// This object is cloned between methods.
-    response_sender: TracingUnboundedSender<FollowEvent<Block::Hash>>,
+    response_sender: mpsc::Sender<FollowEvent<Block::Hash>>,
     /// The ongoing operations of a subscription.
     operations: Operations,
     /// Track the block hashes available for this subscription.
@@ -515,7 +515,7 @@ impl<Block: BlockT> SubscriptionState<Block> {
 pub struct BlockGuard<Block: BlockT, BE: Backend<Block>> {
     hash: Block::Hash,
     with_runtime: bool,
-    response_sender: TracingUnboundedSender<FollowEvent<Block::Hash>>,
+    response_sender: mpsc::Sender<FollowEvent<Block::Hash>>,
     operation: RegisteredOperation,
     backend: Arc<BE>,
 }
@@ -537,7 +537,7 @@ impl<Block: BlockT, BE: Backend<Block>> BlockGuard<Block, BE> {
     fn new(
         hash: Block::Hash,
         with_runtime: bool,
-        response_sender: TracingUnboundedSender<FollowEvent<Block::Hash>>,
+        response_sender: mpsc::Sender<FollowEvent<Block::Hash>>,
         operation: RegisteredOperation,
         backend: Arc<BE>,
     ) -> Result<Self, SubscriptionManagementError> {
@@ -560,7 +560,7 @@ impl<Block: BlockT, BE: Backend<Block>> BlockGuard<Block, BE> {
     }
 
     /// Send message responses from the `chainHead` methods to `chainHead_follow`.
-    pub fn response_sender(&self) -> TracingUnboundedSender<FollowEvent<Block::Hash>> {
+    pub fn response_sender(&self) -> mpsc::Sender<FollowEvent<Block::Hash>> {
         self.response_sender.clone()
     }
 
@@ -582,7 +582,7 @@ pub struct InsertedSubscriptionData<Block: BlockT> {
     /// Signal that the subscription must stop.
     pub rx_stop: oneshot::Receiver<()>,
     /// Receive message responses from the `chainHead` methods.
-    pub response_receiver: TracingUnboundedReceiver<FollowEvent<Block::Hash>>,
+    pub response_receiver: mpsc::Receiver<FollowEvent<Block::Hash>>,
 }
 
 pub struct SubscriptionsInner<Block: BlockT, BE: Backend<Block>> {
@@ -632,8 +632,7 @@ impl<Block: BlockT, BE: Backend<Block>> SubscriptionsInner<Block, BE> {
     ) -> Option<InsertedSubscriptionData<Block>> {
         if let Entry::Vacant(entry) = self.subs.entry(sub_id) {
             let (tx_stop, rx_stop) = oneshot::channel();
-            let (response_sender, response_receiver) =
-                tracing_unbounded("chain-head-method-responses", QUEUE_SIZE_WARNING);
+            let (response_sender, response_receiver) = mpsc::channel(RESPONSE_QUEUE_CAPACITY);
             let state = SubscriptionState::<Block> {
                 with_runtime,
                 tx_stop: Some(tx_stop),
@@ -1018,8 +1017,7 @@ mod tests {
 
     #[test]
     fn sub_state_register_twice() {
-        let (response_sender, _response_receiver) =
-            tracing_unbounded("test-chain-head-method-responses", QUEUE_SIZE_WARNING);
+        let (response_sender, _response_receiver) = mpsc::channel(RESPONSE_QUEUE_CAPACITY);
         let mut sub_state = SubscriptionState::<Block> {
             with_runtime: false,
             tx_stop: None,
@@ -1050,8 +1048,7 @@ mod tests {
 
     #[test]
     fn sub_state_register_unregister() {
-        let (response_sender, _response_receiver) =
-            tracing_unbounded("test-chain-head-method-responses", QUEUE_SIZE_WARNING);
+        let (response_sender, _response_receiver) = mpsc::channel(RESPONSE_QUEUE_CAPACITY);
         let mut sub_state = SubscriptionState::<Block> {
             with_runtime: false,
             tx_stop: None,

@@ -5,7 +5,7 @@
 
 //! Storage queries for the RPC-V2 spec.
 
-use std::{marker::PhantomData, sync::Arc};
+use std::{cell::Cell, marker::PhantomData, sync::Arc};
 
 use sc_client_api::{Backend, ChildInfo, StorageKey, StorageProvider};
 use sp_runtime::traits::Block as BlockT;
@@ -17,6 +17,7 @@ use crate::hex_string;
 pub struct Storage<Client, Block, BE> {
     /// Substrate client.
     client: Arc<Client>,
+    remaining_response_bytes: Cell<Option<usize>>,
     _phandom: PhantomData<(BE, Block)>,
 }
 
@@ -25,8 +26,29 @@ impl<Client, Block, BE> Storage<Client, Block, BE> {
     pub fn new(client: Arc<Client>) -> Self {
         Self {
             client,
+            remaining_response_bytes: Cell::new(None),
             _phandom: PhantomData,
         }
+    }
+
+    /// Limit the next batch before allocating hex-encoded results.
+    pub(crate) fn limit_response_size(&mut self, bytes: usize) {
+        self.remaining_response_bytes.set(Some(bytes));
+    }
+
+    fn charge_result(&self, key: &[u8], value: &[u8]) -> Result<(), String> {
+        if let Some(remaining) = self.remaining_response_bytes.get() {
+            let bytes = key
+                .len()
+                .saturating_add(value.len())
+                .saturating_mul(2)
+                .saturating_add(4 + std::mem::size_of::<StorageResult>());
+            let remaining = remaining
+                .checked_sub(bytes)
+                .ok_or_else(|| "Storage response exceeds the byte limit".to_string())?;
+            self.remaining_response_bytes.set(Some(remaining));
+        }
+        Ok(())
     }
 }
 
@@ -74,13 +96,15 @@ where
         };
 
         result
-            .map(|opt| {
-                QueryResult::Ok(opt.map(|storage_data| StorageResult {
+            .map_err(|error| error.to_string())?
+            .map(|storage_data| {
+                self.charge_result(&key.0, &storage_data.0)?;
+                Ok(StorageResult {
                     key: hex_string(&key.0),
                     result: StorageResultType::Value(hex_string(&storage_data.0)),
-                }))
+                })
             })
-            .unwrap_or_else(|error| QueryResult::Err(error.to_string()))
+            .transpose()
     }
 
     /// Fetch the hash of a value from storage.
@@ -97,13 +121,15 @@ where
         };
 
         result
-            .map(|opt| {
-                QueryResult::Ok(opt.map(|storage_data| StorageResult {
+            .map_err(|error| error.to_string())?
+            .map(|storage_data| {
+                self.charge_result(&key.0, storage_data.as_ref())?;
+                Ok(StorageResult {
                     key: hex_string(&key.0),
                     result: StorageResultType::Hash(hex_string(&storage_data.as_ref())),
-                }))
+                })
             })
-            .unwrap_or_else(|error| QueryResult::Err(error.to_string()))
+            .transpose()
     }
 
     /// Fetch the closest merkle value.
@@ -120,20 +146,19 @@ where
         };
 
         result
-            .map(|opt| {
-                QueryResult::Ok(opt.map(|storage_data| {
-                    let result = match &storage_data {
-                        sc_client_api::MerkleValue::Node(data) => hex_string(&data.as_slice()),
-                        sc_client_api::MerkleValue::Hash(hash) => hex_string(&hash.as_ref()),
-                    };
-
-                    StorageResult {
-                        key: hex_string(&key.0),
-                        result: StorageResultType::ClosestDescendantMerkleValue(result),
-                    }
-                }))
+            .map_err(|error| error.to_string())?
+            .map(|storage_data| {
+                let value = match &storage_data {
+                    sc_client_api::MerkleValue::Node(data) => data.as_slice(),
+                    sc_client_api::MerkleValue::Hash(hash) => hash.as_ref(),
+                };
+                self.charge_result(&key.0, value)?;
+                Ok(StorageResult {
+                    key: hex_string(&key.0),
+                    result: StorageResultType::ClosestDescendantMerkleValue(hex_string(&value)),
+                })
             })
-            .unwrap_or_else(|error| QueryResult::Err(error.to_string()))
+            .transpose()
     }
 
     /// Iterate over at most the provided number of keys.

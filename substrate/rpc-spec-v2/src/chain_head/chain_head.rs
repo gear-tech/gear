@@ -41,6 +41,9 @@ use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 pub(crate) const LOG_TARGET: &str = "rpc-spec-v2";
 
+// Bound result construction as well as the pending method-response queue.
+pub(super) const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
+
 /// The configuration of [`ChainHead`].
 pub struct ChainHeadConfig {
     /// The maximum number of pinned blocks across all subscriptions.
@@ -280,16 +283,33 @@ where
 
             let event = match client.block(hash) {
                 Ok(Some(signed_block)) => {
+                    let mut remaining = MAX_RESPONSE_BYTES;
                     let extrinsics = signed_block
                         .block
                         .extrinsics()
                         .iter()
-                        .map(|extrinsic| hex_string(&extrinsic.encode()))
-                        .collect();
-                    FollowEvent::<Block::Hash>::OperationBodyDone(OperationBodyDone {
-                        operation_id: operation_id.clone(),
-                        value: extrinsics,
-                    })
+                        .map(|extrinsic| {
+                            let encoded = extrinsic.encode();
+                            let bytes = encoded
+                                .len()
+                                .saturating_mul(2)
+                                .saturating_add(2 + std::mem::size_of::<String>());
+                            remaining = remaining.checked_sub(bytes).ok_or(())?;
+                            Ok(hex_string(&encoded))
+                        })
+                        .collect::<Result<Vec<_>, ()>>();
+                    match extrinsics {
+                        Ok(value) => {
+                            FollowEvent::<Block::Hash>::OperationBodyDone(OperationBodyDone {
+                                operation_id: operation_id.clone(),
+                                value,
+                            })
+                        }
+                        Err(()) => FollowEvent::<Block::Hash>::OperationError(OperationError {
+                            operation_id: operation_id.clone(),
+                            error: "Body response exceeds the byte limit".into(),
+                        }),
+                    }
                 }
                 Ok(None) => {
                     // The block's body was pruned. This subscription ID has become invalid.
@@ -302,10 +322,17 @@ where
                     subscriptions.remove_subscription(&follow_subscription);
                     return ResponsePayload::error(ChainHeadRpcError::InvalidBlock);
                 }
-                Err(error) => FollowEvent::<Block::Hash>::OperationError(OperationError {
-                    operation_id: operation_id.clone(),
-                    error: error.to_string(),
-                }),
+                Err(error) => {
+                    let mut error = error.to_string();
+                    if error.len() > MAX_RESPONSE_BYTES {
+                        error.truncate(error.floor_char_boundary(MAX_RESPONSE_BYTES));
+                        error.shrink_to_fit();
+                    }
+                    FollowEvent::<Block::Hash>::OperationError(OperationError {
+                        operation_id: operation_id.clone(),
+                        error,
+                    })
+                }
             };
 
             let (rp, rp_fut) = method_started_response(operation_id, None);
@@ -316,7 +343,7 @@ where
                     return;
                 }
 
-                let _ = block_guard.response_sender().unbounded_send(event);
+                let _ = block_guard.response_sender().send(event).await;
             };
             executor.spawn("substrate-rpc-subscription", Some("rpc"), fut.boxed());
 
@@ -526,31 +553,46 @@ where
                 return;
             }
 
-            let _ = spawn_blocking(&executor, move || {
+            let Ok(Some((mut block_guard, event))) = spawn_blocking(&executor, move || {
                 if block_guard.operation().was_stopped() {
-                    return;
+                    return None;
                 }
-                let event = client
-                    .executor()
-                    .call(hash, &function, &call_parameters, CallContext::Offchain)
-                    .map(|result| {
+                let event = match client.executor().call(
+                    hash,
+                    &function,
+                    &call_parameters,
+                    CallContext::Offchain,
+                ) {
+                    Ok(result) if result.len() <= (MAX_RESPONSE_BYTES - 2) / 2 => {
                         FollowEvent::<Block::Hash>::OperationCallDone(OperationCallDone {
-                            operation_id: operation_id.clone(),
+                            operation_id,
                             output: hex_string(&result),
                         })
-                    })
-                    .unwrap_or_else(|error| {
+                    }
+                    result => {
+                        let mut error = match result {
+                            Ok(_) => "Call response exceeds the byte limit".to_string(),
+                            Err(error) => error.to_string(),
+                        };
+                        if error.len() > MAX_RESPONSE_BYTES {
+                            error.truncate(error.floor_char_boundary(MAX_RESPONSE_BYTES));
+                            error.shrink_to_fit();
+                        }
                         FollowEvent::<Block::Hash>::OperationError(OperationError {
-                            operation_id: operation_id.clone(),
-                            error: error.to_string(),
+                            operation_id,
+                            error,
                         })
-                    });
-
-                if !block_guard.operation().was_stopped() {
-                    let _ = block_guard.response_sender().unbounded_send(event);
-                }
+                    }
+                };
+                Some((block_guard, event))
             })
-            .await;
+            .await
+            else {
+                return;
+            };
+            if !block_guard.operation().was_stopped() {
+                let _ = block_guard.response_sender().send(event).await;
+            }
         };
         self.executor
             .spawn("substrate-rpc-subscription", Some("rpc"), fut.boxed());
