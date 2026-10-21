@@ -40,6 +40,7 @@ members = [
   "substrate/sp-session",
   "substrate/rpc-api",
   "substrate/rpc",
+  "substrate/rpc-spec-v2",
   "substrate/sp-allocator",
   "substrate/sp-runtime-interface-proc-macro",
   "substrate/sp-wasm-interface",
@@ -800,6 +801,7 @@ sp-runtime = { path = "substrate/sp-runtime" }
 sp-session = { path = "substrate/sp-session" }
 sc-rpc-api = { path = "substrate/rpc-api" }
 sc-rpc = { path = "substrate/rpc" }
+sc-rpc-spec-v2 = { path = "substrate/rpc-spec-v2" }
 substrate-test-runtime = { path = "substrate/test-runtime" }
 pallet-beefy = { path = "substrate/pallet-beefy" }
 pallet-session = { path = "substrate/pallet-session" }

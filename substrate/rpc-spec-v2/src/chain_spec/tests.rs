@@ -1,0 +1,48 @@
+// This file is part of Substrate.
+
+// Copyright (C) Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+use super::*;
+use jsonrpsee::{core::EmptyServerParams as EmptyParams, RpcModule};
+use sc_chain_spec::Properties;
+
+const CHAIN_NAME: &'static str = "TEST_CHAIN_NAME";
+const CHAIN_GENESIS: [u8; 32] = [0; 32];
+const CHAIN_PROPERTIES: &'static str = r#"{"three": "123", "one": 1, "two": 12}"#;
+
+fn api() -> RpcModule<ChainSpec> {
+    ChainSpec::new(
+        CHAIN_NAME.to_string(),
+        CHAIN_GENESIS,
+        serde_json::from_str(CHAIN_PROPERTIES).unwrap(),
+    )
+    .into_rpc()
+}
+
+#[tokio::test]
+async fn chain_spec_chain_name_works() {
+    let name = api()
+        .call::<_, String>("chainSpec_v1_chainName", EmptyParams::new())
+        .await
+        .unwrap();
+    assert_eq!(name, CHAIN_NAME);
+}
+
+#[tokio::test]
+async fn chain_spec_genesis_hash_works() {
+    let genesis = api()
+        .call::<_, String>("chainSpec_v1_genesisHash", EmptyParams::new())
+        .await
+        .unwrap();
+    assert_eq!(genesis, format!("0x{}", hex::encode(CHAIN_GENESIS)));
+}
+
+#[tokio::test]
+async fn chain_spec_properties_works() {
+    let properties = api()
+        .call::<_, Properties>("chainSpec_v1_properties", EmptyParams::new())
+        .await
+        .unwrap();
+    assert_eq!(properties, serde_json::from_str(CHAIN_PROPERTIES).unwrap());
+}
