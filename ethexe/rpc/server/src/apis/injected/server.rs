@@ -16,6 +16,7 @@ use ethexe_common::{
     },
 };
 use ethexe_db::Database;
+use ethexe_rpc_common::PromiseSubscriptionFilter;
 use jsonrpsee::{
     core::{RpcResult, SubscriptionResult, async_trait},
     server::PendingSubscriptionSink,
@@ -50,6 +51,14 @@ impl InjectedServer for InjectedApi {
         transaction: SignedInjectedTransaction,
     ) -> SubscriptionResult {
         self.send_transaction_and_watch(pending, transaction).await
+    }
+
+    async fn subscribe_promises(
+        &self,
+        pending: PendingSubscriptionSink,
+        filter: Option<PromiseSubscriptionFilter>,
+    ) -> SubscriptionResult {
+        self.subscribe_promises(pending, filter).await
     }
 
     async fn get_transaction_receipt(
@@ -131,6 +140,17 @@ impl InjectedApi {
             manager.cancel_registration(tx_hash);
             metrics.injected_tx_active_subscriptions.decrement(1);
         });
+        Ok(())
+    }
+
+    async fn subscribe_promises(
+        &self,
+        pending: PendingSubscriptionSink,
+        filter: Option<PromiseSubscriptionFilter>,
+    ) -> SubscriptionResult {
+        let receiver = self.manager.subscribe_promises();
+        let sink = pending.accept().await?;
+        spawner::spawn_promises_subscriber(sink, receiver, filter);
         Ok(())
     }
 

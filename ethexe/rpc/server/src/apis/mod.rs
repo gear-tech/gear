@@ -13,6 +13,8 @@ pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
 pub use dev::{DevApi, DevServer};
 pub use info::{InfoApi, InfoServer, RPC_VERSION};
-pub use injected::{InjectedApi, InjectedServer};
+pub use injected::{
+    InjectedApi, InjectedServer, PromiseEnvelope, PromiseSubscriptionFilter, ReplyCodeFilter,
+};
 pub use program::{ProgramApi, ProgramServer};
 pub use program_best_state::BestStateManager;

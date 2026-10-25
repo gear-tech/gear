@@ -83,3 +83,5 @@ pub(crate) mod spawner;
 
 mod r#trait;
 pub use r#trait::InjectedServer;
+
+pub use ethexe_rpc_common::{PromiseEnvelope, PromiseSubscriptionFilter, ReplyCodeFilter};

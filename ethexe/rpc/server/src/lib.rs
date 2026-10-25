@@ -28,11 +28,12 @@
 //! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
 //! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
 
-pub use crate::apis::RPC_VERSION;
+pub use crate::apis::{PromiseEnvelope, PromiseSubscriptionFilter, RPC_VERSION, ReplyCodeFilter};
 
 pub use ethexe_rpc_common as types;
 
 use anyhow::Result;
+
 use apis::{
     BestStateManager, BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InfoApi,
     InfoServer, InjectedApi, InjectedServer, ProgramApi, ProgramServer,
