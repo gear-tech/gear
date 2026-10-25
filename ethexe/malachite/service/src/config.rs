@@ -25,10 +25,7 @@ pub struct MalachiteServiceConfig {
 
     /// Extra depth on top of `canonical_quarantine` the proposer waits
     /// before choosing an EB to advance to, giving lagging validators
-    /// time to sync it.
-    // TODO: #5478 reject unreasonable values at config load — `u32::MAX`
-    //       turns the producer's anchor walk into millions of RocksDB reads
-    //       per `wait_for_proposable_content` invocation.
+    /// time to sync it. Must not exceed [`Self::MAX_POST_QUARANTINE_DELAY`].
     pub post_quarantine_delay: u32,
 
     /// Directory for the consensus core's WAL and RocksDB store.
@@ -49,6 +46,10 @@ impl MalachiteServiceConfig {
     pub const DEFAULT_CANONICAL_QUARANTINE: u8 = ethexe_common::gear::CANONICAL_QUARANTINE;
     /// One block is enough to absorb the typical observer skew between validators.
     pub const DEFAULT_POST_QUARANTINE_DELAY: u32 = 1;
+    /// The producer walks this many extra parents on every
+    /// `wait_for_proposable_content` call, so an unbounded value turns
+    /// each call into millions of database reads.
+    pub const MAX_POST_QUARANTINE_DELAY: u32 = 1000;
     /// Ethereum block time occasionally stretches past one slot, so give
     /// the producer more than `SLOT_DURATION` to find a fresh EB.
     pub const DEFAULT_PROPOSE_TIMEOUT: Duration =
