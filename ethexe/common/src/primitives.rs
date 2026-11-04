@@ -194,18 +194,12 @@ impl ProtocolTimelines {
     /// Returns the timestamp when election starts in the given era.
     /// NOTE: election starts for the next era validators.
     ///
-    /// Returns `None` if overflows u64.
-    ///
-    /// # Panics
-    /// Panics if `era duration < election duration`
+    /// Returns `None` if overflows u64 or if the election duration exceeds
+    /// the era duration.
     #[inline(always)]
     pub fn era_election_start_ts(&self, era_index: u64) -> Option<u64> {
-        self.era_start_ts(era_index)?.checked_add(
-            self.era
-                .get()
-                .checked_sub(self.election)
-                .expect("Incorrect Timelines - era duration < election duration"),
-        )
+        let election_offset = self.era.get().checked_sub(self.election)?;
+        self.era_start_ts(era_index)?.checked_add(election_offset)
     }
 
     /// Returns the slot index for the given timestamp. Slots starts from 0.
@@ -302,5 +296,36 @@ mod tests {
         // For 1 era
         assert_eq!(timelines.era_start_ts(1), Some(244));
         assert_eq!(timelines.era_start_ts(1), Some(244));
+    }
+
+    #[test]
+    fn test_era_election_start_calculation() {
+        let timelines = mock_timelines();
+
+        // Election takes the last 200 seconds of a 234 seconds era
+        assert_eq!(timelines.era_election_start_ts(0), Some(44));
+        assert_eq!(timelines.era_election_start_ts(1), Some(278));
+
+        // Election taking the whole era starts with it
+        let whole_era = ProtocolTimelines {
+            election: 234,
+            ..mock_timelines()
+        };
+        assert_eq!(whole_era.era_election_start_ts(0), Some(10));
+    }
+
+    #[test]
+    fn era_election_start_ts_returns_none_when_election_exceeds_era() {
+        let result = ProtocolTimelines {
+            election: 235,
+            ..mock_timelines()
+        }
+        .era_election_start_ts(0);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn era_election_start_ts_returns_none_on_overflow() {
+        assert_eq!(mock_timelines().era_election_start_ts(u64::MAX), None);
     }
 }
