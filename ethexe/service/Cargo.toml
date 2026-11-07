@@ -85,3 +85,4 @@ demo-delayed-sender-ethexe = { workspace = true, features = [
     "debug",
     "ethexe",
 ] }
+demo-sails-events = { workspace = true, features = ["debug", "ethexe"] }

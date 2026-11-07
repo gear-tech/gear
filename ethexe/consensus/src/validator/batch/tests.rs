@@ -111,6 +111,8 @@ fn nonempty_transition(seed: u8) -> StateTransition {
         value_to_receive_negative_sign: false,
         value_claims: vec![],
         messages: vec![],
+        events: vec![],
+        eth_events: vec![],
     }
 }
 
@@ -496,6 +498,8 @@ async fn squash_orders_negative_value_transitions_first() {
         value_to_receive_negative_sign,
         value_claims: vec![],
         messages: vec![],
+        events: vec![],
+        eth_events: vec![],
     };
 
     let mb1_neg = transition(actor_negative, H256::from([1; 32]), 70, true);

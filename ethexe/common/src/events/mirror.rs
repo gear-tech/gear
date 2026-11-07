@@ -90,6 +90,12 @@ pub struct ValueClaimingRequestedEvent {
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct GearEvent {
+    pub payload: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct TransferLockedValueToInheritorFailedEvent {
     pub inheritor: ActorId,
     pub value: u128,
@@ -125,6 +131,7 @@ pub enum Event {
     TransferLockedValueToInheritorFailed(TransferLockedValueToInheritorFailedEvent),
     ReplyTransferFailed(ReplyTransferFailedEvent),
     ValueClaimFailed(ValueClaimFailedEvent),
+    Gear(GearEvent),
 }
 
 impl Event {
@@ -147,7 +154,8 @@ impl Event {
             | Self::ReplyCallFailed(_)
             | Self::TransferLockedValueToInheritorFailed(_)
             | Self::ReplyTransferFailed(_)
-            | Self::ValueClaimFailed(_) => return None,
+            | Self::ValueClaimFailed(_)
+            | Self::Gear(_) => return None,
         })
     }
 }

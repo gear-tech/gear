@@ -13,7 +13,10 @@ use ethexe_common::{
     },
 };
 use gprimitives::{ActorId, H256};
-use std::collections::{HashMap, hash_map::Entry};
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    mem,
+};
 
 /// MBs in `(last_committed_mb, mb_hash]`, chronological order. Strict: errors
 /// if the walk doesn't reach the anchor or any MB along the way is not computed.
@@ -386,14 +389,18 @@ struct ActorAggregation {
     newest: StateTransition,
     messages: Vec<Message>,
     value_claims: Vec<ValueClaim>,
+    events: Vec<Vec<u8>>,
+    eth_events: Vec<Vec<u8>>,
     value_to_receive: SignedMagnitude,
     exit_inheritor: Option<ActorId>,
 }
 
 impl ActorAggregation {
     fn new(mut transition: StateTransition) -> Self {
-        let messages = std::mem::take(&mut transition.messages);
-        let value_claims = std::mem::take(&mut transition.value_claims);
+        let messages = mem::take(&mut transition.messages);
+        let value_claims = mem::take(&mut transition.value_claims);
+        let events = mem::take(&mut transition.events);
+        let eth_events = mem::take(&mut transition.eth_events);
         let exit_inheritor = transition.exited.then_some(transition.inheritor);
 
         Self {
@@ -404,6 +411,8 @@ impl ActorAggregation {
             newest: transition,
             messages,
             value_claims,
+            events,
+            eth_events,
             exit_inheritor,
         }
     }
@@ -413,6 +422,8 @@ impl ActorAggregation {
         debug_assert_eq!(self.newest.actor_id, actor_id);
         self.messages.append(&mut transition.messages);
         self.value_claims.append(&mut transition.value_claims);
+        self.events.append(&mut transition.events);
+        self.eth_events.append(&mut transition.eth_events);
         self.value_to_receive.add_assign(
             SignedMagnitude::new(
                 transition.value_to_receive,
@@ -441,6 +452,8 @@ impl ActorAggregation {
             value_to_receive_negative_sign,
             value_claims: self.value_claims,
             messages: self.messages,
+            events: self.events,
+            eth_events: self.eth_events,
         }
     }
 }
@@ -729,6 +742,8 @@ mod tests {
                     value_to_receive_negative_sign: false,
                     value_claims: vec![],
                     messages: vec![],
+                    events: vec![],
+                    eth_events: vec![],
                 }],
                 head: block_hash,
                 last_advanced_eth_block: H256::zero(),
@@ -798,6 +813,12 @@ mod tests {
             call: false,
         };
 
+        let e1 = "Event 1".as_bytes().to_vec();
+        let e2 = "Event 2".as_bytes().to_vec();
+
+        let eth_e1 = "Eth Event 1".as_bytes().to_vec();
+        let eth_e2 = "Eth Event 2".as_bytes().to_vec();
+
         let transitions = vec![
             StateTransition {
                 actor_id: actor,
@@ -808,6 +829,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![m1.clone()],
+                events: vec![e1.clone()],
+                eth_events: vec![eth_e1.clone()],
             },
             StateTransition {
                 actor_id: actor,
@@ -818,6 +841,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![m2.clone()],
+                events: vec![e2.clone()],
+                eth_events: vec![eth_e2.clone()],
             },
         ];
 
@@ -830,6 +855,8 @@ mod tests {
         assert!(st.exited);
         assert_eq!(st.inheritor, inheritor_new);
         assert_eq!(st.messages, vec![m1, m2]);
+        assert_eq!(st.events, vec![e1, e2]);
+        assert_eq!(st.eth_events, vec![eth_e1, eth_e2]);
         assert_eq!(st.value_to_receive, 3);
     }
 
@@ -848,6 +875,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
             StateTransition {
                 actor_id: actor,
@@ -858,6 +887,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
         ]);
     }
@@ -877,6 +908,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
             StateTransition {
                 actor_id: actor_b,
@@ -887,6 +920,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
         ];
 
@@ -917,6 +952,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
             StateTransition {
                 actor_id: actor_b,
@@ -927,6 +964,8 @@ mod tests {
                 value_to_receive_negative_sign: true,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
             StateTransition {
                 actor_id: actor_a,
@@ -937,6 +976,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
         ]);
 
@@ -963,6 +1004,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
             StateTransition {
                 actor_id: actor,
@@ -973,6 +1016,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
         ];
 
@@ -1000,6 +1045,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
             StateTransition {
                 actor_id: actor,
@@ -1010,6 +1057,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
         ];
 
@@ -1036,6 +1085,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
             StateTransition {
                 actor_id: actor,
@@ -1046,6 +1097,8 @@ mod tests {
                 value_to_receive_negative_sign: true,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
         ]);
 
@@ -1068,6 +1121,8 @@ mod tests {
                 value_to_receive_negative_sign: false,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
             StateTransition {
                 actor_id: actor,
@@ -1078,6 +1133,8 @@ mod tests {
                 value_to_receive_negative_sign: true,
                 value_claims: vec![],
                 messages: vec![],
+                events: vec![],
+                eth_events: vec![],
             },
         ]);
 
@@ -1143,6 +1200,8 @@ mod tests {
             value_to_receive_negative_sign: false,
             value_claims: vec![],
             messages: vec![msg_a.clone(), msg_b.clone(), msg_c.clone()],
+            events: vec![],
+            eth_events: vec![],
         };
 
         // MB 1: has committed ids for (a) and (c) only.

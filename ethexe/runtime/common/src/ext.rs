@@ -12,7 +12,7 @@ use gear_core::{
     env_vars::EnvVars,
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasLeft},
     memory::{Memory, MemoryError, MemoryInterval},
-    message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
+    message::{HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
     pages::WasmPage,
     program::MemoryInfix,
 };
@@ -94,7 +94,6 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
             fn block_timestamp(&self) -> Result<u64, Self::UnrecoverableError>;
             fn send_init(&mut self) -> Result<u32, Self::FallibleError>;
             fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Self::FallibleError>;
-            fn send_commit(&mut self, handle: u32, msg: HandlePacket, delay: u32) -> Result<MessageId, Self::FallibleError>;
             fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::FallibleError>;
             fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::FallibleError>;
             fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::FallibleError>;
@@ -117,11 +116,24 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
         }
     }
 
+    fn send_commit(
+        &mut self,
+        handle: u32,
+        msg: HandlePacket,
+        delay: u32,
+    ) -> Result<MessageId, Self::FallibleError> {
+        match msg.destination() {
+            ActorId::GEAR_SAILS_EVENT | ActorId::ETH_SAILS_EVENT if msg.value() > 0 => {
+                Err(FallibleExtError::Core(ExtError::Unsupported))
+            }
+            _ => self.core.send_commit(handle, msg, delay),
+        }
+    }
+
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::FallibleError> {
-        if delay != 0 {
-            Err(FallibleExtError::Core(ExtError::Unsupported))
-        } else {
-            self.core.wake(waker_id, delay)
+        match delay {
+            0 => self.core.wake(waker_id, 0),
+            _ => Err(FallibleExtError::Core(ExtError::Unsupported)),
         }
     }
 

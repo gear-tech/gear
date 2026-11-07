@@ -390,6 +390,8 @@ impl Arbitrary for StateTransition {
                         reply_details: None,
                         call: false,
                     }],
+                    events: vec![b"Event 1".to_vec(), b"Event 2".to_vec()],
+                    eth_events: vec![b"Eth Event 1".to_vec(), b"Eth Event 2".to_vec()],
                 },
             )
             .boxed()
