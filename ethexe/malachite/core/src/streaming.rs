@@ -352,4 +352,244 @@ mod tests {
             map.streams.len(),
         );
     }
+
+    /// REPRODUCES: a single-message stuck-stream attack — distinct
+    /// from iter #3 (double-Fin, 5+ messages), iter #5 (Data@0 +
+    /// Init@1 + …, 4 messages), and #5473 (generic unbounded growth).
+    ///
+    /// A peer sends ONLY one message: `Fin` at sequence 0. The
+    /// `StreamState::insert` path then runs:
+    ///   - `msg.is_first()` true (sequence == 0). `msg.content.as_data()`
+    ///     returns `None` (content is `Fin`, not `Data`) →
+    ///     `init_info = None`.
+    ///   - `msg.is_fin()` true → `fin_received = true`,
+    ///     `total_messages = 0 as usize + 1 = 1`.
+    ///   - `buffer.push(msg)` → `buffer.len() = 1`.
+    ///   - `is_done()` requires `init_info.is_some()` → **false**.
+    ///
+    /// The state is permanently non-completable: `init_info` will
+    /// never be set (no future sequence-0 message can ever land —
+    /// `seen_sequences` deduplicates), `fin_received` is locked true,
+    /// and `buffer.len() == total_messages` is already satisfied. The
+    /// `(peer_id, stream_id)` slot is held forever.
+    ///
+    /// Cost to attacker: **one** stream message per stuck slot — the
+    /// cheapest possible variant. With multiple `stream_id`s a single
+    /// peer can permanently allocate one slot per message it sends,
+    /// 1:1 amplification.
+    ///
+    /// Expected fix: when `is_done`-relevant invariants are reached
+    /// (fin_received && buffer.len() == total_messages) but
+    /// `init_info` is still `None`, drop the state as a protocol
+    /// violation rather than leaving it parked forever. (Or, more
+    /// broadly, require any complete stream to contain a `Data(Init)`
+    /// part among its delivered messages — if none arrives, the
+    /// stream is malformed and the slot must be released.)
+    #[test]
+    #[ignore = "tracks bug: single Fin@0 message holds a PartStreamsMap slot indefinitely"]
+    fn lone_fin_at_seq_zero_holds_slot_forever() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(11);
+        let s = sid(0xCAFEBABE);
+
+        // ONE message: Fin at sequence 0.
+        let done = map.insert(p, fin_msg(s.clone(), 0));
+
+        // The stream "should" either complete (impossible — there's no
+        // Init in the payload, so nothing to emit) OR the state must
+        // be dropped immediately as a malformed stream. Right now
+        // neither happens: the slot is parked.
+        assert!(
+            done.is_none(),
+            "Fin@0 alone cannot legitimately complete a proposal stream — \
+             there is no Init data to extract.",
+        );
+        assert!(
+            map.streams.is_empty(),
+            "single-Fin@0 attack: a malformed 1-message stream parked a \
+             PartStreamsMap slot indefinitely. Expected the state to be \
+             dropped on detection that a complete-by-counters stream has \
+             no Init. (1:1 amplification — n messages → n stuck slots; \
+             compounds with #5473's no-cap issue.)",
+        );
+    }
+
+    /// REPRODUCES: `StreamState::insert` couples Init-extraction with
+    /// `msg.is_first()` (= `sequence == 0`). If a peer puts a `Data`
+    /// part at sequence 0 and the actual `Init` at sequence 1, the
+    /// `is_first()` branch fires for the Data — `as_init()` returns
+    /// `None` — so `init_info` stays `None` forever. When the proper
+    /// `Init` arrives at sequence 1 it's filed into the buffer as a
+    /// regular data part (no special handling), `init_info` is never
+    /// populated, and `is_done()`'s `init_info.is_some()` gate can
+    /// never succeed even after every part + Fin arrives.
+    ///
+    /// Concrete consequence: the `(peer_id, stream_id)` slot is held
+    /// indefinitely — `PartStreamsMap::insert` removes the entry only
+    /// when `state.is_done()` returns true. A single malicious peer
+    /// can hold one stuck slot per stream they open (and open
+    /// arbitrarily many slots — see #5473 for the broader cap issue).
+    ///
+    /// Expected fix: either (a) extract the Init from whichever
+    /// `ProposalPart::Init` arrives, regardless of its sequence
+    /// position, or (b) reject any sequence-0 message whose content
+    /// is not a `ProposalPart::Init` as a protocol violation so the
+    /// state is dropped immediately rather than left in a permanently
+    /// non-completable shape.
+    ///
+    /// This pins (a): a stream with Data@0, Init@1, Data@2, Fin@3
+    /// must still assemble — every part the proposer intended is
+    /// present; the only oddity is the (peer-controlled) ordering of
+    /// the Init part within the sequence space.
+    #[test]
+    #[ignore = "tracks bug: StreamState ties Init extraction to sequence==0, stuck stream when Init isn't first"]
+    fn init_at_non_zero_sequence_never_completes() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(8);
+        let s = sid(0xBADF00D);
+
+        // Sequence 0: a Data part (not Init). `is_first()` true, but
+        // `as_init()` on a Data returns None — init_info stays None.
+        assert!(
+            map.insert(p, msg(s.clone(), 0, data_part(b"AAAA")))
+                .is_none(),
+        );
+        // Sequence 1: the actual Init. `is_first()` false — Init is
+        // filed as a plain buffered part, init_info never updated.
+        assert!(map.insert(p, msg(s.clone(), 1, init_part(99))).is_none());
+        // Sequence 2: another data part.
+        assert!(
+            map.insert(p, msg(s.clone(), 2, data_part(b"BBBB")))
+                .is_none(),
+        );
+        // Fin at sequence 3 — total_messages = 4, buffer.len() = 4.
+        // `is_done()` would fire IF `init_info` was set. Currently it
+        // isn't — so the stream is stuck.
+        let done = map.insert(p, fin_msg(s.clone(), 3));
+
+        assert!(
+            done.is_some(),
+            "stream with Init at sequence > 0 must still assemble: \
+             the proposer placed Init + Data + Fin and the buffer has \
+             all 4 parts, but `init_info` was never populated because \
+             `is_first()` (= sequence == 0) saw the Data part instead. \
+             StreamState should extract Init by content kind, not by \
+             sequence position — otherwise a malicious peer can hold a \
+             PartStreamsMap slot indefinitely with a single 4-message \
+             stream (compounding the no-cap issue in #5473).",
+        );
+    }
+
+    /// REPRODUCES: a malicious sender can prematurely complete a
+    /// proposal stream by sending two `Fin` messages with different
+    /// sequences. `StreamState::insert` unconditionally overwrites
+    /// `total_messages = msg.sequence as usize + 1` on every `Fin`,
+    /// so a second `Fin` at a lower sequence lowers the completion
+    /// target. By choosing the second `Fin`'s sequence to equal the
+    /// current `buffer.len()`, the attacker forces
+    /// `is_done` (`buffer.len() == total_messages`) to fire even though
+    /// the proposer's original intent (encoded in the FIRST `Fin`)
+    /// was a much larger part count.
+    ///
+    /// Expected behaviour: once a `Fin` has been seen, a later `Fin`
+    /// at a different sequence must be rejected — `total_messages`
+    /// should be locked, or the second `Fin` should mark the stream
+    /// as corrupted and drop the state.
+    #[test]
+    #[ignore = "tracks double-Fin-sequence completion bug in streaming.rs"]
+    fn double_fin_with_smaller_sequence_completes_stream_prematurely() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(7);
+        let s = sid(0xD00D);
+
+        // Attacker plays the role of the proposer for (p, s). They
+        // send a partial proposal: Init + three Data parts.
+        assert!(map.insert(p, msg(s.clone(), 0, init_part(42))).is_none());
+        assert!(
+            map.insert(p, msg(s.clone(), 1, data_part(b"AAAA")))
+                .is_none(),
+        );
+        assert!(
+            map.insert(p, msg(s.clone(), 2, data_part(b"BBBB")))
+                .is_none(),
+        );
+        assert!(
+            map.insert(p, msg(s.clone(), 3, data_part(b"CCCC")))
+                .is_none(),
+        );
+        // First `Fin` at sequence 100 — the proposer "intends" 101
+        // parts in this stream. buffer.len() = 5 ≠ total = 101 ⇒ not
+        // done.
+        assert!(map.insert(p, fin_msg(s.clone(), 100)).is_none());
+
+        // Malicious second `Fin` at sequence 5. `seen_sequences`
+        // doesn't yet contain 5, so it's accepted. The bug:
+        // `total_messages` is overwritten to 6, and the buffer grows
+        // to 6 entries (Init + 3 Data + 2 Fins). 6 == 6 ⇒ DONE.
+        let done = map.insert(p, fin_msg(s.clone(), 5));
+
+        assert!(
+            done.is_none(),
+            "double-Fin attack: a second `Fin` lowered \
+             `total_messages` so that `buffer.len() == total_messages` \
+             fires early. The stream completed even though only 4 of \
+             the proposer's intended 101 parts were delivered. \
+             total_messages should be locked after the first Fin, or \
+             the second Fin should be rejected as a protocol \
+             violation.",
+        );
+    }
+
+    /// REPRODUCES: `StreamState::insert` computes
+    /// `total_messages = msg.sequence as usize + 1` unconditionally
+    /// for every `Fin` message. On a 64-bit target `usize == u64`, so a
+    /// peer-controlled `sequence == u64::MAX` produces `u64::MAX + 1`
+    /// — which panics under the workspace's debug profile
+    /// (overflow-checks default to on for `dev`). One unsigned
+    /// stream message from a peer who's already in the proposer's
+    /// gossip group is enough to abort the engine's app task.
+    ///
+    /// Distinct from iter #3 (double-Fin), iter #5 (Init at non-zero
+    /// seq), iter #8 (lone Fin@0 stuck slot), and from issue #5473
+    /// (unbounded growth via `u64::MAX / 2` style Fins): those all
+    /// stay in pure-data land and leak resources. This case crashes
+    /// the task outright in debug builds and silently wraps
+    /// `total_messages` to 0 in release — locking the slot forever
+    /// no matter what other parts arrive (`buffer.len() == 0` is
+    /// already false after the Fin push and stays false).
+    ///
+    /// Expected fix: clamp / saturate the `sequence + 1` arithmetic,
+    /// or reject any `Fin` whose sequence exceeds some sane
+    /// per-stream cap (mirroring the pending #5473 caps) so the
+    /// engine never executes a wrap-prone add on attacker-controlled
+    /// input.
+    #[test]
+    #[ignore = "tracks bug: StreamState panics on Fin@u64::MAX (debug) / wraps total_messages to 0 (release)"]
+    fn fin_at_u64_max_sequence_panics_in_debug() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(13);
+        let s = sid(0xDEADBEEF);
+
+        // A peer-controlled `Fin` with the maximum possible `sequence`.
+        // SCALE encodes `sequence: u64` with no upper bound, so this
+        // value is reachable from the wire (`RawStreamMessage.sequence`
+        // is `u64`). The arithmetic `u64::MAX as usize + 1` overflows
+        // under the dev profile's `overflow-checks = true` and
+        // unwinds the app task.
+        //
+        // We catch the unwind to keep the assertion side intact —
+        // the failure mode IS the panic, not a value-check.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            map.insert(p, fin_msg(s.clone(), u64::MAX))
+        }));
+
+        assert!(
+            result.is_ok(),
+            "Fin@u64::MAX panicked StreamState::insert (overflow in \
+             `msg.sequence as usize + 1` under overflow-checks). \
+             A single wire-legal stream message from any gossip peer \
+             can crash the engine's app task. Saturate or reject \
+             oversize sequences before the add.",
+        );
+    }
 }
