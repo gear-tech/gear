@@ -108,10 +108,8 @@ where
         outgoing_bytes_limit,
     };
 
-    // TODO: add tests that system reservation is successfully unreserved after
-    // actor execution error #3756.
-
     // Get system reservation context in order to use it if actor execution error occurs.
+    // Covered by `tests::actor_execution_error_unreserves_system_reservation`.
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     let exec_result = executor::execute_wasm::<Ext>(
@@ -706,4 +704,164 @@ pub fn process_allowance_exceed(
     });
 
     journal
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Ext, common::Program};
+    use alloc::{collections::BTreeSet, vec};
+    use gear_core::{
+        code::{
+            CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode,
+            SyscallKind,
+        },
+        gas::{GasAllowanceCounter, GasCounter},
+        message::{ContextStore, IncomingMessage},
+        reservation::GasReserver,
+    };
+
+    const GAS_LIMIT: u64 = 1_000_000_000;
+    const SYSTEM_RESERVATION: u64 = 1_000;
+    const MESSAGE_ID: u64 = 1;
+    const SOURCE: u64 = 2;
+    const PROGRAM_ID: u64 = 3;
+
+    fn block_config() -> BlockConfig {
+        BlockConfig {
+            block_info: Default::default(),
+            performance_multiplier: gsys::Percent::new(100),
+            forbidden_funcs: Default::default(),
+            reserve_for: 0,
+            gas_multiplier: gsys::GasMultiplier::one(),
+            costs: Default::default(),
+            existential_deposit: 0,
+            mailbox_threshold: 0,
+            max_reservations: 256,
+            max_pages: Default::default(),
+            outgoing_limit: u32::MAX,
+            outgoing_bytes_limit: u32::MAX,
+        }
+    }
+
+    /// A handle dispatch that was already executed once (e.g. before a wait),
+    /// with the given system reservation in its context.
+    fn woken_dispatch(system_reservation: Option<u64>) -> IncomingDispatch {
+        let message = IncomingMessage::new(
+            MessageId::from(MESSAGE_ID),
+            ActorId::from(SOURCE),
+            Default::default(),
+            GAS_LIMIT,
+            0,
+            None,
+        );
+        let context = ContextStore::new(BTreeSet::new(), Default::default(), system_reservation, 0);
+
+        IncomingDispatch::new(DispatchKind::Handle, message, Some(context))
+    }
+
+    /// Execution context whose code cannot be instantiated, so `execute_wasm`
+    /// returns `ExecutionError::Actor` before the program runs.
+    fn context_with_uninstantiable_code(dispatch: IncomingDispatch) -> ProcessExecutionContext {
+        let program = Program {
+            id: ActorId::from(PROGRAM_ID),
+            memory_infix: Default::default(),
+            instrumented_code: InstrumentedCode::new(
+                b"not a wasm module".to_vec(),
+                InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
+            ),
+            code_metadata: CodeMetadata::new(
+                0,
+                [DispatchKind::Handle].into(),
+                Default::default(),
+                None,
+                InstrumentationStatus::NotInstrumented,
+            ),
+            allocations: Default::default(),
+        };
+
+        ProcessExecutionContext {
+            gas_counter: GasCounter::new(GAS_LIMIT),
+            gas_allowance_counter: GasAllowanceCounter::new(GAS_LIMIT),
+            gas_reserver: GasReserver::new(&dispatch, Default::default(), 256),
+            dispatch,
+            balance: 0,
+            program,
+            memory_size: Default::default(),
+            syscall_kind: SyscallKind::Vara,
+        }
+    }
+
+    // Regression test for #3718: after an actor execution error the system
+    // reservation taken from the dispatch context must be unreserved.
+    #[test]
+    fn actor_execution_error_unreserves_system_reservation() {
+        let message_id = MessageId::from(MESSAGE_ID);
+        let program_id = ActorId::from(PROGRAM_ID);
+        let dispatch = woken_dispatch(Some(SYSTEM_RESERVATION));
+
+        let journal = process::<Ext<()>>(
+            &block_config(),
+            context_with_uninstantiable_code(dispatch),
+            (vec![0; 32], 0),
+        )
+        .expect("actor execution error must not be a system error");
+
+        // The program failed with an actor (environment) error.
+        assert!(journal.iter().any(|note| matches!(
+            note,
+            JournalNote::MessageDispatched {
+                message_id: id,
+                outcome: DispatchOutcome::MessageTrap { program_id: pid, .. },
+                ..
+            } if *id == message_id && *pid == program_id
+        )));
+
+        // The system reservation from the dispatch context is released ...
+        assert!(journal.iter().any(|note| matches!(
+            note,
+            JournalNote::SystemUnreserveGas { message_id: id } if *id == message_id
+        )));
+
+        // ... and, since a system reservation exists, a signal is sent.
+        assert!(journal.iter().any(|note| matches!(
+            note,
+            JournalNote::SendSignal {
+                message_id: id,
+                destination,
+                code: SignalCode::Execution(_),
+            } if *id == message_id && *destination == program_id
+        )));
+
+        // Nothing new was reserved by the failed execution.
+        assert!(
+            !journal
+                .iter()
+                .any(|note| matches!(note, JournalNote::SystemReserveGas { .. }))
+        );
+    }
+
+    #[test]
+    fn actor_execution_error_without_system_reservation_does_not_unreserve() {
+        let dispatch = woken_dispatch(None);
+
+        let journal = process::<Ext<()>>(
+            &block_config(),
+            context_with_uninstantiable_code(dispatch),
+            (vec![0; 32], 0),
+        )
+        .expect("actor execution error must not be a system error");
+
+        assert!(journal.iter().any(|note| matches!(
+            note,
+            JournalNote::MessageDispatched {
+                outcome: DispatchOutcome::MessageTrap { .. },
+                ..
+            }
+        )));
+        assert!(!journal.iter().any(|note| matches!(
+            note,
+            JournalNote::SystemUnreserveGas { .. } | JournalNote::SendSignal { .. }
+        )));
+    }
 }
