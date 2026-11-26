@@ -260,6 +260,7 @@ fn treasury_pool_operator_keeps_rewards_and_withdrawn_principal_in_treasury() {
     with_pool(|treasury, submitter, operator, delayed_operator| {
         let delay = 2;
         register(&treasury, &operator, OPERATOR, 0);
+        register(&treasury, &delayed_operator, ProxyType::Any, delay);
         register(&treasury, &delayed_operator, OPERATOR, delay);
         let reward_account = NominationPools::generate_reward_account(POOL);
         let bonded_account = NominationPools::generate_bonded_account(POOL);
@@ -277,12 +278,12 @@ fn treasury_pool_operator_keeps_rewards_and_withdrawn_principal_in_treasury() {
                 BlakeTwo256::hash_of(call),
             ));
         };
-        let submit = |call: RuntimeCall| {
+        let submit = |proxy_type, call: RuntimeCall| {
             Proxy::proxy_announced(
                 RuntimeOrigin::signed(submitter.clone()),
                 delayed_operator.clone().into(),
                 treasury.clone().into(),
-                Some(OPERATOR),
+                Some(proxy_type),
                 Box::new(call),
             )
         };
@@ -332,14 +333,21 @@ fn treasury_pool_operator_keeps_rewards_and_withdrawn_principal_in_treasury() {
         let eligible_at = System::block_number() + delay;
         System::set_block_number(eligible_at - 1);
         assert_noop!(
-            submit(claim.clone()),
+            submit(OPERATOR, claim.clone()),
             pallet_proxy::Error::<Runtime>::Unannounced,
         );
         System::set_block_number(eligible_at);
-        assert_ok!(submit(claim.clone()));
+        assert_noop!(
+            submit(ProxyType::NonTransfer, claim.clone()),
+            pallet_proxy::Error::<Runtime>::NotProxy,
+        );
+        assert_ok!(submit(OPERATOR, claim.clone()));
         assert_proxy_executed(Err(frame_system::Error::<Runtime>::CallFiltered.into()));
         assert_announcement_released();
-        assert_noop!(submit(claim), pallet_proxy::Error::<Runtime>::Unannounced);
+        assert_noop!(
+            submit(OPERATOR, claim),
+            pallet_proxy::Error::<Runtime>::Unannounced,
+        );
         assert_eq!(PoolMembers::<Runtime>::get(&treasury), member_before);
         assert_eq!(Balances::free_balance(&reward_account), rewards_before);
         assert_eq!(Balances::free_balance(&treasury), treasury_before);
@@ -394,7 +402,7 @@ fn treasury_pool_operator_keeps_rewards_and_withdrawn_principal_in_treasury() {
         pallet_staking::CurrentEra::<Runtime>::put(maturity);
         announce(&withdraw);
         System::set_block_number(System::block_number() + delay);
-        assert_ok!(submit(withdraw));
+        assert_ok!(submit(OPERATOR, withdraw));
         assert_proxy_executed(Ok(()));
         assert!(PoolMembers::<Runtime>::get(&treasury).is_none());
         assert_eq!(Balances::free_balance(&bonded_account), BOND);
