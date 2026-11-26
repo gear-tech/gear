@@ -54,6 +54,7 @@ use sp_runtime::{
     traits::{
         AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
         DispatchInfoOf, Dispatchable, IdentityLookup, Keccak256, NumberFor, One, SignedExtension,
+        StaticLookup,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 };
@@ -1088,6 +1089,9 @@ pub enum ProxyType {
     Staking,
     IdentityJudgement,
     CancelProxy,
+    /// Operate an existing pool position. Assign only from the treasury account.
+    #[codec(index = 6)]
+    TreasuryPoolOperator,
 }
 
 impl From<BuiltinProxyType> for ProxyType {
@@ -1145,6 +1149,19 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
                     c,
                     RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. })
                 )
+            }
+            ProxyType::TreasuryPoolOperator => {
+                use pallet_nomination_pools::Call;
+
+                match c {
+                    RuntimeCall::NominationPools(Call::bond_extra { .. }) => true,
+                    RuntimeCall::NominationPools(
+                        Call::unbond { member_account, .. }
+                        | Call::withdraw_unbonded { member_account, .. },
+                    ) => <Runtime as frame_system::Config>::Lookup::lookup(member_account.clone())
+                        .is_ok_and(|account| account == Treasury::account_id()),
+                    _ => false,
+                }
             }
         }
     }
