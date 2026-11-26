@@ -369,6 +369,8 @@ fn tokens_locking_works() {
         });
 }
 
+mod treasury_v6_legacy;
+
 #[test]
 fn treasury_surplus_is_not_burned() {
     init_logger();

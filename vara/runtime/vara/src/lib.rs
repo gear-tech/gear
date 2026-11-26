@@ -219,10 +219,23 @@ parameter_types! {
 
 // Configure FRAME pallets to include in runtime.
 
+pub struct TreasuryCallFilter;
+
+impl Contains<RuntimeCall> for TreasuryCallFilter {
+    fn contains(call: &RuntimeCall) -> bool {
+        // Root can still exercise emergency governance authority, including through Whitelist.
+        !matches!(
+            call,
+            RuntimeCall::Treasury(pallet_treasury::Call::spend_local { .. })
+                | RuntimeCall::Bounties(pallet_bounties::Call::approve_bounty { .. })
+        )
+    }
+}
+
 #[derive_impl(frame_system::config_preludes::SolochainDefaultConfig)]
 impl frame_system::Config for Runtime {
     /// The basic call filter to use in dispatchable.
-    type BaseCallFilter = Everything;
+    type BaseCallFilter = TreasuryCallFilter;
     /// Block & extrinsics weights: base values and limits.
     type BlockWeights = RuntimeBlockWeights;
     /// The maximum length of a block (in bytes).
