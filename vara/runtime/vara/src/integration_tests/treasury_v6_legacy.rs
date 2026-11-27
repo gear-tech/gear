@@ -269,9 +269,9 @@ fn root_and_whitelist_enact_legacy_calls_and_existing_approvals_are_funded() {
         assert!(!pallet_staking::Bonded::<Runtime>::contains_key(
             Treasury::account_id()
         ));
-        assert!(!pallet_nomination_pools::PoolMembers::<Runtime>::contains_key(
-            Treasury::account_id()
-        ));
+        assert!(
+            !pallet_nomination_pools::PoolMembers::<Runtime>::contains_key(Treasury::account_id())
+        );
         let period = SpendPeriod::get();
         System::set_block_number(period);
         Treasury::on_initialize(period);
