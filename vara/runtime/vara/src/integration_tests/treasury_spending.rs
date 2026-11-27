@@ -266,6 +266,12 @@ fn root_and_whitelist_enact_legacy_calls_and_existing_approvals_are_funded() {
         assert!(Balances::reserved_balance(AccountKeyring::Alice.to_account_id()) > 0);
         let bounty_value = BountyValueMinimum::get();
         fund_treasury(3 * (AMOUNT + bounty_value));
+        assert!(!pallet_staking::Bonded::<Runtime>::contains_key(
+            Treasury::account_id()
+        ));
+        assert!(!pallet_nomination_pools::PoolMembers::<Runtime>::contains_key(
+            Treasury::account_id()
+        ));
         let period = SpendPeriod::get();
         System::set_block_number(period);
         Treasury::on_initialize(period);
@@ -297,6 +303,36 @@ fn root_and_whitelist_enact_legacy_calls_and_existing_approvals_are_funded() {
         ));
         assert!(!pallet_bounties::Bounties::<Runtime>::contains_key(0));
         assert_eq!(Treasury::pot(), bounty_value);
+    });
+}
+
+#[test]
+fn staking_lock_prevents_debit_for_legacy_treasury_settlement() {
+    ext().execute_with(|| {
+        let treasury = Treasury::account_id();
+        fund_treasury(AMOUNT);
+        assert_ok!(Staking::bond(
+            RuntimeOrigin::signed(treasury.clone()),
+            AMOUNT,
+            pallet_staking::RewardDestination::Staked,
+        ));
+        assert_ok!(Treasury::spend_local(
+            spender(),
+            AMOUNT,
+            MultiAddress::Id(beneficiary()),
+        ));
+        let issuance = Balances::total_issuance();
+        let treasury_balance = Balances::free_balance(&treasury);
+        let period = SpendPeriod::get();
+        System::set_block_number(period);
+        Treasury::on_initialize(period);
+
+        // Legacy settlement credits the beneficiary before trying to debit the locked pot.
+        assert_eq!(Balances::free_balance(beneficiary()), AMOUNT);
+        assert_eq!(Balances::free_balance(&treasury), treasury_balance);
+        assert_eq!(Balances::total_issuance(), issuance + AMOUNT);
+        assert!(Treasury::approvals().is_empty());
+        assert!(Treasury::proposals(0).is_none());
     });
 }
 
@@ -372,6 +408,13 @@ fn modern_payout_can_retry_after_funding_but_pays_only_once() {
         assert_noop!(
             dispatch(payout(), signed()),
             TreasuryError::<Runtime>::AlreadyAttempted
+        );
+        assert_noop!(
+            dispatch(
+                RuntimeCall::Treasury(TreasuryCall::void_spend { index: 0 }),
+                CustomOrigin::Treasurer.into(),
+            ),
+            TreasuryError::<Runtime>::AlreadyAttempted,
         );
         assert_ok!(dispatch(status(), signed()));
         System::assert_last_event(RuntimeEvent::Treasury(TreasuryEvent::SpendProcessed {
