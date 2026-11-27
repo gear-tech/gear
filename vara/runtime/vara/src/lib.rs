@@ -1092,6 +1092,9 @@ pub enum ProxyType {
     /// Operate an existing pool position. Assign only from the treasury account.
     #[codec(index = 6)]
     TreasuryPoolOperator,
+    /// Withdraw mature nomination pool funds for the treasury member.
+    #[codec(index = 7)]
+    TreasuryPoolWithdraw,
 }
 
 impl From<BuiltinProxyType> for ProxyType {
@@ -1150,16 +1153,19 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
                     RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. })
                 )
             }
-            ProxyType::TreasuryPoolOperator => {
+            ProxyType::TreasuryPoolOperator | ProxyType::TreasuryPoolWithdraw => {
                 use pallet_nomination_pools::Call;
 
-                match c {
-                    RuntimeCall::NominationPools(Call::bond_extra { .. }) => true,
-                    RuntimeCall::NominationPools(
-                        Call::unbond { member_account, .. }
-                        | Call::withdraw_unbonded { member_account, .. },
-                    ) => <Runtime as frame_system::Config>::Lookup::lookup(member_account.clone())
-                        .is_ok_and(|account| account == Treasury::account_id()),
+                let RuntimeCall::NominationPools(call) = c else {
+                    return false;
+                };
+                match (self, call) {
+                    (ProxyType::TreasuryPoolOperator, Call::bond_extra { .. }) => true,
+                    (ProxyType::TreasuryPoolOperator, Call::unbond { member_account, .. })
+                    | (_, Call::withdraw_unbonded { member_account, .. }) => {
+                        <Runtime as frame_system::Config>::Lookup::lookup(member_account.clone())
+                            .is_ok_and(|account| account == Treasury::account_id())
+                    }
                     _ => false,
                 }
             }
@@ -1171,6 +1177,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
             (ProxyType::Any, _) => true,
             (_, ProxyType::Any) => false,
             (ProxyType::NonTransfer, _) => true,
+            (ProxyType::TreasuryPoolOperator, ProxyType::TreasuryPoolWithdraw) => true,
             _ => false,
         }
     }
