@@ -24,7 +24,7 @@ pub mod pallet_custom_origins {
     pub enum Origin {
         /// Origin for cancelling slashes and managing election provider.
         StakingAdmin,
-        /// Origin for spending (any amount of) funds.
+        /// Origin able to spend up to 100,000,000 VARA from the treasury at once.
         Treasurer,
         /// Origin for managing the composition of the fellowship.
         FellowshipAdmin,
@@ -38,11 +38,11 @@ pub mod pallet_custom_origins {
         SmallTipper,
         /// Origin able to spend up to 5,000 VARA from the treasury at once.
         BigTipper,
-        /// Origin able to spend up to 50,000 VARA from the treasury at once.
-        SmallSpender,
         /// Origin able to spend up to 500,000 VARA from the treasury at once.
+        SmallSpender,
+        /// Origin able to spend up to 10,000,000 VARA from the treasury at once.
         MediumSpender,
-        /// Origin able to spend up to 5,000,000 VARA from the treasury at once.
+        /// Origin able to spend up to 50,000,000 VARA from the treasury at once.
         BigSpender,
         /// Origin able to dispatch a whitelisted call.
         WhitelistedCaller,
@@ -155,10 +155,10 @@ pub mod pallet_custom_origins {
         pub type Spender: EnsureOrigin<Success = Balance> {
             SmallTipper = 1_000 * UNITS,
             BigTipper = 5_000 * UNITS,
-            SmallSpender = 50_000 * UNITS,
-            MediumSpender = 500_000 * UNITS,
-            BigSpender = 5_000_000 * UNITS,
-            Treasurer = 50_000_000 * UNITS, // TODO: do we need to limit `Treasurer`'s spending?
+            SmallSpender = 500_000 * UNITS,
+            MediumSpender = 10_000_000 * UNITS,
+            BigSpender = 50_000_000 * UNITS,
+            Treasurer = 100_000_000 * UNITS,
         }
     }
 
@@ -174,5 +174,55 @@ pub mod pallet_custom_origins {
             Fellowship8Dan = 8,
             Fellowship9Dan = 9,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Origin;
+    use crate::{
+        Balance, Runtime, RuntimeCall, RuntimeOrigin, System, UNITS, governance::TracksInfo,
+    };
+    use frame_support::{assert_noop, assert_ok, traits::OriginTrait};
+    use pallet_referenda::TracksInfo as _;
+    use parity_scale_codec::Encode;
+    use sp_keyring::AccountKeyring;
+    use sp_runtime::traits::Dispatchable;
+
+    #[test]
+    fn treasury_v6_spend_caps_preserve_origins_and_tracks() {
+        sp_io::TestExternalities::default().execute_with(|| {
+            System::set_block_number(1);
+            let spend = |amount| {
+                RuntimeCall::Treasury(pallet_treasury::Call::spend {
+                    asset_kind: Box::new(()),
+                    amount,
+                    beneficiary: Box::new(AccountKeyring::Alice.to_account_id()),
+                    valid_from: None,
+                })
+            };
+            for (origin, codec_index, track_id, cap) in [
+                (Origin::SmallTipper, 6, 30, 1_000),
+                (Origin::BigTipper, 7, 31, 5_000),
+                (Origin::SmallSpender, 8, 32, 500_000),
+                (Origin::MediumSpender, 9, 33, 10_000_000),
+                (Origin::BigSpender, 10, 34, 50_000_000),
+                (Origin::Treasurer, 1, 11, 100_000_000),
+            ] {
+                assert_eq!(origin.encode(), [codec_index]);
+                let origin: RuntimeOrigin = origin.into();
+                assert_eq!(TracksInfo::track_for(origin.caller()), Ok(track_id));
+                assert_ok!(spend(1).dispatch(origin.clone()));
+                assert_ok!(spend(cap * UNITS - 1).dispatch(origin.clone()));
+                assert_ok!(spend(cap * UNITS).dispatch(origin.clone()));
+                assert_noop!(
+                    spend(cap * UNITS + 1).dispatch(origin),
+                    pallet_treasury::Error::<Runtime>::InsufficientPermission
+                );
+            }
+            let root = RuntimeOrigin::root();
+            assert_eq!(TracksInfo::track_for(root.caller()), Ok(0));
+            assert_ok!(spend(Balance::MAX).dispatch(root));
+        });
     }
 }
