@@ -353,6 +353,30 @@ fn treasury_pool_operator_keeps_rewards_and_withdrawn_principal_in_treasury() {
         assert_eq!(Balances::free_balance(&treasury), treasury_before);
         assert_eq!(other_balances(), others_before);
 
+        let bonded_before = Balances::free_balance(&bonded_account);
+        let submitter_before = PoolMembers::<Runtime>::get(&submitter);
+        for denied in [
+            unbond(Address::Index(()), BOND),
+            unbond(submitter.clone().into(), BOND),
+            withdraw(Address::Index(())),
+            withdraw(submitter.clone().into()),
+            RuntimeCall::Utility(pallet_utility::Call::batch_all {
+                calls: vec![bond_extra()],
+            }),
+        ] {
+            announce(&denied);
+            System::set_block_number(System::block_number() + delay);
+            assert_ok!(submit(OPERATOR, denied));
+            assert_proxy_executed(Err(frame_system::Error::<Runtime>::CallFiltered.into()));
+            assert_announcement_released();
+            assert_eq!(PoolMembers::<Runtime>::get(&treasury), member_before);
+            assert_eq!(PoolMembers::<Runtime>::get(&submitter), submitter_before);
+            assert_eq!(Balances::free_balance(&treasury), treasury_before);
+            assert_eq!(Balances::free_balance(&bonded_account), bonded_before);
+            assert_eq!(Balances::free_balance(&reward_account), rewards_before);
+            assert_eq!(other_balances(), others_before);
+        }
+
         assert_ok!(proxy(&treasury, &operator, OPERATOR, bond_extra()));
         assert_proxy_executed(Ok(()));
         assert_eq!(
