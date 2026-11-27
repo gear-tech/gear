@@ -328,3 +328,46 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
     }
 }
 pallet_referenda::impl_tracksinfo_get!(TracksInfo, Balance, BlockNumber);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sp_runtime::Perbill;
+
+    #[test]
+    fn treasury_tracks_curves_are_monotone_and_inclusive() {
+        for (id, track) in TRACKS_DATA {
+            let period = track.decision_period;
+            assert!(period > 0, "track {id} has no decision period");
+            for (name, curve) in [
+                ("approval", track.min_approval),
+                ("support", track.min_support),
+            ] {
+                let mut previous = Perbill::one();
+                for elapsed in 0..=period {
+                    let progress = Perbill::from_rational(elapsed, period);
+                    let threshold = curve.threshold(progress);
+                    assert!(
+                        threshold <= previous,
+                        "track {id} {name} threshold rose at block {elapsed}",
+                    );
+                    previous = threshold;
+                }
+                for elapsed in [0, period / 2, period] {
+                    let progress = Perbill::from_rational(elapsed, period);
+                    let threshold = curve.threshold(progress);
+                    assert!(
+                        curve.passing(progress, threshold),
+                        "track {id} {name} rejected equality at block {elapsed}",
+                    );
+                    if let Some(below) = threshold.deconstruct().checked_sub(1) {
+                        assert!(
+                            !curve.passing(progress, Perbill::from_parts(below)),
+                            "track {id} {name} accepted one part below at block {elapsed}",
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
