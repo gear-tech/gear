@@ -54,6 +54,7 @@ use sp_runtime::{
     traits::{
         AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
         DispatchInfoOf, Dispatchable, IdentityLookup, Keccak256, NumberFor, One, SignedExtension,
+        StaticLookup,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 };
@@ -219,10 +220,23 @@ parameter_types! {
 
 // Configure FRAME pallets to include in runtime.
 
+pub struct TreasuryCallFilter;
+
+impl Contains<RuntimeCall> for TreasuryCallFilter {
+    fn contains(call: &RuntimeCall) -> bool {
+        // Root can still exercise emergency governance authority, including through Whitelist.
+        !matches!(
+            call,
+            RuntimeCall::Treasury(pallet_treasury::Call::spend_local { .. })
+                | RuntimeCall::Bounties(pallet_bounties::Call::approve_bounty { .. })
+        )
+    }
+}
+
 #[derive_impl(frame_system::config_preludes::SolochainDefaultConfig)]
 impl frame_system::Config for Runtime {
     /// The basic call filter to use in dispatchable.
-    type BaseCallFilter = Everything;
+    type BaseCallFilter = TreasuryCallFilter;
     /// Block & extrinsics weights: base values and limits.
     type BlockWeights = RuntimeBlockWeights;
     /// The maximum length of a block (in bytes).
@@ -1075,6 +1089,12 @@ pub enum ProxyType {
     Staking,
     IdentityJudgement,
     CancelProxy,
+    /// Operate an existing pool position. Assign only from the treasury account.
+    #[codec(index = 6)]
+    TreasuryPoolOperator,
+    /// Withdraw mature nomination pool funds for the treasury member.
+    #[codec(index = 7)]
+    TreasuryPoolWithdraw,
 }
 
 impl From<BuiltinProxyType> for ProxyType {
@@ -1133,6 +1153,22 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
                     RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. })
                 )
             }
+            ProxyType::TreasuryPoolOperator | ProxyType::TreasuryPoolWithdraw => {
+                use pallet_nomination_pools::Call;
+
+                let RuntimeCall::NominationPools(call) = c else {
+                    return false;
+                };
+                match (self, call) {
+                    (ProxyType::TreasuryPoolOperator, Call::bond_extra { .. }) => true,
+                    (ProxyType::TreasuryPoolOperator, Call::unbond { member_account, .. })
+                    | (_, Call::withdraw_unbonded { member_account, .. }) => {
+                        <Runtime as frame_system::Config>::Lookup::lookup(member_account.clone())
+                            .is_ok_and(|account| account == Treasury::account_id())
+                    }
+                    _ => false,
+                }
+            }
         }
     }
     fn is_superset(&self, o: &Self) -> bool {
@@ -1141,6 +1177,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
             (ProxyType::Any, _) => true,
             (_, ProxyType::Any) => false,
             (ProxyType::NonTransfer, _) => true,
+            (ProxyType::TreasuryPoolOperator, ProxyType::TreasuryPoolWithdraw) => true,
             _ => false,
         }
     }
