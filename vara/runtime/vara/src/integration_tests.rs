@@ -20,7 +20,7 @@ use sp_core::{Pair, ecdsa, ed25519, sr25519};
 use sp_keyring::AccountKeyring;
 use sp_runtime::{BuildStorage, Digest, DigestItem};
 
-mod treasury_v6_operator;
+mod treasury_pool_proxy;
 
 const ENDOWMENT: u128 = 100_000 * UNITS;
 const STASH: u128 = 1_000 * UNITS;
@@ -371,7 +371,7 @@ fn tokens_locking_works() {
         });
 }
 
-mod treasury_v6_legacy;
+mod treasury_spending;
 
 #[test]
 fn treasury_surplus_is_not_burned() {

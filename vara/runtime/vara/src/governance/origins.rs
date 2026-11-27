@@ -190,7 +190,7 @@ mod tests {
     use sp_runtime::traits::Dispatchable;
 
     #[test]
-    fn treasury_v6_spend_caps_preserve_origins_and_tracks() {
+    fn treasury_spend_limits_match_origins_and_tracks() {
         sp_io::TestExternalities::default().execute_with(|| {
             System::set_block_number(1);
             let spend = |amount| {
