@@ -200,11 +200,15 @@ fn withdraw(member_account: Address) -> RuntimeCall {
 }
 
 #[test]
-fn treasury_pool_operator_filters_calls_and_force_selects_exactly() {
-    with_pool(|treasury, depositor, operator, _| {
+fn treasury_pool_proxies_filter_calls_and_force_select_exactly() {
+    with_pool(|treasury, depositor, operator, delayed_operator| {
         register(&treasury, &operator, ProxyType::Any, 0);
         register(&treasury, &operator, OPERATOR, 0);
         register(&treasury, &operator, WITHDRAW, 0);
+        let delay = 2;
+        for role in [ProxyType::Any, OPERATOR, WITHDRAW] {
+            register(&treasury, &delayed_operator, role, delay);
+        }
 
         let state = || {
             (
@@ -218,6 +222,40 @@ fn treasury_pool_operator_filters_calls_and_force_selects_exactly() {
             )
         };
         let before = state();
+        let held = Balances::reserved_balance(&delayed_operator);
+        let assert_denied = |role, call: RuntimeCall| {
+            let filtered = Err(frame_system::Error::<Runtime>::CallFiltered.into());
+            assert_ok!(proxy(&treasury, &operator, role, call.clone()));
+            assert_proxy_executed(filtered);
+            assert_eq!(state(), before);
+
+            assert_ok!(Proxy::announce(
+                RuntimeOrigin::signed(delayed_operator.clone()),
+                treasury.clone().into(),
+                BlakeTwo256::hash_of(&call),
+            ));
+            System::set_block_number(System::block_number() + delay);
+            let submit = |proxy_type, call| {
+                Proxy::proxy_announced(
+                    RuntimeOrigin::signed(operator.clone()),
+                    delayed_operator.clone().into(),
+                    treasury.clone().into(),
+                    Some(proxy_type),
+                    Box::new(call),
+                )
+            };
+            assert_noop!(
+                submit(ProxyType::NonTransfer, call.clone()),
+                pallet_proxy::Error::<Runtime>::NotProxy,
+            );
+            assert_ok!(submit(role, call));
+            assert_proxy_executed(filtered);
+            let (pending, deposit) = Proxy::announcements(delayed_operator.clone());
+            assert!(pending.is_empty());
+            assert_eq!(deposit, 0);
+            assert_eq!(Balances::reserved_balance(&delayed_operator), held);
+            assert_eq!(state(), before);
+        };
         for call in [
             unbond(depositor.clone().into(), BOND),
             unbond(Address::Index(()), BOND),
@@ -278,15 +316,17 @@ fn treasury_pool_operator_filters_calls_and_force_selects_exactly() {
             RuntimeCall::Proxy(pallet_proxy::Call::remove_proxies {}),
         ] {
             for role in [WITHDRAW, OPERATOR] {
-                assert_ok!(proxy(&treasury, &operator, role, call.clone()));
-                assert_proxy_executed(Err(frame_system::Error::<Runtime>::CallFiltered.into()));
-                assert_eq!(state(), before);
+                assert_denied(role, call.clone());
             }
         }
-        for call in [bond_extra(), unbond(treasury.clone().into(), BOND)] {
-            assert_ok!(proxy(&treasury, &operator, WITHDRAW, call));
-            assert_proxy_executed(Err(frame_system::Error::<Runtime>::CallFiltered.into()));
-            assert_eq!(state(), before);
+        for call in [
+            bond_extra(),
+            RuntimeCall::NominationPools(pools::Call::bond_extra {
+                extra: BondExtra::Rewards,
+            }),
+            unbond(treasury.clone().into(), BOND),
+        ] {
+            assert_denied(WITHDRAW, call);
         }
 
         let remark =
@@ -608,4 +648,117 @@ fn treasury_pool_withdraw_releases_only_mature_depositor_funds_and_can_be_revoke
             assert!(member.unbonding_eras.is_empty());
         });
     }
+}
+
+#[test]
+fn treasury_pool_withdraw_redeems_slashed_points_to_treasury() {
+    with_pool(|treasury, submitter, operator, bot| {
+        register(&treasury, &operator, OPERATOR, 0);
+        register(&treasury, &bot, WITHDRAW, 0);
+        assert_ok!(proxy(
+            &treasury,
+            &operator,
+            OPERATOR,
+            unbond(treasury.clone().into(), BOND),
+        ));
+        assert_proxy_executed(Ok(()));
+
+        let bonded = NominationPools::generate_bonded_account(POOL);
+        let mut imbalance = Default::default();
+        pallet_staking::slashing::do_slash::<Runtime>(&bonded, BOND, &mut 0, &mut imbalance, 0);
+        drop(imbalance);
+        let maturity = BondingDuration::get();
+        System::assert_has_event(RuntimeEvent::NominationPools(pools::Event::UnbondingPoolSlashed {
+            era: maturity,
+            pool_id: POOL,
+            balance: BOND / 2,
+        }));
+        let member = PoolMembers::<Runtime>::get(&treasury).unwrap();
+        assert_eq!(member.unbonding_eras.get(&maturity), Some(&BOND));
+        let balances = || {
+            (
+                Balances::free_balance(&treasury),
+                Balances::free_balance(&bonded),
+                Balances::free_balance(&bot),
+                Balances::free_balance(&submitter),
+            )
+        };
+        let (liquid, bonded_balance, bot_balance, submitter_balance) = balances();
+        pallet_staking::CurrentEra::<Runtime>::put(maturity);
+        assert_ok!(NominationPools::pool_withdraw_unbonded(
+            RuntimeOrigin::signed(submitter.clone()),
+            POOL,
+            0,
+        ));
+        assert_eq!(PoolMembers::<Runtime>::get(&treasury), Some(member));
+        assert_eq!(balances(), (liquid, bonded_balance, bot_balance, submitter_balance));
+
+        assert_ok!(proxy(
+            &treasury,
+            &bot,
+            WITHDRAW,
+            withdraw(treasury.clone().into()),
+        ));
+        assert_proxy_executed(Ok(()));
+        assert_eq!(
+            balances(),
+            (liquid + BOND / 2, bonded_balance - BOND / 2, bot_balance, submitter_balance),
+        );
+        assert!(!PoolMembers::<Runtime>::contains_key(&treasury));
+    });
+}
+
+#[test]
+fn treasury_pool_operator_can_compound_and_direct_claims_follow_member_permissions() {
+    with_pool(|treasury, depositor, operator, bot| {
+        register(&treasury, &operator, OPERATOR, 0);
+        let treasury_origin = RuntimeOrigin::signed(treasury.clone());
+        let bot_origin = RuntimeOrigin::signed(bot.clone());
+        let reward_account = NominationPools::generate_reward_account(POOL);
+        assert_ok!(Balances::transfer_keep_alive(
+            RuntimeOrigin::signed(depositor),
+            reward_account.clone().into(),
+            4 * BOND,
+        ));
+        assert_ok!(NominationPools::set_claim_permission(
+            treasury_origin.clone(),
+            pools::ClaimPermission::Permissioned,
+        ));
+        assert_noop!(
+            NominationPools::claim_payout_other(bot_origin.clone(), treasury.clone()),
+            pools::Error::<Runtime>::DoesNotHavePermission,
+        );
+
+        let treasury_balance = Balances::free_balance(&treasury);
+        let bot_balance = Balances::free_balance(&bot);
+        let operator_balance = Balances::free_balance(&operator);
+        assert_ok!(proxy(
+            &treasury,
+            &operator,
+            OPERATOR,
+            RuntimeCall::NominationPools(pools::Call::bond_extra {
+                extra: BondExtra::Rewards,
+            }),
+        ));
+        assert_proxy_executed(Ok(()));
+        assert_eq!(PoolMembers::<Runtime>::get(&treasury).unwrap().points, 3 * BOND);
+        assert_eq!(Balances::free_balance(&treasury), treasury_balance);
+        assert_eq!(Balances::free_balance(&operator), operator_balance);
+
+        // Treasury now owns three quarters of the pool points.
+        assert_ok!(Balances::transfer_keep_alive(
+            RuntimeOrigin::signed(operator.clone()),
+            reward_account.into(),
+            4 * BOND,
+        ));
+        assert_ok!(NominationPools::set_claim_permission(
+            treasury_origin,
+            pools::ClaimPermission::PermissionlessWithdraw,
+        ));
+        assert_ok!(NominationPools::claim_payout_other(bot_origin, treasury.clone()));
+        assert_eq!(Balances::free_balance(&treasury), treasury_balance + 3 * BOND);
+        assert_eq!(Balances::free_balance(&bot), bot_balance);
+        assert_eq!(Balances::free_balance(&operator), operator_balance - 4 * BOND);
+        assert_eq!(NominationPools::api_pending_rewards(treasury), Some(0));
+    });
 }
