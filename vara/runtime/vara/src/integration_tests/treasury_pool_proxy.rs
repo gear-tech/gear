@@ -485,23 +485,29 @@ fn treasury_pool_withdraw_releases_only_mature_depositor_funds_and_can_be_revoke
             register(&treasury, &operator, OPERATOR, 0);
             register(&treasury, &bot, WITHDRAW, delay);
 
-            let bot_dispatch = |call: RuntimeCall| {
-                if delay == 0 {
-                    return proxy(&treasury, &bot, WITHDRAW, call);
-                }
-                assert_ok!(Proxy::announce(
+            let announce = |call: &RuntimeCall| {
+                Proxy::announce(
                     RuntimeOrigin::signed(bot.clone()),
                     treasury.clone().into(),
-                    BlakeTwo256::hash_of(&call),
-                ));
-                System::set_block_number(System::block_number() + delay);
-                let result = Proxy::proxy_announced(
+                    BlakeTwo256::hash_of(call),
+                )
+            };
+            let submit = |call| {
+                Proxy::proxy_announced(
                     RuntimeOrigin::signed(submitter.clone()),
                     bot.clone().into(),
                     treasury.clone().into(),
                     Some(WITHDRAW),
                     Box::new(call),
-                );
+                )
+            };
+            let bot_dispatch = |call: RuntimeCall| {
+                if delay == 0 {
+                    return proxy(&treasury, &bot, WITHDRAW, call);
+                }
+                assert_ok!(announce(&call));
+                System::set_block_number(System::block_number() + delay);
+                let result = submit(call);
                 let (pending, deposit) = Proxy::announcements(bot.clone());
                 assert!(pending.is_empty());
                 assert_eq!(deposit, 0);
@@ -563,6 +569,9 @@ fn treasury_pool_withdraw_releases_only_mature_depositor_funds_and_can_be_revoke
                 (liquid + BOND, bonded - BOND, bot_balance, submitter_balance)
             );
 
+            if delay > 0 {
+                assert_ok!(announce(&release()));
+            }
             assert_ok!(Proxy::remove_proxy(
                 RuntimeOrigin::signed(treasury.clone()),
                 bot.clone().into(),
@@ -570,20 +579,27 @@ fn treasury_pool_withdraw_releases_only_mature_depositor_funds_and_can_be_revoke
                 delay
             ));
             pallet_staking::CurrentEra::<Runtime>::put(maturity + 1);
-            assert_noop!(
-                proxy(&treasury, &bot, WITHDRAW, release()),
-                pallet_proxy::Error::<Runtime>::NotProxy
-            );
             // Removing the grant also releases its deposit into Treasury's free balance.
-            let after_revocation = Balances::free_balance(&treasury);
+            let after_revocation = balances();
+            if delay > 0 {
+                System::set_block_number(System::block_number() + delay);
+                assert_noop!(submit(release()), pallet_proxy::Error::<Runtime>::NotProxy);
+            } else {
+                assert_noop!(
+                    proxy(&treasury, &bot, WITHDRAW, release()),
+                    pallet_proxy::Error::<Runtime>::NotProxy
+                );
+            }
+            assert_eq!(balances(), after_revocation);
+            let (liquid_after_revocation, _, bot_after_announcement, _) = after_revocation;
             assert_ok!(proxy(&treasury, &operator, OPERATOR, release()));
             assert_proxy_executed(Ok(()));
             assert_eq!(
                 balances(),
                 (
-                    after_revocation + BOND,
+                    liquid_after_revocation + BOND,
                     bonded - 2 * BOND,
-                    bot_balance,
+                    bot_after_announcement,
                     submitter_balance
                 )
             );
